@@ -108,36 +108,10 @@ $pageScripts =
         <button id="btn-save-account" class="btn btn-primary btn-sm w-100 mt-3">저장</button>
       </div>
 
-      <!-- 대표 자격증 -->
+      <!-- 자격·교육 SSOT -->
       <div id="tab-certificate" class="tab-section" style="display:none;">
-        <label class="form-label">대표 자격증</label>
-        <div class="d-flex gap-3 align-items-start profile-cert-section">
-          <div class="text-center profile-cert-preview-box">
-            <div class="profile-file-preview-box" id="profile_cert_box" data-label="업로드">
-              <img id="profile_cert_preview"
-                src="/public/assets/img/placeholder-cert.png"
-                class="border rounded profile-file-preview-img">
-              <button type="button" id="certificate_file_delete_btn" class="btn btn-light border profile-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
-            </div>
-          </div>
-
-          <div class="flex-fill profile-cert-fields">
-            <input id="certificate_name"
-              class="form-control form-control-sm"
-              placeholder="예: 건축기사, 방수기능사">
-
-            <input type="file"
-              id="certificate_file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              hidden>
-            <input type="hidden"
-              id="certificate_file_delete"
-              name="certificate_file_delete"
-              value="0">
-          </div>
-        </div>
-
-        <button id="btn-save-certificate" class="btn btn-primary btn-sm w-100 mt-3">저장</button>
+        <div class="alert alert-light border mb-3">자격증과 교육 이력은 자격·교육관리 원장에서 통합 관리합니다.</div>
+        <a class="btn btn-primary btn-sm w-100" href="/institution/human-resources/qualification-education">자격·교육관리 열기</a>
       </div>
 
       <!-- 🔐 비밀번호 변경 -->

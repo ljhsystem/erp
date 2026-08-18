@@ -51,16 +51,9 @@ class SubChartAccountModel
                 continue;
             }
 
-            $refType = strtoupper(trim((string) ($row['ref_type'] ?? '')));
-            $subCode = strtoupper(trim((string) ($row['sub_code'] ?? $row['ref_target'] ?? '')));
-            if ($refType === 'REF_TARGET') {
-                $refType = $subCode;
-            }
-            if ($refType === '') {
-                $refType = $subCode;
-            }
-            if ($refType !== '') {
-                $required[] = $refType;
+            $refTarget = strtoupper(trim((string) ($row['ref_target'] ?? '')));
+            if ($refTarget !== '') {
+                $required[] = $refTarget;
             }
         }
 
@@ -72,6 +65,7 @@ class SubChartAccountModel
         $fields = [
             'id' => ':id',
             'account_id' => ':account_id',
+            'sort_no' => ':sort_no',
             'created_by' => ':created_by',
             'updated_by' => ':updated_by',
         ];
@@ -79,6 +73,7 @@ class SubChartAccountModel
         $params = [
             ':id' => $data['id'],
             ':account_id' => $data['account_id'],
+            ':sort_no' => max(1, (int) ($data['sort_no'] ?? $this->nextSortNo((string) $data['account_id']))),
             ':created_by' => $data['created_by'] ?? null,
             ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
         ];
@@ -120,6 +115,18 @@ class SubChartAccountModel
         ");
 
         return $stmt->execute($params);
+    }
+
+    public function nextSortNo(string $accountId): int
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(MAX(sort_no), 0) + 1
+            FROM ledger_accounts_sub
+            WHERE account_id = :account_id
+        ");
+        $stmt->execute([':account_id' => $accountId]);
+
+        return max(1, (int) $stmt->fetchColumn());
     }
 
     public function update(string $id, array $data): bool
@@ -198,6 +205,29 @@ class SubChartAccountModel
         return $stmt->execute($params);
     }
 
+    public function deleteForDeletedAccounts(): int
+    {
+        $stmt = $this->db->prepare("DELETE sa FROM ledger_accounts_sub sa INNER JOIN ledger_accounts a ON a.id = sa.account_id WHERE a.deleted_at IS NOT NULL");
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
+
+    public function deleteByAccountIds(array $accountIds): int
+    {
+        $accountIds = array_values(array_unique(array_filter(array_map('strval', $accountIds))));
+        if ($accountIds === []) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare(
+            'DELETE FROM ledger_accounts_sub WHERE account_id IN ('
+            . implode(',', array_fill(0, count($accountIds), '?'))
+            . ')'
+        );
+        $stmt->execute($accountIds);
+        return $stmt->rowCount();
+    }
+
     public function findByAccountAndName(string $accountId, string $subName, ?string $subType = null): ?array
     {
         if (!$this->hasColumn('sub_name')) {
@@ -226,13 +256,11 @@ class SubChartAccountModel
 
     public function findByAccountAndSubCode(string $accountId, string $subCode, ?string $excludeId = null): ?array
     {
-        $targetColumn = $this->hasColumn('ref_target') ? 'ref_target' : 'sub_code';
-
         $sql = "
             SELECT id
             FROM ledger_accounts_sub
             WHERE account_id = :account_id
-              AND {$targetColumn} = :sub_code
+              AND ref_target = :sub_code
         ";
 
         $params = [
@@ -366,7 +394,7 @@ class SubChartAccountModel
             INNER JOIN ledger_accounts a
                 ON a.id = sa.account_id
             WHERE a.deleted_at IS NULL
-            ORDER BY a.sort_no ASC, a.account_code ASC, sa.sub_code ASC, sa.sub_name ASC
+            ORDER BY a.sort_no ASC, a.account_code ASC, sa.sort_no ASC, sa.ref_target ASC
         ");
 
         return $stmt?->fetchAll(PDO::FETCH_ASSOC) ?: [];

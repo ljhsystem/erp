@@ -10,8 +10,11 @@ use PDO;
 
 class EvidenceClientSyncService
 {
+    private ClientModel $clientModel;
+
     public function __construct(private PDO $pdo, private array $callbacks = [])
     {
+        $this->clientModel = new ClientModel($pdo);
     }
 
     public function syncTaxInvoiceEvidenceClientsFromSource(array $payload, string $evidenceId, string $dataType): array
@@ -53,15 +56,7 @@ class EvidenceClientSyncService
         $companyName = $this->call('cleanCompanyName', (string) ($party['company_name'] ?? ''));
         $ceoName = $this->nullableCleanString($party['ceo_name'] ?? null);
         $address = $this->nullableCleanString($party['address'] ?? null);
-        $stmt = $this->pdo->prepare("
-            SELECT id, client_name, company_name, ceo_name, address
-            FROM system_clients
-            WHERE business_number = :business_number
-              AND deleted_at IS NULL
-            LIMIT 1
-        ");
-        $stmt->execute([':business_number' => $businessNumber]);
-        $client = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $client = $this->clientModel->findActiveByBusinessNumber($businessNumber);
 
         if (!$client) {
             $clientId = UuidHelper::generate();
@@ -104,17 +99,9 @@ class EvidenceClientSyncService
             }
         }
         if ($updates !== []) {
-            $sets = [];
-            $params = [
-                ':id' => $clientId,
-                ':actor' => ActorHelper::user(),
-            ];
-            foreach ($updates as $field => $value) {
-                $sets[] = "{$field} = :{$field}";
-                $params[':' . $field] = $value;
-            }
-            $sql = 'UPDATE system_clients SET ' . implode(', ', $sets) . ', updated_at = NOW(), updated_by = :actor WHERE id = :id';
-            $this->pdo->prepare($sql)->execute($params);
+            $updates['updated_at'] = date('Y-m-d H:i:s');
+            $updates['updated_by'] = ActorHelper::user();
+            $this->clientModel->updateFields($clientId, $updates);
         }
 
         return $clientId;
@@ -326,15 +313,7 @@ class EvidenceClientSyncService
         $companyName = $this->call('cleanCompanyName', (string) ($party['company_name'] ?? ''));
 
         if ($businessNumber !== '') {
-            $stmt = $this->pdo->prepare('
-                SELECT *
-                FROM system_clients
-                WHERE business_number = :business_number
-                  AND deleted_at IS NULL
-                LIMIT 1
-            ');
-            $stmt->execute([':business_number' => $businessNumber]);
-            $client = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $client = $this->clientModel->findActiveByBusinessNumber($businessNumber);
             if ($client) {
                 return $client;
             }
@@ -351,25 +330,7 @@ class EvidenceClientSyncService
         ], static fn(string $value): bool => $value !== '')));
 
         if ($candidateNames !== []) {
-            $conditions = [];
-            $params = [];
-            foreach ($candidateNames as $index => $name) {
-                $clientParam = ':client_name_' . $index;
-                $companyParam = ':company_name_' . $index;
-                $conditions[] = "(client_name = {$clientParam} OR company_name = {$companyParam})";
-                $params[$clientParam] = $name;
-                $params[$companyParam] = $name;
-            }
-
-            $stmt = $this->pdo->prepare('
-                SELECT *
-                FROM system_clients
-                WHERE deleted_at IS NULL
-                  AND (' . implode(' OR ', $conditions) . ')
-                LIMIT 1
-            ');
-            $stmt->execute($params);
-            $client = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $client = $this->clientModel->findActiveByNames($candidateNames);
             if ($client) {
                 return $client;
             }
@@ -458,16 +419,7 @@ class EvidenceClientSyncService
         $updates['updated_at'] = date('Y-m-d H:i:s');
         $updates['updated_by'] = ActorHelper::user();
 
-        $set = [];
-        $params = [':id' => $clientId];
-        foreach ($updates as $column => $value) {
-            $param = ':' . $column;
-            $set[] = $column . ' = ' . $param;
-            $params[$param] = $value;
-        }
-
-        $stmt = $this->pdo->prepare('UPDATE system_clients SET ' . implode(', ', $set) . ' WHERE id = :id');
-        $stmt->execute($params);
+        $this->clientModel->updateFields($clientId, $updates);
     }
 
     private function taxInvoiceEvidenceParty(array $payload, string $role): ?array
@@ -501,14 +453,7 @@ class EvidenceClientSyncService
 
     private function insertEvidenceClientHistory(string $clientId, string $fieldName, string $oldValue, string $newValue, string $sourceType, string $evidenceId): void
     {
-        $this->ensureClientHistoryTable();
-        $stmt = $this->pdo->prepare("
-            INSERT INTO system_client_histories
-                (id, client_id, field_name, old_value, new_value, source_type, source_evidence_id, changed_at, changed_by)
-            VALUES
-                (:id, :client_id, :field_name, :old_value, :new_value, :source_type, :source_evidence_id, NOW(), :changed_by)
-        ");
-        $stmt->execute([
+        $this->clientModel->insertEvidenceHistory([
             ':id' => UuidHelper::generate(),
             ':client_id' => $clientId,
             ':field_name' => $fieldName,
@@ -518,34 +463,6 @@ class EvidenceClientSyncService
             ':source_evidence_id' => $evidenceId,
             ':changed_by' => ActorHelper::user(),
         ]);
-    }
-
-    private function ensureClientHistoryTable(): void
-    {
-        static $ensured = false;
-        if ($ensured) {
-            return;
-        }
-        $this->pdo->exec("
-            CREATE TABLE IF NOT EXISTS system_client_histories (
-                id CHAR(36) NOT NULL,
-                client_id VARCHAR(36) NOT NULL,
-                field_name VARCHAR(100) NOT NULL,
-                old_value TEXT NULL,
-                new_value TEXT NULL,
-                source_type VARCHAR(80) NULL,
-                source_evidence_id VARCHAR(36) NULL,
-                changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                changed_by VARCHAR(100) NULL,
-                PRIMARY KEY (id),
-                INDEX idx_client_changed_at (client_id, changed_at),
-                INDEX idx_source_evidence (source_evidence_id),
-                CONSTRAINT fk_system_client_histories_client
-                    FOREIGN KEY (client_id) REFERENCES system_clients (id)
-                    ON UPDATE RESTRICT ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-        ");
-        $ensured = true;
     }
 
     private function uniqueClientNameFromImportParty(array $party, ?string $excludeClientId = null): string
@@ -756,15 +673,7 @@ class EvidenceClientSyncService
             $params[':business_number'] = $businessNumber;
         }
 
-        $stmt = $this->pdo->prepare('
-            SELECT 1
-            FROM system_clients
-            WHERE ' . implode(' AND ', $where) . '
-            LIMIT 1
-        ');
-        $stmt->execute($params);
-
-        return (bool) $stmt->fetchColumn();
+        return $this->clientModel->hasDifferentActiveClientWithName($clientName, $businessNumber, $excludeClientId);
     }
 
     private function clientPartyNote(array $party): ?string
@@ -823,19 +732,7 @@ class EvidenceClientSyncService
             return;
         }
 
-        $stmt = $this->pdo->prepare('
-            INSERT INTO system_client_name_history
-                (id, client_id, old_company_name, new_company_name, changed_at, changed_by)
-            VALUES
-                (:id, :client_id, :old_company_name, :new_company_name, NOW(), :changed_by)
-        ');
-        $stmt->execute([
-            ':id' => UuidHelper::generate(),
-            ':client_id' => $clientId,
-            ':old_company_name' => $oldCompanyName,
-            ':new_company_name' => $newCompanyName,
-            ':changed_by' => ActorHelper::user(),
-        ]);
+        $this->clientModel->insertCompanyNameHistory($clientId, $oldCompanyName, $newCompanyName, ActorHelper::user());
     }
 
     private function clientNameHistoryTableExists(): bool
@@ -845,15 +742,7 @@ class EvidenceClientSyncService
             return $exists;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = DATABASE()
-              AND table_name = 'system_client_name_history'
-            LIMIT 1
-        ");
-        $stmt->execute();
-        $exists = (bool) $stmt->fetchColumn();
+        $exists = true;
 
         return $exists;
     }

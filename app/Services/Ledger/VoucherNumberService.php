@@ -2,15 +2,18 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\VoucherModel;
 use PDO;
 
 class VoucherNumberService
 {
     private VoucherNumberPolicy $policy;
+    private VoucherModel $voucherModel;
 
     public function __construct(private readonly PDO $pdo, ?VoucherNumberPolicy $policy = null)
     {
         $this->policy = $policy ?? new VoucherNumberPolicy();
+        $this->voucherModel = new VoucherModel($pdo);
     }
 
     public function change(string $voucherId, string $voucherNo, string $actor): array
@@ -38,19 +41,7 @@ class VoucherNumberService
 
         $this->pdo->beginTransaction();
         try {
-            $updateStmt = $this->pdo->prepare("
-                UPDATE ledger_vouchers
-                SET voucher_no = :voucher_no,
-                    updated_by = :updated_by,
-                    updated_at = NOW()
-                WHERE id = :id
-                  AND deleted_at IS NULL
-            ");
-            $updateStmt->execute([
-                ':voucher_no' => $nextNo,
-                ':updated_by' => $actor,
-                ':id' => $voucherId,
-            ]);
+            $this->voucherModel->updateVoucherNo($voucherId, $nextNo, $actor);
 
             $this->pdo->commit();
         } catch (\Throwable $e) {
@@ -70,15 +61,7 @@ class VoucherNumberService
 
     private function findVoucher(string $voucherId): array
     {
-        $stmt = $this->pdo->prepare("
-            SELECT id, voucher_no, status
-            FROM ledger_vouchers
-            WHERE id = :id
-              AND deleted_at IS NULL
-            LIMIT 1
-        ");
-        $stmt->execute([':id' => $voucherId]);
-        $voucher = $stmt->fetch(PDO::FETCH_ASSOC);
+        $voucher = $this->voucherModel->findActiveNumberState($voucherId);
 
         if (!$voucher) {
             throw new \RuntimeException('전표를 찾을 수 없습니다.');
@@ -89,19 +72,7 @@ class VoucherNumberService
 
     private function assertUnique(string $voucherId, string $voucherNo): void
     {
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM ledger_vouchers
-            WHERE voucher_no = :voucher_no
-              AND id <> :id
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([
-            ':voucher_no' => $voucherNo,
-            ':id' => $voucherId,
-        ]);
-
-        if ((int) $stmt->fetchColumn() > 0) {
+        if ($this->voucherModel->activeVoucherNoExists($voucherNo, $voucherId)) {
             throw new \RuntimeException('이미 사용 중인 전표번호입니다.');
         }
     }

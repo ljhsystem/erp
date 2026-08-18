@@ -22,10 +22,8 @@ use App\Services\Ledger\EvidenceTransactionContextService;
 use App\Services\Ledger\EvidenceTrashService;
 use App\Services\Ledger\EvidenceTypePolicyService;
 use App\Services\Ledger\EvidenceUploadParserService;
-use App\Services\Ledger\JournalLearningService;
 use App\Services\Ledger\SystemFieldService;
 use App\Services\Ledger\VoucherCreateService;
-use App\Services\Ledger\VoucherLearningService;
 use App\Services\Ledger\VoucherPolicyService;
 use App\Services\Ledger\VoucherService;
 use Core\DbPdo;
@@ -72,8 +70,6 @@ class EvidenceLifecycleController
     private ?VoucherPolicyService $voucherPolicyService = null;
     private ?VoucherCreateService $voucherCreateService = null;
     private ?VoucherService $voucherService = null;
-    private ?JournalLearningService $journalLearningService = null;
-    private ?VoucherLearningService $voucherLearningService = null;
     private ?EvidenceRuleEngineService $evidenceRuleEngineService = null;
     private ?array $ownCompanyProfile = null;
 
@@ -182,20 +178,14 @@ class EvidenceLifecycleController
                 fn(string $type): string => self::normalizeDataType($type),
                 fn(string $type): array => $this->evidenceTypePolicyService()->queryDataTypes($type),
                 fn(array $row): bool => $this->evidenceStatusHelperService()->hasActiveOutputForEvidenceRow($row),
-                function (array $ids, string $actor): void {
-                    $this->evidenceDeleteRestoreService()->softDeleteEvidenceProcessingByEvidenceIds($ids, $actor);
-                },
-                function (array $ids): void {
-                    $this->evidenceLinkHelperService()->softDeleteEvidenceLinksByEvidenceIds($ids);
-                },
+                function (array $ids, string $actor): void {},
+                function (array $ids): void {},
                 function (array $ids, string $actor, ?string $evidenceType): void {
                     $this->evidenceDeleteRestoreService()->softDeleteEvidenceBodyByEvidenceIds($ids, $actor, $evidenceType);
                 },
                 function (array $ids, string $actor): void {
                 },
-                function (array $ids, string $actor): void {
-                    $this->evidenceDeleteRestoreService()->restoreEvidenceProcessingByEvidenceIds($ids, $actor);
-                },
+                function (array $ids, string $actor): void {},
                 function (array $ids, string $actor, ?string $evidenceType): void {
                     $this->evidenceDeleteRestoreService()->restoreEvidenceBodyByEvidenceIds($ids, $actor, $evidenceType);
                 },
@@ -223,6 +213,7 @@ class EvidenceLifecycleController
                 fn(string $type): string => self::normalizeDataType($type),
                 fn(string $sourceType): string => $this->evidenceTypePolicyService()->normalizeImportSourceType($sourceType),
                 fn(string $sourceType): array => $this->evidenceTypePolicyService()->importTypesForSourceType($sourceType),
+                fn(string $type): array => $this->evidenceTypePolicyService()->queryDataTypes($type),
                 fn(string $dataType): string => $this->evidenceTypePolicyService()->sourceTypeForDataType($dataType),
                 fn(string $sourceType): string => $this->evidenceTypePolicyService()->sourceTypeLabel($sourceType),
                 fn(string $importType): string => $this->evidenceTypePolicyService()->importTypeLabel($importType),
@@ -385,14 +376,7 @@ class EvidenceLifecycleController
     private function evidenceLifecycleService(): EvidenceLifecycleService
     {
         if ($this->evidenceLifecycleService === null) {
-            $this->evidenceLifecycleService = new EvidenceLifecycleService($this->pdo, [
-                'deleteEvidencePurgeDependencies' => function (array $ids): void {
-                    $this->evidenceLinkHelperService()->deleteEvidencePurgeDependencies($ids);
-                },
-                'evidenceBodyTables' => fn(): array => $this->evidenceDeleteRestoreService()->evidenceBodyTables(),
-                'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
-                'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
-            ]);
+            $this->evidenceLifecycleService = new EvidenceLifecycleService($this->pdo);
         }
 
         return $this->evidenceLifecycleService;
@@ -516,9 +500,6 @@ class EvidenceLifecycleController
                 'resolveVoucherRefId' => fn(string $refType, string $value): ?string => $this->evidenceReferenceResolverService()->resolveVoucherRefId($refType, $value),
                 'resolveBankAccountId' => fn(string $value): ?string => $this->evidenceReferenceResolverService()->resolveBankAccountId($value),
                 'saveVoucher' => fn(array $payload): array => $this->voucherService()->save($payload),
-                'recordBankVoucherLearning' => function (string $transactionId, string $voucherId, array $evidence, array $lines, string $actor): void {
-                    $this->voucherLearningService()->recordBankVoucherLearning($transactionId, $voucherId, $evidence, $lines, $actor);
-                },
                 'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
                 'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
                 'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
@@ -536,34 +517,6 @@ class EvidenceLifecycleController
         }
 
         return $this->voucherService;
-    }
-
-    private function journalLearningService(): JournalLearningService
-    {
-        if ($this->journalLearningService === null) {
-            $this->journalLearningService = new JournalLearningService($this->pdo);
-        }
-
-        return $this->journalLearningService;
-    }
-
-    private function voucherLearningService(): VoucherLearningService
-    {
-        if ($this->voucherLearningService === null) {
-            $this->voucherLearningService = new VoucherLearningService(
-                $this->journalLearningService(),
-                $this->voucherPolicyService(),
-                $this->evidenceBusinessRefService(),
-                [
-                    'bankVoucherPaymentDirectionAndAmount' => fn(array $evidence): array => $this->voucherCreateService()->bankVoucherPaymentDirectionAndAmount($evidence),
-                    'businessUnitForUpload' => fn(array $row, string $dataType): string => $this->evidenceTypePolicyService()->businessUnitForUpload($row, $dataType),
-                    'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                    'transactionDirectionForStorage' => fn(string $direction, array $payload, string $dataType): string => $this->evidenceTypePolicyService()->transactionDirectionForStorage($direction, $payload, $dataType),
-                ]
-            );
-        }
-
-        return $this->voucherLearningService;
     }
 
     private function evidenceRuleEngineService(): EvidenceRuleEngineService

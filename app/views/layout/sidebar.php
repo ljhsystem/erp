@@ -53,12 +53,12 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/document/stats', '문서 통계', 'bi-bar-chart') ?></li>
         <?php elseif ($section === 'approval'): ?>
             <li><?= $link('/approval', '대시보드', 'bi-check2-square') ?></li>
+            <li><?= $link('/approval/personal-expense', '개인경비 신청', 'bi-wallet2') ?></li>
             <li><?= $link('/approval/write_expenditure', '지출결의서 작성', 'bi-receipt') ?></li>
             <li><?= $link('/approval/write_purchase_request', '구매요청서', 'bi-cart-plus') ?></li>
-            <li><?= $link('/approval/write_leave_request', '휴가요청서', 'bi-airplane') ?></li>
             <li><?= $link('/approval/write_trip_report', '출장보고서', 'bi-briefcase') ?></li>
             <li><?= $link('/approval/write_work_report', '업무보고서', 'bi-clipboard-data') ?></li>
-            <li><?= $link('/approval/status', '결재 현황', 'bi-hourglass-split') ?></li>
+            <li><?= $link('/approval/status', '결재함', 'bi-inbox') ?></li>
         <?php elseif ($section === 'ledger'): ?>
             <li><?= $link('/ledger', '대시보드', 'bi-journal-text') ?></li>
             <li>
@@ -74,7 +74,6 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <ul id="menu-ledger-data" class="collapse">
                     <li><?= $link('/ledger/data/evidence-metadata', '증빙정책', 'bi-database-gear') ?></li>
                     <li><?= $link('/ledger/data', '증빙원본', 'bi-clipboard-data') ?></li>
-                    <li><?= $link('/ledger/data/create', '생성센터', 'bi-database-check') ?></li>
                 </ul>
             </li>
             <li>
@@ -82,18 +81,15 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <ul id="menu-ledger-voucher" class="collapse">
                     <li><?= $link('/ledger/transactions/input', '거래입력', 'bi-pencil-square') ?></li>
                     <li><?= $link('/ledger/vouchers/input', '전표입력', 'bi-pencil-square') ?></li>
-                    <li><?= $link('/ledger/vouchers/review', '전표검토/승인', 'bi-check2-square') ?></li>
+                    <li><?= $link('/ledger/vouchers/review', '전표검토·전기', 'bi-check2-square') ?></li>
                 </ul>
             </li>
             <li>
                 <a href="#menu-ledger-funds" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-bank') ?><span>자금관리</span></a>
                 <ul id="menu-ledger-funds" class="collapse">
+                    <li><?= $link('/ledger/funds', '자금현황', 'bi-wallet2') ?></li>
                     <li><?= $link('/ledger/funds/account-transactions', '계좌별거래내역', 'bi-bank') ?></li>
-                    <li><?= $link('/ledger/funds/deposit-ledger', '예금출납장', 'bi-journal-check') ?></li>
-                    <li><?= $link('/ledger/funds/cash-ledger', '현금출납장', 'bi-cash-stack') ?></li>
                     <li><?= $link('/ledger/funds/daily-report', '자금일보', 'bi-calendar2-check') ?></li>
-                    <li><?= $link('/ledger/funds/account-balances', '계좌잔액현황', 'bi-wallet2') ?></li>
-                    <li><?= $link('/ledger/funds/unlinked-transactions', '미연결입출금', 'bi-link-45deg') ?></li>
                     <li><?= $link('/ledger/funds/payment-schedule', '지급예정현황', 'bi-calendar-range') ?></li>
                 </ul>
             </li>
@@ -144,11 +140,33 @@ $link = static function (string $href, string $label, string $iconClass, string 
             </li>
         <?php elseif ($section === 'institution'): ?>
             <li><?= $link('/institution', '대시보드', 'bi-building') ?></li>
-            <li><?= $link('/institution/tax_office', '세무서/국세청', 'bi-receipt') ?></li>
-            <li><?= $link('/institution/local_government', '지방자치단체/지방세관', 'bi-map') ?></li>
-            <li><?= $link('/institution/welfare_corp', '근로복지공단', 'bi-shield-check') ?></li>
-            <li><?= $link('/institution/health_insurance', '건강보험공단', 'bi-heart-pulse') ?></li>
-            <li><?= $link('/institution/pension', '국민연금공단', 'bi-safe') ?></li>
+            <li>
+                <a href="#menu-institution-human-resources" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-person-badge') ?><span>인사·노무관리</span></a>
+                <ul id="menu-institution-human-resources" class="collapse">
+                    <li><?= $link('/institution/human-resources/employment-contracts', '근로계약관리', 'bi-file-earmark-person') ?></li>
+                    <li><?= $link('/institution/human-resources/personnel-actions', '인사발령관리', 'bi-arrow-left-right') ?></li>
+                    <li><?= $link('/institution/human-resources/job-assignments', '직무·배치관리', 'bi-diagram-3') ?></li>
+                    <li><?= $link('/institution/human-resources/attendance', '근태관리', 'bi-clock') ?></li>
+                    <li><?= $link('/institution/human-resources/leave', '휴가관리', 'bi-calendar-check') ?></li>
+                    <li><?= $link('/institution/human-resources/qualification-education', '자격·교육관리', 'bi-mortarboard') ?></li>
+                    <li><?= $link('/institution/human-resources/performance-evaluations', '성과평가관리', 'bi-graph-up-arrow') ?></li>
+                    <li><?= $link('/institution/human-resources/compensation-incentives', '보상·인센티브관리', 'bi-award') ?></li>
+                    <li><?= $link('/institution/human-resources/employment-rules', '취업규칙·인사규정', 'bi-journal-check') ?></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#menu-institution-income-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-people') ?><span>소득자료관리</span></a>
+                <ul id="menu-institution-income-data" class="collapse">
+                    <li><?= $link('/institution/income-data/regular-employment', '상용근로소득', 'bi-person-vcard') ?></li>
+                    <li><?= $link('/institution/income-data/daily-employment', '일용근로소득', 'bi-calendar2-week') ?></li>
+                    <li><?= $link('/institution/income-data/business-income', '사업소득', 'bi-briefcase') ?></li>
+                </ul>
+            </li>
+            <li><?= $link('/institution/national-tax', '국세업무', 'bi-receipt') ?></li>
+            <li><?= $link('/institution/local-tax', '지방세업무', 'bi-map') ?></li>
+            <li><?= $link('/institution/social-insurance', '4대보험업무', 'bi-shield-check') ?></li>
+            <li><?= $link('/institution/tax-agent', '세무사업무', 'bi-person-workspace') ?></li>
+            <li><?= $link('/institution/filing-history', '신고이력', 'bi-clock-history') ?></li>
         <?php elseif ($section === 'site'): ?>
             <li><?= $link('/site', '대시보드', 'bi-speedometer2') ?></li>
             <li><?= $link('/site/estimate', '견적관리', 'bi-file-earmark-spreadsheet') ?></li>

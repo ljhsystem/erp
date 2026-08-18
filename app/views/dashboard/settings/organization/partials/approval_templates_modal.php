@@ -29,10 +29,31 @@
                     <textarea id="tpl-edit-desc" class="form-control" rows="3"></textarea>
                 </div>
 
-                <div class="form-check form-switch">
+                <div class="form-check form-switch approval-status-switch">
                     <input class="form-check-input" type="checkbox" id="tpl-edit-active">
                     <label class="form-check-label" for="tpl-edit-active">활성</label>
                 </div>
+
+                <section class="ui-form-card mt-3" id="tpl-system-info-card" aria-label="시스템 처리 정보">
+                    <button type="button" class="ui-form-card__toggle collapsed"
+                            data-ui-modal-card-collapse data-bs-target="#tplSystemInfoCollapse"
+                            aria-expanded="false" aria-controls="tplSystemInfoCollapse">
+                        <span class="ui-form-card__title">시스템 처리 정보</span>
+                        <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+                    </button>
+                    <div id="tplSystemInfoCollapse" class="collapse">
+                      <div class="ui-form-card__body">
+                        <div class="row g-3 small">
+                            <div class="col-8"><span class="text-muted d-block">ID</span><span id="tpl-info-id"></span></div>
+                            <div class="col-4"><span class="text-muted d-block">순번</span><span id="tpl-info-sort-no"></span></div>
+                            <div class="col-6"><span class="text-muted d-block">생성일시</span><span id="tpl-info-created-at"></span></div>
+                            <div class="col-6"><span class="text-muted d-block">생성자</span><span id="tpl-info-created-by"></span></div>
+                            <div class="col-6"><span class="text-muted d-block">수정일시</span><span id="tpl-info-updated-at"></span></div>
+                            <div class="col-6"><span class="text-muted d-block">수정자</span><span id="tpl-info-updated-by"></span></div>
+                        </div>
+                      </div>
+                    </div>
+                </section>
             </div>
 
             <div class="modal-footer">

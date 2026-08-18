@@ -4,6 +4,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\UserSettingService;
 use Core\DbPdo;
+use Core\Session;
 
 class UserSettingController
 {
@@ -17,6 +18,7 @@ class UserSettingController
     public function apiDetail(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $pageKey = trim((string) ($_GET['page_key'] ?? $_POST['page_key'] ?? ''));

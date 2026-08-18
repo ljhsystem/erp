@@ -19,10 +19,8 @@ use App\Services\Ledger\EvidenceTypePolicyService;
 use App\Services\Ledger\EvidenceUploadParserService;
 use App\Services\Ledger\EvidenceUploadService;
 use App\Services\Ledger\EvidenceUploadValidationService;
-use App\Services\Ledger\JournalLearningService;
 use App\Services\Ledger\SystemFieldService;
 use App\Services\Ledger\VoucherCreateService;
-use App\Services\Ledger\VoucherLearningService;
 use App\Services\Ledger\VoucherPolicyService;
 use App\Services\Ledger\VoucherService;
 use Core\DbPdo;
@@ -66,8 +64,6 @@ class EvidenceImportController
     private ?VoucherPolicyService $voucherPolicyService = null;
     private ?VoucherCreateService $voucherCreateService = null;
     private ?VoucherService $voucherService = null;
-    private ?JournalLearningService $journalLearningService = null;
-    private ?VoucherLearningService $voucherLearningService = null;
     private ?EvidenceRuleEngineService $evidenceRuleEngineService = null;
     private ?array $ownCompanyProfile = null;
 
@@ -797,9 +793,6 @@ class EvidenceImportController
                 'resolveVoucherRefId' => fn(string $refType, string $value): ?string => $this->evidenceReferenceResolverService()->resolveVoucherRefId($refType, $value),
                 'resolveBankAccountId' => fn(string $value): ?string => $this->evidenceReferenceResolverService()->resolveBankAccountId($value),
                 'saveVoucher' => fn(array $payload): array => $this->voucherService()->save($payload),
-                'recordBankVoucherLearning' => function (string $transactionId, string $voucherId, array $evidence, array $lines, string $actor): void {
-                    $this->voucherLearningService()->recordBankVoucherLearning($transactionId, $voucherId, $evidence, $lines, $actor);
-                },
                 'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
                 'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
                 'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
@@ -817,34 +810,6 @@ class EvidenceImportController
         }
 
         return $this->voucherService;
-    }
-
-    private function journalLearningService(): JournalLearningService
-    {
-        if ($this->journalLearningService === null) {
-            $this->journalLearningService = new JournalLearningService($this->pdo);
-        }
-
-        return $this->journalLearningService;
-    }
-
-    private function voucherLearningService(): VoucherLearningService
-    {
-        if ($this->voucherLearningService === null) {
-            $this->voucherLearningService = new VoucherLearningService(
-                $this->journalLearningService(),
-                $this->voucherPolicyService(),
-                $this->evidenceBusinessRefService(),
-                [
-                    'bankVoucherPaymentDirectionAndAmount' => fn(array $evidence): array => $this->voucherCreateService()->bankVoucherPaymentDirectionAndAmount($evidence),
-                    'businessUnitForUpload' => fn(array $row, string $dataType): string => $this->evidenceTypePolicyService()->businessUnitForUpload($row, $dataType),
-                    'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                    'transactionDirectionForStorage' => fn(string $direction, array $payload, string $dataType): string => $this->evidenceTypePolicyService()->transactionDirectionForStorage($direction, $payload, $dataType),
-                ]
-            );
-        }
-
-        return $this->voucherLearningService;
     }
 
     private function evidenceRuleEngineService(): EvidenceRuleEngineService

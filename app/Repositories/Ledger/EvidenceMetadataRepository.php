@@ -42,15 +42,41 @@ class EvidenceMetadataRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function recommendSourceTable(string $importType): ?string
+    public function recommendSourceTable(string $importType, ?array $availableTables = null): ?string
     {
-        $tables = array_column($this->sourceTables(), 'name');
+        $tables = $availableTables ?? array_column($this->sourceTables(), 'name');
+        $canonicalTables = [
+            'EMPLOYEE_EXPENSE_PERSONAL' => 'ledger_evidence_employee_personal_expense',
+            'PAYROLL_REPORT' => 'ledger_evidence_salary_report',
+        ];
+        $canonical = $canonicalTables[strtoupper(trim($importType))] ?? '';
+        if ($canonical !== '' && in_array($canonical, $tables, true)) {
+            return $canonical;
+        }
         $expected = 'ledger_evidence_' . strtolower($importType);
         if (in_array($expected, $tables, true)) {
             return $expected;
         }
 
         return null;
+    }
+
+    public function usageCounts(string $importType, string $sourceTable): array
+    {
+        if (!$this->tableExists($sourceTable)) {
+            return ['body_count' => 0, 'link_count' => $this->linkCount($importType)];
+        }
+        $bodyCount = (int) $this->pdo->query('SELECT COUNT(*) FROM `' . $sourceTable . '`')->fetchColumn();
+        return ['body_count' => $bodyCount, 'link_count' => $this->linkCount($importType)];
+    }
+
+    private function linkCount(string $importType): int
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM ledger_evidence_links WHERE evidence_type = :import_type AND deleted_at IS NULL'
+        );
+        $stmt->execute([':import_type' => strtoupper(trim($importType))]);
+        return (int) $stmt->fetchColumn();
     }
 
     public function activeImportTypes(): array
@@ -60,7 +86,6 @@ class EvidenceMetadataRepository
             FROM system_codes
             WHERE code_group = 'IMPORT_TYPE'
               AND is_active = 1
-              AND deleted_at IS NULL
             ORDER BY sort_no ASC, code ASC
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -89,7 +114,6 @@ class EvidenceMetadataRepository
             WHERE code_group = 'IMPORT_TYPE'
               AND code = :code
               AND is_active = 1
-              AND deleted_at IS NULL
         ");
         $stmt->execute([':code' => $importType]);
         return (int) $stmt->fetchColumn() > 0;

@@ -4,7 +4,6 @@ namespace Core\Middleware;
 
 use App\Services\Auth\AuthSessionService;
 use App\Services\Auth\PermissionService;
-use Core\Database;
 use Core\LoggerFactory;
 
 class PermissionMiddleware
@@ -30,11 +29,12 @@ class PermissionMiddleware
         }
 
         if (is_array($required)) {
-            if (empty($required['key'])) {
+            $permissionKey = $required['permission_key'] ?? $required['key'] ?? null;
+            if (empty($permissionKey)) {
                 return;
             }
 
-            $required = $required['key'];
+            $required = $permissionKey;
         }
 
         $authSession = new AuthSessionService();
@@ -53,7 +53,7 @@ class PermissionMiddleware
             $path
         ));
 
-        $service = new PermissionService(Database::getInstance()->getConnection());
+        $service = new PermissionService();
 
         try {
             $hasPermission = $service->hasPermission($userId, (string)$required);

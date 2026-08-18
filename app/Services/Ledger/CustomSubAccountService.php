@@ -16,7 +16,6 @@ class CustomSubAccountService
 
     private SubChartAccountModel $model;
     private ChartAccountModel $accountModel;
-    private SubAccountPolicyService $policyService;
     private CodeModel $codeModel;
     private $logger;
 
@@ -24,7 +23,6 @@ class CustomSubAccountService
     {
         $this->model = new SubChartAccountModel($pdo);
         $this->accountModel = new ChartAccountModel($pdo);
-        $this->policyService = new SubAccountPolicyService($pdo);
         $this->codeModel = new CodeModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.CustomSubAccountService');
     }
@@ -57,6 +55,9 @@ class CustomSubAccountService
             if ($accountId === '') {
                 return ['success' => false, 'message' => '계정과목을 선택하세요.'];
             }
+            if (!$this->accountModel->getById($accountId)) {
+                return ['success' => false, 'message' => '사용 가능한 계정과목을 찾을 수 없습니다.'];
+            }
 
             if ($this->model->findByAccountAndSubCode($accountId, $subCode)) {
                 return ['success' => false, 'message' => '이미 추가된 보조계정입니다.'];
@@ -68,6 +69,7 @@ class CustomSubAccountService
             $ok = $this->model->create([
                 'id' => $id,
                 'account_id' => $accountId,
+                'sort_no' => $this->model->nextSortNo($accountId),
                 'ref_target' => $subCode,
                 'sub_code' => $subCode,
                 'sub_name' => $subName,
@@ -90,16 +92,19 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => $e instanceof \InvalidArgumentException ? $e->getMessage() : '저장 중 오류가 발생했습니다.'];
         }
     }
 
-    public function update(string $id, array $data): array
+    public function update(string $accountId, string $id, array $data): array
     {
         try {
             $current = $this->model->getById($id);
             if (!$current) {
                 return ['success' => false, 'message' => '보조계정을 찾을 수 없습니다.'];
+            }
+            if ((string) ($current['account_id'] ?? '') !== $accountId || !$this->accountModel->getById($accountId)) {
+                return ['success' => false, 'message' => '보조계정의 소유 계정이 일치하지 않습니다.'];
             }
 
             $subCode = $this->normalizeSubCode($data['sub_code'] ?? $data['ref_target'] ?? $data['sub_name'] ?? $current['sub_code'] ?? '');
@@ -128,16 +133,19 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => $e instanceof \InvalidArgumentException ? $e->getMessage() : '수정 중 오류가 발생했습니다.'];
         }
     }
 
-    public function delete(string $id): array
+    public function delete(string $accountId, string $id): array
     {
         try {
-            $accountId = $this->model->getAccountIdById($id);
-            if ($accountId === null) {
+            $current = $this->model->getById($id);
+            if (!$current) {
                 return ['success' => false, 'message' => '대상을 찾을 수 없습니다.'];
+            }
+            if ((string) ($current['account_id'] ?? '') !== $accountId || !$this->accountModel->getById($accountId)) {
+                return ['success' => false, 'message' => '보조계정의 소유 계정이 일치하지 않습니다.'];
             }
 
             $ok = $this->model->delete($id);
@@ -146,11 +154,9 @@ class CustomSubAccountService
             }
 
             $hasCustom = $this->model->countByAccountId($accountId, 'custom') > 0;
-            $hasPolicies = $this->policyService->countByAccountId($accountId) > 0;
-
             $this->accountModel->updateAllowSubAccount(
                 $accountId,
-                ($hasCustom || $hasPolicies) ? 1 : 0
+                $hasCustom ? 1 : 0
             );
 
             return ['success' => true];
@@ -160,7 +166,7 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
 
@@ -204,10 +210,11 @@ class CustomSubAccountService
                 return ['success' => false, 'message' => '기존 보조계정 정리에 실패했습니다.'];
             }
 
-            foreach ($normalized as $row) {
+            foreach ($normalized as $index => $row) {
                 $ok = $this->model->create([
                     'id' => UuidHelper::generate(),
                     'account_id' => $accountId,
+                    'sort_no' => $index + 1,
                     'ref_target' => $row['sub_code'],
                     'sub_code' => $row['sub_code'],
                     'sub_name' => $row['sub_name'],
@@ -222,10 +229,9 @@ class CustomSubAccountService
                 }
             }
 
-            $hasPolicies = $this->policyService->countByAccountId($accountId) > 0;
             $this->accountModel->updateAllowSubAccount(
                 $accountId,
-                ($hasPolicies || count($normalized) > 0) ? 1 : 0
+                count($normalized) > 0 ? 1 : 0
             );
 
             return ['success' => true];
@@ -236,7 +242,7 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => $e instanceof \InvalidArgumentException ? $e->getMessage() : '저장 중 오류가 발생했습니다.'];
         }
     }
 
@@ -253,7 +259,7 @@ class CustomSubAccountService
 
         if (empty($row['sub_name'])) {
             try {
-                $codeRow = $subCode !== '' ? $this->resolveRefTarget($subCode) : [];
+                $codeRow = $subCode !== '' ? $this->resolveRefTarget($subCode, false) : [];
                 $row['sub_name'] = (string) ($codeRow['code_name'] ?? $subCode);
             } catch (\Throwable) {
                 $row['sub_name'] = $subCode;
@@ -265,14 +271,14 @@ class CustomSubAccountService
         return $row;
     }
 
-    private function resolveRefTarget(string $code): array
+    private function resolveRefTarget(string $code, bool $requireActive = true): array
     {
         if ($code === '') {
             throw new \InvalidArgumentException('보조계정 대상을 선택하세요.');
         }
 
         $row = $this->codeModel->getByGroupAndCode(self::REF_TARGET_GROUP, $code);
-        if (!$row || (int) ($row['is_active'] ?? 0) !== 1) {
+        if (!$row || ($requireActive && (int) ($row['is_active'] ?? 0) !== 1)) {
             throw new \InvalidArgumentException('REF_TARGET 기준정보에 등록된 보조계정만 사용할 수 있습니다.');
         }
 

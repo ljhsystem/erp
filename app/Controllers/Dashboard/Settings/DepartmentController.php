@@ -2,6 +2,7 @@
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
+use Core\Session;
 use App\Services\User\DepartmentService;
 
 class DepartmentController
@@ -21,6 +22,7 @@ class DepartmentController
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         try {
             $filters = $this->readFilters();
@@ -31,10 +33,10 @@ class DepartmentController
                 'data'    => $rows
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'list failed',
-                'error'   => $e->getMessage()
+                'message' => '부서 목록 조회 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -44,11 +46,13 @@ class DepartmentController
     public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         $id = $_GET['id'] ?? $_POST['id'] ?? '';
 
         if (!$id) {
-            echo json_encode(['success' => false, 'message' => 'id required'], JSON_UNESCAPED_UNICODE);
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => '부서 ID가 필요합니다.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
@@ -58,13 +62,13 @@ class DepartmentController
             echo json_encode([
                 'success' => (bool)$row,
                 'data'    => $row,
-                'message' => $row ? null : 'not_found',
+                'message' => $row ? null : '부서 정보를 찾을 수 없습니다.',
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'detail failed',
-                'error'   => $e->getMessage()
+                'message' => '부서 조회 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -75,29 +79,44 @@ class DepartmentController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $action = $_POST['action'] ?? '';
-        $id = $_POST['id'] ?? '';
+        $action = trim((string) ($_POST['action'] ?? ''));
+        $id = trim((string) ($_POST['id'] ?? ''));
+        $payload = [
+            'dept_name' => $_POST['dept_name'] ?? '',
+            'manager_id' => $_POST['manager_id'] ?? null,
+            'description' => $_POST['description'] ?? '',
+            'is_active' => $_POST['is_active'] ?? null,
+        ];
 
         try {
             switch ($action) {
                 case 'create':
-                    $result = $this->handleCreate();
+                    $result = $this->service->create($payload);
                     break;
 
                 case 'update':
-                    $result = $this->handleUpdate($id);
+                    $result = $this->service->update($id, $payload);
                     break;
 
                 default:
-                    throw new \Exception('Invalid action');
+                    throw new \InvalidArgumentException('지원하지 않는 저장 요청입니다.');
             }
 
+            if (empty($result['success'])) {
+                http_response_code(422);
+            }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        } catch (\Throwable $e) {
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
             echo json_encode([
                 'success' => false,
-                'message' => 'save failed',
-                'error'   => $e->getMessage()
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => '저장 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -108,79 +127,20 @@ class DepartmentController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['id'] ?? '';
-        echo json_encode($this->handleDelete($id), JSON_UNESCAPED_UNICODE);
+        try {
+            $result = $this->service->delete((string) ($_POST['id'] ?? ''));
+            if (empty($result['success'])) {
+                http_response_code(409);
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
+        }
         exit;
-    }
-
-    private function handleCreate(): array
-    {
-        $deptName = trim($_POST['dept_name'] ?? '');
-        $managerId = $_POST['manager_id'] ?? null;
-        $description = trim($_POST['description'] ?? '');
-        $isActive = (int)($_POST['is_active'] ?? 1);
-
-        if (!$deptName) {
-            return ['success' => false, 'message' => 'required'];
-        }
-
-        $ok = $this->service->create([
-            'dept_name'   => $deptName,
-            'manager_id'  => $managerId ?: null,
-            'description' => $description,
-            'is_active'   => $isActive,
-        ]);
-
-        if ($ok === 'duplicate') {
-            return ['success' => false, 'message' => 'duplicate'];
-        }
-
-        return [
-            'success' => (bool)$ok,
-            'message' => $ok ? 'created' : 'error'
-        ];
-    }
-
-    private function handleUpdate(string $id): array
-    {
-        if (!$id) {
-            return ['success' => false, 'message' => 'id required'];
-        }
-
-        $managerId = $_POST['manager_id'] ?? null;
-        if ($managerId === '' || $managerId === 'undefined') {
-            $managerId = null;
-        }
-
-        $ok = $this->service->update($id, [
-            'dept_name'   => trim($_POST['dept_name'] ?? ''),
-            'manager_id'  => $managerId,
-            'description' => trim($_POST['description'] ?? ''),
-            'is_active'   => (int)($_POST['is_active'] ?? 1),
-        ]);
-
-        if ($ok === 'duplicate') {
-            return ['success' => false, 'message' => 'duplicate'];
-        }
-
-        return [
-            'success' => (bool)$ok,
-            'message' => $ok ? 'updated' : 'error'
-        ];
-    }
-
-    private function handleDelete(string $id): array
-    {
-        if (!$id) {
-            return ['success' => false, 'message' => 'id required'];
-        }
-
-        $ok = $this->service->delete($id);
-
-        return [
-            'success' => (bool)$ok,
-            'message' => $ok ? 'deleted' : 'error'
-        ];
     }
 
 
@@ -198,10 +158,10 @@ class DepartmentController
                 'message' => $ok ? 'reordered' : 'fail'
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'reorder failed',
-                'error'   => $e->getMessage()
+                'message' => '정렬 저장 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 

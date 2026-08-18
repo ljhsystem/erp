@@ -361,7 +361,13 @@
         const size = Math.max(1, Math.min(100, Number(chunkSize) || 5));
         const aggregate = {
             total_rows: total,
+            total_count: total,
             processed_count: 0,
+            inserted_count: 0,
+            duplicate_count: 0,
+            deleted_duplicate_count: 0,
+            conflict_count: 0,
+            details: [],
             new_count: 0,
             updated_count: 0,
             unchanged_count: 0,
@@ -433,10 +439,12 @@
                 }
 
                 const data = lastJson?.data || {};
-                for (const key of ['processed_count', 'new_count', 'updated_count', 'unchanged_count', 'error_count', 'skipped_count', 'protected_update_count', 'protected_transaction_count', 'protected_voucher_count']) {
+                for (const key of ['processed_count', 'inserted_count', 'duplicate_count', 'deleted_duplicate_count', 'conflict_count', 'new_count', 'updated_count', 'unchanged_count', 'error_count', 'skipped_count', 'protected_update_count', 'protected_transaction_count', 'protected_voucher_count']) {
                     aggregate[key] += Number(data[key] || 0);
                 }
-                aggregate.total_rows = Number(data.total_rows || total || aggregate.total_rows);
+                aggregate.total_rows = Number(data.total_rows || data.total_count || total || aggregate.total_rows);
+                aggregate.total_count = aggregate.total_rows;
+                if (Array.isArray(data.details)) aggregate.details.push(...data.details);
                 const nextOffset = Number(data.next_offset || 0);
                 offset = nextOffset > offset ? nextOffset : Math.min(total, offset + size);
 

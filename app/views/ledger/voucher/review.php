@@ -7,7 +7,7 @@ if (!headers_sent()) {
     header('Expires: 0');
 }
 
-$pageTitle = '전표검토/승인';
+$pageTitle = '전표검토·전기';
 
 $layoutOptions = [
     'header' => true,
@@ -22,10 +22,10 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
 ?>
 
 <main class="voucher-review-page" id="voucher-review-main">
-    <div class="container-fluid py-4 voucher-review-shell">
+    <div class="container-fluid py-4 voucher-review-shell dt-page-shell">
         <div class="page-header">
             <h5 class="mb-0 fw-bold">
-                <i class="bi bi-check2-square me-2"></i>전표검토/승인
+                <i class="bi bi-check2-square me-2"></i>전표검토·전기
             </h5>
             <span id="voucherReviewCount" class="text-primary page-count"></span>
         </div>
@@ -51,7 +51,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
         $searchGuideTitle = '전표 검토 검색 조건 안내';
         $searchGuideItems = [
             '전표번호, 전표상태, 적요, 금액 기준으로 전표를 검색할 수 있습니다.',
-            '검토/승인 흐름은 실제 status 컬럼 값으로 조회합니다.',
+            '검토·전기 흐름은 실제 status 컬럼 값으로 조회합니다.',
         ];
 
         include PROJECT_ROOT . '/app/views/components/ui-search.php';
@@ -107,8 +107,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
                     <button type="button" class="btn btn-outline-danger btn-sm d-none" id="rejectBtn">반려</button>
                     <button type="button" class="btn btn-primary btn-sm d-none" id="confirmBtn">검토완료</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="cancelConfirmBtn">검토완료 취소</button>
-                    <button type="button" class="btn btn-success btn-sm d-none" id="approveBtn">승인</button>
-                    <button type="button" class="btn btn-outline-dark btn-sm d-none" id="reverseBtn">취소전표 생성</button>
+                    <button type="button" class="btn btn-success btn-sm d-none" id="approveBtn">전기</button>
+                    <button type="button" class="btn btn-outline-dark btn-sm d-none" id="reverseBtn">취소전표 작성</button>
                 </div>
             </aside>
         </div>

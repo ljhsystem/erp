@@ -10,6 +10,7 @@ export function bindRowReorder(table, options = {}) {
         includeAppliedRows = false,
         changedRowsOnly = includeAppliedRows,
         isReorderableRow = () => true,
+        canReorder = () => true,
         sortableItems = '> tr',
         onSuccess = null,
         onError = null
@@ -27,7 +28,6 @@ export function bindRowReorder(table, options = {}) {
 
     const tableNode = table.table?.().node?.();
     const tableSelector = tableNode?.id ? `#${tableNode.id}` : tableNode;
-
     bindSortableRowReorder({
         table,
         tableSelector,
@@ -38,6 +38,7 @@ export function bindRowReorder(table, options = {}) {
         includeAppliedRows,
         changedRowsOnly,
         isReorderableRow,
+        canReorder,
         mapRow({ rowData, index }) {
             if (!rowData) return null;
 
@@ -56,7 +57,9 @@ export function bindRowReorder(table, options = {}) {
         updateRow({ row, index }) {
             const $cells = window.jQuery(row).find('td');
             const $sequenceCell = $cells.filter('.dt-sequence-column').first();
-            ($sequenceCell.length ? $sequenceCell : $cells.eq(1)).text(index + 1);
+            if ($sequenceCell.length) {
+                $sequenceCell.text(index + 1);
+            }
         },
         buildPayload(changes) {
             return { changes };
@@ -76,6 +79,7 @@ export function bindRowReorder(table, options = {}) {
         includeAppliedRows,
         changedRowsOnly,
         isReorderableRow,
+        canReorder,
         onSuccess,
         onError
     });
@@ -95,6 +99,7 @@ function bindSelectedRowMove(options = {}) {
         includeAppliedRows = false,
         changedRowsOnly = includeAppliedRows,
         isReorderableRow = () => true,
+        canReorder = () => true,
         onSuccess = null,
         onError = null
     } = options;
@@ -204,6 +209,13 @@ function bindSelectedRowMove(options = {}) {
         event.preventDefault();
 
         const direction = event.detail?.direction === 'down' ? 'down' : 'up';
+        const reorderPermission = resolveReorderPermission(canReorder, { direction, source: 'selection' });
+        if (!reorderPermission.allowed) {
+            if (typeof onError === 'function') {
+                onError({ success: false, message: reorderPermission.message });
+            }
+            return;
+        }
         const selectedIds = new Set((event.detail?.ids || table.getSelectedIds?.() || [])
             .map((id) => String(id ?? '').trim())
             .filter(Boolean));
@@ -249,7 +261,14 @@ function bindSelectedRowMove(options = {}) {
         state.beforeKeys = beforeKeys;
         state.offset = pageOffset;
         state.version++;
-        applySelectedMoveView(table, nextRows, selectedKeys, selectionIdField, direction, includeAppliedRows);
+        applySelectedMoveView(
+            table,
+            nextRows,
+            selectedKeys,
+            selectionIdField,
+            direction,
+            includeAppliedRows
+        );
         table.setSelectedIds?.(Array.from(selectedIds));
         scheduleSave();
     };
@@ -298,7 +317,14 @@ function moveSelectedRows(rows = [], selectedKeys = new Set(), selectionIdField 
     return nextRows;
 }
 
-function applySelectedMoveView(table, rows = [], selectedKeys = new Set(), selectionIdField = 'id', direction = 'up', includeAppliedRows = false) {
+function applySelectedMoveView(
+    table,
+    rows = [],
+    selectedKeys = new Set(),
+    selectionIdField = 'id',
+    direction = 'up',
+    includeAppliedRows = false
+) {
     const tbody = table?.table?.().body?.();
     if (tbody && rows.length > 0) {
         const nodeByKey = new Map();
@@ -385,8 +411,7 @@ function updateVisibleSequenceCells(table) {
 
     const pageStart = Number(table?.page?.info?.()?.start || 0);
     Array.from(tbody.querySelectorAll('tr')).forEach((row, index) => {
-        const cells = row.querySelectorAll('td');
-        const sequenceCell = row.querySelector('td.dt-sequence-column') || cells[1];
+        const sequenceCell = row.querySelector('td.dt-sequence-column');
         if (sequenceCell) {
             sequenceCell.textContent = pageStart + index + 1;
         }
@@ -470,6 +495,7 @@ export function bindSortableRowReorder(options = {}) {
         includeAppliedRows = false,
         changedRowsOnly = includeAppliedRows,
         isReorderableRow = () => true,
+        canReorder = () => true,
         items = '> tr'
     } = options;
 
@@ -502,6 +528,19 @@ export function bindSortableRowReorder(options = {}) {
         forcePlaceholderSize: true,
         placeholder: 'dt-row-reorder-placeholder',
         start(_, ui) {
+            const reorderPermission = resolveReorderPermission(canReorder, { source: 'drag' });
+            if (!reorderPermission.allowed) {
+                window.setTimeout(() => {
+                    try {
+                        $sortable.sortable('cancel');
+                    } catch (error) {
+                    }
+                }, 0);
+                if (typeof onError === 'function') {
+                    onError({ success: false, message: reorderPermission.message });
+                }
+                return false;
+            }
             if (changedRowsOnly && includeAppliedRows && table?.rows) {
                 const beforeKeys = table.rows({ order: 'applied', search: 'applied' })
                     .data()
@@ -645,6 +684,31 @@ export function bindSortableRowReorder(options = {}) {
                 });
         }
     }).disableSelection();
+}
+
+function resolveReorderPermission(canReorder, context = {}) {
+    if (typeof canReorder !== 'function') {
+        return { allowed: true, message: '' };
+    }
+
+    const result = canReorder(context);
+    if (result === false) {
+        return {
+            allowed: false,
+            message: '순번 오름차순의 전체 목록에서만 순서를 변경할 수 있습니다.',
+        };
+    }
+    if (typeof result === 'string') {
+        return { allowed: result.trim() === '', message: result.trim() };
+    }
+    if (result && typeof result === 'object') {
+        return {
+            allowed: result.allowed !== false,
+            message: String(result.message || '').trim(),
+        };
+    }
+
+    return { allowed: true, message: '' };
 }
 
 function cleanupUI() {

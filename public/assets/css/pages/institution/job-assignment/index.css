@@ -1,0 +1,4 @@
+#jobAssignmentDetailModal .tab-content{min-height:220px}
+#jobAssignmentDetailModal .table{font-size:.82rem}
+#jobAssignmentDetailModal .nav-tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}
+#jobAssignmentDetailModal .nav-link{white-space:nowrap}

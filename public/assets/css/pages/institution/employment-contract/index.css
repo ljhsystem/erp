@@ -1,0 +1,145 @@
+.employment-contract-page .table th { white-space: nowrap; background: var(--bs-tertiary-bg); }
+.employment-contract-status { font-size: .75rem; }
+.employment-weekly-schedule-grid-host {
+    max-width: 100%;
+}
+
+.employment-weekly-schedule-grid-host.is-readonly .html-grid-editor {
+    background-color: var(--bs-secondary-bg);
+}
+.employment-workday-summary { padding: .65rem .8rem; border-radius: .5rem; background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: .875rem; }
+
+#employmentContractModal .ui-form-card__description code {
+    color: var(--bs-secondary-color);
+    font-size: .75rem;
+}
+
+#employmentContractModal .employment-system-card > summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+#employmentContractModal .employment-system-card > summary::-webkit-details-marker {
+    display: none;
+}
+
+#employmentContractModal .employment-system-card__toggle {
+    transition: transform .2s ease;
+}
+
+#employmentContractModal .employment-system-card[open] .employment-system-card__toggle {
+    transform: rotate(180deg);
+}
+
+#employmentContractModal .employment-component-grid-host {
+    max-width: 100%;
+    font-size: .875rem;
+}
+
+#employmentContractModal .employment-component-grid-host .html-grid-header-cell {
+    font-size: .875rem;
+    font-weight: 700;
+}
+
+#employmentContractModal .employment-component-grid-host .html-grid-cell,
+#employmentContractModal .employment-component-grid-host .html-grid-editor {
+    font-size: .875rem;
+    font-weight: 400;
+}
+
+#employmentContractModal .employment-component-grid-host .html-grid-column-amount .html-grid-editor { text-align: right; }
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action,
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action .html-grid-cell-content,
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action .html-grid-cell-editor-slot { text-align: center; }
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action .html-grid-header-cell-content,
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action .html-grid-cell-content,
+#employmentContractModal .employment-component-grid-host .html-grid-column-row_action .html-grid-cell-editor-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#employmentContractModal .employment-component-grid-host.is-readonly .html-grid-editor {
+    border-color: transparent; background: transparent;
+}
+
+#employmentContractModal .employment-allowance-details {
+    display: grid; gap: .75rem; margin-top: .75rem;
+}
+#employmentContractModal .employment-allowance-detail {
+    border: 1px solid #d8dee7; border-radius: .375rem; background: #f8fafc;
+}
+#employmentContractModal .employment-allowance-detail > summary {
+    cursor: pointer; padding: .65rem .8rem; color: #334155; font-weight: 600;
+}
+#employmentContractModal .employment-allowance-detail__fields {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem;
+    padding: 0 .8rem .8rem;
+}
+#employmentContractModal .employment-allowance-detail__fields label {
+    min-width: 0; color: #475569; font-size: .8rem; font-weight: 600;
+}
+#employmentContractModal .employment-allowance-detail__fields .form-control,
+#employmentContractModal .employment-allowance-detail__fields .form-select { margin-top: .3rem; font-weight: 400; }
+#employmentContractModal .employment-allowance-detail__wide { grid-column: span 2; }
+@media (max-width: 991.98px) {
+    #employmentContractModal .employment-allowance-detail__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575.98px) {
+    #employmentContractModal .employment-allowance-detail__fields { grid-template-columns: 1fr; }
+    #employmentContractModal .employment-allowance-detail__wide { grid-column: auto; }
+}
+#employmentContractModal .employment-component-header-action,
+#employmentContractModal .employment-component-header-action .btn { width: 100%; }
+#employmentContractModal .employment-component-header-action .btn {
+    min-height: 28px; margin: 0; padding: 0 .25rem; border: 0; font-weight: 700;
+}
+#employmentContractModal .employment-component-header-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    z-index: 3;
+    text-align: center;
+}
+#employmentContractModal .employment-component-header-action .btn,
+#employmentContractModal .employment-component-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    text-align: center;
+    font-size: .875rem !important;
+    font-weight: 500;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+}
+#employmentContractModal .employment-component-header-action .btn { color: #2563eb; }
+#employmentContractModal .employment-component-delete { color: #dc2626; }
+#employmentContractModal .employment-compensation-summary {
+    width: min(100%, 430px);
+    margin: .85rem 0 0 auto;
+    padding-top: .65rem;
+    border-top: 2px solid var(--bs-border-color);
+}
+#employmentContractModal .employment-compensation-summary__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .25rem 0;
+    color: var(--bs-secondary-color);
+}
+#employmentContractModal .employment-compensation-summary__row strong {
+    color: var(--bs-body-color);
+    font-variant-numeric: tabular-nums;
+}
+#employmentContractModal .employment-compensation-summary__row--total {
+    font-size: 1rem;
+    color: var(--bs-body-color);
+}

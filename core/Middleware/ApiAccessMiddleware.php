@@ -5,7 +5,6 @@ namespace Core\Middleware;
 //require_once PROJECT_ROOT . '/app/services/system/SettingService.php';
 
 use App\Services\System\SettingService;
-use Core\Database;
 use Core\LoggerFactory;
 
 class ApiAccessMiddleware
@@ -23,8 +22,7 @@ class ApiAccessMiddleware
 
         header('Content-Type: application/json; charset=utf-8');
 
-        $pdo = Database::getInstance()->getConnection();
-        $settings = new SettingService($pdo);
+        $settings = new SettingService();
 
         /* =====================================================
          * 1. API 활성화 여부

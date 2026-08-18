@@ -6,6 +6,7 @@ use PDO;
 use App\Models\System\CardModel;
 use App\Models\System\ClientModel;
 use App\Models\System\BankAccountModel;
+use App\Repositories\System\CardDependencyRepository;
 use App\Services\File\FileService;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
@@ -66,6 +67,7 @@ class CardService
     private ClientModel $clientModel;
     private BankAccountModel $bankAccountModel;
     private FileService $fileService;
+    private CardDependencyRepository $dependencyRepository;
     private $logger;
 
     public function __construct(PDO $pdo)
@@ -75,6 +77,7 @@ class CardService
         $this->clientModel = new ClientModel($pdo);
         $this->bankAccountModel = new BankAccountModel($pdo);
         $this->fileService = new FileService($pdo);
+        $this->dependencyRepository = new CardDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.CardService');
     }
 
@@ -134,26 +137,43 @@ class CardService
         $id = trim((string)($data['id'] ?? ''));
         $isCreate = $id === '';
 
+        $rawLimitAmount = trim((string) ($data['limit_amount'] ?? '0'));
+        if ($rawLimitAmount !== '' && !is_numeric($rawLimitAmount)) {
+            return ['success' => false, 'message' => '한도금액은 숫자로 입력해 주세요.'];
+        }
         $data = $this->normalizePayload($data);
+        $uploadedPath = null;
+        $obsoletePath = null;
 
         try {
-            $this->assertRelations($data);
-            $this->pdo->beginTransaction();
+            $validationMessage = $this->validateSaveData($data);
+            if ($validationMessage !== '') {
+                return ['success' => false, 'message' => $validationMessage];
+            }
+            $before = null;
+            if (!$isCreate) {
+                $before = $this->model->getById($id);
+                if (!$before) {
+                    throw new \DomainException('카드 정보를 찾을 수 없습니다.');
+                }
+            }
+            $this->assertRelations($data, $before);
+            $file = $files['card_file'] ?? null;
+            $this->assertUploadOk($file, '카드 이미지');
+
+            if ($this->isUploadedFile($file)) {
+                $upload = $this->fileService->uploadCardCopy($file);
+                if (empty($upload['success']) || empty($upload['db_path'])) {
+                    throw new \RuntimeException('카드 이미지 업로드 실패');
+                }
+                $uploadedPath = (string) $upload['db_path'];
+            }
 
             if ($isCreate) {
                 $newId = UuidHelper::generate();
                 $newSortNo = SequenceHelper::next('system_cards', 'sort_no');
-
-                $file = $files['card_file'] ?? null;
-                $this->assertUploadOk($file, '카드 이미지');
-
-                if ($this->isUploadedFile($file)) {
-                    $upload = $this->fileService->uploadCardCopy($file);
-                    if (!$upload['success']) {
-                        throw new \Exception($upload['message'] ?? '카드 이미지 업로드에 실패했습니다.');
-                    }
-                    $data['card_file'] = $upload['db_path'];
-                }
+                $data['card_file'] = $uploadedPath;
+                $this->pdo->beginTransaction();
 
                 $insertData = array_merge($data, [
                     'id' => $newId,
@@ -176,44 +196,23 @@ class CardService
                 ];
             }
 
-            $before = $this->model->getById($id);
-            if (!$before) {
-                throw new \Exception('카드 정보를 찾을 수 없습니다.');
-            }
-
-            $data['card_file'] = $before['card_file'] ?? null;
-
-            if (!empty($data['delete_card_file']) && $data['delete_card_file'] === '1') {
-                if (!empty($before['card_file'])) {
-                    $this->fileService->delete($before['card_file']);
-                }
-                $data['card_file'] = null;
-            }
-
-            $file = $files['card_file'] ?? null;
-            $this->assertUploadOk($file, '카드 이미지');
-
-            if ($this->isUploadedFile($file)) {
-                $upload = $this->fileService->uploadCardCopy($file);
-                if (!$upload['success']) {
-                    throw new \Exception($upload['message'] ?? '카드 이미지 업로드에 실패했습니다.');
-                }
-
-                if (!empty($before['card_file']) && $before['card_file'] !== ($upload['db_path'] ?? null)) {
-                    $this->fileService->delete($before['card_file']);
-                }
-
-                $data['card_file'] = $upload['db_path'];
+            $existingPath = trim((string) ($before['card_file'] ?? ''));
+            $deleteExisting = $data['delete_card_file'] === '1';
+            $data['card_file'] = $uploadedPath ?: ($deleteExisting ? null : ($existingPath ?: null));
+            if ($existingPath !== '' && ($deleteExisting || ($uploadedPath !== null && $uploadedPath !== $existingPath))) {
+                $obsoletePath = $existingPath;
             }
 
             $data['updated_by'] = $actor;
             unset($data['id']);
+            $this->pdo->beginTransaction();
 
             if (!$this->model->updateById($id, $data)) {
                 throw new \Exception('카드 정보를 수정하지 못했습니다.');
             }
 
             $this->pdo->commit();
+            $this->cleanupCommittedFile($obsoletePath, '교체된 카드 이미지');
 
             return [
                 'success' => true,
@@ -225,6 +224,7 @@ class CardService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            $this->cleanupCompensatingFile($uploadedPath);
 
             $this->logger->error('save() failed', [
                 'id' => $id,
@@ -233,7 +233,9 @@ class CardService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof \DomainException
+                    ? $e->getMessage()
+                    : '카드 저장 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -253,7 +255,8 @@ class CardService
 
             return ['success' => true, 'message' => '삭제되었습니다.'];
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
+            $this->logger->error('delete() failed', ['id' => $id, 'exception' => $e->getMessage()]);
+            return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
 
@@ -282,7 +285,8 @@ class CardService
 
             return ['success' => true, 'message' => '복원되었습니다.'];
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
+            $this->logger->error('restore() failed', ['id' => $id, 'exception' => $e->getMessage()]);
+            return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
     }
 
@@ -308,7 +312,8 @@ class CardService
             return ['success' => true, 'message' => "선택한 카드가 복원되었습니다. ({$success}건)"];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
-            return ['success' => false, 'message' => $e->getMessage()];
+            $this->logger->error('restoreBulk() failed', ['exception' => $e->getMessage()]);
+            return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
     }
 
@@ -320,67 +325,102 @@ class CardService
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        try {
-            $item = $this->model->getById($id);
-            if (!$item) {
-                return ['success' => false, 'message' => '카드 정보를 찾을 수 없습니다.'];
-            }
-
-            $this->pdo->beginTransaction();
-
-            if (!empty($item['card_file'])) {
-                $this->fileService->delete($item['card_file']);
-            }
-
-            if (!$this->model->hardDeleteById($id)) {
-                throw new \Exception('카드를 영구삭제하지 못했습니다.');
-            }
-
-            $this->pdo->commit();
-            return ['success' => true, 'message' => '영구삭제되었습니다.'];
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
+        return $this->purgeCards([$id]);
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        if (empty($ids)) {
-            return ['success' => false, 'message' => '영구삭제할 카드가 없습니다.'];
-        }
-
-        $success = 0;
-        $this->pdo->beginTransaction();
-
-        try {
-            foreach ($ids as $id) {
-                $item = $this->model->getById((string)$id);
-                if (!$item) continue;
-
-                if (!empty($item['card_file'])) {
-                    $this->fileService->delete($item['card_file']);
-                }
-
-                if ($this->model->hardDeleteById((string)$id)) {
-                    $success++;
-                }
-            }
-
-            $this->pdo->commit();
-            return ['success' => true, 'message' => "선택한 카드가 영구삭제되었습니다. ({$success}건)"];
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
+        return $this->purgeCards($ids);
     }
 
     public function purgeAll(string $actorType = 'USER'): array
     {
         $rows = $this->model->getDeleted();
         return $this->purgeBulk(array_column($rows, 'id'), $actorType);
+    }
+
+    private function purgeCards(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return [
+                'success' => true,
+                'message' => '영구삭제할 카드가 없습니다.',
+                'deleted_count' => 0,
+                'skipped_count' => 0,
+                'blocked' => [],
+                'data' => ['deleted_count' => 0, 'skipped_count' => 0, 'blocked' => []],
+            ];
+        }
+
+        $deleted = 0;
+        $blocked = [];
+        $obsoletePaths = [];
+        $this->pdo->beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                $item = $this->model->getById($id);
+                if (!$item || empty($item['deleted_at'])) {
+                    continue;
+                }
+
+                $references = $this->dependencyRepository->findReferences($id);
+                if ($references !== []) {
+                    $blocked[] = [
+                        'id' => $id,
+                        'name' => (string) ($item['card_name'] ?? $id),
+                        'references' => $references,
+                    ];
+                    continue;
+                }
+
+                if (!$this->model->hardDeleteById($id)) {
+                    throw new \RuntimeException('카드 영구삭제 DB 처리 실패');
+                }
+                $deleted++;
+                $path = trim((string) ($item['card_file'] ?? ''));
+                if ($path !== '') {
+                    $obsoletePaths[] = $path;
+                }
+            }
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            $this->logger->error('purgeCards() failed', ['exception' => $e->getMessage()]);
+            return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
+        }
+
+        foreach ($obsoletePaths as $path) {
+            $this->cleanupCommittedFile($path, '영구삭제 카드 이미지');
+        }
+
+        $skipped = count($blocked);
+        if ($deleted === 0 && $skipped > 0) {
+            $message = '다른 업무에서 사용 중인 카드이므로 영구삭제할 수 없습니다.';
+        } elseif ($skipped > 0) {
+            $message = "카드 {$deleted}건을 영구삭제했고, 사용 중인 {$skipped}건은 유지했습니다.";
+        } elseif ($deleted > 0) {
+            $message = "카드 {$deleted}건을 영구삭제했습니다.";
+        } else {
+            $message = '영구삭제할 카드가 없습니다.';
+        }
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'deleted_count' => $deleted,
+            'skipped_count' => $skipped,
+            'blocked' => $blocked,
+            'data' => [
+                'deleted_count' => $deleted,
+                'skipped_count' => $skipped,
+                'blocked' => $blocked,
+            ],
+        ];
     }
 
     public function reorder(array $changes): bool
@@ -932,48 +972,11 @@ class CardService
 
     private function tableColumnDropdownOptions(string $table, string $column): array
     {
-        $tableSql = '`' . str_replace('`', '``', $table) . '`';
-        $columnSql = '`' . str_replace('`', '``', $column) . '`';
-        $where = [];
-
-        if ($this->tableColumnExists($table, 'deleted_at')) {
-            $where[] = 'deleted_at IS NULL';
-        }
-        if ($this->tableColumnExists($table, 'is_active')) {
-            $where[] = 'COALESCE(is_active, 1) = 1';
-        }
-
-        try {
-            $stmt = $this->pdo->query(
-                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY {$columnSql} ASC"
-            );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (\Throwable) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($rows as $row) {
-            $value = trim((string) ($row['dropdown_value'] ?? ''));
-            if ($value !== '') {
-                $options[] = $value;
-            }
-        }
-
-        return array_values(array_unique($options));
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
-            $stmt->execute([':column' => $column]);
-            return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (\Throwable) {
-            return false;
-        }
+        return match ($table) {
+            'system_clients' => $this->clientModel->getActiveDropdownValues($column),
+            'system_bank_accounts' => $this->bankAccountModel->getActiveDropdownValues($column),
+            default => [],
+        };
     }
 
     private function sortRowsForDownload(array $rows): array
@@ -1023,6 +1026,51 @@ class CardService
         ];
     }
 
+    private function validateSaveData(array &$data): string
+    {
+        if ($data['card_name'] === '') {
+            return '카드명은 필수입니다.';
+        }
+        if (mb_strlen($data['card_name'], 'UTF-8') > 150) {
+            return '카드명은 150자 이하로 입력해 주세요.';
+        }
+        if (mb_strlen($data['card_number'], 'UTF-8') > 50) {
+            return '카드번호는 50자 이하로 입력해 주세요.';
+        }
+        if ($data['expiry_year'] !== null && !preg_match('/^\d{4}$/', $data['expiry_year'])) {
+            return '유효기간 연도는 4자리 숫자로 입력해 주세요.';
+        }
+        if ($data['expiry_month'] !== null && !preg_match('/^(0[1-9]|1[0-2])$/', $data['expiry_month'])) {
+            return '유효기간 월은 01부터 12까지 입력해 주세요.';
+        }
+        if (!is_finite($data['limit_amount']) || $data['limit_amount'] < 0) {
+            return '한도금액은 0 이상의 숫자로 입력해 주세요.';
+        }
+        if ($data['note'] !== null && mb_strlen($data['note'], 'UTF-8') > 255) {
+            return '비고는 255자 이하로 입력해 주세요.';
+        }
+        if ($data['memo'] !== null && mb_strlen($data['memo'], 'UTF-8') > 65535) {
+            return '메모가 허용 길이를 초과했습니다.';
+        }
+
+        $data['is_active'] = $data['is_active'] === 0 ? 0 : 1;
+        return '';
+    }
+
+    private function cleanupCompensatingFile(?string $path): void
+    {
+        if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
+            $this->logger->warning('신규 카드 이미지 보상 삭제 실패', ['path' => $path]);
+        }
+    }
+
+    private function cleanupCommittedFile(?string $path, string $context): void
+    {
+        if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
+            $this->logger->warning($context . ' 정리 실패', ['path' => $path]);
+        }
+    }
+
     private function normalizeNullableId(mixed $value): ?string
     {
         $value = trim((string)$value);
@@ -1057,7 +1105,7 @@ class CardService
         return $rows[0]['id'] ?? null;
     }
 
-    private function assertRelations(array $data): void
+    private function assertRelations(array $data, ?array $before = null): void
     {
         if ($data['client_id'] !== null) {
             $client = $this->clientModel->getById($data['client_id']);
@@ -1066,13 +1114,21 @@ class CardService
                 throw new \Exception('선택한 카드사를 찾을 수 없습니다.');
             }
 
-            if ((int)($client['is_active'] ?? 0) !== 1 || !empty($client['deleted_at'])) {
+            $isExistingRelation = (string) ($before['client_id'] ?? '') === $data['client_id'];
+            if (!$isExistingRelation && ((int)($client['is_active'] ?? 0) !== 1 || !empty($client['deleted_at']))) {
                 throw new \Exception('사용 중인 카드사만 선택할 수 있습니다.');
             }
         }
 
-        if ($data['account_id'] !== null && !$this->bankAccountModel->getById($data['account_id'])) {
-            throw new \Exception('선택한 결제계좌를 찾을 수 없습니다.');
+        if ($data['account_id'] !== null) {
+            $account = $this->bankAccountModel->getById($data['account_id']);
+            if (!$account) {
+                throw new \Exception('선택한 결제계좌를 찾을 수 없습니다.');
+            }
+            $isExistingRelation = (string) ($before['account_id'] ?? '') === $data['account_id'];
+            if (!$isExistingRelation && ((int) ($account['is_active'] ?? 0) !== 1 || !empty($account['deleted_at']))) {
+                throw new \Exception('사용 중인 결제계좌만 선택할 수 있습니다.');
+            }
         }
     }
 

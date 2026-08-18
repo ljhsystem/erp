@@ -1,3 +1,4 @@
+<?php include_once PROJECT_ROOT . '/app/views/ledger/evidence/partials/evidence_edit_modal.php'; ?>
 <div class="modal fade"
      id="transactionModal"
      tabindex="-1"
@@ -9,15 +10,15 @@
                 <div class="modal-header transaction-modal-header">
                     <div>
                         <h5 class="modal-title" id="transactionModalLabel">거래 등록</h5>
-                        <p class="transaction-modal-subtitle mb-0">거래 기본정보, 품목, 정산, 전표 연결 정보를 한 화면에서 관리합니다.</p>
+                        <p class="transaction-modal-subtitle mb-0">거래 기본정보, 거래내역, 거래정산, 증빙연결정보를 한 화면에서 관리합니다.</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
 
                 <div class="modal-body transaction-modal-body">
                     <input type="hidden" name="id" id="transaction_id">
+                    <input type="hidden" name="loaded_updated_at" id="transaction_loaded_updated_at">
                     <input type="hidden" name="status" id="transaction_status" value="draft">
-                    <input type="hidden" name="match_status" id="transaction_match_status" value="none">
 
                     <section class="transaction-card transaction-business-card" aria-label="업무 분류정보">
                         <div class="transaction-card-header">
@@ -308,18 +309,17 @@
                         </div>
                     </section>
 
-                    <section class="transaction-card transaction-lines-section" aria-label="거래 품목">
+                    <section class="transaction-card transaction-lines-section" aria-label="거래내역">
                         <div class="transaction-card-header">
                             <div class="transaction-card-heading">
-                                <h6 class="transaction-card-title">거래 품목</h6>
-                                <p class="transaction-card-description">AG Grid에서 품목별 공급가액과 적요를 관리합니다.</p>
+                                <h6 class="transaction-card-title">거래내역</h6>
+                                <p class="transaction-card-description">증빙의 세전금액을 1식 거래내역으로 반영하고 필요하면 수정합니다.</p>
                             </div>
                             <div class="transaction-overview-header-actions">
                                 <div class="form-check form-switch transaction-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" id="is_import" name="is_import" value="1">
                                     <label class="form-check-label" for="is_import">외화 거래</label>
                                 </div>
-                                <button type="button" class="btn btn-outline-success btn-sm" id="btnTransactionLineExcelManager">엑셀관리</button>
                             </div>
                         </div>
 
@@ -347,9 +347,6 @@
                                 <h6 class="transaction-card-title" id="transactionSettlementTitle">거래 정산</h6>
                                 <p class="transaction-card-description" id="transactionSettlementSubtitle">거래 전체 기준 정산을 관리합니다.</p>
                             </div>
-                            <div class="transaction-overview-header-actions">
-                                <button type="button" class="btn btn-outline-success btn-sm" id="btnTransactionSettlementExcelManager">엑셀관리</button>
-                            </div>
                         </div>
 
                         <div class="transaction-grid-wrap">
@@ -366,6 +363,49 @@
                         </div>
                     </section>
 
+                    <section class="transaction-card transaction-recommendation-card d-none" id="transactionRecommendationCard" aria-label="거래 추천">
+                        <div class="transaction-card-header">
+                            <div><span class="transaction-card-title">거래추천</span><span class="transaction-card-description" id="transactionRecommendationSummary"></span></div>
+                            <span class="badge bg-info" id="transactionRecommendationStatus">추천 생성됨</span>
+                        </div>
+                        <div class="transaction-card-body">
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-recommendation-action="toggle">추천내용 보기</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-recommendation-action="all">전체 적용</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-recommendation-action="business">업무분류 적용</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-recommendation-action="overview">거래개요 적용</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-recommendation-action="items">거래내역 적용</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-recommendation-action="settlements">거래정산 적용</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-recommendation-action="ignore">추천 무시</button>
+                            </div>
+                            <div class="transaction-recommendation-details d-none" id="transactionRecommendationDetails"></div>
+                        </div>
+                    </section>
+
+                    <section class="transaction-card transaction-evidence-card" aria-label="증빙 연결 정보">
+                        <button type="button"
+                                class="transaction-card-toggle collapsed"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#transactionEvidenceInfoCollapse"
+                                aria-expanded="false"
+                                aria-controls="transactionEvidenceInfoCollapse">
+                            <span class="transaction-card-heading">
+                                <span class="transaction-card-title">증빙연결정보</span>
+                                <span class="transaction-card-description">자료증빙과 겸용 증빙을 확인하고 선택, 변경, 해제합니다.</span>
+                            </span>
+                            <i class="bi bi-chevron-down transaction-card-icon" aria-hidden="true"></i>
+                        </button>
+                        <div id="transactionEvidenceInfoCollapse" class="collapse">
+                            <div class="transaction-card-body transaction-evidence-card-body">
+                                <div class="transaction-evidence-actions">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="btnSelectTransactionEvidence">증빙 추가</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearTransactionEvidence">선택 해제</button>
+                                </div>
+                                <div id="transactionLinkedEvidencesGrid" class="transaction-evidence-grid-host"></div>
+                            </div>
+                        </div>
+                    </section>
+
                     <section class="transaction-card transaction-system-card" aria-label="시스템 처리 정보">
                         <button type="button"
                                 class="transaction-card-toggle collapsed"
@@ -375,62 +415,13 @@
                                 aria-controls="transactionSystemInfoCollapse">
                             <span class="transaction-card-heading">
                                 <span class="transaction-card-title">시스템 처리 정보</span>
-                                <span class="transaction-card-description">상태, 매칭상태, 생성/수정/삭제 이력을 확인합니다.</span>
+                                <span class="transaction-card-description">상태와 생성·수정·삭제 이력을 확인합니다.</span>
                             </span>
                             <i class="bi bi-chevron-down transaction-card-icon" aria-hidden="true"></i>
                         </button>
                         <div id="transactionSystemInfoCollapse" class="collapse">
                             <div class="transaction-card-body">
                                 <div class="transaction-modal-grid transaction-system-grid" id="transactionSystemInfoFields"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="transaction-card transaction-evidence-card" aria-label="증빙 연결 정보">
-                        <div class="transaction-card-header">
-                            <div class="transaction-card-heading">
-                                <h6 class="transaction-card-title">증빙 연결</h6>
-                                <p class="transaction-card-description">증빙정책에서 자료증빙으로 분류된 증빙만 연결할 수 있습니다.</p>
-                            </div>
-                            <div class="transaction-voucher-actions">
-                                <button type="button" class="btn btn-outline-primary btn-sm" id="btnSelectTransactionEvidence">증빙 선택</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearTransactionEvidence">연결 해제</button>
-                            </div>
-                        </div>
-                        <input type="hidden" name="evidence_id" id="transaction_evidence_id">
-                        <div class="transaction-voucher-summary" id="transaction_evidence_summary">연결된 증빙이 없습니다.</div>
-                    </section>
-
-                    <section class="transaction-card transaction-voucher-card" aria-label="전표 연결 정보">
-                        <button type="button"
-                                class="transaction-card-toggle collapsed"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#transactionVoucherCollapse"
-                                aria-expanded="false"
-                                aria-controls="transactionVoucherCollapse">
-                            <span class="transaction-card-heading">
-                                <span class="transaction-card-title">전표 연결 정보</span>
-                                <span class="transaction-card-description">저장 후 전표를 생성하거나 기존 전표와 연결할 수 있습니다.</span>
-                            </span>
-                            <span class="transaction-card-toggle-meta">
-                                <span class="transaction-status none" id="transactionVoucherStatus">미연결</span>
-                                <i class="bi bi-chevron-down transaction-card-icon" aria-hidden="true"></i>
-                            </span>
-                        </button>
-                        <div id="transactionVoucherCollapse" class="collapse">
-                            <div class="transaction-card-body">
-                                <div class="transaction-voucher-layout">
-                                    <div class="transaction-voucher-summary" id="transaction_voucher_summary">
-                                        연결된 전표가 없습니다.
-                                    </div>
-
-                                    <div class="transaction-voucher-actions">
-                                        <button type="button" class="btn btn-outline-success btn-sm" id="btnCreateTransactionVoucher">전표 생성</button>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSelectTransactionVoucher">전표 선택</button>
-                                        <button type="button" class="btn btn-outline-primary btn-sm" id="btnLinkTransactionVoucher">전표 연결</button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" id="btnUnlinkTransactionVoucher">연결 해제</button>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </section>
@@ -449,23 +440,35 @@
 </div>
 
 <div class="modal fade" id="transactionEvidenceSearchModal" tabindex="-1" aria-labelledby="transactionEvidenceSearchModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="transactionEvidenceSearchModalLabel">자료증빙 선택</h5>
+                <h5 class="modal-title" id="transactionEvidenceSearchModalLabel">증빙 추가</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
-                <div class="input-group input-group-sm mb-3">
-                    <input type="search" class="form-control" id="transactionEvidenceSearchKeyword" placeholder="자료유형, 일자, 거래처, 금액, 적요 검색">
-                    <button type="button" class="btn btn-outline-secondary" id="btnSearchTransactionEvidence">검색</button>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover align-middle mb-0">
-                        <thead class="table-light"><tr><th>증빙일자</th><th>자료유형</th><th>거래처</th><th>금액</th><th>적요</th><th>선택</th></tr></thead>
-                        <tbody id="transactionEvidenceSearchBody"><tr><td colspan="6" class="text-center text-muted py-4">증빙을 검색해 주세요.</td></tr></tbody>
+                <div class="transaction-evidence-table-wrap">
+                    <table id="transaction_evidence_search_table" class="table table-sm align-middle nowrap w-100">
+                        <thead>
+                            <tr>
+                                <th>선택</th>
+                                <th>기준일</th>
+                                <th>증빙구분</th>
+                                <th>자료유형</th>
+                                <th>거래처</th>
+                                <th>적요</th>
+                                <th>금액</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
                     </table>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto text-muted small" id="transactionEvidenceSelectionCount">0개 선택</span>
+                <button type="button" class="btn btn-primary btn-sm" id="btnApplyTransactionEvidence">추가 적용</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
             </div>
         </div>
     </div>

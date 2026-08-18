@@ -21,10 +21,7 @@ class ClientModel
                 c.*,
                 da.account_code AS default_account_code,
                 da.account_name AS default_account_name,
-                NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text
             FROM system_clients c
             LEFT JOIN ledger_accounts da
                 ON da.id = c.default_account_id
@@ -183,9 +180,9 @@ class ClientModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -197,11 +194,7 @@ class ClientModel
 
             da.account_code AS default_account_code,
             da.account_name AS default_account_name,
-            NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
-
-            c.created_by AS created_by_name,
-            c.updated_by AS updated_by_name,
-            c.deleted_by AS deleted_by_name
+            NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text
 
             FROM system_clients c
 
@@ -221,9 +214,9 @@ class ClientModel
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -250,6 +243,103 @@ class ClientModel
         $id = $stmt->fetchColumn();
 
         return $id !== false ? (string)$id : null;
+    }
+
+    public function findActiveByBusinessNumber(string $businessNumber): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM system_clients WHERE business_number = :business_number AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':business_number' => $businessNumber]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function findActiveByNames(array $names): ?array
+    {
+        $names = array_values(array_filter(array_unique(array_map('strval', $names))));
+        if ($names === []) return null;
+        $conditions = []; $params = [];
+        foreach ($names as $index => $name) {
+            $conditions[] = "(client_name = :client_name_{$index} OR company_name = :company_name_{$index})";
+            $params[":client_name_{$index}"] = $name;
+            $params[":company_name_{$index}"] = $name;
+        }
+        $stmt = $this->db->prepare('SELECT * FROM system_clients WHERE deleted_at IS NULL AND (' . implode(' OR ', $conditions) . ') LIMIT 1');
+        $stmt->execute($params);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function updateFields(string $id, array $updates): void
+    {
+        $allowed = ['client_name','company_name','business_number','business_type','business_category','address','phone','email','ceo_name','bank_name','account_number','account_holder','note','memo','updated_at','updated_by'];
+        $updates = array_intersect_key($updates, array_flip($allowed));
+        if ($updates === []) return;
+        $sets = []; $params = [':id' => $id];
+        foreach ($updates as $column => $value) { $sets[] = "{$column} = :{$column}"; $params[":{$column}"] = $value; }
+        $this->db->prepare('UPDATE system_clients SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($params);
+    }
+
+    public function hasDifferentActiveClientWithName(string $name, string $businessNumber = '', ?string $excludeId = null): bool
+    {
+        $where = ['client_name = :client_name', 'deleted_at IS NULL']; $params = [':client_name' => $name];
+        if ($excludeId) { $where[] = 'id <> :exclude_id'; $params[':exclude_id'] = $excludeId; }
+        if ($businessNumber !== '') { $where[] = "(business_number IS NULL OR business_number = '' OR business_number <> :business_number)"; $params[':business_number'] = $businessNumber; }
+        $stmt = $this->db->prepare('SELECT 1 FROM system_clients WHERE ' . implode(' AND ', $where) . ' LIMIT 1');
+        $stmt->execute($params);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function insertEvidenceHistory(array $row): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO system_client_histories
+            (id, client_id, field_name, old_value, new_value, source_type, source_evidence_id, changed_at, changed_by)
+            VALUES (:id, :client_id, :field_name, :old_value, :new_value, :source_type, :source_evidence_id, NOW(), :changed_by)');
+        $stmt->execute($row);
+    }
+
+    public function findIdByClientName(string $clientName): ?string
+    {
+        $stmt = $this->db->prepare('SELECT id FROM system_clients WHERE client_name = :name AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':name' => $clientName]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (string) $id;
+    }
+
+    public function updateCompanyName(string $clientId, string $companyName, string $actor): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE system_clients
+            SET client_name = :client_name,
+                company_name = :company_name,
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            ':id' => $clientId,
+            ':client_name' => $companyName,
+            ':company_name' => $companyName,
+            ':actor' => $actor,
+        ]);
+    }
+
+    public function resolveActiveIdByIdOrName(string $value): ?string
+    {
+        $stmt = $this->db->prepare('SELECT id FROM system_clients WHERE deleted_at IS NULL AND (id = :id_value OR client_name = :name_value) ORDER BY CASE WHEN id = :order_value THEN 0 ELSE 1 END, sort_no ASC LIMIT 1');
+        $stmt->execute([':id_value' => $value, ':name_value' => $value, ':order_value' => $value]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (string) $id;
+    }
+
+    public function getActiveDropdownValues(string $field): array
+    {
+        if (!in_array($field, [
+            'id', 'client_name', 'bank_name', 'trade_category', 'item_category',
+            'client_category', 'client_type', 'tax_type', 'payment_term', 'client_grade',
+        ], true)) return [];
+        $stmt = $this->db->query("SELECT DISTINCT `{$field}` AS dropdown_value FROM system_clients WHERE deleted_at IS NULL AND COALESCE(is_active, 1) = 1 ORDER BY `{$field}` ASC");
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['dropdown_value'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        ), static fn(string $value): bool => $value !== '')));
     }
 
 public function searchPicker(string $keyword = '', int $limit = 20, array $options = []): array
@@ -652,11 +742,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
     {
         $stmt = $this->db->prepare("
         SELECT
-            c.*,
-
-            c.created_by AS created_by_name,
-            c.updated_by AS updated_by_name,
-            c.deleted_by AS deleted_by_name
+            c.*
 
             FROM system_clients c
 
@@ -669,9 +755,9 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 

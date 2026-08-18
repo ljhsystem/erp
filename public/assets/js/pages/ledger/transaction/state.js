@@ -3,12 +3,9 @@ export function createTransactionContext(deps = {}) {
 
     const form = document.getElementById('transactionForm');
     const modalEl = document.getElementById('transactionModal');
-    const excelModalEl = document.getElementById('transactionExcelModal');
     const gridEl = document.getElementById('transactionLineGrid');
     const settlementGridEl = document.getElementById('transactionSettlementGrid');
     const systemInfoFieldsEl = document.getElementById('transactionSystemInfoFields');
-    const lineExcelBtn = document.getElementById('btnTransactionLineExcelManager');
-    const settlementExcelBtn = document.getElementById('btnTransactionSettlementExcelManager');
     const deleteBtn = document.getElementById('btnDeleteTransaction');
     const countEl = document.getElementById('transactionCount');
     const importToggle = document.getElementById('is_import');
@@ -17,21 +14,17 @@ export function createTransactionContext(deps = {}) {
     const fileInput = document.getElementById('transaction_files');
     const fileListEl = document.getElementById('transaction_file_list');
     const fileDropzoneEl = document.getElementById('transaction_file_dropzone');
-    const voucherStatusEl = document.getElementById('transactionVoucherStatus');
     const transactionStatusBadgeEl = document.getElementById('transactionStatusBadge');
-    const voucherSummaryEl = document.getElementById('transaction_voucher_summary');
-    const createVoucherBtn = document.getElementById('btnCreateTransactionVoucher');
-    const selectVoucherBtn = document.getElementById('btnSelectTransactionVoucher');
-    const linkVoucherBtn = document.getElementById('btnLinkTransactionVoucher');
-    const unlinkVoucherBtn = document.getElementById('btnUnlinkTransactionVoucher');
-    const evidenceIdEl = document.getElementById('transaction_evidence_id');
-    const evidenceSummaryEl = document.getElementById('transaction_evidence_summary');
+    const linkedEvidencesGridEl = document.getElementById('transactionLinkedEvidencesGrid');
     const selectEvidenceBtn = document.getElementById('btnSelectTransactionEvidence');
     const clearEvidenceBtn = document.getElementById('btnClearTransactionEvidence');
     const evidenceSearchModalEl = document.getElementById('transactionEvidenceSearchModal');
-    const evidenceSearchKeywordEl = document.getElementById('transactionEvidenceSearchKeyword');
-    const evidenceSearchBodyEl = document.getElementById('transactionEvidenceSearchBody');
-    const searchEvidenceBtn = document.getElementById('btnSearchTransactionEvidence');
+    const applyEvidenceBtn = document.getElementById('btnApplyTransactionEvidence');
+    const evidenceSelectionCountEl = document.getElementById('transactionEvidenceSelectionCount');
+    const recommendationCardEl = document.getElementById('transactionRecommendationCard');
+    const recommendationSummaryEl = document.getElementById('transactionRecommendationSummary');
+    const recommendationStatusEl = document.getElementById('transactionRecommendationStatus');
+    const recommendationDetailsEl = document.getElementById('transactionRecommendationDetails');
     const transactionDateEl = document.getElementById('transaction_date');
     const pickerLayerEl = document.getElementById('transaction-today-picker');
     const clientSelectEl = document.getElementById('client_id');
@@ -71,6 +64,10 @@ export function createTransactionContext(deps = {}) {
         document.body.appendChild(modalEl);
     }
 
+    if (evidenceSearchModalEl && evidenceSearchModalEl.parentElement !== document.body) {
+        document.body.appendChild(evidenceSearchModalEl);
+    }
+
     const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
     const API = {
         list: '/api/ledger/transaction/list',
@@ -82,8 +79,6 @@ export function createTransactionContext(deps = {}) {
         purge: '/api/ledger/transaction/purge',
         purgeAll: '/api/ledger/transaction/purge-all',
         reorder: '/api/ledger/transaction/reorder',
-        linkVoucher: '/api/ledger/transaction/link-voucher',
-        unlinkVoucher: '/api/ledger/transaction/unlink-voucher',
         evidenceSearch: '/api/ledger/transaction/evidence-search',
         clientSearch: '/api/settings/base-info/client/search-picker',
         projectSearch: '/api/settings/base-info/project/search-picker',
@@ -93,15 +88,6 @@ export function createTransactionContext(deps = {}) {
         workTeamList: '/api/settings/base-info/work-team/list',
         filePolicyList: '/api/system/file-policies',
         systemTableColumns: '/api/settings/system/data-table-columns',
-        excelTemplate: '/api/ledger/transaction/template',
-        excelDownload: '/api/ledger/transaction/excel',
-        excelUpload: '/api/ledger/transaction/excel-upload',
-        itemExcelTemplate: '/api/ledger/transaction/item/template',
-        itemExcelDownload: '/api/ledger/transaction/item/excel',
-        itemExcelUpload: '/api/ledger/transaction/item/excel-upload',
-        settlementExcelTemplate: '/api/ledger/transaction/settlement/template',
-        settlementExcelDownload: '/api/ledger/transaction/settlement/excel',
-        settlementExcelUpload: '/api/ledger/transaction/settlement/excel-upload',
     };
 
     const DATE_OPTIONS = [
@@ -116,12 +102,9 @@ export function createTransactionContext(deps = {}) {
     Object.assign(ctx, {
         form,
         modalEl,
-        excelModalEl,
         gridEl,
         settlementGridEl,
         systemInfoFieldsEl,
-        lineExcelBtn,
-        settlementExcelBtn,
         deleteBtn,
         countEl,
         importToggle,
@@ -130,21 +113,17 @@ export function createTransactionContext(deps = {}) {
         fileInput,
         fileListEl,
         fileDropzoneEl,
-        voucherStatusEl,
         transactionStatusBadgeEl,
-        voucherSummaryEl,
-        createVoucherBtn,
-        selectVoucherBtn,
-        linkVoucherBtn,
-        unlinkVoucherBtn,
-        evidenceIdEl,
-        evidenceSummaryEl,
+        linkedEvidencesGridEl,
         selectEvidenceBtn,
         clearEvidenceBtn,
         evidenceSearchModalEl,
-        evidenceSearchKeywordEl,
-        evidenceSearchBodyEl,
-        searchEvidenceBtn,
+        applyEvidenceBtn,
+        evidenceSelectionCountEl,
+        recommendationCardEl,
+        recommendationSummaryEl,
+        recommendationStatusEl,
+        recommendationDetailsEl,
         transactionDateEl,
         pickerLayerEl,
         clientSelectEl,
@@ -173,9 +152,6 @@ export function createTransactionContext(deps = {}) {
         GRID_KIND_LINE,
         GRID_KIND_SETTLEMENT,
         modal,
-        excelModal: null,
-        excelManagerSettingsCore: null,
-        excelManagerContextKey: 'header',
         transactionHeaderMeta: [],
         transactionHeaderMetaPromise: null,
         transactionTable: null,
@@ -195,8 +171,6 @@ export function createTransactionContext(deps = {}) {
         unitOptions: [],
         pendingUnitCell: null,
         lastInvalidUnitNotice: '',
-        taxTypeCodeSelectEl: null,
-        taxTypeOptions: [],
         settlementTypeCodeSelectEl: null,
         settlementTypeOptions: [],
         amountSignCodeSelectEl: null,
@@ -210,10 +184,10 @@ export function createTransactionContext(deps = {}) {
         allowModalClose: false,
         floatingLineHeaderEl: null,
         lineHeaderFrame: null,
-        selectedVoucherId: '',
         evidenceSearchRows: [],
-        selectedEvidence: null,
-        selectedVoucherLabel: '',
+        linkedEvidences: [],
+        pendingEvidenceKeys: new Set(),
+        pendingEvidenceRows: new Map(),
         fileDropzoneEmptyText: '파일을 드래그해서 첨부하세요',
         modalControlsInitialized: false,
         agGridLoadPromise: null,

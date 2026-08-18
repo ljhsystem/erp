@@ -34,8 +34,6 @@ $newTables = [
     'ledger_evidence_links',
     'ledger_evidence_processing',
     'ledger_evidence_processing_logs',
-    'ledger_evidence_number_sequences',
-    'ledger_evidence_number_histories',
 ];
 
 function tableExists(\PDO $pdo, string $table): bool

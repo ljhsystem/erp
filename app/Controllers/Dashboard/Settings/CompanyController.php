@@ -4,6 +4,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\CompanyService;
 use Core\DbPdo;
+use Core\Session;
 
 class CompanyController
 {
@@ -17,6 +18,7 @@ class CompanyController
     public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         echo json_encode([
             'success' => true,

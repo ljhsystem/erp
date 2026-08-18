@@ -32,7 +32,7 @@ function createHeaderCell(documentRef, column, options = {}) {
         content.appendChild(sortSlot);
     }
 
-    if (column.required) {
+    if (column.required || column.meta?.requiredIndicator === true) {
         const requiredMark = documentRef.createElement('span');
         requiredMark.className = 'html-grid-header-required';
         requiredMark.textContent = '*';
@@ -42,6 +42,7 @@ function createHeaderCell(documentRef, column, options = {}) {
     th.appendChild(content);
 
     if (options.showResizeHandle !== false) {
+        th.classList.add('has-resize-handle');
         const resizeHandle = documentRef.createElement('button');
         resizeHandle.type = 'button';
         resizeHandle.className = 'html-grid-header-resize-handle';

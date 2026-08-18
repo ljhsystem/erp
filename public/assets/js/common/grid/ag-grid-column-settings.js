@@ -1,5 +1,6 @@
 import {
     ensureSystemUserSettingsStorage,
+    peekSystemUserSettingsStorage,
     readSystemUserSettingsStorage,
     writeSystemUserSettingsStorage,
 } from '../user-settings/systemUserSettingsStorage.js';
@@ -21,8 +22,13 @@ export function loadAgGridColumnWidthSettings(storageKey, options = {}) {
     }
 
     try {
-        const payload = readSystemUserSettingsStorage(storageKey, buildStorageOptions(storageKey, options))
-            || ensureSystemUserSettingsStorage(storageKey, { columnWidths: {} }, buildStorageOptions(storageKey, options));
+        const storageOptions = buildStorageOptions(storageKey, options);
+        const payload = peekSystemUserSettingsStorage(storageKey, storageOptions);
+        if (!payload) {
+            void readSystemUserSettingsStorage(storageKey, storageOptions).then((loaded) => (
+                loaded || ensureSystemUserSettingsStorage(storageKey, { columnWidths: {} }, storageOptions)
+            ));
+        }
         if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
             return null;
         }

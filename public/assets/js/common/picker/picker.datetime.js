@@ -36,8 +36,7 @@ export function createDateTimePicker({ container }) {
 
   renderTime({
     picker,
-    container: time,
-    step: 15
+    container: time
   });
 
   // 🔥 인스턴스 캐싱

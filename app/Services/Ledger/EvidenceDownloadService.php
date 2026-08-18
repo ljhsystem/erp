@@ -3,6 +3,8 @@
 namespace App\Services\Ledger;
 
 use Core\Helpers\ExcelValueFormatterHelper;
+use App\Models\Ledger\EvidenceImportModel;
+use App\Models\Ledger\EvidenceSchemaModel;
 use PDO;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -30,11 +32,15 @@ class EvidenceDownloadService
     ];
 
     private PDO $pdo;
+    private EvidenceImportModel $evidenceModel;
+    private EvidenceSchemaModel $schemaModel;
     private ?SystemFieldService $systemFieldService = null;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
+        $this->evidenceModel = new EvidenceImportModel($pdo);
+        $this->schemaModel = new EvidenceSchemaModel($pdo);
     }
 
     public function outputDownload(array $format, array $columns, string $formatId, string $importType): void
@@ -63,10 +69,6 @@ class EvidenceDownloadService
 
     public function searchSummary(string $query, int $limit = 10): array
     {
-        if (!$this->tableExists('ledger_data_evidences')) {
-            return [];
-        }
-
         return $this->searchEvidenceVoucherSummaryTexts($query, $limit);
     }
 
@@ -78,20 +80,8 @@ class EvidenceDownloadService
         }
 
         $limit = max(1, min($limit, 20));
-        $stmt = $this->pdo->prepare("
-            SELECT mapped_payload_json, updated_at, created_at
-            FROM ledger_data_evidences
-            WHERE deleted_at IS NULL
-              AND mapped_payload_json LIKE :keyword
-            ORDER BY updated_at DESC, created_at DESC
-            LIMIT 1000
-        ");
-        $stmt->execute([
-            ':keyword' => '%' . $keyword . '%',
-        ]);
-
         $summaries = [];
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach ($this->evidenceModel->findSummaryPayloadRows($keyword) as $row) {
             $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
             if (!is_array($payload)) {
                 continue;
@@ -142,31 +132,7 @@ class EvidenceDownloadService
 
     private function fetchDownloadRows(string $importType, string $formatId = '', bool $withFormatId = false): array
     {
-        if (!$this->tableExists('ledger_data_evidences')) {
-            return [];
-        }
-
-        $sql = "
-            SELECT mapped_payload_json, raw_json
-            FROM ledger_data_evidences
-            WHERE deleted_at IS NULL
-              AND source_type = :source_type
-        ";
-        $params = [
-            ':source_type' => $importType,
-        ];
-
-        if ($withFormatId) {
-            $sql .= ' AND format_id = :format_id';
-            $params[':format_id'] = $formatId;
-        }
-
-        $sql .= ' ORDER BY latest_imported_at DESC, created_at DESC';
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $this->evidenceModel->findDownloadRows($importType, $formatId, $withFormatId);
     }
 
     private function streamDownloadWorkbook(array $rows, array $columns, string $formatName): void
@@ -329,15 +295,7 @@ class EvidenceDownloadService
             return $cache[$table];
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $table]);
-        $cache[$table] = (bool) $stmt->fetchColumn();
+        $cache[$table] = $this->schemaModel->tableExists($table);
 
         return $cache[$table];
     }

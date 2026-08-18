@@ -1,9 +1,5 @@
 // 경로: PROJECT_ROOT . '/public/assets/js/common/picker/ui.time.js '
-export function renderTime({ picker, container, options = {} }) {
-  const opt = {
-    minuteStep: 5,
-    ...options
-  };
+export function renderTime({ picker, container }) {
 
   container.innerHTML = `
     <div class="picker-time">
@@ -31,7 +27,7 @@ export function renderTime({ picker, container, options = {} }) {
   const fields  = container.querySelector('.time-fields');
 
   for (let i = 1; i <= 12; i++) hourSel.add(new Option(String(i), String(i)));
-  for (let i = 0; i < 60; i += opt.minuteStep) {
+  for (let i = 0; i < 60; i++) {
     const v = String(i).padStart(2, '0');
     minSel.add(new Option(v, String(i)));
   }
@@ -45,11 +41,10 @@ export function renderTime({ picker, container, options = {} }) {
 
   function currentTime() {
     const now = new Date();
-    const roundedMinute = Math.floor(now.getMinutes() / opt.minuteStep) * opt.minuteStep;
     const hour24 = now.getHours();
     return {
       hour: hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24),
-      minute: roundedMinute,
+      minute: now.getMinutes(),
       meridiem: hour24 >= 12 ? 'PM' : 'AM'
     };
   }
@@ -81,8 +76,7 @@ export function renderTime({ picker, container, options = {} }) {
 
     hourSel.value = String(s.hour ?? 9);
     const minute = Number(s.minute ?? 0);
-    const normalizedMinute = Math.floor(minute / opt.minuteStep) * opt.minuteStep;
-    minSel.value  = String(normalizedMinute);
+    minSel.value  = String(Number.isInteger(minute) && minute >= 0 && minute < 60 ? minute : 0);
     merSel.value  = String(s.meridiem ?? 'AM');
   }
 

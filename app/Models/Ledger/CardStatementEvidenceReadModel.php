@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class CardStatementEvidenceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -76,7 +76,6 @@ class CardStatementEvidenceReadModel
             ? "CASE WHEN 1=1 THEN {$sourceTypeOutput} ELSE body.source_type END"
             : $sourceTypeOutput;
         $cardSortNoExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['sort_no'], '0');
-        $cardEvidenceSortNoExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
         $cardSourceKeyExpr = $this->schemaService->coalesceExistingColumnExpr($cardTable, 'body', $sourceKeyCandidates, "''");
         $cardEvidenceDateExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', $evidenceDateCandidates, 'NULL');
         $cardPurchaseDateTimeExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', $purchaseDateTimeCandidates, 'NULL');
@@ -101,7 +100,6 @@ class CardStatementEvidenceReadModel
                 '' AS source_type_name,
                 '' AS import_type_name,
                 {$cardSortNoExpr} AS sort_no,
-                {$cardEvidenceSortNoExpr} AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect($cardTable) . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect($cardTable) . " AS raw_json,

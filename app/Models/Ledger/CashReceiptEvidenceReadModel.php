@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class CashReceiptEvidenceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -25,7 +25,6 @@ class CashReceiptEvidenceReadModel
         $cashEvidenceTypeList = "'CASH_RECEIPT'";
         $cashTable = 'ledger_evidence_cash_receipt';
         $cashSortNoExpr = $this->schemaService->firstExistingColumnExpr($cashTable, 'body', ['sort_no'], '0');
-        $cashEvidenceSortNoExpr = $this->schemaService->firstExistingColumnExpr($cashTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
         $cashSourceKeyExpr = $this->schemaService->firstExistingColumnExpr($cashTable, 'body', ['external_key', 'source_key', 'approval_number'], "''");
         $cashEvidenceDateExpr = $this->schemaService->firstExistingColumnExpr($cashTable, 'body', ['evidence_date', 'transaction_date', 'purchase_date', 'write_date', 'created_at'], 'NULL');
         $cashPurchaseDateTimeExpr = $this->schemaService->firstExistingColumnExpr($cashTable, 'body', ['raw_purchase_datetime', 'write_date', 'purchase_datetime', 'purchase_at', 'transaction_datetime', 'evidence_date', 'created_at'], 'NULL');
@@ -67,7 +66,6 @@ class CashReceiptEvidenceReadModel
                 '' AS source_type_name,
                 '' AS import_type_name,
                 {$cashSortNoExpr} AS sort_no,
-                {$cashEvidenceSortNoExpr} AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect($cashTable) . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect($cashTable) . " AS raw_json,

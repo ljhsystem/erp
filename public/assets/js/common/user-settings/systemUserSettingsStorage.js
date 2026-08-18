@@ -3,6 +3,7 @@ const SAVE_API_URL = '/api/settings/system/user-settings/save';
 const DELETE_API_URL = '/api/settings/system/user-settings/delete';
 
 const cachedSettings = new Map();
+const pendingLoads = new Map();
 const pendingSaveTimers = new Map();
 const debugCounters = {
     detail: new Map(),
@@ -158,56 +159,57 @@ function cachedRecord(request) {
     return cachedSettings.get(buildCacheKey(request.pageKey, request.settingType)) || null;
 }
 
-function loadProfileRecordSync(request) {
+async function loadProfileRecord(request) {
     const cached = cachedRecord(request);
     if (cached) {
         return cached;
     }
 
+    const cacheKey = buildCacheKey(request.pageKey, request.settingType);
+    if (pendingLoads.has(cacheKey)) {
+        return pendingLoads.get(cacheKey);
+    }
+
     const requestUrl = `${DETAIL_API_URL}?page_key=${encodeURIComponent(request.pageKey)}&setting_type=${encodeURIComponent(request.settingType)}`;
-    const xhr = new XMLHttpRequest();
-
-    try {
-        incrementDebugCounter('detail', request.pageKey, request.settingType);
-        xhr.open('GET', requestUrl, false);
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.send(null);
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-            const parsed = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+    const pending = (async () => {
+        try {
+            incrementDebugCounter('detail', request.pageKey, request.settingType);
+            const response = await fetch(requestUrl, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const parsed = await response.json();
             const record = {
                 exists: parsed?.data?.exists === true,
                 settingsJson: normalizeSettingsJson(parsed?.data?.settings_json),
             };
             cacheRecord(request, record);
             return record;
+        } catch (error) {
+            console.warn('[system-user-settings] load failed:', error);
+            return emptyRecord();
+        } finally {
+            pendingLoads.delete(cacheKey);
         }
-    } catch (error) {
-        console.warn('[system-user-settings] sync load failed:', error);
-    }
-
-    const record = emptyRecord();
-    cacheRecord(request, record);
-    return record;
+    })();
+    pendingLoads.set(cacheKey, pending);
+    return pending;
 }
 
-function saveProfileSync(request, settingsJson) {
+async function saveProfile(request, settingsJson) {
     const payload = normalizeSettingsJson(settingsJson);
-    const xhr = new XMLHttpRequest();
 
     try {
         incrementDebugCounter('save', request.pageKey, request.settingType);
-        xhr.open('POST', SAVE_API_URL, false);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.send(JSON.stringify({
-            page_key: request.pageKey,
-            setting_type: request.settingType,
-            description: request.description,
-            settings_json: payload,
-        }));
-
-        if (xhr.status >= 200 && xhr.status < 300) {
+        const response = await fetch(SAVE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+                page_key: request.pageKey,
+                setting_type: request.settingType,
+                description: request.description,
+                settings_json: payload,
+            }),
+        });
+        if (response.ok) {
             cacheRecord(request, {
                 exists: true,
                 settingsJson: payload,
@@ -215,35 +217,28 @@ function saveProfileSync(request, settingsJson) {
             return cloneValue(payload);
         }
     } catch (error) {
-        console.warn('[system-user-settings] sync save failed:', error);
+        console.warn('[system-user-settings] save failed:', error);
     }
 
     return null;
 }
 
-function deleteProfileSync(request) {
-    const xhr = new XMLHttpRequest();
-
+async function deleteProfile(request) {
     try {
         incrementDebugCounter('delete', request.pageKey, request.settingType);
-        xhr.open('POST', DELETE_API_URL, false);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.send(JSON.stringify({
-            page_key: request.pageKey,
-            setting_type: request.settingType,
-        }));
+        const response = await fetch(DELETE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ page_key: request.pageKey, setting_type: request.settingType }),
+        });
+        if (!response.ok) return false;
     } catch (error) {
-        console.warn('[system-user-settings] sync delete failed:', error);
+        console.warn('[system-user-settings] delete failed:', error);
         return false;
     }
 
-    if (xhr.status >= 200 && xhr.status < 300) {
-        cacheRecord(request, emptyRecord());
-        return true;
-    }
-
-    return false;
+    cacheRecord(request, emptyRecord());
+    return true;
 }
 
 function scheduleSave(request, settingsJson) {
@@ -280,13 +275,20 @@ export function isSystemUserSettingsManagedStorage(storageKey = '', options = {}
     return resolveStorageRequest(storageKey, options) !== null;
 }
 
-export function readSystemUserSettingsStorage(storageKey = '', options = {}) {
+export function peekSystemUserSettingsStorage(storageKey = '', options = {}) {
+    const request = resolveStorageRequest(storageKey, options);
+    if (!request) return null;
+    const record = cachedRecord(request);
+    return record?.exists === true ? cloneValue(record.settingsJson) : null;
+}
+
+export async function readSystemUserSettingsStorage(storageKey = '', options = {}) {
     const request = resolveStorageRequest(storageKey, options);
     if (!request) {
         return null;
     }
 
-    const record = loadProfileRecordSync(request);
+    const record = await loadProfileRecord(request);
     if (!record.exists) {
         return null;
     }
@@ -294,18 +296,21 @@ export function readSystemUserSettingsStorage(storageKey = '', options = {}) {
     return cloneValue(record.settingsJson);
 }
 
-export function ensureSystemUserSettingsStorage(storageKey = '', payload = null, options = {}) {
+export async function ensureSystemUserSettingsStorage(storageKey = '', payload = null, options = {}) {
     const request = resolveStorageRequest(storageKey, options);
     if (!request) {
         return null;
     }
 
-    const record = loadProfileRecordSync(request);
+    const record = await loadProfileRecord(request);
     if (record.exists) {
         return cloneValue(record.settingsJson);
     }
 
-    return saveProfileSync(request, normalizeSettingsJson(cloneValue(payload)));
+    const fallback = normalizeSettingsJson(cloneValue(payload));
+    cacheRecord(request, { exists: true, settingsJson: fallback });
+    void saveProfile(request, fallback);
+    return fallback;
 }
 
 export function writeSystemUserSettingsStorage(storageKey = '', payload = null, options = {}) {
@@ -324,7 +329,7 @@ export function writeSystemUserSettingsStorage(storageKey = '', payload = null, 
     return cloneValue(settingsJson);
 }
 
-export function deleteSystemUserSettingsStorage(storageKey = '', options = {}) {
+export async function deleteSystemUserSettingsStorage(storageKey = '', options = {}) {
     const request = resolveStorageRequest(storageKey, options);
     if (!request) {
         return false;
@@ -336,7 +341,7 @@ export function deleteSystemUserSettingsStorage(storageKey = '', options = {}) {
         pendingSaveTimers.delete(cacheKey);
     }
 
-    return deleteProfileSync(request);
+    return deleteProfile(request);
 }
 
 export function resetSystemUserSettingsDebugCounters() {

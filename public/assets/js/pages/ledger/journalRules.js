@@ -2,7 +2,6 @@ import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { PickerSelect2 } from '/public/assets/js/common/picker/picker.select2.js';
-import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
 import { actorColumn } from '/public/assets/js/common/actor.js';
 import {
     readDataTableSettingsState,
@@ -10,11 +9,11 @@ import {
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 import {
     initCodeSelectControls,
     onCodeOptionsLoaded,
 } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
-import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -88,7 +87,6 @@ import '/public/assets/js/components/trash-manager.js';
 
     let table = null;
     let modal = null;
-    let excelModal = null;
     let businessUnits = [];
     let operationTypes = [];
     let importTypes = [];
@@ -123,16 +121,16 @@ import '/public/assets/js/components/trash-manager.js';
         detailEl.innerHTML = `
             <div class="small">
                 <dl class="row mb-0">
-                    <dt class="col-4">洹쒖튃肄붾뱶</dt><dd class="col-8">${escapeHtml(row.rule_code || '-')}</dd>
-                    <dt class="col-4">洹쒖튃紐?/dt><dd class="col-8">${escapeHtml(row.rule_name || '-')}</dd>
-                    <dt class="col-4">?ъ뾽援щ텇</dt><dd class="col-8">${escapeHtml(codeLabel(businessUnits, row.business_unit, row.business_unit_name))}</dd>
-                    <dt class="col-4">嫄곕옒援щ텇</dt><dd class="col-8">${escapeHtml(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name))}</dd>
-                    <dt class="col-4">嫄곕옒泥섍뎄遺?/dt><dd class="col-8">${escapeHtml(codeLabel(clientTypes, row.client_type, row.client_type_name))}</dd>
-                    <dt class="col-4">?먮즺?좏삎</dt><dd class="col-8">${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</dd>
-                    <dt class="col-4">李⑤?怨꾩젙</dt><dd class="col-8">${escapeHtml(accountText(row, 'debit'))}</dd>
-                    <dt class="col-4">?蹂怨꾩젙</dt><dd class="col-8">${escapeHtml(accountText(row, 'credit'))}</dd>
+                    <dt class="col-4">규칙코드</dt><dd class="col-8">${escapeHtml(row.rule_code || '-')}</dd>
+                    <dt class="col-4">규칙명</dt><dd class="col-8">${escapeHtml(row.rule_name || '-')}</dd>
+                    <dt class="col-4">사업구분</dt><dd class="col-8">${escapeHtml(codeLabel(businessUnits, row.business_unit, row.business_unit_name))}</dd>
+                    <dt class="col-4">거래구분</dt><dd class="col-8">${escapeHtml(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name))}</dd>
+                    <dt class="col-4">거래처구분</dt><dd class="col-8">${escapeHtml(codeLabel(clientTypes, row.client_type, row.client_type_name))}</dd>
+                    <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</dd>
+                    <dt class="col-4">차변계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'debit'))}</dd>
+                    <dt class="col-4">대변계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'credit'))}</dd>
                     <dt class="col-4">부가세계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'vat'))}</dd>
-                    <dt class="col-4">??젣?쇱떆</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
+                    <dt class="col-4">삭제일시</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
                 </dl>
             </div>
         `;
@@ -149,8 +147,8 @@ import '/public/assets/js/components/trash-manager.js';
             <td>${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</td>
             <td>${escapeHtml(row.deleted_at || '')}</td>
             <td class="text-center">
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id || '')}">蹂듭썝</button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id || '')}">?곴뎄??젣</button>
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id || '')}">복원</button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id || '')}">영구삭제</button>
             </td>
         `;
     };
@@ -159,34 +157,12 @@ import '/public/assets/js/components/trash-manager.js';
         const modalEl = document.getElementById('journalRuleModal');
         modal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false });
 
-        const excelEl = document.getElementById('journalRuleExcelModal');
-        if (excelEl) {
-            excelModal = bootstrap.Modal.getOrCreateInstance(excelEl, { focus: false });
-        }
-
-        initExcelDataset();
-        initTable();
+        await initTable();
         bindEvents();
         bindCodeOptionRefresh();
         bindJournalRulePolicySync();
         applyJournalRuleModalPolicyLabels(document);
         warmSelectSources();
-    }
-
-    function initExcelDataset() {
-        const form = document.getElementById('journal-rule-excel-upload-form');
-        if (!form) return;
-
-        form.dataset.templateUrl = '/api/ledger/journal-rules/template';
-        form.dataset.downloadUrl = '/api/ledger/journal-rules/excel';
-        form.dataset.uploadUrl = '/api/ledger/journal-rules/excel-upload';
-
-        createExcelManagerSettingsCore({
-            domain: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
-            userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
-            formSelector: '#journal-rule-excel-upload-form',
-            metaDomain: JOURNAL_RULE_META_DOMAIN,
-        });
     }
 
     function sanitizeJournalRuleTableSettingsState() {
@@ -232,6 +208,8 @@ import '/public/assets/js/components/trash-manager.js';
                 loadSelectSources(),
                 initCodeSelectControls(modalEl),
             ]);
+            const clientTypeAllOption = modalEl.querySelector('[name="client_type"] option[value=""]');
+            if (clientTypeAllOption) clientTypeAllOption.textContent = '전체';
             initAccountSelect2();
             refreshRuleTableLabels();
         } catch (error) {
@@ -436,10 +414,10 @@ import '/public/assets/js/components/trash-manager.js';
 
         if (!transactionDirections.length) {
             transactionDirections = [
-                { code: 'PURCHASE', code_name: '留ㅼ엯' },
-                { code: 'SALES', code_name: '留ㅼ텧' },
-                { code: 'IN', code_name: '?낃툑' },
-                { code: 'OUT', code_name: '異쒓툑' },
+                { code: 'PURCHASE', code_name: '매입' },
+                { code: 'SALES', code_name: '매출' },
+                { code: 'IN', code_name: '입금' },
+                { code: 'OUT', code_name: '출금' },
             ];
         }
 
@@ -487,7 +465,7 @@ import '/public/assets/js/components/trash-manager.js';
         document.querySelectorAll('#journalRuleModal .js-account-select').forEach((select) => {
             PickerSelect2.create(select, {
                 dropdownParent: $('#journalRuleModal'),
-                placeholder: '?좏깮',
+                placeholder: '선택',
                 templateResult: renderAccountOption,
                 templateSelection: renderAccountSelection,
             });
@@ -502,14 +480,14 @@ import '/public/assets/js/components/trash-manager.js';
 
     function renderAccountSelection(data) {
         if (!data || !data.id) {
-            return '?좏깮';
+            return '선택';
         }
         return data.text || data.id;
     }
 
-    function initTable() {
+    async function initTable() {
         sanitizeJournalRuleTableSettingsState();
-        table = createDataTable({
+        table = await createDataTable({
             tableSelector: '#journal-rule-table',
             api: API.list,
             deleteApi: API.delete,
@@ -548,8 +526,7 @@ import '/public/assets/js/components/trash-manager.js';
             },
             buttons: [
                 { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrash },
-                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
-                { text: '새 분개규칙', className: 'btn btn-warning btn-sm', action: () => { void openCreate(); } },
+                { text: '신규등록', className: 'btn btn-warning btn-sm', action: () => { void openCreate(); } },
             ],
         });
 
@@ -707,20 +684,18 @@ import '/public/assets/js/components/trash-manager.js';
                 }
                 if (!confirm('분개규칙을 삭제하시겠습니까?')) return;
 
-                const body = new URLSearchParams({ id });
-                const json = await fetchJson(API.delete, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body,
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '분개규칙을 휴지통으로 이동 중' }, async () => {
+                    const body = new URLSearchParams({ id });
+                    const json = await fetchJson(API.delete, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body,
+                    });
+                    if (!json.success) throw new Error(json.message || '삭제에 실패했습니다.');
+                    notify('success', '분개규칙이 삭제되었습니다.');
+                    modal.hide();
+                    await new Promise(resolve => table.ajax.reload(() => resolve(), false));
                 });
-
-                if (!json.success) {
-                    throw new Error(json.message || '삭제에 실패했습니다.');
-                }
-
-                notify('success', '분개규칙이 삭제되었습니다.');
-                modal.hide();
-                table.ajax.reload(null, false);
             } catch (error) {
                 notify('error', error.message || '삭제에 실패했습니다.');
             }
@@ -882,7 +857,7 @@ import '/public/assets/js/components/trash-manager.js';
             });
 
             if (!json.success) {
-                throw new Error(json.message || '?곹깭 蹂寃쎌뿉 ?ㅽ뙣?덉뒿?덈떎.');
+                throw new Error(json.message || '상태 변경에 실패했습니다.');
             }
 
             const tr = input.closest('tr');

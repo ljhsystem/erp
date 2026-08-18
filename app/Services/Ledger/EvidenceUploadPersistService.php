@@ -2,12 +2,16 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceBodyStorageModel;
+use App\Models\Ledger\EvidenceSchemaModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
 
 class EvidenceUploadPersistService
 {
+    private EvidenceBodyStorageModel $bodyStorageModel;
+    private EvidenceSchemaModel $schemaModel;
     public function __construct(
         private PDO $pdo,
         private EvidenceUploadService $evidenceUploadService,
@@ -18,6 +22,8 @@ class EvidenceUploadPersistService
         private $normalizeDataType,
         private int $chunkSize = 500
     ) {
+        $this->bodyStorageModel = new EvidenceBodyStorageModel($pdo);
+        $this->schemaModel = new EvidenceSchemaModel($pdo);
     }
 
     public function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
@@ -26,8 +32,7 @@ class EvidenceUploadPersistService
         $batchId = 'EV-' . date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $fileName = trim((string) ($file['name'] ?? 'upload'));
         $dataType = $this->normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
-        $hasSourceTable = $this->tableExists('ledger_data_evidences');
-        if (!$hasSourceTable && !$this->hasWritableBodyTable($dataType)) {
+        if (!$this->hasWritableBodyTable($dataType)) {
             return [
                 'success' => false,
                 'message' => '증빙 업로드 저장 기능을 사용할 수 없습니다.',
@@ -38,44 +43,10 @@ class EvidenceUploadPersistService
         $this->evidenceSortHelperService->ensureEvidenceSortColumns();
 
         try {
-            $upsertPayload = $hasSourceTable ? $this->pdo->prepare("
-                INSERT INTO ledger_data_evidences
-                    (id, source_type, source_key, format_id, raw_json, mapped_payload_json, payload_hash, latest_imported_at, created_at, updated_at, created_by, updated_by)
-                VALUES
-                    (:id, :source_type, :source_key, :format_id, :raw_json, :mapped_payload_json, SHA2(COALESCE(:mapped_payload_json_hash, ''), 256), NOW(), NOW(), NOW(), :created_by, :updated_by)
-                ON DUPLICATE KEY UPDATE
-                    source_key = VALUES(source_key),
-                    format_id = VALUES(format_id),
-                    raw_json = VALUES(raw_json),
-                    mapped_payload_json = VALUES(mapped_payload_json),
-                    payload_hash = SHA2(COALESCE(VALUES(mapped_payload_json), ''), 256),
-                    latest_imported_at = NOW(),
-                    deleted_at = NULL,
-                    deleted_by = NULL,
-                    updated_at = NOW(),
-                    updated_by = VALUES(updated_by)
-            ") : null;
-            $upsertProcessing = null;
-            if ($this->tableExists('ledger_evidence_processing')) {
-                $upsertProcessing = $this->pdo->prepare("
-                    INSERT INTO ledger_evidence_processing
-                        (id, evidence_type, evidence_id, processing_status, review_status, last_error_message, created_at, updated_at)
-                    VALUES
-                        (:processing_id, :source_type, :id, :processing_status, :review_status, :error_message, NOW(), NOW())
-                    ON DUPLICATE KEY UPDATE
-                        processing_status = VALUES(processing_status),
-                        review_status = VALUES(review_status),
-                        last_error_message = VALUES(last_error_message),
-                        updated_at = NOW(),
-                        deleted_at = NULL
-                ");
-            }
-            $dualWrite = new EvidenceDualWriteService($this->pdo);
+            $bodyWriter = new EvidenceBodyWriteService($this->pdo);
             $counters = $this->evidenceBatchSaveService->createBatchCounters();
             $processedRows = 0;
-            if ($hasSourceTable) {
-                $this->evidenceUploadService->preloadExistingSeedRowsForUploadRows($rows, $dataType);
-            }
+            $seenExternalKeys = [];
             $this->pdo->beginTransaction();
 
             foreach ($rows as $row) {
@@ -84,7 +55,12 @@ class EvidenceUploadPersistService
                     throw new \RuntimeException('브라우저 연결이 종료되었습니다.');
                 }
 
-                $rowState = $this->evidenceBatchSaveService->buildUploadRowState($row, $dataType);
+                $rowState = $this->evidenceBatchSaveService->buildUploadRowState(
+                    $row,
+                    $dataType,
+                    is_array($format['evidence_status_column_display_name'] ?? null) ? $format['evidence_status_column_display_name'] : [],
+                    is_array($format['evidence_status_column_requirement_policy'] ?? null) ? $format['evidence_status_column_requirement_policy'] : []
+                );
                 $parsedPayload = $rowState['parsed_payload'];
                 $processStatus = $rowState['process_status'];
                 $evidenceStatus = (string) ($rowState['evidence_status'] ?? '');
@@ -92,45 +68,55 @@ class EvidenceUploadPersistService
                 $sourceKey = $rowState['source_key'];
                 $rawJson = $rowState['raw_json'];
                 $errorMessage = $rowState['error_message'];
-                $existingSeed = $hasSourceTable
-                    ? $this->evidenceBatchSaveService->findExistingUploadSeed($dataType, $sourceKey, $parsedPayload)
-                    : $this->findExistingBodySeed($dataType, $sourceKey);
+                if ($processStatus === 'ERROR') {
+                    $this->evidenceBatchSaveService->incrementError($counters, $parsedPayload, (string) ($errorMessage ?? '행 검증 오류'));
+                    $this->evidenceBatchSaveService->commitUploadChunkIfNeeded(++$processedRows, $this->chunkSize);
+                    continue;
+                }
+                $sourceKey = trim((string) $sourceKey);
                 $parsedJson = $this->evidencePayloadHelperService->jsonEncodeForStorage($parsedPayload);
-
-                if ($this->evidenceBatchSaveService->isUnchangedExistingSeed($existingSeed, $rawJson, $parsedJson)) {
-                    $this->evidenceBatchSaveService->incrementUnchanged($counters);
+                if (isset($seenExternalKeys[$sourceKey])) {
+                    $this->evidenceBatchSaveService->incrementDuplicate($counters, $parsedPayload, '파일 내부 동일 원본');
                     $this->evidenceBatchSaveService->commitUploadChunkIfNeeded(++$processedRows, $this->chunkSize);
                     continue;
                 }
+                $seenExternalKeys[$sourceKey] = true;
 
-                $protectedSeedInfo = $this->evidenceBatchSaveService->protectedExistingSeedInfo($existingSeed);
-                if ($protectedSeedInfo['is_protected']) {
-                    $this->evidenceBatchSaveService->incrementProtectedSkip($counters, $protectedSeedInfo);
+                $existingSeeds = $this->bodyStorageModel->findUploadSeedsByImportType($dataType, $sourceKey);
+                if ($existingSeeds !== []) {
+                    $activeSeeds = array_values(array_filter($existingSeeds, static fn(array $seed): bool => empty($seed['deleted_at'])));
+                    $deletedDuplicate = $activeSeeds === [];
+                    $incomingDigest = $this->evidenceUploadService->externalKeyContentDigest($parsedPayload, $dataType);
+                    $existingDigests = array_values(array_unique(array_map(
+                        fn(array $seed): string => $this->evidenceUploadService->externalKeyContentDigest($seed, $dataType),
+                        $existingSeeds
+                    )));
+                    $conflict = count($existingSeeds) > 1 || !in_array($incomingDigest, $existingDigests, true);
+                    $reason = count($existingSeeds) > 1
+                        ? '동일 외부원본식별키가 기존 DB에 여러 건 존재함'
+                        : ($deletedDuplicate ? '삭제자료 중복' : ($conflict ? '동일 키 원본내용 충돌' : '기존 동일 원본'));
+                    $this->evidenceBatchSaveService->incrementDuplicate(
+                        $counters,
+                        $parsedPayload,
+                        $reason,
+                        $deletedDuplicate,
+                        $conflict
+                    );
                     $this->evidenceBatchSaveService->commitUploadChunkIfNeeded(++$processedRows, $this->chunkSize);
                     continue;
                 }
-
-                $evidenceId = (string) ($existingSeed['id'] ?? UuidHelper::generate());
+                $evidenceId = UuidHelper::generate();
                 $targetTable = $this->bodyTableForDataType($dataType);
                 if ($targetTable === null) {
                     throw new \RuntimeException('evidence body table not mapped: ' . $dataType);
                 }
-                $sortNo = (int) ($existingSeed['sort_no'] ?? 0);
-                if ($sortNo < 1) {
-                    $sortNo = $this->evidenceBatchSaveService->nextBodySortNo($targetTable);
-                }
-                $evidenceSortNo = (int) ($existingSeed['evidence_sort_no'] ?? 0);
-                if ($evidenceSortNo < 1) {
-                    $evidenceSortNo = $this->evidenceBatchSaveService->nextEvidenceSortNo($actor);
-                }
-                $this->evidenceBatchSaveService->incrementPersisted($counters, $existingSeed !== null);
+                $sortNo = $this->evidenceBatchSaveService->nextBodySortNo($targetTable);
                 $persistParams = $this->evidenceBatchSaveService->buildPersistParams(
                     $evidenceId,
                     $dataType,
                     (string) ($format['id'] ?? ''),
                     $sourceKey,
                     $sortNo,
-                    $evidenceSortNo,
                     $parsedPayload,
                     $processStatus,
                     $evidenceStatus,
@@ -140,30 +126,6 @@ class EvidenceUploadPersistService
                     $parsedJson,
                     $actor
                 );
-
-                if ($upsertPayload instanceof \PDOStatement) {
-                    $upsertPayload->execute([
-                        ':id' => $evidenceId,
-                        ':source_type' => $dataType,
-                        ':source_key' => $sourceKey,
-                        ':format_id' => (string) ($format['id'] ?? ''),
-                        ':raw_json' => $rawJson,
-                        ':mapped_payload_json' => $parsedJson,
-                        ':mapped_payload_json_hash' => $parsedJson,
-                        ':created_by' => $actor,
-                        ':updated_by' => $actor,
-                    ]);
-                }
-                if ($upsertProcessing instanceof \PDOStatement) {
-                    $upsertProcessing->execute([
-                        ':processing_id' => UuidHelper::generate(),
-                        ':source_type' => $dataType,
-                        ':id' => $evidenceId,
-                        ':processing_status' => $processStatus === 'ERROR' ? 'ERROR' : 'READY',
-                        ':review_status' => 'NORMAL',
-                        ':error_message' => $errorMessage,
-                    ]);
-                }
 
                 $legacyForEvidence = [
                     'id' => $evidenceId,
@@ -186,7 +148,6 @@ class EvidenceUploadPersistService
                     'vat_amount' => $persistParams[':vat_amount'],
                     'total_amount' => $persistParams[':total_amount'],
                     'sort_no' => $persistParams[':sort_no'],
-                    'evidence_sort_no' => $persistParams[':evidence_sort_no'],
                     'evidence_status' => $persistParams[':evidence_status'],
                     'transaction_status' => $persistParams[':transaction_status'],
                     'voucher_status' => $persistParams[':voucher_status'],
@@ -197,11 +158,21 @@ class EvidenceUploadPersistService
                     'updated_by' => $actor,
                     'deleted_at' => null,
                 ];
-                $dualWriteResult = $dualWrite->syncFromLegacyRow($legacyForEvidence);
-                if (($dualWriteResult['dual_write_status'] ?? '') !== 'success') {
-                    throw new \RuntimeException('evidence body update failed: ' . (string) ($dualWriteResult['message'] ?? 'unknown'));
+                try {
+                    $writeResult = $bodyWriter->save($legacyForEvidence);
+                    if (($writeResult['status'] ?? '') !== 'success') {
+                        throw new \RuntimeException('evidence body insert failed: ' . (string) ($writeResult['message'] ?? 'unknown'));
+                    }
+                } catch (\PDOException $e) {
+                    if ((string) $e->getCode() !== '23000' || !str_contains(strtolower($e->getMessage()), 'duplicate')) {
+                        throw $e;
+                    }
+                    $this->evidenceBatchSaveService->incrementDuplicate($counters, $parsedPayload, '동시 업로드 동일 원본');
+                    $this->evidenceBatchSaveService->commitUploadChunkIfNeeded(++$processedRows, $this->chunkSize);
+                    continue;
                 }
 
+                $this->evidenceBatchSaveService->incrementPersisted($counters);
                 $cachedSeed = $this->evidenceBatchSaveService->buildCachedSeed(
                     $evidenceId,
                     $sourceKey,
@@ -215,7 +186,6 @@ class EvidenceUploadPersistService
                     $this->evidenceUploadService->rememberExistingSeedRow($dataType, $sourceKey, $cachedSeed, $parsedPayload);
                 }
 
-                $this->evidenceBatchSaveService->incrementErrorIfNeeded($counters, $processStatus);
                 $this->evidenceBatchSaveService->commitUploadChunkIfNeeded(++$processedRows, $this->chunkSize);
             }
 
@@ -258,57 +228,7 @@ class EvidenceUploadPersistService
             return null;
         }
 
-        $sourceKeyColumn = null;
-        if ($this->tableColumnExists($table, 'external_key')) {
-            $sourceKeyColumn = 'external_key';
-        } elseif ($this->tableColumnExists($table, 'source_key')) {
-            $sourceKeyColumn = 'source_key';
-        }
-        if ($sourceKeyColumn === null) {
-            return null;
-        }
-
-        $sortNoExpr = $this->tableColumnExists($table, 'sort_no') ? 'body.sort_no' : 'NULL';
-        $evidenceSortNoExpr = $this->tableColumnExists($table, 'evidence_sort_no') ? 'body.evidence_sort_no' : 'NULL';
-        $updatedAtExpr = $this->tableColumnExists($table, 'updated_at') ? 'body.updated_at' : 'NULL';
-        $createdAtExpr = $this->tableColumnExists($table, 'created_at') ? 'body.created_at' : 'NULL';
-
-        $processingJoin = '';
-        $transactionStatusExpr = "'READY'";
-        if ($this->tableExists('ledger_evidence_processing')) {
-            $processingJoin = "
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_id = body.id
-                   AND pr.deleted_at IS NULL";
-            $transactionStatusExpr = "COALESCE(pr.processing_status, 'READY')";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT
-                body.id,
-                body.{$sourceKeyColumn} AS source_key,
-                {$sortNoExpr} AS sort_no,
-                {$evidenceSortNoExpr} AS evidence_sort_no,
-                {$transactionStatusExpr} AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                tx.target_id AS transaction_id
-            FROM {$table} body
-            {$processingJoin}
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_id = body.id
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_id = body.id
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE body.{$sourceKeyColumn} = :source_key
-              AND body.deleted_at IS NULL
-            ORDER BY {$updatedAtExpr} DESC, {$createdAtExpr} DESC
-            LIMIT 1
-        ");
-        $stmt->execute([':source_key' => $sourceKey]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $this->bodyStorageModel->findUploadSeedByImportType($dataType, $sourceKey);
         if (!is_array($row)) {
             return null;
         }
@@ -319,7 +239,6 @@ class EvidenceUploadPersistService
             'raw_json' => '',
             'mapped_payload_json' => '',
             'sort_no' => (int) ($row['sort_no'] ?? 0),
-            'evidence_sort_no' => (int) ($row['evidence_sort_no'] ?? 0),
             'transaction_status' => (string) ($row['transaction_status'] ?? 'READY'),
             'voucher_status' => (string) ($row['voucher_status'] ?? 'WAITING'),
             'transaction_id' => (string) ($row['transaction_id'] ?? ''),
@@ -347,33 +266,11 @@ class EvidenceUploadPersistService
 
     private function tableColumnExists(string $table, string $column): bool
     {
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-              AND COLUMN_NAME = :column_name
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':table_name' => $table,
-            ':column_name' => $column,
-        ]);
-
-        return (bool) $stmt->fetchColumn();
+        return $this->schemaModel->columnExists($table, $column);
     }
 
     private function tableExists(string $table): bool
     {
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $table]);
-
-        return (bool) $stmt->fetchColumn();
+        return $this->schemaModel->tableExists($table);
     }
 }

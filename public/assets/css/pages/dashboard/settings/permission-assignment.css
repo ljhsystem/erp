@@ -2,8 +2,17 @@
 
 .role-permission-page {
     min-height: 0;
-    --rp-role-sticky-top: 0px;
+    --rp-sticky-top: 0px;
     --rp-role-toolbar-height: 0px;
+    --rp-role-list-header-height: 58px;
+    --rp-role-list-toolbar-offset: 70px;
+    --rp-permission-header-height: 58px;
+    --rp-permission-toolbar-height: 0px;
+    --rp-individual-user-toolbar-height: 0px;
+    --rp-individual-user-header-height: 58px;
+    --rp-individual-user-toolbar-offset: 70px;
+    --rp-individual-permission-header-height: 58px;
+    --rp-individual-permission-toolbar-height: 0px;
 }
 
 .role-permission-page .rp-row {
@@ -16,24 +25,81 @@
 .role-permission-page .rp-col-left,
 .role-permission-page .rp-col-right {
     min-height: 0;
+    min-width: 0;
+    width: 100%;
     display: flex;
 }
 
 .role-permission-page .rp-card {
-  border-radius: 8px;
-  overflow: hidden;
-  width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.role-permission-page .rp-card.rp-table-pending .rp-card-body {
+    visibility: hidden;
+}
+
+.role-permission-page #roleListCard {
+    position: sticky;
+    top: var(--rp-sticky-top);
+    align-self: flex-start;
+    max-height: calc(100vh - var(--rp-sticky-top) - 16px);
+    z-index: 68;
+}
+
+.role-permission-page #individualUserListCard {
+    position: sticky;
+    top: var(--rp-sticky-top);
+    align-self: flex-start;
+    max-height: calc(100vh - var(--rp-sticky-top) - 16px);
+    z-index: 68;
 }
 
 .role-permission-page #permissionListCard {
     overflow: visible;
 }
 
-.role-permission-page #roleListCard {
+.role-permission-page #individualPermissionCard {
     overflow: visible;
 }
 
+.role-permission-page #permissionListCard > .card-header {
+    position: sticky;
+    top: var(--rp-sticky-top);
+    z-index: 80;
+    background: var(--bs-card-cap-bg, rgba(33, 37, 41, 0.03));
+}
+
+.role-permission-page #individualPermissionCard > .card-header {
+    position: sticky;
+    top: var(--rp-sticky-top);
+    z-index: 80;
+    background: var(--bs-card-cap-bg, rgba(33, 37, 41, 0.03));
+}
+
+.role-permission-page #permission-assignment-table_wrapper {
+    --dt-sticky-top: calc(var(--rp-sticky-top) + var(--rp-permission-header-height));
+    --dt-sticky-header-top: calc(
+        var(--rp-sticky-top)
+        + var(--rp-permission-header-height)
+        + var(--rp-permission-toolbar-height)
+    );
+}
+
+.role-permission-page #individual-permission-table_wrapper {
+    --dt-sticky-top: calc(var(--rp-sticky-top) + var(--rp-individual-permission-header-height));
+    --dt-sticky-header-top: calc(
+        var(--rp-sticky-top)
+        + var(--rp-individual-permission-header-height)
+        + var(--rp-individual-permission-toolbar-height)
+    );
+}
+
 .role-permission-page .rp-card .card-header {
+    height: 58px;
     min-height: 58px;
     padding-top: 10px;
     padding-bottom: 10px;
@@ -41,9 +107,12 @@
     font-size: 1rem;
     font-weight: 700;
     line-height: 1.35;
+    box-sizing: border-box;
+    background-color: var(--bs-card-cap-bg, rgba(33, 37, 41, 0.03));
 }
 
-.role-permission-page #permissionListCard .card-header {
+.role-permission-page #permissionListCard .card-header,
+.role-permission-page #individualPermissionCard .card-header {
     padding-top: 6px;
     padding-bottom: 6px;
 }
@@ -55,6 +124,9 @@
 
 .role-permission-page .rp-card-body {
     padding: 12px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 344px;
 }
 
 .role-permission-page #permissionListCard .rp-card-body {
@@ -63,7 +135,13 @@
 }
 
 .role-permission-page #roleListCard .rp-card-body {
-    overflow: visible;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+}
+
+.role-permission-page #individualUserListCard .rp-card-body {
+    overflow: hidden;
     min-width: 0;
     min-height: 0;
 }
@@ -98,11 +176,80 @@
 
 .role-permission-page .dataTables_wrapper {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.role-permission-page #individual-permission-pane .rp-actions .form-select {
+    width: 150px;
+}
+
+.role-permission-page #individual-user-table_wrapper,
+.role-permission-page #individual-permission-table_wrapper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.role-permission-page #individual-user-table_wrapper .dataTables_length {
+    display: none !important;
+}
+
+.role-permission-page #individual-user-table_wrapper .dt-bottom,
+.role-permission-page #individual-user-table_wrapper .dataTables_info,
+.role-permission-page #individual-user-table_wrapper .dataTables_paginate {
+    display: none !important;
+}
+
+.role-permission-page #individual-permission-pane .rp-card-body {
+    min-width: 0;
+}
+
+.role-permission-page #individual-permission-table_wrapper .rp-hierarchy-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.role-permission-page #individual-permission-table_wrapper .rp-hierarchy-page {
+    font-weight: 700;
+}
+
+.role-permission-page #individual-permission-table_wrapper .rp-hierarchy-child {
+    padding-left: 20px;
+}
+
+.role-permission-page #individual-permission-table_wrapper .rp-reorder-handle {
+    cursor: grab;
+}
+
+.role-permission-page #individual-permission-table_wrapper .rp-reorder-handle.is-disabled {
+    cursor: default;
+    opacity: .35;
 }
 
 .role-permission-page #permission-assignment-table-wrap {
-  width: 100%;
-  min-width: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+}
+
+.role-permission-page #role-list-table_wrapper,
+.role-permission-page #role-list-table_wrapper .dataTables_scroll,
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHead,
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHeadInner,
+.role-permission-page #role-list-table_wrapper .dataTables_scrollBody {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
 }
 
 .role-permission-page #role-list-table_wrapper .dt-buttons,
@@ -114,13 +261,47 @@
 }
 
 .role-permission-page #role-list-table_wrapper {
-    position: sticky !important;
-    top: var(--rp-role-sticky-top) !important;
-    z-index: 68 !important;
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
     background: var(--color-surface, #fff);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - var(--rp-role-sticky-top) - 16px);
+    max-height: calc(100vh - var(--rp-sticky-top) - 74px);
+}
+
+.role-permission-page #individual-user-table_wrapper {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    background: var(--color-surface, #fff);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--rp-sticky-top) - 74px);
+}
+
+.role-permission-page #individual-user-table_wrapper .dt-top,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollHead {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    background: var(--color-surface, #fff);
+}
+
+.role-permission-page #individual-user-table_wrapper .dataTables_scroll {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto !important;
+    max-height: calc(100vh - var(--rp-sticky-top) - var(--rp-individual-user-toolbar-height) - 142px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
 
 .role-permission-page #role-list-table_wrapper .dt-top,
@@ -142,7 +323,7 @@
     flex: 1 1 auto;
     min-height: 0;
     height: auto !important;
-    max-height: calc(100vh - var(--rp-role-sticky-top) - var(--rp-role-toolbar-height) - 84px) !important;
+    max-height: calc(100vh - var(--rp-sticky-top) - var(--rp-role-toolbar-height) - 142px) !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
 }
@@ -180,6 +361,176 @@
     margin-bottom: 0;
 }
 
+/* 좌측 목록은 카드 제목이 아니라 DataTable 버튼 라인부터 고정한다. */
+.role-permission-page #roleListCard,
+.role-permission-page #individualUserListCard {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    z-index: auto;
+}
+
+.role-permission-page #roleListCard .rp-card-body,
+.role-permission-page #individualUserListCard .rp-card-body {
+    overflow: visible;
+}
+
+.role-permission-page #role-list-table_wrapper,
+.role-permission-page #individual-user-table_wrapper {
+    --dt-sticky-top: var(--rp-sticky-top);
+    position: static !important;
+    max-height: none;
+    display: block;
+    overflow: visible;
+}
+
+.role-permission-page #role-list-table_wrapper {
+    --dt-sticky-header-top: calc(var(--rp-sticky-top) + var(--rp-role-toolbar-height));
+}
+
+.role-permission-page #individual-user-table_wrapper {
+    --dt-sticky-header-top: calc(var(--rp-sticky-top) + var(--rp-individual-user-toolbar-height));
+}
+
+.role-permission-page #role-list-table_wrapper .dt-top,
+.role-permission-page #individual-user-table_wrapper .dt-top {
+    position: sticky !important;
+    top: var(--rp-sticky-top) !important;
+    z-index: 79 !important;
+    background: var(--color-surface, #fff);
+}
+
+/* 버튼 라인에 도달한 뒤에는 버튼 라인 아래의 목록 영역 전체를 고정한다. */
+.role-permission-page #role-list-table_wrapper,
+.role-permission-page #individual-user-table_wrapper {
+    position: sticky !important;
+    top: var(--rp-sticky-top) !important;
+    z-index: 76 !important;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--rp-sticky-top) - 16px);
+    overflow: hidden;
+    background: var(--color-surface, #fff);
+}
+
+.role-permission-page #role-list-table_wrapper .dt-top,
+.role-permission-page #individual-user-table_wrapper .dt-top,
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHead,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollHead {
+    position: static !important;
+    top: auto !important;
+    flex: 0 0 auto;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th,
+.role-permission-page #role-list-table_wrapper table.dataTable > thead > tr > td,
+.role-permission-page #individual-user-table_wrapper table.dataTable thead th,
+.role-permission-page #individual-user-table_wrapper table.dataTable > thead > tr > td {
+    position: relative !important;
+    top: auto !important;
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scroll,
+.role-permission-page #individual-user-table_wrapper .dataTables_scroll {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollBody,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(100vh - var(--rp-sticky-top) - var(--rp-role-toolbar-height) - 88px) !important;
+    overflow-y: auto !important;
+}
+
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
+    max-height: calc(100vh - var(--rp-sticky-top) - var(--rp-individual-user-toolbar-height) - 88px) !important;
+}
+
+/*
+ * 목록 카드 전체를 고정하되 카드 제목만 내비게이션 위로 밀어낸다.
+ * 화면에는 버튼 라인부터 보이며 테이블 본문은 고정 카드 내부에서 스크롤된다.
+ */
+.role-permission-page #roleListCard {
+    position: sticky;
+    top: calc(var(--rp-sticky-top) - var(--rp-role-list-toolbar-offset));
+    max-height: calc(100vh - var(--rp-sticky-top) + var(--rp-role-list-toolbar-offset) - 16px);
+    overflow: hidden;
+    z-index: 76;
+}
+
+.role-permission-page #individualUserListCard {
+    position: sticky;
+    top: calc(var(--rp-sticky-top) - var(--rp-individual-user-toolbar-offset));
+    max-height: calc(100vh - var(--rp-sticky-top) + var(--rp-individual-user-toolbar-offset) - 16px);
+    overflow: hidden;
+    z-index: 76;
+}
+
+.role-permission-page #role-list-table_wrapper,
+.role-permission-page #individual-user-table_wrapper {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    width: 100%;
+    max-height: none;
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollBody,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
+    overflow-y: auto !important;
+}
+
+/* 권한목록은 카드 제목이 아니라 DataTable 버튼 라인과 테이블 헤더만 고정한다. */
+.role-permission-page #permissionListCard > .card-header,
+.role-permission-page #individualPermissionCard > .card-header {
+    position: static;
+    top: auto;
+    z-index: auto;
+}
+
+.role-permission-page #permission-assignment-table_wrapper,
+.role-permission-page #individual-permission-table_wrapper {
+    --dt-sticky-top: var(--rp-sticky-top);
+    --dt-sticky-header-top: calc(var(--rp-sticky-top) + var(--rp-permission-toolbar-height));
+}
+
+.role-permission-page #individual-permission-table_wrapper {
+    --dt-sticky-header-top: calc(
+        var(--rp-sticky-top)
+        + var(--rp-individual-permission-toolbar-height)
+    );
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHead,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollHead {
+    position: sticky !important;
+    top: var(--dt-sticky-header-top) !important;
+    z-index: 78 !important;
+    background: var(--color-surface, #fff);
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollBody,
+.role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
+    max-height: none !important;
+    height: auto !important;
+    overflow-y: visible !important;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th,
+.role-permission-page #role-list-table_wrapper table.dataTable > thead > tr > td,
+.role-permission-page #individual-user-table_wrapper table.dataTable thead th,
+.role-permission-page #individual-user-table_wrapper table.dataTable > thead > tr > td {
+    position: sticky !important;
+    top: var(--dt-sticky-header-top) !important;
+    z-index: 78 !important;
+    background: var(--color-surface, #fff);
+}
+
 .role-permission-page #role-list-table tbody tr.rp-role-spacer td {
   height: var(--rp-role-spacer-height, 0px);
   padding: 0 !important;
@@ -215,9 +566,19 @@
 
     .role-permission-page #roleListCard {
         position: static;
+        max-height: none;
+    }
+
+    .role-permission-page #individualUserListCard {
+        position: static;
+        max-height: none;
     }
 
     .role-permission-page #roleListCard .rp-card-body {
+        overflow: visible;
+    }
+
+    .role-permission-page #individualUserListCard .rp-card-body {
         overflow: visible;
     }
 
@@ -227,7 +588,18 @@
         max-height: none;
     }
 
+    .role-permission-page #individual-user-table_wrapper {
+        position: static !important;
+        top: auto !important;
+        max-height: none;
+    }
+
     .role-permission-page #role-list-table_wrapper .dataTables_scrollBody {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .role-permission-page #individual-user-table_wrapper .dataTables_scrollBody {
         max-height: none !important;
         overflow: visible !important;
     }
@@ -241,6 +613,23 @@
     }
 
     .role-permission-page .card-header {
+        height: auto;
         flex-wrap: wrap;
+    }
+
+    .role-permission-page .rp-card-body {
+        min-height: 0;
+    }
+
+    .role-permission-page #permissionListCard > .card-header,
+    .role-permission-page #individualPermissionCard > .card-header,
+    .role-permission-page #permission-assignment-table_wrapper .dt-top,
+    .role-permission-page #individual-permission-table_wrapper .dt-top,
+    .role-permission-page #permission-assignment-table_wrapper .dataTables_scrollHead,
+    .role-permission-page #individual-permission-table_wrapper .dataTables_scrollHead,
+    .role-permission-page #permission-assignment-table_wrapper table.dataTable thead th,
+    .role-permission-page #individual-permission-table_wrapper table.dataTable thead th {
+        position: static !important;
+        top: auto !important;
     }
 }

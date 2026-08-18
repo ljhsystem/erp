@@ -2,31 +2,18 @@
 
 namespace App\Services\Ledger;
 
-use App\Models\Ledger\ProcessingItemModel;
-use App\Models\Ledger\VoucherModel;
-use App\Services\Ledger\ProcessingItemTreeService;
+use App\Repositories\Ledger\EvidenceSourceRepository;
 use Closure;
 use Core\Helpers\ActorHelper;
 use PDO;
 
 class EvidenceGenerationService
 {
-    private const PAYLOAD_ONLY_TYPE_COUNTS = [
-        'TAX_INVOICE_MANUAL',
-        'IMPORT_INVOICE',
-        'SHOPPING_ORDER',
-        'PAYROLL_WITHHOLDING',
-        'BUSINESS_DATA',
-        'PAYROLL',
-        'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE',
-        'CONSTRUCTION',
-    ];
-
     private array $query = [];
 
     private ?EvidenceBodyReadService $evidenceBodyReadService = null;
-    private ?VoucherModel $voucherModel = null;
+    private ?EvidenceSourceRepository $evidenceSourceRepository = null;
+    private array $standardDateFieldCache = [];
 
     public function __construct(
         private PDO $pdo,
@@ -36,6 +23,7 @@ class EvidenceGenerationService
         private Closure $normalizeDataType,
         private Closure $normalizeImportSourceType,
         private Closure $importTypesForSourceType,
+        private Closure $queryDataTypes,
         private Closure $sourceTypeForDataType,
         private Closure $sourceTypeLabel,
         private Closure $importTypeLabel,
@@ -82,6 +70,11 @@ class EvidenceGenerationService
         return ($this->importTypesForSourceType)($sourceType);
     }
 
+    private function queryDataTypes(string $type): array
+    {
+        return ($this->queryDataTypes)($type);
+    }
+
     private function sourceTypeForDataType(string $dataType): string
     {
         return ($this->sourceTypeForDataType)($dataType);
@@ -97,20 +90,12 @@ class EvidenceGenerationService
         return ($this->importTypeLabel)($importType);
     }
 
-    private function tableExists(string $table): bool
-    {
-        return ($this->tableExists)($table);
-    }
-
     private function evidenceBodyReadService(): EvidenceBodyReadService
     {
         if ($this->evidenceBodyReadService === null) {
             $this->evidenceBodyReadService = new EvidenceBodyReadService(
                 $this->pdo,
-                new EvidenceProcessingPolicyService(
-                    $this->pdo,
-                    $this->tableExists
-                ),
+                new \App\Models\Ledger\EvidenceBodyStatusProjectionModel(),
                 $this->normalizeDataType
             );
         }
@@ -121,6 +106,19 @@ class EvidenceGenerationService
     private function columns(string $formatId): array
     {
         return ($this->columns)($formatId);
+    }
+
+    private function standardDateField(string $importType): string
+    {
+        $importType = $this->normalizeDataType($importType);
+        if ($importType === '') {
+            return '';
+        }
+        if (!array_key_exists($importType, $this->standardDateFieldCache)) {
+            $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
+            $this->standardDateFieldCache[$importType] = $this->evidenceSourceRepository->standardDateField($importType);
+        }
+        return $this->standardDateFieldCache[$importType];
     }
 
     private function isUuid(string $value): bool
@@ -203,7 +201,6 @@ class EvidenceGenerationService
         if ($importType !== '' && !$this->isAllowedDataType($importType)) {
             return ['payload' => ['success' => true, 'data' => []]];
         }
-        $sequenceScope = $this->evidenceSequenceScopeFromRequest('', $importType);
         $this->ensureEvidenceSortColumns();
         if ((string) ($query['type_counts'] ?? '') === '1') {
             $bodyCounts = $this->evidenceBodyReadService()->bodyEvidenceTypeCounts();
@@ -261,6 +258,10 @@ class EvidenceGenerationService
         } else {
             $bodyQueryTypes = $bodyTableTypes;
         }
+        $metadataQueryTypes = array_values(array_unique(array_merge(...array_map(
+            fn(string $type): array => $this->queryDataTypes($type),
+            $bodyQueryTypes
+        ))));
         if ($bodyQueryTypes === []) {
             return ['payload' => $isServerPaged
                 ? [
@@ -272,13 +273,36 @@ class EvidenceGenerationService
                 ]
                 : ['success' => true, 'data' => []]];
         }
-        if ($isServerPaged && $filters === []) {
-            $recordsFiltered = $this->evidenceBodyReadService()->countRowsForTypes($bodyQueryTypes, $status, $requestedId);
+        $requestedOrderings = $this->requestedEvidenceRowOrderings();
+        $requestedOrdering = $requestedOrderings[0] ?? [];
+        $projectionFields = array_values(array_unique(array_filter(array_merge(
+            array_map(static fn(array $filter): string => trim((string) ($filter['field'] ?? '')), $filters),
+            [(string) ($requestedOrdering['field'] ?? '')]
+        ))));
+        $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
+        $page = $this->evidenceSourceRepository->pagedProjections([
+            'import_types' => $metadataQueryTypes,
+            'status' => in_array($status, ['READY', 'NOT_READY', 'REVIEW_REQUIRED', 'VERIFY_ONLY'], true) ? '' : $status,
+            'id' => $requestedId,
+            'filters' => $filters,
+            'start' => $isServerPaged ? $pageStart : 0,
+            'length' => $isServerPaged ? $pageLength : 5000,
+            'order_field' => (string) ($requestedOrdering['field'] ?? ''),
+            'order_direction' => (string) ($requestedOrdering['dir'] ?? 'asc'),
+            'projection_fields' => $projectionFields,
+        ]);
+        $recordsTotal = (int) ($page['records_total'] ?? 0);
+        $recordsFiltered = (int) ($page['records_filtered'] ?? 0);
+        $rows = [];
+        foreach ($page['projections'] ?? [] as $projection) {
+            if (!is_array($projection) || !is_array($projection['body'] ?? null)) {
+                continue;
+            }
+            $row = $projection['body'];
+            $row['_evidence_links'] = is_array($projection['links'] ?? null) ? $projection['links'] : [];
+            $rows[] = $row;
         }
-
-        $rows = $this->evidenceBodyReadService()->rowsForTypes($bodyQueryTypes, $status, $requestedId);
         $this->logTrashListQueryDiagnostics($status, $importType, '', [], $rows);
-        $this->applyActiveVoucherStatus($rows);
         foreach ($rows as &$row) {
             $row['raw_payload'] = json_decode((string) ($row['raw_json'] ?? ''), true) ?: [];
             $row['mapped_payload'] = json_decode((string) ($row['parsed_json'] ?? ''), true) ?: [];
@@ -301,8 +325,29 @@ class EvidenceGenerationService
                 $row['import_type'] = $payloadDataType;
                 $row['source_type'] = $this->sourceTypeForDataType($payloadDataType);
             }
-            $row['source_type_name'] = $this->sourceTypeLabel((string) ($row['source_type'] ?? ''));
-            $row['import_type_name'] = $this->importTypeLabel((string) ($row['import_type'] ?? $payloadDataType));
+            $row['source_type_name'] = array_key_exists('source_type_name', $row)
+                ? (string) $row['source_type_name']
+                : $this->sourceTypeLabel((string) ($row['source_type'] ?? ''));
+            $row['import_type_name'] = array_key_exists('import_type_name', $row)
+                ? (string) $row['import_type_name']
+                : $this->importTypeLabel((string) ($row['import_type'] ?? $payloadDataType));
+            $standardDateField = array_key_exists('standard_date_field', $row)
+                ? (string) $row['standard_date_field']
+                : $this->standardDateField((string) ($row['import_type'] ?? $payloadDataType));
+            $row['standard_date_field'] = $standardDateField;
+            $row['standard_date'] = $standardDateField !== ''
+                ? ($mappedPayload[$standardDateField] ?? $row[$standardDateField] ?? null)
+                : null;
+            $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
+            $row['business_unit_name'] = array_key_exists('business_unit_name', $row)
+                ? (string) $row['business_unit_name']
+                : $this->evidenceSourceRepository->systemCodeName('BUSINESS_UNIT', (string) ($mappedPayload['business_unit'] ?? $row['business_unit'] ?? ''));
+            $row['transaction_direction_name'] = array_key_exists('transaction_direction_name', $row)
+                ? (string) $row['transaction_direction_name']
+                : $this->evidenceSourceRepository->systemCodeName('TRANSACTION_DIRECTION', (string) ($mappedPayload['transaction_direction'] ?? $row['transaction_direction'] ?? ''));
+            $row['operation_type_name'] = array_key_exists('operation_type_name', $row)
+                ? (string) $row['operation_type_name']
+                : $this->evidenceSourceRepository->systemCodeName('OPERATION_TYPE', (string) ($mappedPayload['operation_type'] ?? $row['operation_type'] ?? ''));
             $resolvedClientName = '';
             $clientIdForDisplay = trim((string) ($row['client_id'] ?? $mappedPayload['client_id'] ?? ''));
             if ($clientIdForDisplay !== '' && $this->isUuid($clientIdForDisplay)) {
@@ -333,8 +378,12 @@ class EvidenceGenerationService
             unset($row['raw_json'], $row['parsed_json']);
         }
         unset($row);
+        $rows = ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
         $this->attachRequiredFormatColumnsToRows($rows);
-        $this->sortEvidenceRowsForResponse($rows, $importType, $sequenceScope);
         foreach ($rows as &$row) {
             $this->applyReadinessToEvidenceRow($row);
         }
@@ -344,13 +393,9 @@ class EvidenceGenerationService
         } elseif (in_array($status, ['NOT_READY', 'REVIEW_REQUIRED', 'VERIFY_ONLY'], true)) {
             $rows = array_values(array_filter($rows, static fn(array $row): bool => ($row['readiness_status'] ?? '') === $status));
         }
-        if ($filters !== []) {
-            $rows = array_values(array_filter($rows, fn(array $row): bool => $this->seedRowMatchesFilters($row, $filters)));
-        }
-        $recordsFiltered = count($rows);
         foreach ($rows as $index => &$row) {
             $row['applied_sort_no'] = max(0, (int) ($row['sort_no'] ?? 0));
-            $row['row_no'] = $index + 1;
+            $row['row_no'] = ($isServerPaged ? $pageStart : 0) + $index + 1;
             if (!empty($row['error_message'])) {
                 $row['error_message'] = $this->formatTransactionCreateError(
                     (string) $row['error_message'],
@@ -360,15 +405,12 @@ class EvidenceGenerationService
             }
         }
         unset($row);
-        $rows = $this->expandEvidenceRowsWithProcessingItems($rows, $sequenceScope);
-
         if ($isServerPaged) {
-            $rows = array_slice($rows, $pageStart, $pageLength);
             $total = $recordsFiltered ?? count($rows);
             return ['payload' => [
                 'success' => true,
                 'draw' => (int) ($query['draw'] ?? 0),
-                'recordsTotal' => $total,
+                'recordsTotal' => $recordsTotal ?? $total,
                 'recordsFiltered' => $total,
                 'data' => $rows,
             ]];
@@ -391,145 +433,6 @@ class EvidenceGenerationService
                 $columnsByFormatId[$formatId] = $this->columns($formatId);
             }
             $row['format_columns'] = $formatId !== '' ? ($columnsByFormatId[$formatId] ?? []) : [];
-        }
-        unset($row);
-    }
-
-    private function expandEvidenceRowsWithProcessingItems(array $rows, string $sequenceScope = ''): array
-    {
-        if ($rows === [] || !$this->tableExists('ledger_processing_items')) {
-            return $rows;
-        }
-
-        $itemModel = new ProcessingItemModel($this->pdo);
-        $treeService = new ProcessingItemTreeService();
-        $expanded = [];
-
-        foreach ($rows as $row) {
-            $evidenceId = trim((string) ($row['id'] ?? ''));
-            if ($evidenceId === '') {
-                $expanded[] = $row;
-                continue;
-            }
-
-            $items = $itemModel->getBySourceId($evidenceId);
-            $hasSplitStructure = false;
-            foreach ($items as $item) {
-                if (trim((string) ($item['parent_item_id'] ?? '')) !== '' || strtoupper((string) ($item['item_status'] ?? '')) === 'SPLIT') {
-                    $hasSplitStructure = true;
-                    break;
-                }
-            }
-            if (!$hasSplitStructure || $items === []) {
-                $row['evidence_id'] = $evidenceId;
-                $row['processing_item_id'] = $items[0]['id'] ?? null;
-                $row['processing_display_path'] = (string) ($row['row_no'] ?? '');
-                $row['processing_has_children'] = false;
-                $row['processing_is_child'] = false;
-                $expanded[] = $row;
-                continue;
-            }
-
-            $tree = $treeService->buildTree($items, (string) ($row['row_no'] ?? ''), false);
-            $flat = $treeService->flattenTree($tree);
-            $childIdsByParent = [];
-            foreach ($items as $item) {
-                $parentId = trim((string) ($item['parent_item_id'] ?? ''));
-                if ($parentId !== '') {
-                    $childIdsByParent[$parentId] = true;
-                }
-            }
-
-            $processingRows = [];
-            foreach ($flat as $item) {
-                $expandedRow = $row;
-                $expandedRow['evidence_id'] = $evidenceId;
-                $expandedRow['processing_item_id'] = (string) ($item['id'] ?? '');
-                $expandedRow['processing_parent_item_id'] = $item['parent_item_id'] ?? null;
-                $expandedRow['processing_display_path'] = (string) ($item['display_no'] ?? $item['display_path'] ?? $item['sort_no'] ?? $row['row_no'] ?? '');
-                $expandedRow['processing_item_status'] = (string) ($item['item_status'] ?? '');
-                $expandedRow['processing_is_current'] = (int) ($item['is_current'] ?? 0) === 1;
-                $expandedRow['processing_is_child'] = trim((string) ($item['parent_item_id'] ?? '')) !== '';
-                $expandedRow['processing_has_children'] = isset($childIdsByParent[(string) ($item['id'] ?? '')]);
-                $expandedRow['processing_level'] = (int) ($item['level'] ?? 1);
-                $expandedRow['_select_disabled'] = (bool) $expandedRow['processing_is_child'];
-                if ($expandedRow['processing_display_path'] !== '') {
-                    $expandedRow['row_no'] = $expandedRow['processing_display_path'];
-                }
-
-                $payload = json_decode((string) ($item['mapped_payload_json'] ?? ''), true);
-                if (is_array($payload)) {
-                    if ($expandedRow['import_type'] === 'BANK_TRANSACTION') {
-                        $payload = ($this->normalizeBankTransactionPayload)($payload);
-                    }
-                    $payload = ($this->normalizeEvidenceMappedPayloadForResponse)($payload);
-                    ($this->mergeEvidenceBusinessInfoIntoPayload)($expandedRow, $payload);
-                    foreach (['quantity', 'unit_price', 'supply_amount', 'vat_amount', 'total_amount', 'currency', 'description', 'memo'] as $key) {
-                        if (array_key_exists($key, $item) && $item[$key] !== null && $item[$key] !== '') {
-                            $payload[$key] = $item[$key];
-                        }
-                    }
-                    $expandedRow['mapped_payload'] = $payload;
-                    $this->mergeMappedPayloadIntoRow($expandedRow, $payload);
-                }
-
-                $processingRows[] = $expandedRow;
-            }
-            $parentRow = null;
-            $children = [];
-            foreach ($processingRows as $processingRow) {
-                if (!empty($processingRow['processing_is_child'])) {
-                    $children[] = $processingRow;
-                    continue;
-                }
-                if ($parentRow === null || !empty($processingRow['processing_has_children'])) {
-                    $parentRow = $processingRow;
-                }
-            }
-            if ($parentRow === null) {
-                $parentRow = $row;
-                $parentRow['evidence_id'] = $evidenceId;
-                $parentRow['processing_has_children'] = $children !== [];
-                $parentRow['processing_is_child'] = false;
-            }
-            $parentRow['processing_children'] = array_values($children);
-            $parentRow['processing_child_count'] = count($children);
-            $parentRow['processing_has_children'] = count($children) > 0;
-            $parentRow['processing_is_child'] = false;
-            $parentRow['row_no'] = $row['row_no'] ?? ($parentRow['row_no'] ?? '');
-            $parentRow['processing_display_path'] = (string) ($parentRow['row_no'] ?? '');
-            $parentRow['_select_disabled'] = false;
-            $expanded[] = $parentRow;
-        }
-
-        return $expanded;
-    }
-
-    private function applyActiveVoucherStatus(array &$rows): void
-    {
-        if ($rows === [] || !$this->tableExists('ledger_evidence_links') || !$this->tableExists('ledger_vouchers')) {
-            return;
-        }
-
-        $evidenceIds = array_values(array_filter(array_unique(array_map(
-            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
-            $rows
-        ))));
-        if ($evidenceIds === []) {
-            return;
-        }
-
-        $createdEvidenceIds = array_flip($this->voucherModel()->findActiveEvidenceIds($evidenceIds));
-
-        if ($createdEvidenceIds === []) {
-            return;
-        }
-
-        foreach ($rows as &$row) {
-            $id = trim((string) ($row['id'] ?? ''));
-            if ($id !== '' && isset($createdEvidenceIds[$id])) {
-                $row['voucher_status'] = 'CREATED';
-            }
         }
         unset($row);
     }
@@ -566,13 +469,14 @@ class EvidenceGenerationService
         return (string) ($row['processed_at'] ?? $row['created_at'] ?? '');
     }
 
-    private function sortEvidenceRowsForResponse(array &$rows, string $importType, string $sequenceScope = ''): void
+    private function sortEvidenceRowsForResponse(array &$rows, string $importType, string $sortScope = ''): void
     {
         $normalizedType = $this->normalizeDataType($importType);
+        $defaultSortKey = $this->evidenceSortKeyForScope($sortScope, $importType);
         $requestedOrder = $this->requestedEvidenceRowOrderings();
 
         if ($requestedOrder !== []) {
-            usort($rows, function (array $a, array $b) use ($requestedOrder, $normalizedType): int {
+            usort($rows, function (array $a, array $b) use ($requestedOrder, $normalizedType, $defaultSortKey): int {
                 foreach ($requestedOrder as $ordering) {
                     $field = (string) ($ordering['field'] ?? '');
                     if ($field === '') {
@@ -590,12 +494,12 @@ class EvidenceGenerationService
                     return (($ordering['dir'] ?? 'asc') === 'desc') ? -$comparison : $comparison;
                 }
 
-                return $this->compareDefaultEvidenceRows($a, $b, $normalizedType);
+                return $this->compareDefaultEvidenceRows($a, $b, $normalizedType, $defaultSortKey);
             });
             return;
         }
 
-        usort($rows, fn(array $a, array $b): int => $this->compareDefaultEvidenceRows($a, $b, $normalizedType));
+        usort($rows, fn(array $a, array $b): int => $this->compareDefaultEvidenceRows($a, $b, $normalizedType, $defaultSortKey));
     }
 
     private function requestedEvidenceRowOrderings(): array
@@ -670,7 +574,7 @@ class EvidenceGenerationService
         }
 
         if ($normalizedField === 'sort_no') {
-            $display = (string) ($value ?? $row['processing_display_path'] ?? '');
+            $display = (string) ($value ?? '');
             if ($display !== '') {
                 $parts = array_values(array_filter(array_map('trim', explode('-', $display)), static fn(string $part): bool => $part !== ''));
                 if ($parts !== []) {
@@ -707,7 +611,6 @@ class EvidenceGenerationService
 
         return in_array($normalized, [
             'sort_no',
-            'evidence_sort_no',
             'row_no',
             'deposit_amount',
             'withdraw_amount',
@@ -770,10 +673,10 @@ class EvidenceGenerationService
         return strcmp((string) $a, (string) $b);
     }
 
-    private function compareDefaultEvidenceRows(array $a, array $b, string $normalizedType): int
+    private function compareDefaultEvidenceRows(array $a, array $b, string $normalizedType, string $sortKey = 'sort_no'): int
     {
-        $aSort = max(0, (int) ($a['sort_no'] ?? 0));
-        $bSort = max(0, (int) ($b['sort_no'] ?? 0));
+        $aSort = max(0, (int) ($a[$sortKey] ?? 0));
+        $bSort = max(0, (int) ($b[$sortKey] ?? 0));
         if ($aSort > 0 && $bSort > 0 && $aSort !== $bSort) {
             return $aSort <=> $bSort;
         }
@@ -790,32 +693,19 @@ class EvidenceGenerationService
         );
     }
 
-    private function evidenceSequenceScopeFromRequest(string $default = '', string $importType = ''): string
+    private function evidenceSortKeyForScope(string $sortScope, string $importType = ''): string
     {
-        $scope = strtolower(trim((string) ($this->query['sequence_scope'] ?? $this->query['sort_scope'] ?? $default)));
+        $scope = strtolower(trim($sortScope));
         if (in_array($scope, ['create', 'status'], true)) {
-            return $scope;
-        }
-
-        return $this->normalizeDataType($importType) === '' ? 'create' : 'status';
-    }
-
-    private function evidenceSortKeyForScope(string $sequenceScope, string $importType = ''): string
-    {
-        $scope = strtolower(trim($sequenceScope));
-        if ($scope === 'create') {
-            return 'evidence_sort_no';
-        }
-        if ($scope === 'status') {
             return 'sort_no';
         }
 
-        return $this->normalizeDataType($importType) === '' ? 'evidence_sort_no' : 'sort_no';
+        return 'sort_no';
     }
 
-    private function evidenceSortColumnForScope(string $sequenceScope, string $importType = ''): string
+    private function evidenceSortColumnForScope(string $sortScope, string $importType = ''): string
     {
-        return $this->evidenceSortKeyForScope($sequenceScope, $importType);
+        return $this->evidenceSortKeyForScope($sortScope, $importType);
     }
 
     private function evidenceTypeSortValue(array $row, string $dataType): string
@@ -910,27 +800,10 @@ class EvidenceGenerationService
             return;
         }
 
-        if (!$this->tableExists('ledger_evidence_payloads')) {
-            error_log('[EvidenceGenerationService] trash_list_query=' . json_encode([
-                'request_import_type' => $importType,
-                'resolved_evidence_types' => $importType !== '' ? [$importType] : [],
-                'list_table' => null,
-                'where_sql' => $whereSql,
-                'binding_params' => $params,
-                'row_count' => count($rows),
-                'id_sample' => array_slice(array_values(array_filter(array_map(
-                    static fn(array $row): string => (string) ($row['id'] ?? ''),
-                    $rows
-                ))), 0, 5),
-                'sample_row' => null,
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return;
-        }
-
         $payload = [
             'request_import_type' => $importType,
             'resolved_evidence_types' => $importType !== '' ? [$importType] : [],
-            'list_table' => 'ledger_evidence_payloads',
+            'list_table' => null,
             'where_sql' => $whereSql,
             'binding_params' => $params,
             'row_count' => count($rows),
@@ -942,18 +815,9 @@ class EvidenceGenerationService
         error_log('[EvidenceGenerationService] trash_list_query=' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         error_log('[EvidenceGenerationService] trash_list_sample_row=' . json_encode([
-            'list_table' => 'ledger_evidence_payloads',
+            'list_table' => null,
             'sample_row' => null,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    }
-
-    private function voucherModel(): VoucherModel
-    {
-        if ($this->voucherModel === null) {
-            $this->voucherModel = new VoucherModel($this->pdo);
-        }
-
-        return $this->voucherModel;
     }
 
     private function seedRowFilterValue(array $row, string $field): string

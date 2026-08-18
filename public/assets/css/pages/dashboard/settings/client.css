@@ -1,4 +1,4 @@
-/* ??: /public/assets/css/pages/dashboard/settings/client.css */
+/* 경로: /public/assets/css/pages/dashboard/settings/client.css */
 
 /* ==============================
    PAGE
@@ -45,6 +45,31 @@
 .client-modal-body{
     max-height:75vh;
     overflow-y:auto;
+}
+
+.client-system-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px 16px;
+}
+
+.client-system-info-field{
+    min-width:0;
+    display:grid;
+    grid-template-columns:92px minmax(0, 1fr);
+    gap:8px;
+    align-items:start;
+}
+
+.client-system-info-label{
+    color:var(--color-text-muted, #667085);
+    font-size:.82rem;
+}
+
+.client-system-info-value{
+    min-width:0;
+    overflow-wrap:anywhere;
+    font-size:.86rem;
 }
 
 .file-upload-box{
@@ -130,6 +155,10 @@
     .modal-dialog.modal-lg{
         max-width:98vw;
         width:98vw;
+    }
+
+    .client-system-info-grid{
+        grid-template-columns:1fr;
     }
 
 }

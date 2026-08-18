@@ -1,5 +1,3 @@
-// 📄 /assets/js/pages/dashboard/index.js
-
 document.addEventListener('DOMContentLoaded', function () {
     const el = document.getElementById('salesChart');
     if (!el || typeof Chart === 'undefined') return;

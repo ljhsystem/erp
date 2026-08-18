@@ -30,6 +30,27 @@
     overflow-y: auto;
 }
 
+#workTeamModal .work-team-system-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem 1rem;
+}
+
+#workTeamModal .work-team-system-info-field {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: .5rem;
+}
+
+#workTeamModal .work-team-system-info-label {
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+#workTeamModal .work-team-system-info-value {
+    overflow-wrap: anywhere;
+}
+
 #work-team-main .work-team-active-toggle {
     width: 2.35rem;
     height: 1.2rem;

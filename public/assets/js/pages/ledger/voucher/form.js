@@ -78,7 +78,7 @@ function buildAccountPickerItems(rows = []) {
     });
 
     return [
-        { id: '', text: '?醫뤾문(??곸벉)' },
+        { id: '', text: '계정과목(선택)' },
         ...mappedRows,
     ];
 }
@@ -87,17 +87,26 @@ async function ensureAccountPickerItems(force = false) {
     if (!force && Array.isArray(state.accountPickerItems)) {
         return state.accountPickerItems;
     }
-
-    try {
-        const json = await fetchJson(API.accountList);
-        const rows = Array.isArray(json?.data) ? json.data : [];
-        state.accountPickerItems = buildAccountPickerItems(rows);
-    } catch (error) {
-        console.error('[ledger-journal] account list load failed', error);
-        state.accountPickerItems = buildAccountPickerItems([]);
+    if (!force && state.accountPickerPromise) {
+        return state.accountPickerPromise;
     }
 
-    return state.accountPickerItems;
+    state.accountPickerPromise = (async () => {
+        try {
+            const json = await fetchJson(API.accountList);
+            const rows = Array.isArray(json?.data) ? json.data : [];
+            state.accountPickerItems = buildAccountPickerItems(rows);
+        } catch (error) {
+            console.error('[ledger-journal] account list load failed', error);
+            state.accountPickerItems = buildAccountPickerItems([]);
+        } finally {
+            state.accountPickerPromise = null;
+        }
+
+        return state.accountPickerItems;
+    })();
+
+    return state.accountPickerPromise;
 }
 
 async function resolveAccountPickerItem(value) {
@@ -182,28 +191,10 @@ const REF_PICKER_CONFIG = {
                 || row.card_name || row.card_no || row.card_number || row.client_name || '-';
         },
     },
-    TRANSACTION: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.item_summary || row.description || row.transaction_date || '-';
-        },
-    },
-    ORDER: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.order_ref || row.document_no || row.item_summary || row.summary || '-';
-        },
-    },
     VOUCHER: {
         url: API.list,
         label(row) {
             return row.voucher_no || row.summary || '-';
-        },
-    },
-    CONTRACT: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.document_no || row.item_summary || row.description || '-';
         },
     },
     PAYMENT: {
@@ -260,28 +251,10 @@ const CLEAN_REF_PICKER_CONFIG = {
                 || row.card_name || row.card_no || row.card_number || row.client_name || '-';
         },
     },
-    TRANSACTION: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.item_summary || row.description || row.transaction_date || '-';
-        },
-    },
-    ORDER: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.order_ref || row.document_no || row.item_summary || row.summary || '-';
-        },
-    },
     VOUCHER: {
         url: API.list,
         label(row) {
             return row.voucher_no || row.summary || '-';
-        },
-    },
-    CONTRACT: {
-        url: API.transactionSearch,
-        label(row) {
-            return row.document_no || row.item_summary || row.description || '-';
         },
     },
     PAYMENT: {
@@ -355,7 +328,10 @@ function populateRefPickerOptions(selectEl, items = [], selectedValue = '') {
 }
 
 async function ensurePickerOptions(refType, force = false) {
-    const type = String(refType || '').toUpperCase();
+    const requestedType = String(refType || '').toUpperCase();
+    const type = requestedType === 'ACCOUNT'
+        ? 'BANK_ACCOUNT'
+        : (requestedType === 'PAYMENT' ? 'VOUCHER' : requestedType);
     const config = CLEAN_REF_PICKER_CONFIG[type];
     if (!config) {
         return [{ id: '', text: SAFE_PICKER_PLACEHOLDER }];
@@ -363,24 +339,33 @@ async function ensurePickerOptions(refType, force = false) {
     if (!force && state.pickerOptionCache[type]) {
         return state.pickerOptionCache[type];
     }
-
-    try {
-        const json = await fetchJson(config.url);
-        const rows = normalizeRows(json);
-        state.pickerOptionCache[type] = [
-            { id: '', text: '' },
-            ...rows.map((row) => ({
-                id: String(row.id ?? row.value ?? '').trim(),
-                text: String(config.label(row)).trim(),
-                sort_no: row.sort_no,
-            })).filter((item) => item.id !== ''),
-        ];
-    } catch (error) {
-        console.error(`[ledger-journal] ${type} picker load failed`, error);
-        state.pickerOptionCache[type] = [{ id: '', text: '' }];
+    if (!force && state.pickerOptionPromises[type]) {
+        return state.pickerOptionPromises[type];
     }
 
-    return state.pickerOptionCache[type];
+    state.pickerOptionPromises[type] = (async () => {
+        try {
+            const json = await fetchJson(config.url);
+            const rows = normalizeRows(json);
+            state.pickerOptionCache[type] = [
+                { id: '', text: '' },
+                ...rows.map((row) => ({
+                    id: String(row.id ?? row.value ?? '').trim(),
+                    text: String(config.label(row)).trim(),
+                    sort_no: row.sort_no,
+                })).filter((item) => item.id !== ''),
+            ];
+        } catch (error) {
+            console.error(`[ledger-journal] ${type} picker load failed`, error);
+            state.pickerOptionCache[type] = [{ id: '', text: '' }];
+        } finally {
+            delete state.pickerOptionPromises[type];
+        }
+
+        return state.pickerOptionCache[type];
+    })();
+
+    return state.pickerOptionPromises[type];
 }
 
 async function initRefPicker(selectEl, refType, selectedValue = '', options = {}) {
@@ -445,33 +430,41 @@ async function loadAccountPolicies(accountId) {
     if (state.accountPolicyCache[id]) {
         return state.accountPolicyCache[id];
     }
-
-    try {
-        const json = await fetchJson(`${API.subAccountList}?account_id=${encodeURIComponent(id)}`);
-        const rows = Array.isArray(json)
-            ? json
-            : normalizeRows(json);
-
-        state.accountPolicyCache[id] = rows
-            .map((row) => {
-                const rawRefTarget = String(row.ref_target || '').trim().toUpperCase();
-                const rawRefType = String(row.ref_type || '').trim().toUpperCase();
-                const subCode = String(row.sub_code || row.code || '').trim().toUpperCase();
-                const refTarget = rawRefTarget || (rawRefType === 'REF_TARGET' ? subCode : (rawRefType || subCode));
-
-                return {
-                    ref_target: refTarget,
-                    ref_type: refTarget,
-                    is_required: Number(row.is_required || 0),
-                };
-            })
-            .filter((row) => row.ref_target !== '');
-    } catch (error) {
-        console.error('[ledger-journal] account policy load failed', error);
-        state.accountPolicyCache[id] = [];
+    if (state.accountPolicyPromises[id]) {
+        return state.accountPolicyPromises[id];
     }
 
-    return state.accountPolicyCache[id];
+    state.accountPolicyPromises[id] = (async () => {
+        try {
+            const json = await fetchJson(`${API.subAccountList}?account_id=${encodeURIComponent(id)}`);
+            const rows = Array.isArray(json)
+                ? json
+                : normalizeRows(json);
+
+            state.accountPolicyCache[id] = rows
+                .map((row) => {
+                    const rawRefTarget = String(row.ref_target || '').trim().toUpperCase();
+                    const rawRefType = String(row.ref_target || '').trim().toUpperCase();
+                    const subCode = String(row.sub_code || row.code || '').trim().toUpperCase();
+                    const refTarget = rawRefTarget || (rawRefType === 'REF_TARGET' ? subCode : (rawRefType || subCode));
+
+                    return {
+                        ref_target: refTarget,
+                        is_required: Number(row.is_required || 0),
+                    };
+                })
+                .filter((row) => row.ref_target !== '');
+        } catch (error) {
+            console.error('[ledger-journal] account policy load failed', error);
+            state.accountPolicyCache[id] = [];
+        } finally {
+            delete state.accountPolicyPromises[id];
+        }
+
+        return state.accountPolicyCache[id];
+    })();
+
+    return state.accountPolicyPromises[id];
 }
 
 function updateLineSubAccountColumnVisibility() {
@@ -518,7 +511,7 @@ async function legacyInitLineAccountPicker(selectEl, selectedValue = '') {
 }
 
 function legacyEmptyLineRow() {
-    return '<tr class="voucher-line-empty"><td colspan="7" class="text-center text-muted py-4">?브쑨而???깆뵥???곕떽???雅뚯눘苑??</td></tr>';
+    return '<tr class="voucher-line-empty"><td colspan="7" class="text-center text-muted py-4">분개 라인을 입력해 주세요.</td></tr>';
 }
 
 function legacySyncLineNumbers() {
@@ -660,16 +653,16 @@ function legacyCalculateTotals() {
     creditTotalEl.value = formatAmountValue(credit) || '0';
 
     if (rows.length === 0) {
-        setValidationBadge('error', '?브쑨而???깆뵥???믪눘? ??낆젾??雅뚯눘苑??');
+        setValidationBadge('error', '분개 라인을 먼저 입력해 주세요.');
         return;
     }
 
     if (debit === credit) {
-        setValidationBadge('ok', '筌△뫀?/??癰궰 ??룻롥첎? ??깊뒄??몃빍??');
+        setValidationBadge('ok', '차변/대변 합계가 일치합니다.');
         return;
     }
 
-    setValidationBadge('error', '筌△뫀?/??癰궰 ??룻롥첎? ??깊뒄??? ??녿뮸??덈뼄.');
+    setValidationBadge('error', '차변/대변 합계가 일치하지 않습니다.');
 }
 
 function setValidationBadge(type = 'error', message = '') {
@@ -709,7 +702,6 @@ async function legacyRenderLineSubAccountControls(row, line = {}) {
     const policies = await loadAccountPolicies(accountId);
     if (!policies.length) {
         container.className = 'journal-line-subaccounts';
-        container.innerHTML = '<span class="journal-subaccount-empty">癰귣똻?쒏④쑴????곸벉</span>';
         updateLineSubAccountColumnVisibility();
         container.innerHTML = '<span class="journal-subaccount-empty">연결할 보조계정이 없습니다.</span>';
         return;
@@ -719,9 +711,9 @@ async function legacyRenderLineSubAccountControls(row, line = {}) {
     container.className = 'journal-line-subaccounts journal-line-subaccount-grid';
     container.innerHTML = policies.map((policy, index) => `
         <label class="journal-line-subaccount-field">
-            <span>${escapeHtml(translateType(policy.ref_type))}${policy.is_required ? ' <b class="journal-line-subaccount-required">*</b>' : ''}</span>
+            <span>${escapeHtml(translateType(policy.ref_target))}${policy.is_required ? ' <b class="journal-line-subaccount-required">*</b>' : ''}</span>
             <select class="form-select form-select-sm line-ref-picker"
-                    data-ref-type="${escapeHtml(policy.ref_type)}"
+                    data-ref-target="${escapeHtml(policy.ref_target)}"
                     data-required="${policy.is_required ? '1' : '0'}"
                     data-policy-index="${index}">
                 <option value=""></option>
@@ -732,7 +724,7 @@ async function legacyRenderLineSubAccountControls(row, line = {}) {
     const selectedRefs = Array.isArray(line.refs) ? line.refs : [];
     const selectedMap = new Map();
     selectedRefs.forEach((ref) => {
-        const refType = String(ref.ref_type || ref.line_ref_type || '').toUpperCase();
+        const refType = String(ref.ref_target || ref.line_ref_target || '').toUpperCase();
         const refId = String(ref.ref_id || ref.line_ref_id || '').trim();
         if (refType === '' || refId === '') {
             return;
@@ -744,7 +736,7 @@ async function legacyRenderLineSubAccountControls(row, line = {}) {
         });
     });
     for (const selectEl of container.querySelectorAll('.line-ref-picker')) {
-        const refType = selectEl.dataset.refType || '';
+        const refType = selectEl.dataset.refTarget || '';
         const selectedValue = refTypeAliases(refType)
             .map((alias) => selectedMap.get(alias))
             .find((value) => String(value || '').trim() !== '')
@@ -772,7 +764,7 @@ async function legacyAddLineRow(line = {}) {
         </td>
         <td>
             <select class="form-select form-select-sm line-account-code-picker">
-                <option value="">?醫뤾문(??곸벉)</option>
+                <option value="">계정과목(선택)</option>
             </select>
         </td>
         <td class="line-ref-cell">
@@ -796,10 +788,10 @@ async function legacyAddLineRow(line = {}) {
             <input type="text"
                    class="form-control form-control-sm line-summary"
                    value="${escapeHtml(line.line_summary || '')}"
-                   placeholder="??깆뵥 ?怨몄뒄">
+                   placeholder="분개 적요">
         </td>
         <td class="text-center">
-            <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">????/button>
+            <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">삭제</button>
         </td>
     `;
 
@@ -821,7 +813,7 @@ function legacyResetModal() {
     document.getElementById('journal_id').value = '';
     setJournalModalLoading(false);
     if (voucherNoDisplayEl) {
-        voucherNoDisplayEl.value = '???袁るご';
+        voucherNoDisplayEl.value = '자동번호';
     }
     voucherDateEl.value = formatDate(new Date());
     voucherStatusEl.value = 'DRAFT';
@@ -885,18 +877,18 @@ function legacyCollectLines() {
 function legacyGetLineRefs(row) {
     return Array.from(row.querySelectorAll('.line-ref-picker'))
         .map((selectEl) => ({
-            ref_type: String(selectEl.dataset.refType || '').toUpperCase(),
+            ref_target: String(selectEl.dataset.refTarget || '').toUpperCase(),
             ref_id: normalizePickerStoredValue(selectEl.value),
             is_primary: selectEl.dataset.policyIndex === '0' ? 1 : 0,
         }))
-        .filter((item) => item.ref_type !== '' && item.ref_id !== '');
+        .filter((item) => item.ref_target !== '' && item.ref_id !== '');
 }
 
 function legacyValidateBeforeSave({ requireJournalReady = false } = {}) {
     const lines = collectLines();
 
     if (requireJournalReady && lines.length === 0) {
-        notify('warning', '?브쑨而???깆뵥??1揶???곴맒 ??낆젾??雅뚯눘苑??');
+        notify('warning', '분개 라인을 1개 이상 입력해 주세요.');
         return false;
     }
 
@@ -909,7 +901,7 @@ function legacyValidateBeforeSave({ requireJournalReady = false } = {}) {
         const credit = Number(line.credit || '0');
 
         if (!line.account_id) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥???④쑴?숁⑥눖????醫뤾문??雅뚯눘苑??`);
+            notify('warning', `${index + 1}번째 분개라인의 계정과목을 선택해 주세요.`);
             return false;
         }
 
@@ -919,36 +911,36 @@ function legacyValidateBeforeSave({ requireJournalReady = false } = {}) {
         const requiredPickers = refPickers.filter((selectEl) => selectEl.dataset.required === '1');
         const selectedPickers = refPickers.filter((selectEl) => normalizePickerStoredValue(selectEl.value) !== '');
         if (false && refPickers.length > 0 && selectedPickers.length === 0) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥??癰귣똻?쒏④쑴????醫뤾문??雅뚯눘苑??`);
+            notify('warning', `${index + 1}번째 분개라인의 보조계정을 선택해 주세요.`);
             refPickers[0]?.focus();
             return false;
         }
         if (false && requiredPickers.length > 1) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥?癒?뮉 ?袁⑸땾 癰귣똻?쒏④쑴???????揶???됰뮸??덈뼄. ?袁⑹삺 ?袁るご??깆뵥 DB ?닌듼??癰귣똻?쒏④쑴??? 1揶쏆뮆彛????館釉?????됰뮸??덈뼄.`);
+            notify('warning', `${index + 1}번째 분개라인에 필수 보조계정이 여러 개 지정되어 있습니다.`);
             requiredPickers[0]?.focus();
             return false;
         }
         for (const requiredPicker of requiredPickers) {
             if (normalizePickerStoredValue(requiredPicker.value) === '') {
-                notify('warning', `${index + 1}甕곕뜆????깆뵥???袁⑸땾 癰귣똻?쒏④쑴????醫뤾문??雅뚯눘苑??`);
+                notify('warning', `${index + 1}번째 분개라인의 필수 보조계정을 선택해 주세요.`);
                 requiredPicker.focus();
                 return false;
             }
         }
 
         if (false && selectedPickers.length > 1) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥?癒?뮉 癰귣똻?쒏④쑴???1揶쏆뮆彛??醫뤾문??????됰뮸??덈뼄.`);
+            notify('warning', `${index + 1}번째 분개라인에는 보조계정을 하나만 선택할 수 있습니다.`);
             selectedPickers[1]?.focus();
             return false;
         }
 
         if (debit <= 0 && credit <= 0) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥??筌△뫀? ?癒?뮉 ??癰궰 疫뀀뜆釉????낆젾??雅뚯눘苑??`);
+            notify('warning', `${index + 1}번째 분개라인의 차변 또는 대변 금액을 입력해 주세요.`);
             return false;
         }
 
         if (debit > 0 && credit > 0) {
-            notify('warning', `${index + 1}甕곕뜆????깆뵥?? 筌△뫀?????癰궰 餓???롪돌筌???낆젾??????됰뮸??덈뼄.`);
+            notify('warning', `${index + 1}번째 분개라인에는 차변과 대변을 동시에 입력할 수 없습니다.`);
             return false;
         }
 
@@ -957,7 +949,7 @@ function legacyValidateBeforeSave({ requireJournalReady = false } = {}) {
     }
 
     if (requireJournalReady && debitTotal !== creditTotal) {
-        notify('warning', '筌△뫀? ??룻?? ??癰궰 ??룻롥첎? ??깊뒄??곷튊 ??몃빍??');
+        notify('warning', '차변 합계와 대변 합계가 일치해야 합니다.');
         return false;
     }
 
@@ -1036,6 +1028,7 @@ function updateTotals(summary = {}) {
     });
     renderTotals(summary);
     renderValidation(summary);
+    ctx.syncRecommendationVisibility?.();
     return summary;
 }
 
@@ -1061,7 +1054,7 @@ function resetModal() {
     document.getElementById('journal_id').value = '';
     setJournalModalLoading(false);
     if (voucherNoDisplayEl) {
-        voucherNoDisplayEl.value = '?醫됲뇣?袁るご';
+        voucherNoDisplayEl.value = '자동번호';
     }
     voucherDateEl.value = formatDate(new Date());
     voucherStatusEl.value = 'DRAFT';
@@ -1110,7 +1103,7 @@ function validateVoucher(lines = [], { requireJournalReady = false } = {}) {
         const requiredPolicies = policies.filter((policy) => Number(policy.is_required ?? 0) === 1);
         for (const policy of requiredPolicies) {
             const hasSelectedRef = (Array.isArray(line.refs) ? line.refs : [])
-                .some((ref) => String(ref.ref_type || '').toUpperCase() === String(policy.ref_type || '').toUpperCase() && String(ref.ref_id || '').trim() !== '');
+                .some((ref) => String(ref.ref_target || '').toUpperCase() === String(policy.ref_target || '').toUpperCase() && String(ref.ref_id || '').trim() !== '');
             if (!hasSelectedRef) {
                 return {
                     valid: false,
@@ -1179,19 +1172,6 @@ function getVoucherSortNo(row = {}) {
     return Number.isFinite(numericSortNo) ? numericSortNo : 0;
 }
 
-function renderDragHandle() {
-    return '<i class="bi bi-list"></i>';
-}
-
-function renderEllipsisText(value = '') {
-    const text = String(value ?? '').trim();
-    if (!text) {
-        return '';
-    }
-
-    return `<span title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
-}
-
     Object.assign(ctx, {
         buildAccountPickerItems,
         ensureAccountPickerItems,
@@ -1225,9 +1205,7 @@ function renderEllipsisText(value = '') {
         getLineRefs,
         validateVoucher,
         validateBeforeSave,
-        getVoucherSortNo,
-        renderDragHandle,
-        renderEllipsisText
+        getVoucherSortNo
     });
 
     return ctx;

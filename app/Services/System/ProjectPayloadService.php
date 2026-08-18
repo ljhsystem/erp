@@ -41,7 +41,6 @@ class ProjectPayloadService
             'authorized_company_seal' => $input['authorized_company_seal'] ?? null,
             'note' => $input['note'] ?? null,
             'memo' => $input['memo'] ?? null,
-            'delete_project_image' => $input['delete_project_image'] ?? '0',
             'is_active' => isset($input['is_active']) ? (int) $input['is_active'] : 1,
         ];
     }
@@ -49,21 +48,22 @@ class ProjectPayloadService
     public function validatePayload(array $payload): array
     {
         if (($payload['project_name'] ?? '') === '') {
-            return ['success' => false, 'message' => 'Project name is required.'];
+            return ['success' => false, 'message' => '프로젝트명을 입력해 주세요.'];
         }
 
         foreach (['contract_date', 'start_date', 'completion_date'] as $field) {
             if (!empty($payload[$field]) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload[$field])) {
-                return ['success' => false, 'message' => $field . ' must use YYYY-MM-DD format.'];
+                $labels = ['contract_date' => '계약일자', 'start_date' => '착공일자', 'completion_date' => '준공일자'];
+                return ['success' => false, 'message' => ($labels[$field] ?? $field) . '는 YYYY-MM-DD 형식이어야 합니다.'];
             }
         }
 
         if (!empty($payload['start_date']) && !empty($payload['completion_date']) && (string) $payload['start_date'] > (string) $payload['completion_date']) {
-            return ['success' => false, 'message' => 'start_date cannot be later than completion_date.'];
+            return ['success' => false, 'message' => '준공일자는 착공일자보다 빠를 수 없습니다.'];
         }
 
         if (($payload['initial_contract_amount'] ?? null) !== null && ($payload['initial_contract_amount'] ?? '') !== '' && !is_numeric((string) $payload['initial_contract_amount'])) {
-            return ['success' => false, 'message' => 'initial_contract_amount must be numeric.'];
+            return ['success' => false, 'message' => '최초 계약금액은 숫자여야 합니다.'];
         }
 
         return ['success' => true];

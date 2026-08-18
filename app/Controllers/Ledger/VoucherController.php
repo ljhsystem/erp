@@ -3,62 +3,42 @@
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
-use App\Models\Ledger\EvidenceDataModel;
-use App\Models\Ledger\EvidenceLinkModel;
-use App\Models\Ledger\ProcessingItemModel;
-use App\Models\Ledger\TransactionLinkModel;
-use App\Models\Ledger\TransactionModel;
-use App\Models\Ledger\VoucherLineModel;
-use App\Models\Ledger\VoucherModel;
-use App\Services\Ledger\TransactionCrudService;
-use App\Services\Ledger\VoucherExcelService;
-use App\Services\Ledger\VoucherLineRefService;
+use App\Services\Ledger\EvidenceTypePolicyService;
+use App\Services\Ledger\VoucherEvidenceRecommendationService;
 use App\Services\Ledger\VoucherNumberService;
+use App\Services\Ledger\VoucherPurgeService;
+use App\Services\Ledger\VoucherQueryService;
 use App\Services\Ledger\VoucherService;
 use App\Services\Ledger\VoucherStatus;
 use App\Services\Ledger\VoucherValidationException;
 use Core\DbPdo;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
+use Core\Session;
 use PDO;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class VoucherController
 {
     private PDO $pdo;
     private LayoutController $layout;
     private VoucherService $service;
-    private VoucherExcelService $excelService;
     private VoucherNumberService $voucherNumberService;
-    private VoucherModel $voucherModel;
-    private VoucherLineModel $voucherLineModel;
-    private VoucherLineRefService $voucherLineRefService;
-    private EvidenceDataModel $evidenceDataModel;
-    private EvidenceLinkModel $evidenceLinkModel;
-    private ProcessingItemModel $processingItemModel;
-    private TransactionLinkModel $transactionLinkModel;
-    private TransactionModel $transactionModel;
-    private TransactionCrudService $transactionCrudService;
+    private VoucherPurgeService $voucherPurgeService;
+    private VoucherQueryService $queryService;
+    private EvidenceTypePolicyService $evidenceTypePolicyService;
+    private VoucherEvidenceRecommendationService $evidenceRecommendationService;
 
     public function __construct()
     {
         $this->pdo = DbPdo::conn();
         $this->layout = new LayoutController($this->pdo);
         $this->service = new VoucherService($this->pdo);
-        $this->excelService = new VoucherExcelService($this->pdo);
         $this->voucherNumberService = new VoucherNumberService($this->pdo);
-        $this->voucherModel = new VoucherModel($this->pdo);
-        $this->voucherLineModel = new VoucherLineModel($this->pdo);
-        $this->voucherLineRefService = new VoucherLineRefService($this->pdo);
-        $this->evidenceDataModel = new EvidenceDataModel($this->pdo);
-        $this->evidenceLinkModel = new EvidenceLinkModel($this->pdo);
-        $this->processingItemModel = new ProcessingItemModel($this->pdo);
-        $this->transactionLinkModel = new TransactionLinkModel($this->pdo);
-        $this->transactionModel = new TransactionModel($this->pdo);
-        $this->transactionCrudService = new TransactionCrudService($this->pdo);
+        $this->voucherPurgeService = new VoucherPurgeService($this->pdo);
+        $this->queryService = new VoucherQueryService($this->pdo);
+        $this->evidenceTypePolicyService = new EvidenceTypePolicyService(null, $this->pdo);
+        $this->evidenceRecommendationService = new VoucherEvidenceRecommendationService($this->pdo);
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -76,6 +56,7 @@ class VoucherController
             'content' => $content,
             'pageStyles' => $pageStyles ?? '',
             'pageScripts' => $pageScripts ?? '',
+            'pageAssetProfile' => $pageAssetProfile ?? 'default',
             'layoutOptions' => $layoutOptions ?? [],
         ]);
     }
@@ -87,15 +68,9 @@ class VoucherController
         ]);
     }
 
-    public function webReview(): void
-    {
-        $this->renderPage('/app/views/ledger/voucher/review.php', [
-            'pageTitle' => '전표검토/승인',
-        ]);
-    }
-
     public function apiList(): void
     {
+        Session::write();
         $this->jsonResponse(function (): array {
             $filters = [];
             if (!empty($_GET['filters'])) {
@@ -109,12 +84,23 @@ class VoucherController
             }
             if (trim((string) ($_GET['scope'] ?? '')) === 'review') {
                 $filters['statuses'] = VoucherStatus::reviewListValues();
+
+                $page = $this->queryService->getReviewPage($_GET, $filters);
+
+                return [
+                    'success' => true,
+                    'message' => '전표 목록을 불러왔습니다.',
+                    'draw' => (int) ($_GET['draw'] ?? 0),
+                    'recordsTotal' => $page['records_total'],
+                    'recordsFiltered' => $page['records_filtered'],
+                    'data' => $page['rows'],
+                ];
             }
 
             return [
                 'success' => true,
-                'message' => 'List loaded.',
-                'data' => $this->voucherModel->getList($filters),
+                'message' => '전표 목록을 불러왔습니다.',
+                'data' => $this->queryService->getList($filters),
             ];
         });
     }
@@ -143,87 +129,33 @@ class VoucherController
 
     public function apiDetail(): void
     {
+        Session::write();
         $this->jsonResponse(function (): array {
             $id = trim((string) ($_GET['id'] ?? ''));
             if ($id === '') {
                 return [
                     'success' => false,
-                    'message' => 'Voucher ID is required.',
+                    'message' => '조회할 전표를 선택해 주세요.',
                 ];
             }
 
-            $voucher = $this->voucherModel->getById($id);
+            $voucher = $this->queryService->getDetail(
+                $id,
+                fn(array $row): array => $this->normalizeEvidenceSearchRow($row)
+            );
             if (!$voucher) {
                 return [
                     'success' => false,
-                    'message' => 'Voucher not found.',
+                    'message' => '전표를 찾을 수 없습니다.',
                 ];
             }
 
-            $voucher['lines'] = $this->voucherLineRefService->hydrateVoucherLines(
-                $this->voucherLineModel->getByVoucherId($id)
-            );
-            $voucher['reversal_voucher'] = $this->voucherModel->findActiveReversalOf($id);
-            $voucher['original_voucher'] = !empty($voucher['reversal_of'])
-                ? $this->voucherModel->getById((string) $voucher['reversal_of'])
-                : null;
-            $voucher['seed_source'] = null;
-            $voucher['linked_evidences'] = $this->voucherSeedSourcesByVoucherId($id);
-            $voucher['linked_evidence'] = $this->voucherSeedSourceByVoucherId($id);
-            $voucher['evidence_link_status'] = is_array($voucher['linked_evidence']) ? 'linked' : 'unlinked';
-            $voucher['evidence_id'] = is_array($voucher['linked_evidence'])
-                ? (string) ($voucher['linked_evidence']['id'] ?? '')
-                : '';
-            $voucher['seed_source'] = $voucher['linked_evidence'];
-
             return [
                 'success' => true,
-                'message' => 'Detail loaded.',
+                'message' => '전표 상세정보를 불러왔습니다.',
                 'data' => $voucher,
             ];
         });
-    }
-
-    public function apiTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
-            ExcelTemplateFilenameHelper::build('voucher_input_template.xlsx')
-        );
-    }
-
-    public function apiDownloadExcel(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
-            'vouchers.xlsx'
-        );
-    }
-
-    public function apiExcelUpload(): void
-    {
-        try {
-            $uploadedFile = $this->uploadedExcelFile();
-            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => '???????????????? ??????????影?력????????⑹름??????뭽??',
-                ], JSON_UNESCAPED_UNICODE);
-                return;
-            }
-
-            echo json_encode(
-                $this->excelService->importFromExcelFile((string) $uploadedFile['tmp_name']),
-                JSON_UNESCAPED_UNICODE
-            );
-        } catch (\Throwable $e) {
-            http_response_code(422);
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
     }
 
     public function apiSearch(): void
@@ -247,7 +179,7 @@ class VoucherController
             if ($statuses === []) {
                 $statuses = $allowedStatuses;
             }
-            return $this->voucherModel->searchForPicker([
+            return $this->queryService->searchForPicker([
                 'statuses' => $statuses,
                 'keyword' => $keyword,
                 'date_from' => $dateFrom,
@@ -259,117 +191,109 @@ class VoucherController
         });
     }
 
-    public function apiTransactionSearch(): void
-    {
-        $this->jsonResponse(function (): array {
-            $query = trim((string) ($_GET['q'] ?? ''));
-            $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
-            $rows = $this->transactionModel->getList([]);
-            foreach ($rows as &$row) {
-                $transactionId = (string) ($row['id'] ?? '');
-                $row['import_type'] = $this->transactionImportType($transactionId);
-                $row['seed_source'] = $this->transactionSeedSource($transactionId);
-                $row['display_type'] = $this->transactionDisplayType($row);
-                $row['display_summary'] = $this->transactionDisplaySummary($row);
-                $row['display_amount'] = (float) ($row['total_amount'] ?? $row['amount'] ?? 0);
-                $row['linked_voucher'] = $this->linkedVoucherInfoForTransaction($transactionId);
-                $row['is_linked_to_current_voucher'] = $currentVoucherId !== ''
-                    && (string) ($row['linked_voucher']['id'] ?? '') === $currentVoucherId;
-                $row['is_linked_to_other_voucher'] = (string) ($row['linked_voucher']['id'] ?? '') !== ''
-                    && !$row['is_linked_to_current_voucher'];
-            }
-            unset($row);
-
-            if ($query !== '') {
-                $rows = array_values(array_filter($rows, function (array $row) use ($query): bool {
-                    $haystack = implode(' ', [
-                        $row['sort_no'] ?? '',
-                        $row['transaction_date'] ?? '',
-                        $row['import_type'] ?? '',
-                        $row['display_type'] ?? '',
-                        $row['client_name'] ?? '',
-                        $row['project_name'] ?? '',
-                        $row['item_summary'] ?? '',
-                        $row['description'] ?? '',
-                        $row['total_amount'] ?? '',
-                        $row['amount'] ?? '',
-                        $row['display_amount'] ?? '',
-                        $row['display_summary'] ?? '',
-                    ]);
-
-                    return $this->searchTextMatches($haystack, $query);
-                }));
-            }
-
-            return [
-                'success' => true,
-                'message' => 'List loaded.',
-                'data' => array_slice($rows, 0, 50),
-            ];
-        });
-    }
-
     public function apiEvidenceSearch(): void
     {
         $this->jsonResponse(function (): array {
-            if (!$this->evidenceDataModel->tableExists()) {
-                return [
-                    'success' => true,
-                    'message' => 'List loaded.',
-                    'data' => [],
-                ];
-            }
             $query = trim((string) ($_GET['q'] ?? ''));
-            $rawRows = $this->evidenceDataModel->searchForPicker($query, ['DATA', 'FUND', 'BOTH']);
-            $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
-            $rows = array_map(function (array $row) use ($currentVoucherId): array {
-                $row = $this->normalizeEvidenceSearchRow($row);
-                $row['linked_voucher'] = $this->linkedVoucherInfoForEvidence((string) ($row['id'] ?? ''));
-                $row['is_linked_to_current_voucher'] = $currentVoucherId !== ''
-                    && (string) ($row['linked_voucher']['id'] ?? '') === $currentVoucherId;
-                $row['is_linked_to_other_voucher'] = (string) ($row['linked_voucher']['id'] ?? '') !== ''
-                    && !$row['is_linked_to_current_voucher'];
-
-                return $row;
-            }, $rawRows);
-
-            if ($query !== '') {
-                $rows = array_values(array_filter($rows, function (array $row) use ($query): bool {
-                    $haystack = implode(' ', [
-                        $row['source_type'] ?? '',
-                        $row['source_key'] ?? '',
-                        $row['display_key'] ?? '',
-                        $row['evidence_date'] ?? '',
-                        $row['processed_at'] ?? '',
-                        $row['created_at'] ?? '',
-                        $row['format_name'] ?? '',
-                        $row['display_type'] ?? '',
-                        $row['client_name'] ?? '',
-                        $row['display_summary'] ?? '',
-                        $row['total_amount'] ?? '',
-                        $row['display_amount'] ?? '',
-                    ]);
-
-                    return $this->searchTextMatches($haystack, $query);
-                }));
+            $evidenceType = strtoupper(trim((string) ($_GET['evidence_type'] ?? 'ALL')));
+            if (!in_array($evidenceType, ['ALL', 'DATA', 'FUND', 'BOTH'], true)) {
+                throw new \InvalidArgumentException('증빙 검색 구분이 올바르지 않습니다.');
             }
+            $policyTypes = $evidenceType === 'ALL' ? ['DATA', 'FUND', 'BOTH'] : [$evidenceType];
+            $metadataOptions = $this->queryService->activeEvidenceMetadataOptions();
+            $activeImportTypes = array_values(array_unique(array_map(
+                static fn(array $option): string => strtoupper(trim((string) ($option['import_type'] ?? ''))),
+                $metadataOptions
+            )));
+            $importType = strtoupper(trim((string) ($_GET['import_type'] ?? 'ALL')));
+            if ($importType !== 'ALL' && !in_array($importType, $activeImportTypes, true)) {
+                throw new \InvalidArgumentException('자료유형 검색 조건이 올바르지 않습니다.');
+            }
+            $page = max(1, (int) ($_GET['page'] ?? 1));
+            $perPage = max(10, min(100, (int) ($_GET['per_page'] ?? 20)));
+            $sort = strtolower(trim((string) ($_GET['sort'] ?? 'date_desc')));
+            if (!in_array($sort, ['date_desc', 'date_asc', 'amount_desc', 'amount_asc'], true)) {
+                $sort = 'date_desc';
+            }
+            $sortField = strtolower(trim((string) ($_GET['sort_field'] ?? 'evidence_date')));
+            $sortDirection = strtolower(trim((string) ($_GET['sort_direction'] ?? 'desc'))) === 'asc' ? 'asc' : 'desc';
+            $orderField = match ($sortField) {
+                'display_amount' => 'display_amount',
+                'import_type', 'evidence_type' => 'import_type',
+                'client_name' => 'client_search_name',
+                'description', 'display_summary' => 'description',
+                default => 'standard_date',
+            };
+            $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
+            $currentLinks = $currentVoucherId !== '' ? $this->queryService->getVoucherEvidences($currentVoucherId) : [];
+            $requestedExclusions = json_decode((string) ($_GET['exclude_evidences'] ?? '[]'), true);
+            $requestedExclusions = is_array($requestedExclusions) ? array_values(array_filter(
+                $requestedExclusions,
+                static fn(mixed $item): bool => is_array($item)
+                    && trim((string) ($item['import_type'] ?? '')) !== ''
+                    && trim((string) ($item['evidence_id'] ?? '')) !== ''
+            )) : [];
+            $result = $this->queryService->pagedEvidenceProjections([
+                'evidence_types' => $policyTypes,
+                'import_types' => $importType === 'ALL' ? [] : [$importType],
+                'keyword' => $query,
+                'unlinked_voucher_only' => true,
+                'exclude_evidences' => [...$currentLinks, ...$requestedExclusions],
+                'start' => ($page - 1) * $perPage,
+                'length' => $perPage,
+                'order_field' => $orderField,
+                'order_direction' => isset($_GET['sort_field']) ? $sortDirection : (str_ends_with($sort, '_asc') ? 'asc' : 'desc'),
+            ]);
+            $rows = array_map(function (array $projection): array {
+                $row = $this->normalizeEvidenceSearchRow(array_merge($projection['body'] ?? [], $projection['identity'] ?? []));
+                $evidenceStatus = strtoupper(trim((string) ($row['evidence_status'] ?? '')));
+                $row['processing_status_label'] = in_array($evidenceStatus, ['COMPLETED', 'READY', 'VERIFY_ONLY'], true)
+                    ? '완료'
+                    : '미완료';
+                $row['processing_status_reason'] = '';
+                return $row;
+            }, $result['projections'] ?? []);
+            $total = (int) ($result['records_filtered'] ?? 0);
+            $lastPage = max(1, (int) ceil($total / $perPage));
 
             return [
                 'success' => true,
                 'message' => 'List loaded.',
-                'data' => $rows,
+                'draw' => max(1, (int) ($_GET['draw'] ?? 1)),
+                'recordsTotal' => $total,
+                'recordsFiltered' => $total,
+                'data' => [
+                    'items' => array_values($rows),
+                    'pagination' => [
+                        'page' => $page,
+                        'per_page' => $perPage,
+                        'total' => $total,
+                        'last_page' => $lastPage,
+                    ],
+                    'filters' => [
+                        'import_types' => array_map(fn(array $option): array => [
+                            'value' => (string) ($option['import_type'] ?? ''),
+                            'label' => $this->evidenceTypePolicyService->importTypeLabel((string) ($option['import_type'] ?? '')),
+                        ], $metadataOptions),
+                    ],
+                ],
             ];
         });
     }
 
-    public function apiCreateTransaction(): void
+    public function apiEvidenceRecommendations(): void
     {
         $this->jsonResponse(function (): array {
-            http_response_code(400);
-
+            $input = json_decode((string) file_get_contents('php://input'), true);
+            $evidences = is_array($input['evidences'] ?? null) ? $input['evidences'] : [];
+            $results = $this->evidenceRecommendationService->recommend($evidences);
             return [
-                'success' => false,
-                'message' => 'Transaction creation is not supported from vouchers. Create it on the transaction page and link it here.',
+                'success' => true,
+                'message' => '분개 추천을 조회했습니다.',
+                'data' => [
+                    'results' => $results,
+                    'recommendations' => $this->evidenceRecommendationService->recommendationSets($results),
+                ],
             ];
         });
     }
@@ -377,13 +301,6 @@ class VoucherController
     public function apiSummarySearch(): void
     {
         $this->jsonResponse(function (): array {
-            if (!$this->evidenceDataModel->tableExists()) {
-                return [
-                    'success' => true,
-                    'items' => [],
-                ];
-            }
-
             $query = trim((string) ($_GET['q'] ?? ''));
             $scope = strtolower(trim((string) ($_GET['scope'] ?? 'voucher')));
             $items = $scope === 'line'
@@ -402,25 +319,12 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $payload = $_POST;
             $payload['lines'] = json_decode((string) ($_POST['lines'] ?? '[]'), true) ?? [];
+            $payload['linked_evidences'] = json_decode((string) ($_POST['linked_evidences'] ?? '[]'), true) ?? [];
             $result = $this->service->save($payload);
-            if (($result['success'] ?? false) && trim((string) ($payload['linked_evidence_id'] ?? '')) !== '') {
-                $this->replaceVoucherEvidenceLink(
-                    (string) ($result['voucher_id'] ?? $result['id'] ?? ''),
-                    trim((string) $payload['linked_evidence_id']),
-                    ActorHelper::user()
-                );
-            }
-
-            if (($result['success'] ?? false)) {
-                $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
-                $evidenceId = trim((string) ($payload['linked_evidence_id'] ?? ''))
-                    ?: (string) ($this->voucherSeedSourceByVoucherId($voucherId)['id'] ?? '');
-                $this->syncLinkedEvidenceVoucherPayload($voucherId, $evidenceId, ActorHelper::user());
-            }
 
             return [
                 'success' => (bool) ($result['success'] ?? false),
-                'message' => (['success'] ?? false) ? 'Saved.' : (['message'] ?? 'Save failed.'),
+                'message' => ($result['success'] ?? false) ? 'Saved.' : ($result['message'] ?? 'Save failed.'),
                 'data' => $result,
             ];
         });
@@ -458,7 +362,7 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->requestReview($id);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
@@ -473,7 +377,7 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->cancelReviewRequest($id);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
@@ -488,7 +392,7 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->completeReview($id);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
@@ -503,7 +407,7 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->cancelCompleteReview($id);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
@@ -518,7 +422,7 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->post($id);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
@@ -533,80 +437,12 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $result = $this->service->createReversalVoucher($id, ActorHelper::user());
-            $voucher = $this->voucherModel->getById((string) ($result['id'] ?? '')) ?: [];
+            $voucher = $this->queryService->getById((string) ($result['id'] ?? '')) ?: [];
 
             return [
                 'success' => true,
                 'message' => '취소전표가 생성되었습니다.',
                 'data' => array_merge($voucher, $result),
-            ];
-        });
-    }
-
-    public function apiLinkEvidence(): void
-    {
-        $this->jsonResponse(function (): array {
-            if (!$this->evidenceDataModel->tableExists()) {
-                return [
-                    'success' => false,
-                    'message' => '증빙 payload 저장소를 찾을 수 없습니다.',
-                ];
-            }
-
-            $id = $this->requestVoucherId();
-            $evidenceId = $this->requestValue('linked_evidence_id') ?: $this->requestValue('evidence_id');
-            if ($evidenceId === '') {
-                throw new \RuntimeException('?????怨뺤르????饔낅떽??影?곗몡???紐???????影?력?????鰲????轅붽틓?????');
-            }
-
-            $actor = ActorHelper::user();
-            $this->pdo->beginTransaction();
-            $this->replaceVoucherEvidenceLink($id, $evidenceId, $actor);
-            $this->pdo->commit();
-
-            $voucher = $this->voucherModel->getById($id) ?: [];
-            $linkedEvidence = $this->voucherSeedSourceByVoucherId($id);
-
-            return [
-                'success' => true,
-                'message' => 'Evidence link saved.',
-                'data' => array_merge($voucher, [
-                    'linked_evidence' => $linkedEvidence,
-                    'evidence_id' => (string) ($linkedEvidence['id'] ?? $evidenceId),
-                    'evidence_link_status' => 'linked',
-                ]),
-            ];
-        });
-    }
-
-    public function apiUnlinkEvidence(): void
-    {
-        $this->jsonResponse(function (): array {
-            if (!$this->evidenceDataModel->tableExists()) {
-                return [
-                    'success' => false,
-                    'message' => '증빙 payload 저장소를 찾을 수 없습니다.',
-                ];
-            }
-
-            $id = $this->requestVoucherId();
-            $evidenceId = $this->requestValue('linked_evidence_id') ?: $this->requestValue('evidence_id');
-            $actor = ActorHelper::user();
-
-            $this->pdo->beginTransaction();
-            $this->unlinkVoucherEvidence($id, $evidenceId, $actor);
-            $this->pdo->commit();
-
-            $voucher = $this->voucherModel->getById($id) ?: [];
-
-            return [
-                'success' => true,
-                'message' => 'Evidence link removed.',
-                'data' => array_merge($voucher, [
-                    'linked_evidence' => null,
-                    'evidence_id' => '',
-                    'evidence_link_status' => 'unlinked',
-                ]),
             ];
         });
     }
@@ -617,11 +453,11 @@ class VoucherController
             $id = $this->requestVoucherId();
             $reason = $this->requestValue('reason');
             $result = $this->service->reject($id, $reason);
-            $voucher = $this->voucherModel->getById($id) ?: [];
+            $voucher = $this->queryService->getById($id) ?: [];
 
             return [
                 'success' => true,
-                'message' => 'Rejected.',
+                'message' => '전표가 반려되었습니다.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -653,7 +489,7 @@ class VoucherController
             return [
                 'success' => true,
                 'message' => 'List loaded.',
-                'data' => $this->voucherModel->getTrashList(),
+                'data' => $this->queryService->getTrashList(),
             ];
         });
     }
@@ -705,7 +541,7 @@ class VoucherController
     public function apiRestoreAll(): void
     {
         $this->jsonResponse(function (): array {
-            $ids = $this->voucherModel->getDeletedIds();
+            $ids = $this->queryService->getDeletedIds();
 
             foreach ($ids as $id) {
                 $this->restoreVoucherById((string) $id);
@@ -729,13 +565,11 @@ class VoucherController
                 ];
             }
 
-            $this->pdo->beginTransaction();
-            $this->purgeVoucherById($id);
-            $this->pdo->commit();
+            $this->voucherPurgeService->purge([$id]);
 
             return [
                 'success' => true,
-                'message' => 'Purge completed.',
+                'message' => '전표가 영구삭제되었습니다.',
             ];
         });
     }
@@ -749,19 +583,15 @@ class VoucherController
             if ($ids === []) {
                 return [
                     'success' => false,
-                    'message' => 'No voucher selected for purge.',
+                    'message' => '영구삭제할 전표를 선택해 주세요.',
                 ];
             }
 
-            $this->pdo->beginTransaction();
-            foreach ($ids as $id) {
-                $this->purgeVoucherById((string) $id);
-            }
-            $this->pdo->commit();
+            $this->voucherPurgeService->purge($ids);
 
             return [
                 'success' => true,
-                'message' => 'Selected vouchers purged.',
+                'message' => '선택한 전표가 영구삭제되었습니다.',
             ];
         });
     }
@@ -769,17 +599,13 @@ class VoucherController
     public function apiPurgeAll(): void
     {
         $this->jsonResponse(function (): array {
-            $ids = $this->voucherModel->getDeletedIds();
+            $ids = $this->queryService->getDeletedIds();
 
-            $this->pdo->beginTransaction();
-            foreach ($ids as $id) {
-                $this->purgeVoucherById((string) $id);
-            }
-            $this->pdo->commit();
+            $this->voucherPurgeService->purge($ids);
 
             return [
                 'success' => true,
-                'message' => 'All vouchers purged.',
+                'message' => '휴지통의 전체 전표가 영구삭제되었습니다.',
             ];
         });
     }
@@ -811,29 +637,6 @@ class VoucherController
         exit;
     }
 
-    private function uploadedExcelFile(): ?array
-    {
-        return $_FILES['excel'] ?? $_FILES['file'] ?? null;
-    }
-
-    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
-    {
-        while (ob_get_level() > 0) {
-            ob_end_clean();
-        }
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header(
-            'Content-Disposition: attachment; filename="' . addcslashes($filename, "\\\"") . '"'
-            . "; filename*=UTF-8''" . rawurlencode($filename)
-        );
-        header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
-        exit;
-    }
-
     private function requestVoucherId(): string
     {
         $input = json_decode(file_get_contents('php://input'), true);
@@ -843,7 +646,7 @@ class VoucherController
 
         $id = trim((string) ($_POST['id'] ?? $input['id'] ?? $_GET['id'] ?? ''));
         if ($id === '') {
-            throw new \RuntimeException('????熬곻퐢夷??ID????ル늉?? ?????諛몃마????꿔꺂??????');
+            throw new \RuntimeException('전표 ID를 확인할 수 없습니다.');
         }
 
         return $id;
@@ -859,65 +662,46 @@ class VoucherController
         return trim((string) ($_POST[$key] ?? $input[$key] ?? $_GET[$key] ?? ''));
     }
 
-    private function transactionDisplayType(array $row): string
-    {
-        $operationType = strtoupper(trim((string) ($row['operation_type'] ?? '')));
-        $importType = strtoupper(trim((string) ($row['import_type'] ?? '')));
-
-        if ($operationType !== '') {
-            return match ($operationType) {
-                'GENERAL'          => 'General',
-                'PAYROLL'          => 'Payroll',
-                'DAILY_WORKER'     => 'Daily Worker',
-                'BUSINESS_INCOME'  => 'Business Income',
-                'FIXED_ASSET'      => 'Fixed Asset',
-                'LOAN'             => 'Loan',
-                default            => $operationType,
-            };
-        }
-
-        return match ($importType) {
-            'BANK_TRANSACTION'                  => 'Bank Transaction',
-            'TAX_INVOICE'                       => 'Tax Invoice',
-            'CASH_RECEIPT'                      => 'Cash Receipt',
-            'CARD_APPROVAL',
-            'CARD_HOMETAX',
-            'CARD_STATEMENT'                    => 'Card',
-            default                             => 'Transaction',
-        };
-    }
-
-    private function transactionDisplaySummary(array $row): string
-    {
-        foreach (['item_summary', 'description', 'summary_text', 'note'] as $key) {
-            $value = trim((string) ($row[$key] ?? ''));
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return 'Transaction';
-    }
-
-    private function linkedVoucherInfoForTransaction(string $transactionId): ?array
-    {
-        return $this->transactionLinkModel->findLinkedVoucherInfoByTransactionId($transactionId);
-    }
-
-    private function linkedVoucherInfoForEvidence(string $evidenceId): ?array
-    {
-        return $this->evidenceLinkModel->findLinkedVoucherInfoByEvidenceId($evidenceId);
-    }
-
     private function normalizeEvidenceSearchRow(array $row): array
     {
         $payload = $this->decodeJsonObject($row['mapped_payload_json'] ?? null);
         $sourceType = strtoupper(trim((string) ($row['source_type'] ?? '')));
-        $row['display_type'] = $this->evidenceDisplayType($sourceType, (string) ($row['format_name'] ?? ''));
+        $row['display_type'] = $this->evidenceTypePolicyService->importTypeLabel((string) ($row['import_type'] ?? $sourceType));
+        $row['evidence_date'] = $row['standard_date']
+            ?? $row['raw_transaction_datetime']
+            ?? $row['raw_approval_date']
+            ?? $row['raw_written_date']
+            ?? $row['raw_issue_date']
+            ?? $row['evidence_date']
+            ?? null;
+        $semanticValues = $this->queryService->evidenceSemanticValues((string) ($row['import_type'] ?? ''), $row);
         $row['display_key'] = $this->evidenceDisplayKey($row, $payload);
-        $row['display_summary'] = $this->evidenceDisplaySummary($row, $payload);
+        $row['display_summary'] = $this->firstSemanticText($semanticValues['DESCRIPTION'] ?? []);
         $row['display_amount'] = $this->evidenceDisplayAmount($row, $payload);
-        $row['client_name'] = trim((string) ($row['client_name'] ?? '')) ?: $this->firstPayloadValue($payload, [
+        $depositAmount = $this->firstSemanticNumeric($semanticValues['IN_AMOUNT'] ?? []);
+        $withdrawAmount = $this->firstSemanticNumeric($semanticValues['OUT_AMOUNT'] ?? []);
+        $row['display_amount_sign'] = '';
+        if ($depositAmount > 0) {
+            $row['display_amount'] = abs($depositAmount);
+            $row['display_amount_sign'] = '+';
+        } elseif ($withdrawAmount > 0) {
+            $row['display_amount'] = abs($withdrawAmount);
+            $row['display_amount_sign'] = '-';
+        } elseif (($semanticValues['POST_TAX_AMOUNT'] ?? []) !== []) {
+            $row['display_amount'] = $this->firstSemanticNumeric($semanticValues['POST_TAX_AMOUNT']);
+        } elseif (($semanticValues['PRE_TAX_AMOUNT'] ?? []) !== []) {
+            $row['display_amount'] = $this->firstSemanticNumeric($semanticValues['PRE_TAX_AMOUNT'])
+                + array_sum(array_map(
+                    fn(mixed $value): float => $this->numericOrNull($value) ?? 0.0,
+                    $semanticValues['ADJUST_AMOUNT'] ?? []
+                ));
+        }
+        $row['client_name'] = trim((string) ($row['client_name']
+            ?? $row['raw_counterparty_name']
+            ?? $row['raw_merchant_company_name']
+            ?? $row['raw_supplier_company_name']
+            ?? $row['raw_customer_company_name']
+            ?? '')) ?: $this->firstPayloadValue($payload, [
             'client_name',
             'client_company_name',
             'company_name',
@@ -930,47 +714,30 @@ class VoucherController
         return $row;
     }
 
-    private function evidenceDisplayType(string $sourceType, string $formatName = ''): string
-    {
-        $formatName = trim($formatName);
-        if ($formatName !== '') {
-            return $formatName;
-        }
-
-        return match ($sourceType) {
-            'BANK_TRANSACTION' => 'Bank Transaction',
-            'TAX_INVOICE' => 'Tax Invoice',
-            'CASH_RECEIPT' => 'Cash Receipt',
-            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_COMPANY' => 'Card',
-            default => $sourceType !== '' ? $sourceType : 'Transaction source',
-        };
-    }
-
     private function evidenceDisplayKey(array $row, array $payload): string
     {
         return $this->firstPayloadValue($payload, [
             'approval_number',
             'approval_no',
-            'issue_id',
             'invoice_number',
             'cash_receipt_no',
             'card_approval_no',
             'transaction_no',
             'document_no',
-        ]) ?: trim((string) ($row['source_key'] ?? ''));
+        ]) ?: $this->humanEvidenceText(
+            $row['raw_approval_number'] ?? $row['raw_approval_no'] ?? $row['source_key'] ?? null
+        );
     }
 
-    private function evidenceDisplaySummary(array $row, array $payload): string
+    private function firstSemanticText(array $values): string
     {
-        return $this->firstPayloadValue($payload, [
-            'description',
-            'summary_text',
-            'item_summary',
-            'memo',
-            'note',
-            'product_name',
-            'item_name',
-        ]) ?: trim((string) ($row['format_name'] ?? $row['source_type'] ?? "\u{C99D}\u{BE59}"));
+        foreach ($values as $value) {
+            $text = $this->humanEvidenceText($value);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+        return '';
     }
 
     private function evidenceDisplayAmount(array $row, array $payload): float
@@ -978,6 +745,12 @@ class VoucherController
         foreach (
             [
                 $row['total_amount'] ?? null,
+                $row['raw_total_amount'] ?? null,
+                $row['raw_transaction_amount_krw'] ?? null,
+                $row['raw_actual_billing_amount'] ?? null,
+                $row['raw_billing_amount'] ?? null,
+                $row['raw_deposit_amount'] ?? null,
+                $row['raw_withdraw_amount'] ?? null,
                 $payload['total_amount'] ?? null,
                 $payload['amount'] ?? null,
                 $payload['billing_amount'] ?? null,
@@ -1009,13 +782,25 @@ class VoucherController
     private function firstPayloadValue(array $payload, array $keys): string
     {
         foreach ($keys as $key) {
-            $value = trim((string) ($payload[$key] ?? ''));
+            $value = $this->humanEvidenceText($payload[$key] ?? null);
             if ($value !== '') {
                 return $value;
             }
         }
 
         return '';
+    }
+
+    private function humanEvidenceText(mixed $value): string
+    {
+        if (!is_scalar($value)) {
+            return '';
+        }
+        $text = trim((string) $value);
+        if ($text === '' || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $text)) {
+            return '';
+        }
+        return $text;
     }
 
     private function searchTextMatches(string $haystack, string $query): bool
@@ -1053,21 +838,13 @@ class VoucherController
         return (float) $normalized;
     }
 
-    private function transactionImportType(string $transactionId): ?string
+    private function firstSemanticNumeric(array $values): float
     {
-        return $this->evidenceDataModel->getTransactionImportType($transactionId);
-    }
-
-    private function transactionSeedSource(string $transactionId): ?array
-    {
-        return $this->evidenceDataModel->getTransactionSeedSource($transactionId);
-    }
-
-    private function voucherSeedSourceByVoucherId(string $voucherId): ?array
-    {
-        $rows = $this->voucherSeedSourcesByVoucherId($voucherId);
-
-        return $rows[0] ?? null;
+        foreach ($values as $value) {
+            $numeric = $this->numericOrNull($value);
+            if ($numeric !== null && abs($numeric) > 0) return abs($numeric);
+        }
+        return 0.0;
     }
 
     private function normalizeVoucherRefType(string $value): string
@@ -1084,301 +861,13 @@ class VoucherController
         };
     }
 
-    private function voucherSeedSourcesByVoucherId(string $voucherId): array
-    {
-        return array_map(
-            fn(array $row): array => $this->normalizeEvidenceSearchRow($row),
-            $this->evidenceDataModel->getVoucherSeedSourcesByVoucherId($voucherId)
-        );
-    }
-
-    private function voucherSeedSource(string $evidenceId): ?array
-    {
-        return $this->evidenceDataModel->getSeedSourceById($evidenceId);
-    }
-
-    private function replaceVoucherEvidenceLink(string $voucherId, string $evidenceId, string $actor): void
-    {
-        if ($voucherId === '' || $evidenceId === '') {
-            throw new \RuntimeException('전표 ID와 증빙 ID를 모두 입력해 주세요.');
-        }
-        if (!$this->evidenceDataModel->tableExists() || !$this->evidenceLinkModel->tableExists()) {
-            throw new \RuntimeException('증빙 데이터 또는 증빙 링크 저장소를 찾을 수 없습니다.');
-        }
-
-        if (!$this->voucherModel->getById($voucherId)) {
-            throw new \RuntimeException('전표를 찾을 수 없습니다.');
-        }
-        if (!$this->voucherSeedSource($evidenceId)) {
-            throw new \RuntimeException('증빙을 찾을 수 없습니다.');
-        }
-        if (!$this->evidenceDataModel->isLinkableByPolicy($evidenceId, ['DATA', 'FUND', 'BOTH'])) {
-            throw new \RuntimeException('증빙정책에서 전표 연결이 허용되지 않은 증빙입니다.');
-        }
-
-        $previousEvidenceIds = $this->evidenceIdsLinkedToVoucher($voucherId, $evidenceId);
-        if ($previousEvidenceIds !== []) {
-            $this->softDeleteVoucherEvidenceLinks($voucherId, $previousEvidenceIds, $actor);
-        }
-
-        $this->linkVoucherToEvidence($evidenceId, $voucherId);
-        $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
-
-        foreach ($previousEvidenceIds as $previousEvidenceId) {
-            if (!$this->activeVoucherExistsForEvidence($previousEvidenceId, $voucherId)) {
-                $this->updateEvidenceVoucherStatus($previousEvidenceId, 'READY', $actor);
-            }
-        }
-    }
-
-    private function unlinkVoucherEvidence(string $voucherId, string $evidenceId, string $actor): void
-    {
-        if ($voucherId === '' || !$this->evidenceLinkModel->tableExists()) {
-            return;
-        }
-
-        $evidenceIds = $evidenceId !== ''
-            ? [$evidenceId]
-            : $this->evidenceIdsLinkedToVoucher($voucherId);
-
-        if ($evidenceIds === []) {
-            return;
-        }
-
-        $this->softDeleteVoucherEvidenceLinks($voucherId, $evidenceIds, $actor);
-
-        foreach ($evidenceIds as $linkedEvidenceId) {
-            if (!$this->activeVoucherExistsForEvidence($linkedEvidenceId, $voucherId)) {
-                $this->updateEvidenceVoucherStatus($linkedEvidenceId, 'READY', $actor);
-            }
-        }
-    }
-
-    private function evidenceIdsLinkedToVoucher(string $voucherId, string $exceptEvidenceId = ''): array
-    {
-        return $this->evidenceLinkModel->getEvidenceIdsByVoucherId($voucherId, $exceptEvidenceId);
-    }
-
-    private function softDeleteVoucherEvidenceLinks(string $voucherId, array $evidenceIds, string $actor): void
-    {
-        $this->evidenceLinkModel->softDeleteVoucherLinks($voucherId, $evidenceIds);
-    }
-
-    private function linkVoucherToEvidence(string $evidenceId, string $voucherId): void
-    {
-        $this->evidenceLinkModel->linkVoucher($evidenceId, $voucherId);
-    }
-
-    private function updateEvidenceVoucherStatus(string $evidenceId, string $voucherStatus, string $actor, ?string $errorMessage = null): void
-    {
-        $this->evidenceDataModel->updateVoucherStatus($evidenceId, $voucherStatus, $actor, $errorMessage);
-    }
-
-    private function syncLinkedEvidenceVoucherPayload(string $voucherId, string $evidenceId, string $actor): void
-    {
-        if (
-            $voucherId === ''
-            || $evidenceId === ''
-            || !$this->evidenceDataModel->tableExists()
-            || !$this->evidenceDataModel->columnExists('mapped_payload_json')
-        ) {
-            return;
-        }
-
-        $voucher = $this->voucherModel->getById($voucherId);
-        if (!$voucher) {
-            return;
-        }
-
-        $evidence = $this->evidenceDataModel->getPayloadContext($evidenceId);
-        if (!$evidence) {
-            error_log("[VoucherController] Missing ledger_data_evidences row for evidence_id={$evidenceId}");
-            return;
-        }
-
-        $mapped = $this->decodeJsonObject($evidence['mapped_payload_json'] ?? null);
-        $lines = $this->voucherLineRefService->hydrateVoucherLines(
-            $this->voucherLineModel->getByVoucherId($voucherId)
-        );
-
-        $mapped['voucher_date'] = (string) ($voucher['voucher_date'] ?? '');
-        $mapped['voucher_summary_text'] = (string) ($voucher['summary'] ?? '');
-        $mapped['summary'] = (string) ($voucher['summary'] ?? '');
-        $mapped['summary_text'] = (string) ($voucher['summary'] ?? '');
-        $mapped['note'] = (string) ($voucher['note'] ?? '');
-        $mapped['memo'] = (string) ($voucher['memo'] ?? '');
-        $mapped['_voucher_lines'] = array_map(function (array $line): array {
-            $refs = is_array($line['refs'] ?? null) ? array_values($line['refs']) : [];
-            return [
-                'line_no' => (int) ($line['line_no'] ?? 0),
-                'line_row_type' => 'JOURNAL',
-                'account_id' => (string) ($line['account_id'] ?? ''),
-                'account_text' => (string) ($line['account_text'] ?? $line['account_name'] ?? ''),
-                'debit' => (string) ($line['debit'] ?? '0'),
-                'credit' => (string) ($line['credit'] ?? '0'),
-                'line_summary' => (string) ($line['line_summary'] ?? ''),
-                'refs' => $refs,
-                'recommended_refs' => $refs,
-                'is_user_modified' => 1,
-            ];
-        }, $lines);
-
-        $mappedPayloadJson = json_encode($mapped, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $updated = $this->evidenceDataModel->updateMappedPayload(
-            $evidenceId,
-            (string) ($evidence['source_type'] ?? ''),
-            $mappedPayloadJson,
-            $actor
-        );
-        if (!$updated) {
-            error_log("[VoucherController] Failed to update ledger_data_evidences row for evidence_id={$evidenceId}");
-            return;
-        }
-        $this->evidenceDataModel->updateVoucherStatus($evidenceId, 'CREATED', $actor, null);
-    }
-
     private function restoreVoucherById(string $id): void
     {
         if ($id === '') {
             return;
         }
 
-        // Links are intentionally not auto-restored here. Reconnect vouchers explicitly from the transaction or voucher UI.
         $this->service->restoreVoucher($id);
-    }
-
-    private function purgeVoucherById(string $id): void
-    {
-        if ($id === '') {
-            return;
-        }
-
-        $actor = ActorHelper::user();
-        $voucher = $this->voucherRowForPurge($id);
-        $transactionIds = array_values(array_unique(array_filter(array_map(
-            static fn(array $link): string => trim((string) ($link['transaction_id'] ?? '')),
-            $this->transactionLinkModel->getList([
-                'voucher_id' => $id,
-                'is_active' => 1,
-            ])
-        ))));
-        $storedTransactionId = trim((string) ($voucher['transaction_id'] ?? ''));
-        if ($storedTransactionId !== '') {
-            $transactionIds[] = $storedTransactionId;
-            $transactionIds = array_values(array_unique(array_filter($transactionIds)));
-        }
-        $evidenceIds = $this->evidenceIdsAffectedByVoucherPurge($voucher, $transactionIds);
-        $processingItemIds = $this->processingItemIdsAffectedByVoucherPurge($id);
-
-        foreach ($transactionIds as $transactionId) {
-            $this->transactionLinkModel->softDeleteByTransactionAndVoucher($transactionId, $id, $actor);
-            $this->transactionCrudService->recalculateMatchStatus($transactionId, $actor);
-        }
-
-        $this->resetEvidenceVoucherStatusAfterPurge($evidenceIds, $actor, $id);
-        $this->resetProcessingItemVoucherStatusAfterPurge($processingItemIds, $actor, $id);
-        $this->purgeVoucherEvidenceLinksById($id);
-        $this->purgeTransactionLinksByVoucherId($id);
-        $this->purgeVoucherChildrenById($id);
-
-        if (!$this->voucherModel->hardDelete($id)) {
-            throw new \RuntimeException("\u{C804}\u{D45C}\u{B97C} \u{C601}\u{AD6C}\u{C0AD}\u{C81C}\u{D558}\u{C9C0} \u{BABB}\u{D588}\u{C2B5}\u{B2C8}\u{B2E4}.");
-        }
-    }
-
-    private function purgeVoucherChildrenById(string $voucherId): void
-    {
-        if ($voucherId === '') {
-            return;
-        }
-
-        $this->voucherLineModel->purgeByVoucherId($voucherId);
-    }
-
-    private function purgeVoucherEvidenceLinksById(string $voucherId): void
-    {
-        $this->evidenceLinkModel->purgeByVoucherId($voucherId);
-    }
-
-    private function purgeTransactionLinksByVoucherId(string $voucherId): void
-    {
-        $this->transactionLinkModel->purgeByVoucherId($voucherId);
-    }
-
-    private function voucherRowForPurge(string $voucherId): array
-    {
-        return $voucherId !== '' ? ($this->voucherModel->getById($voucherId) ?: []) : [];
-    }
-
-    private function evidenceIdsAffectedByVoucherPurge(array $voucher, array $transactionIds): array
-    {
-        $ids = [];
-        $voucherId = trim((string) ($voucher['id'] ?? ''));
-        if ($voucherId !== '') {
-            $ids = array_merge($ids, $this->evidenceLinkModel->getEvidenceIdsByVoucherId($voucherId));
-        }
-        $ids = array_merge($ids, $this->evidenceDataModel->findIdsByTransactionIds($transactionIds));
-
-        return array_values(array_filter(array_unique($ids)));
-    }
-
-    private function resetEvidenceVoucherStatusAfterPurge(array $evidenceIds, string $actor, string $purgedVoucherId): void
-    {
-        $evidenceIds = array_values(array_filter(array_unique(array_map('strval', $evidenceIds))));
-        if ($evidenceIds === []) {
-            return;
-        }
-
-        foreach ($evidenceIds as $evidenceId) {
-            if ($this->activeVoucherExistsForEvidence($evidenceId, $purgedVoucherId)) {
-                continue;
-            }
-
-            $this->evidenceDataModel->updateVoucherStatus($evidenceId, 'READY', $actor, null);
-        }
-    }
-
-    private function processingItemIdsAffectedByVoucherPurge(string $voucherId): array
-    {
-        if ($voucherId === '') {
-            return [];
-        }
-
-        $ids = [];
-        $ids = array_merge($ids, $this->voucherLineModel->getProcessingItemIdsByVoucherId($voucherId));
-        $ids = array_merge($ids, $this->evidenceLinkModel->getProcessingItemIdsByVoucherId($voucherId));
-
-        return array_values(array_filter(array_unique($ids)));
-    }
-
-    private function resetProcessingItemVoucherStatusAfterPurge(array $processingItemIds, string $actor, string $purgedVoucherId): void
-    {
-        $processingItemIds = array_values(array_filter(array_unique(array_map('strval', $processingItemIds))));
-        if ($processingItemIds === []) {
-            return;
-        }
-
-        foreach ($processingItemIds as $processingItemId) {
-            if ($this->activeVoucherExistsForProcessingItem($processingItemId, $purgedVoucherId)) {
-                continue;
-            }
-
-            $this->processingItemModel->update($processingItemId, [
-                'voucher_status' => 'READY',
-                'updated_at' => date('Y-m-d H:i:s'),
-                'updated_by' => $actor,
-            ]);
-        }
-    }
-
-    private function activeVoucherExistsForEvidence(string $evidenceId, string $excludeVoucherId = ''): bool
-    {
-        return $this->evidenceLinkModel->activeVoucherExistsForEvidence($evidenceId, $excludeVoucherId);
-    }
-
-    private function activeVoucherExistsForProcessingItem(string $processingItemId, string $excludeVoucherId = ''): bool
-    {
-        return $this->voucherLineModel->hasActiveVoucherForProcessingItem($processingItemId, $excludeVoucherId);
     }
 
 }

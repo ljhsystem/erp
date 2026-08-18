@@ -82,6 +82,35 @@
     height:auto;
 }
 
+#accountModal .account-system-card{
+    margin-top:1rem;
+}
+
+#accountModal .account-system-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px 16px;
+}
+
+#accountModal .account-system-info-field{
+    min-width:0;
+    display:grid;
+    grid-template-columns:92px minmax(0, 1fr);
+    gap:8px;
+    align-items:start;
+}
+
+#accountModal .account-system-info-label{
+    color:var(--color-text-muted, #667085);
+    font-size:.82rem;
+}
+
+#accountModal .account-system-info-value{
+    min-width:0;
+    overflow-wrap:anywhere;
+    font-size:.86rem;
+}
+
 /* =========================================================
    FILE UPLOAD (🔥 거래처 스타일)
 ========================================================= */
@@ -263,4 +292,10 @@
         width:98vw;
     }
 
+}
+
+@media (max-width:767.98px){
+    #accountModal .account-system-info-grid{
+        grid-template-columns:1fr;
+    }
 }

@@ -3,6 +3,10 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 import {
     formatDate,
     formatDateInputValue,
@@ -172,6 +176,7 @@ export function createWorkTeamModalModule({
         const modalEl = document.getElementById('workTeamModal');
         if (modalEl) {
             workTeamModal = new bootstrap.Modal(modalEl, { focus: false });
+            bindModalCardCollapses(modalEl, { resetOnShow: true });
             bindWorkTeamPolicySync();
             applyWorkTeamModalPolicyLabels(document);
             modalEl.addEventListener('hidden.bs.modal', () => {
@@ -245,8 +250,7 @@ export function createWorkTeamModalModule({
     }
 
     async function fetchDetail(teamId) {
-        const res = await fetch(`${api.DETAIL}?id=${encodeURIComponent(teamId)}`);
-        const json = await res.json();
+        const json = await window.AppAjax.fetchJson(`${api.DETAIL}?id=${encodeURIComponent(teamId)}`);
         if (!json.success || !json.data) {
             throw new Error(json.message || '상세 조회에 실패했습니다.');
         }
@@ -256,7 +260,7 @@ export function createWorkTeamModalModule({
     async function openEditModalByRow(rowData) {
         if (!rowData?.id) return;
         resetForm();
-        document.getElementById('workTeamModalLabel').textContent = '팀관리 수정';
+        document.getElementById('workTeamModalLabel').textContent = '팀 수정';
         document.getElementById('btnDeleteWorkTeam').style.display = '';
         document.getElementById('modal-work-team-id').value = rowData.id;
         applyWorkTeamModalPolicyLabels(document);
@@ -266,6 +270,7 @@ export function createWorkTeamModalModule({
             const [data] = await Promise.all([fetchDetail(rowData.id), prepareModalControls()]);
             fillForm(data);
             setTeamLeaderSelect2(data);
+            renderSystemInfo(data);
         } catch (error) {
             console.error(error);
             notify('error', error.message || '서버 오류가 발생했습니다.');
@@ -275,9 +280,10 @@ export function createWorkTeamModalModule({
     function openCreateModal(options = {}) {
         resetForm();
         openCreateContext = options && typeof options === 'object' ? options : null;
-        document.getElementById('workTeamModalLabel').textContent = '팀관리 등록';
+        document.getElementById('workTeamModalLabel').textContent = '팀 등록';
         document.getElementById('btnDeleteWorkTeam').style.display = 'none';
         setTeamLeaderSelect2({});
+        renderSystemInfo({});
         if (openCreateContext?.initialValues && typeof openCreateContext.initialValues === 'object') {
             fillForm(openCreateContext.initialValues);
             setTeamLeaderSelect2(openCreateContext.initialValues);
@@ -305,6 +311,29 @@ export function createWorkTeamModalModule({
             el.value = value ?? '';
         });
         applyWorkTeamModalPolicyLabels(document);
+    }
+
+    function renderSystemInfo(data = {}) {
+        const container = document.getElementById('workTeamSystemInfoFields');
+        if (!container) return;
+        const fields = [
+            ['id', 'ID'], ['sort_no', '순번'], ['created_at', '생성일시', 'datetime'],
+            ['created_by_name', '생성자'], ['updated_at', '수정일시', 'datetime'],
+            ['updated_by_name', '수정자'], ['deleted_at', '삭제일시', 'datetime'], ['deleted_by_name', '삭제자'],
+        ];
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'work-team-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'work-team-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'work-team-system-info-value';
+            const raw = type === 'datetime' ? formatDateDisplay(data[key]) : data[key];
+            value.textContent = raw == null ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
     }
 
     function initClientSelect2() {
@@ -388,48 +417,34 @@ export function createWorkTeamModalModule({
             const submitButton = this.querySelector('button[type="submit"]');
             if (submitButton) submitButton.disabled = true;
 
-            window.jQuery.ajax({
-                url: api.SAVE,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-            })
-                .done((res) => {
-                    if (res.success) {
-                        openCreateContext?.onSaved?.(res, Object.fromEntries(formData.entries()));
-                        workTeamModal?.hide();
-                        reloadTable();
-                        notify('success', res.message || '저장되었습니다.');
-                    } else {
-                        notify('error', res.message || '저장에 실패했습니다.');
-                    }
+            void window.AppAjax.fetchJson(api.SAVE, { method: 'POST', body: formData })
+                .then((res) => {
+                    openCreateContext?.onSaved?.(res, Object.fromEntries(formData.entries()));
+                    workTeamModal?.hide();
+                    reloadTable();
+                    notify('success', res.message || '저장되었습니다.');
                 })
-                .fail(() => notify('error', '서버 오류가 발생했습니다.'))
-                .always(() => {
+                .catch((error) => notify('error', error.message || '저장 중 오류가 발생했습니다.'))
+                .finally(() => {
                     openCreateContext = null;
                     if (submitButton) submitButton.disabled = false;
                 });
         });
 
         window.jQuery('#btnDeleteWorkTeam').off('click');
-        window.jQuery('#btnDeleteWorkTeam').on('click', function () {
+        window.jQuery('#btnDeleteWorkTeam').on('click', async function () {
             const id = window.jQuery('#modal-work-team-id').val();
-            if (!id || !window.confirm('삭제하시겠습니까?')) return;
-
-            window.jQuery.post(api.DELETE, { id })
-                .done((res) => {
-                    if (res.success) {
-                        workTeamModal?.hide();
-                        reloadTable();
-                        notify('success', res.message || '삭제했습니다.');
-                    } else {
-                        notify('error', res.message || '삭제에 실패했습니다.');
-                    }
-                })
-                .fail(() => {
-                    notify('error', '삭제 중 오류가 발생했습니다.');
+            if (!id || !await confirmDialog({ title: '팀 삭제', message: '팀을 휴지통으로 이동하시겠습니까?', confirmText: '삭제', confirmClass: 'btn-danger' })) return;
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '팀을 휴지통으로 이동 중' }, async () => {
+                    const res = await window.AppAjax.postForm(api.DELETE, { id });
+                    workTeamModal?.hide();
+                    await reloadTable();
+                    notify('success', res.message || '삭제했습니다.');
                 });
+            } catch (error) {
+                notify('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
     }
 

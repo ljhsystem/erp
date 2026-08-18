@@ -65,6 +65,33 @@ export function createKeyboardController(config = {}) {
         return selection.focusCell(nextRowIndex, columns[nextColumnIndex].key);
     }
 
+    function moveByTab(reverse = false) {
+        const activeCell = getActiveCellOrFallback();
+        const rows = getRows();
+        const columns = getVisibleColumns().filter((column) => column.editable !== false && Boolean(column.editor));
+        if (!activeCell || rows.length === 0 || columns.length === 0) {
+            return { executed: false, reason: 'no-editable-cell' };
+        }
+        let rowIndex = activeCell.rowIndex;
+        let columnIndex = columns.findIndex((column) => column.key === activeCell.columnKey);
+        if (columnIndex < 0) columnIndex = reverse ? columns.length : -1;
+        columnIndex += reverse ? -1 : 1;
+        if (columnIndex >= columns.length) {
+            columnIndex = 0;
+            rowIndex += 1;
+        } else if (columnIndex < 0) {
+            columnIndex = columns.length - 1;
+            rowIndex -= 1;
+        }
+        if (rowIndex < 0 || rowIndex >= rows.length) {
+            return { executed: false, reason: 'grid-boundary' };
+        }
+        const columnKey = columns[columnIndex].key;
+        const result = selection.focusCell(rowIndex, columnKey);
+        if (result?.executed) config.onFocusCell?.({ rowIndex, columnKey, reason: 'tab' });
+        return result;
+    }
+
     function duplicateCurrentRow() {
         const activeCell = getActiveCellOrFallback();
         if (!activeCell) {
@@ -90,7 +117,8 @@ export function createKeyboardController(config = {}) {
 
         if (key === 'Tab') {
             event.preventDefault?.();
-            return moveByOffset(0, event.shiftKey ? -1 : 1);
+            config.onBeforeMove?.({ event, reason: 'tab' });
+            return moveByTab(event.shiftKey === true);
         }
 
         if (key === 'Enter') {

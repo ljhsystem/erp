@@ -2,6 +2,7 @@ import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { labelBadgeRenderer } from '/public/assets/js/common/table/renderers/index.js';
 import { formatAccountNumber, formatNumber, loadBankAccountFormats } from '/public/assets/js/common/format.js';
+import { actorColumn } from '/public/assets/js/common/actor.js';
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -95,8 +96,26 @@ function compactManageButton(row = {}) {
     `;
 }
 
-export function createFundsBankTransactionTable({ api, reorderApi, onSummary, onAction, onNotify }) {
-    const table = createDataTable({
+function textColumn(data, title, options = {}) {
+    return {
+        data,
+        title,
+        defaultContent: '',
+        visible: options.visible,
+        className: options.className || 'text-nowrap',
+        render: options.render || ((value) => escapeHtml(value || '-')),
+    };
+}
+
+function referenceColumn(data, title, displayField, visible = true) {
+    return textColumn(data, title, {
+        visible,
+        render: (_value, _type, row) => escapeHtml(row?.[displayField] || '-'),
+    });
+}
+
+export async function createFundsBankTransactionTable({ api, reorderApi, onSummary, onAction, onNotify }) {
+    const table = await createDataTable({
         tableSelector: '#fundsBankTransactionsTable',
         api,
         density: 'compact',
@@ -105,17 +124,18 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
         searchTableId: 'fundsBankTransactions',
         tableSettings: {
             enabled: true,
-            pageKey: 'funds.bank-transactions',
+            pageKey: 'ledger.funds.bank_transactions',
             tableKey: 'funds-bank-transactions',
             storageKey: 'datatable.settings.funds.bank-transactions.table.v1',
             tableLabel: 'Funds Bank Transactions',
             title: 'Table Settings',
             metaDomain: 'funds-bank-transaction',
+            resetOnColumnSchemaChange: true,
         },
         cellSearchFill: {
             valueMap: ({ field, row, cell }) => {
-                if (field === 'direction') {
-                    const direction = String(row.direction || row.transaction_direction || '').toUpperCase();
+                if (field === 'transaction_direction') {
+                    const direction = String(row.transaction_direction || '').toUpperCase();
                     if (direction === 'IN') return '입금';
                     if (direction === 'OUT') return '출금';
                 }
@@ -129,16 +149,15 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
                     if (status === 'ERROR') return '오류';
                     if (status === 'DUPLICATED') return '중복';
                 }
-                if (field === 'deposit_amount' || field === 'withdraw_amount') {
+                if (field === 'raw_deposit_amount' || field === 'raw_withdraw_amount') {
                     return formatNumber(Number(row[field] || 0));
                 }
-                if (field === 'description') {
-                    return row.description || row.memo || '';
+                if (field === 'raw_description') {
+                    return row.raw_description || row.raw_memo || '';
                 }
                 return row[field] ?? cell.data();
             },
         },
-        scrollX: true,
         rowIdField: 'id',
         buttons: [
             {
@@ -175,16 +194,32 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
                 },
             },
             {
-                data: 'transaction_datetime',
+                data: 'raw_transaction_datetime',
                 title: '거래일시',
+                defaultContent: '',
                 className: 'text-nowrap',
                 render: (value, _type, row) => transactionDateCell(value, row),
             },
             {
-                data: 'direction',
-                title: '입출구분',
+                data: 'source_type',
+                title: '자료출처',
+                defaultContent: '',
                 className: 'text-nowrap',
-                visible: false,
+                render: (_value, _type, row) => escapeHtml(row.source_type_name || row.source_type || '-'),
+            },
+            {
+                data: 'import_type',
+                title: '자료유형',
+                defaultContent: '',
+                className: 'text-nowrap',
+                render: (_value, _type, row) => escapeHtml(row.import_type_name || row.import_type || '-'),
+            },
+            textColumn('business_unit', '사업구분', { visible: false }),
+            {
+                data: 'transaction_direction',
+                title: '거래구분',
+                defaultContent: '',
+                className: 'text-nowrap',
                 render: (value, type, row) => {
                     const direction = String(value || row.transaction_direction || '').toUpperCase();
                     if (type === 'sort' || type === 'type') return direction;
@@ -193,25 +228,56 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
                     return escapeHtml(value || '-');
                 },
             },
-            { data: 'account_name', title: '계좌명', className: 'text-nowrap', render: (value) => escapeHtml(value || '-') },
-            { data: 'bank_name', title: '은행명', className: 'text-nowrap', render: (value) => escapeHtml(value || '-') },
-            { data: 'account_number', title: '계좌번호', className: 'text-nowrap', render: (value, _type, row) => escapeHtml(formatAccountNumber(value, row.bank_name) || '-') },
-            { data: 'deposit_amount', title: '입금액', className: 'text-end text-nowrap', render: money },
-            { data: 'withdraw_amount', title: '출금액', className: 'text-end text-nowrap', render: money },
-            { data: 'calculated_balance_amount', title: '잔액', className: 'text-end text-nowrap', render: (value, _type, row) => balanceCell(value ?? row.balance_amount, row) },
-            { data: 'description', title: '거래내용/적요', render: (value, _type, row) => `<span title="${escapeHtml(row.memo || value || '')}">${escapeHtml(value || row.memo || '-')}</span>` },
-            { data: 'client_name', title: '거래처명', className: 'text-nowrap', render: (value) => escapeHtml(value || '-') },
-            { data: 'counterparty_name', title: '상대계좌예금주명', className: 'text-nowrap', render: (value, _type, row) => escapeHtml(row.source_counterparty_name || value || '-') },
-            { data: 'counterparty_account_number', title: '상대계좌번호', className: 'text-nowrap', visible: false, render: (value, _type, row) => escapeHtml(formatAccountNumber(value, row.counterparty_bank_name) || '-') },
-            { data: 'counterparty_bank_name', title: '상대은행', className: 'text-nowrap', visible: false, render: (value) => escapeHtml(value || '-') },
-            { data: 'voucher_link_status', title: '전표연결상태', className: 'text-nowrap', render: (_value, _type, row) => voucherBadge(row) },
-            { data: 'evidence_status', title: '증빙상태', className: 'text-nowrap', render: (_value, _type, row) => evidenceBadge(row) },
+            textColumn('operation_type', '업무유형', { visible: false }),
+            referenceColumn('client_id', '거래처', 'client_name', false),
+            referenceColumn('project_id', '프로젝트', 'project_name', false),
+            referenceColumn('bank_account_id', '계좌', 'bank_account_name'),
+            referenceColumn('card_id', '카드', 'card_name', false),
+            referenceColumn('team_id', '팀', 'team_name', false),
+            referenceColumn('employee_id', '직원', 'employee_name', false),
+            { data: 'raw_deposit_amount', title: '입금', defaultContent: 0, className: 'text-end text-nowrap', render: money },
+            { data: 'raw_withdraw_amount', title: '출금', defaultContent: 0, className: 'text-end text-nowrap', render: money },
+            { data: 'raw_balance_amount', title: '거래 후 잔액', defaultContent: '', className: 'text-end text-nowrap', render: (value, _type, row) => balanceCell(value, row) },
+            { data: 'raw_description', title: '거래내용', defaultContent: '', render: (value, _type, row) => `<span title="${escapeHtml(row.raw_memo || value || '')}">${escapeHtml(value || row.raw_memo || '-')}</span>` },
+            { data: 'raw_counterparty_account_number', title: '상대계좌번호', defaultContent: '', className: 'text-nowrap', render: (value, _type, row) => escapeHtml(formatAccountNumber(value, row.raw_counterparty_bank_name) || '-') },
+            textColumn('raw_counterparty_bank_name', '상대은행'),
+            textColumn('raw_memo', '메모'),
+            textColumn('raw_transaction_type', '원본 거래구분'),
+            { data: 'raw_check_bill_amount', title: '수표어음금액', defaultContent: '', className: 'text-end text-nowrap', render: money },
+            textColumn('raw_cms_code', 'CMS코드'),
+            textColumn('raw_counterparty_name', '상대계좌예금주명'),
+            { data: 'evidence_status', title: '증빙상태', defaultContent: '', className: 'text-nowrap', render: (_value, _type, row) => evidenceBadge(row) },
+            {
+                data: 'voucher_link_status',
+                settingsKey: 'voucher_link_status',
+                __dtColumnKind: 'virtual',
+                title: '전표연결상태',
+                defaultContent: '',
+                className: 'text-nowrap',
+                render: (_value, _type, row) => voucherBadge(row),
+            },
+            textColumn('payment_link_label', '지급배분상태'),
+            textColumn('internal_transfer_label', '내부이체상태'),
+            textColumn('internal_transfer_direction_label', '내부이체방향'),
+            textColumn('internal_transfer_counterpart_label', '상대 자사계좌'),
+            textColumn('internal_transfer_voucher_no', '내부이체 전표번호'),
+            { data: 'internal_transfer_amount', title: '내부이체금액', defaultContent: 0, className: 'text-end text-nowrap', render: money },
+            textColumn('external_key', '외부원본식별값', { visible: false }),
+            textColumn('created_at', '생성일시', { visible: false }),
+            actorColumn('created_by', '생성자', { visible: false }),
+            textColumn('updated_at', '수정일시', { visible: false }),
+            actorColumn('updated_by', '수정자', { visible: false }),
+            textColumn('deleted_at', '삭제일시', { visible: false }),
+            actorColumn('deleted_by', '삭제자', { visible: false }),
             {
                 data: null,
+                settingsKey: '__actions',
+                __dtColumnKind: 'virtual',
                 title: '관리',
                 orderable: false,
                 searchable: false,
-                className: 'text-nowrap funds-manage-cell',
+                className: 'text-nowrap funds-manage-cell no-colvis',
+                headerClassName: 'no-colvis',
                 render: (_value, _type, row) => compactManageButton(row),
             },
         ],
@@ -226,7 +292,6 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
             isReorderableRow: (row) => Boolean(row?.evidence_id),
             extraData: () => ({
                 scope: 'status',
-                sequence_scope: 'status',
                 import_type: 'BANK_TRANSACTION',
                 data_type: 'BANK_TRANSACTION',
             }),

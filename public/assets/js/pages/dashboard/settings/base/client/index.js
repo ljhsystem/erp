@@ -4,7 +4,7 @@ import * as NumberFormat from '/public/assets/js/common/format.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { CLIENT_QUICK_API, API, DATE_OPTIONS } from './api.js';
 import { initExcelDataset, bindExcelEvents } from './excel.js';
 import { bindTrashEvents } from './trash.js';
@@ -292,15 +292,14 @@ async function initClientPage($) {
     initBizCertUpload();
     initRrnUpload();
     initBankFileUpload();
-    initExcelDataset(API);
-    void modalModule.preloadClientModalControls();
-
-    onCodeOptionsLoaded(() => {
-        formModule.applyClientOptionalCodeSelects(document.getElementById('clientModal'));
-        state.clientTable?.rows().invalidate('data').draw(false);
+    await tableModule.initDataTable();
+    state.clientTable?.one('draw.dt', () => {
+        void modalModule.preloadClientModalControls().then(() => {
+            formModule.applyClientOptionalCodeSelects(document.getElementById('clientModal'));
+            state.clientTable?.rows().invalidate('data').draw(false);
+        });
     });
-
-    tableModule.initDataTable();
+    state.clientTable?.one('draw.dt', () => { void initExcelDataset(API); });
     initExternal();
     tableModule.bindTableEvents($);
     modalModule.bindModalEvents($);
@@ -321,5 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('jQuery not loaded');
         return;
     }
-    initClientPage(window.jQuery);
+    void initClientPage(window.jQuery).catch(() => {
+        window.AppCore?.notify?.('error', '거래처 목록을 불러오는 중 오류가 발생했습니다.');
+    });
 });

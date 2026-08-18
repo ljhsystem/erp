@@ -38,6 +38,23 @@ class AuthService
         $this->logger = LoggerFactory::getLogger('service-auth.AuthService');
     }
 
+    public function findUsername(array $data): array
+    {
+        $name = trim((string) ($data['name'] ?? ''));
+        $email = trim((string) ($data['email'] ?? ''));
+
+        if ($name === '' || $email === '') {
+            return ['found' => false, 'username' => ''];
+        }
+
+        $username = $this->authUserModel->findUsernameByEmployeeNameAndEmail($name, $email);
+
+        return [
+            'found' => $username !== null,
+            'username' => $username ?? '',
+        ];
+    }
+
     public function login(array $data): array
     {
         $username = trim((string)($data['username'] ?? ''));
@@ -318,6 +335,22 @@ class AuthService
         $this->authSessionService->createLoginSession($user);
 
         return ['success' => true, 'redirect' => '/dashboard'];
+    }
+
+    public function refreshCurrentUserSession(): bool
+    {
+        $userId = $this->authSessionService->getCurrentUserId();
+        if (!$userId) {
+            return false;
+        }
+
+        $user = $this->authUserModel->getById($userId);
+        if (!$user) {
+            return false;
+        }
+
+        $this->authSessionService->createLoginSession($user);
+        return true;
     }
 
     public function logoutCurrentSession(): void

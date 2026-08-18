@@ -1,0 +1,14 @@
+.personnel-action-page .table-box { min-height: 420px; }
+.personnel-target { background: rgba(var(--bs-secondary-rgb), .035); }
+.personnel-change { background: var(--bs-body-bg); }
+.personnel-change .form-label { font-size: .8rem; margin-bottom: .2rem; }
+.current-info { padding: .5rem .75rem; border-radius: .35rem; background: rgba(var(--bs-info-rgb), .08); }
+#personnelActionModal .ui-form-card__description code { color: var(--bs-secondary-color); font-size: .75rem; }
+#personnelActionModal .date-input { position: relative; display: block; }
+#personnelActionModal .date-input .admin-date { padding-right: 34px; }
+#personnelActionModal .date-icon { position: absolute; top: 50%; right: 11px; color: #64748b; cursor: pointer; transform: translateY(-50%); }
+#personnelActionModal .personnel-target:last-child { margin-bottom: 0 !important; }
+#personnelActionModal .personnel-system-card > summary { cursor: pointer; list-style: none; }
+#personnelActionModal .personnel-system-card > summary::-webkit-details-marker { display: none; }
+.personnel-system-card__toggle { transition: transform .2s ease; }
+.personnel-system-card[open] .personnel-system-card__toggle { transform: rotate(180deg); }

@@ -7,34 +7,18 @@ use PDO;
 
 class EvidenceBatchSaveService
 {
-    private const EVIDENCE_BODY_TABLES = [
-        'ledger_evidence_bank_transaction',
-        'ledger_evidence_tax_invoice',
-        'ledger_evidence_cash_receipt',
-        'ledger_evidence_card_hometax',
-        'ledger_evidence_card_statement',
-        'ledger_evidence_card_sales',
-        'ledger_evidence_employee_expense',
-        'ledger_evidence_payroll',
-        'ledger_evidence_daily_worker',
-        'ledger_evidence_business_income',
-        'ledger_evidence_cash_sales',
-    ];
-
     public function __construct(private PDO $pdo, private array $callbacks = [])
-    {
-    }
+    {}
 
     public function createBatchCounters(): array
     {
         return [
             'new_count' => 0,
-            'updated_count' => 0,
-            'unchanged_count' => 0,
+            'duplicate_count' => 0,
+            'deleted_duplicate_count' => 0,
+            'conflict_count' => 0,
             'error_count' => 0,
-            'protected_update_count' => 0,
-            'protected_transaction_count' => 0,
-            'protected_voucher_count' => 0,
+            'details' => [],
         ];
     }
 
@@ -68,85 +52,12 @@ class EvidenceBatchSaveService
         return SequenceHelper::next($table, 'sort_no');
     }
 
-    public function nextEvidenceSortNo(string $actor): int
-    {
-        $actor = trim($actor);
-        if ($actor === '') {
-            $actor = 'SYSTEM';
-        }
-
-        if ($this->tableExists('ledger_evidence_number_sequences')) {
-            $this->pdo->prepare("
-                INSERT INTO ledger_evidence_number_sequences
-                    (scope_code, last_evidence_sort_no, updated_at, updated_by)
-                VALUES
-                    ('EVIDENCE_GLOBAL', 0, NOW(), :actor)
-                ON DUPLICATE KEY UPDATE
-                    updated_at = updated_at
-            ")->execute([':actor' => $actor]);
-
-            $this->pdo->prepare("
-                UPDATE ledger_evidence_number_sequences
-                SET last_evidence_sort_no = LAST_INSERT_ID(last_evidence_sort_no + 1),
-                    updated_at = NOW(),
-                    updated_by = :actor
-                WHERE scope_code = 'EVIDENCE_GLOBAL'
-            ")->execute([':actor' => $actor]);
-
-            return (int) $this->pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
-        }
-
-        return $this->currentIssuedEvidenceSortNo() + 1;
-    }
-
-    private function currentIssuedEvidenceSortNo(): int
-    {
-        $max = 0;
-
-        if ($this->tableExists('ledger_evidence_number_sequences')) {
-            $stmt = $this->pdo->prepare("
-                SELECT COALESCE(MAX(last_evidence_sort_no), 0)
-                FROM ledger_evidence_number_sequences
-                WHERE scope_code = 'EVIDENCE_GLOBAL'
-            ");
-            $stmt->execute();
-            $max = max($max, (int) ($stmt->fetchColumn() ?: 0));
-        }
-
-        foreach (self::EVIDENCE_BODY_TABLES as $table) {
-            if (!$this->tableExists($table)) {
-                continue;
-            }
-
-            $stmt = $this->pdo->query("SELECT COALESCE(MAX(evidence_sort_no), 0) FROM `{$table}`");
-            $max = max($max, (int) ($stmt->fetchColumn() ?: 0));
-        }
-
-        return $max;
-    }
-
-    private function tableExists(string $table): bool
-    {
-        static $cache = [];
-
-        if (array_key_exists($table, $cache)) {
-            return $cache[$table];
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $table]);
-        $cache[$table] = (bool) $stmt->fetchColumn();
-
-        return $cache[$table];
-    }
-
-    public function buildUploadRowState(array $row, string $dataType): array
+    public function buildUploadRowState(
+        array $row,
+        string $dataType,
+        array $statusColumnDisplayName = [],
+        array $statusColumnRequirementPolicy = []
+    ): array
     {
         $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
         $status = $this->uploadStatusFromValidation($validation);
@@ -168,9 +79,6 @@ class EvidenceBatchSaveService
 
         $sourceKey = $this->call('seedSourceKey', $parsedPayload, $dataType);
         $rawPayload = is_array($row['_raw_payload'] ?? null) ? $row['_raw_payload'] : [];
-        if ($sourceKey === null) {
-            $sourceKey = hash('sha256', $dataType . '|' . $this->call('jsonEncodeForStorage', $rawPayload !== [] ? $rawPayload : $parsedPayload));
-        }
 
         $rawJson = $this->call('jsonEncodeForStorage', $rawPayload);
         $errorMessages = $messages;
@@ -178,10 +86,16 @@ class EvidenceBatchSaveService
             $errorMessages[] = $voucherErrorMessage;
         }
 
-        $requiredMissingMessages = is_array($validation['required_missing_messages'] ?? null)
-            ? array_values(array_filter(array_map('strval', $validation['required_missing_messages'])))
-            : [];
-        $evidenceStatus = $this->call('evidenceStatusFromRequiredMissingMessages', $requiredMissingMessages);
+        $statusPayload = $parsedPayload;
+        $statusPayload['source_type'] = $statusPayload['source_type'] ?? $dataType;
+        $statusPayload['import_type'] = $statusPayload['import_type'] ?? $dataType;
+        foreach (['id', 'sort_no', 'external_key', 'source_key', 'created_at', 'created_by', 'updated_at', 'updated_by', 'evidence_status', 'transaction_status', 'voucher_status'] as $generatedKey) {
+            $statusPayload[$generatedKey] = $statusPayload[$generatedKey] ?? '__generated__';
+        }
+        $statusPayload['_column_display_name'] = $statusColumnDisplayName;
+        $statusPayload['_column_requirement_policy'] = $statusColumnRequirementPolicy;
+        $statusMissingMessages = $this->call('requiredFormatMissingMessages', $statusPayload, []);
+        $evidenceStatus = $this->call('evidenceStatusFromRequiredMissingMessages', $statusMissingMessages);
 
         return [
             'validation' => $validation,
@@ -213,11 +127,12 @@ class EvidenceBatchSaveService
         return is_array($existingMappedPayload) ? $existingMappedPayload : [];
     }
 
-    public function isUnchangedExistingSeed(?array $existingSeed, string $rawJson, string $parsedJson): bool
+    public function isUnchangedExistingSeed(?array $existingSeed, string $rawJson, string $parsedJson, string $evidenceStatus = ''): bool
     {
         return $existingSeed
             && (string) ($existingSeed['raw_json'] ?? '') === $rawJson
-            && (string) ($existingSeed['mapped_payload_json'] ?? '') === $parsedJson;
+            && (string) ($existingSeed['mapped_payload_json'] ?? '') === $parsedJson
+            && ($evidenceStatus === '' || strtoupper(trim((string) ($existingSeed['evidence_status'] ?? ''))) === strtoupper(trim($evidenceStatus)));
     }
 
     public function protectedExistingSeedInfo(?array $existingSeed): array
@@ -243,7 +158,6 @@ class EvidenceBatchSaveService
         string $formatId,
         ?string $sourceKey,
         int $sortNo,
-        int $evidenceSortNo,
         array $parsedPayload,
         string $processStatus,
         string $evidenceStatus,
@@ -274,7 +188,6 @@ class EvidenceBatchSaveService
             ':vat_amount' => $this->call('number', $parsedPayload['vat_amount'] ?? null),
             ':total_amount' => $this->call('evidenceTotalAmountForStorage', $parsedPayload, $dataType),
             ':sort_no' => $sortNo > 0 ? $sortNo : null,
-            ':evidence_sort_no' => $evidenceSortNo > 0 ? $evidenceSortNo : null,
             ':evidence_status' => strtoupper(trim($evidenceStatus)) !== ''
                 ? strtoupper(trim($evidenceStatus))
                 : 'COMPLETED',
@@ -288,37 +201,42 @@ class EvidenceBatchSaveService
         ];
     }
 
-    public function incrementUnchanged(array &$counters): void
-    {
-        $counters['unchanged_count']++;
+    public function incrementDuplicate(
+        array &$counters,
+        array $row,
+        string $reason,
+        bool $deleted = false,
+        bool $conflict = false
+    ): void {
+        $counters['duplicate_count']++;
+        if ($deleted) $counters['deleted_duplicate_count']++;
+        if ($conflict) $counters['conflict_count']++;
+        $counters['details'][] = [
+            'row_no' => (int) ($row['_row_no'] ?? $row['_upload_row_no'] ?? 0),
+            'transaction_datetime' => (string) ($row['raw_transaction_datetime'] ?? $row['transaction_datetime'] ?? $row['transaction_at'] ?? ''),
+            'transaction_direction' => (string) ($row['raw_transaction_type'] ?? $row['transaction_direction'] ?? $row['bank_direction'] ?? ''),
+            'amount' => $row['raw_deposit_amount'] ?? $row['deposit_amount'] ?? $row['raw_withdraw_amount'] ?? $row['withdraw_amount'] ?? $row['total_amount'] ?? null,
+            'description' => (string) ($row['raw_description'] ?? $row['description'] ?? ''),
+            'result' => 'DUPLICATE_SKIPPED',
+            'reason' => $reason,
+        ];
     }
-
-    public function incrementProtectedSkip(array &$counters, array $protectedSeedInfo): void
+    public function incrementPersisted(array &$counters): void
     {
-        $counters['protected_update_count']++;
-        if (!empty($protectedSeedInfo['has_transaction'])) {
-            $counters['protected_transaction_count']++;
-        }
-        if (!empty($protectedSeedInfo['has_voucher'])) {
-            $counters['protected_voucher_count']++;
-        }
-    }
-
-    public function incrementPersisted(array &$counters, bool $isUpdate): void
-    {
-        if ($isUpdate) {
-            $counters['updated_count']++;
-            return;
-        }
-
         $counters['new_count']++;
     }
-
-    public function incrementErrorIfNeeded(array &$counters, string $processStatus): void
+    public function incrementError(array &$counters, array $row, string $reason): void
     {
-        if ($processStatus === 'ERROR') {
-            $counters['error_count']++;
-        }
+        $counters['error_count']++;
+        $counters['details'][] = [
+            'row_no' => (int) ($row['_row_no'] ?? $row['_upload_row_no'] ?? 0),
+            'transaction_datetime' => (string) ($row['raw_transaction_datetime'] ?? $row['transaction_datetime'] ?? $row['transaction_at'] ?? ''),
+            'transaction_direction' => (string) ($row['raw_transaction_type'] ?? $row['transaction_direction'] ?? $row['bank_direction'] ?? ''),
+            'amount' => $row['raw_deposit_amount'] ?? $row['deposit_amount'] ?? $row['raw_withdraw_amount'] ?? $row['withdraw_amount'] ?? $row['total_amount'] ?? null,
+            'description' => (string) ($row['raw_description'] ?? $row['description'] ?? ''),
+            'result' => 'ERROR',
+            'reason' => $reason,
+        ];
     }
 
     public function buildCachedSeed(
@@ -355,29 +273,29 @@ class EvidenceBatchSaveService
         string $formatId,
         int $totalRows
     ): array {
-        $processedCount = (int) $counters['new_count']
-            + (int) $counters['updated_count']
-            + (int) $counters['unchanged_count']
-            + (int) $counters['error_count'];
-
+        $inserted = (int) ($counters['new_count'] ?? 0);
+        $duplicates = (int) ($counters['duplicate_count'] ?? 0);
+        $errors = (int) ($counters['error_count'] ?? 0);
         return [
             'id' => $batchId,
             'file_name' => $fileName,
             'data_type' => $dataType,
             'format_id' => $formatId,
+            'total_count' => $totalRows,
+            'inserted_count' => $inserted,
+            'duplicate_count' => $duplicates,
+            'deleted_duplicate_count' => (int) ($counters['deleted_duplicate_count'] ?? 0),
+            'conflict_count' => (int) ($counters['conflict_count'] ?? 0),
+            'error_count' => $errors,
+            'details' => array_values($counters['details'] ?? []),
             'total_rows' => $totalRows,
-            'processed_count' => $processedCount,
-            'new_count' => (int) $counters['new_count'],
-            'updated_count' => (int) $counters['updated_count'],
-            'unchanged_count' => (int) $counters['unchanged_count'],
-            'error_count' => (int) $counters['error_count'],
-            'skipped_count' => max(0, $totalRows - $processedCount),
-            'protected_update_count' => (int) $counters['protected_update_count'],
-            'protected_transaction_count' => (int) $counters['protected_transaction_count'],
-            'protected_voucher_count' => (int) $counters['protected_voucher_count'],
+            'processed_count' => $totalRows,
+            'new_count' => $inserted,
+            'updated_count' => 0,
+            'unchanged_count' => $duplicates,
+            'skipped_count' => $duplicates,
         ];
     }
-
     private function call(string $name, mixed ...$args): mixed
     {
         $callback = $this->callbacks[$name] ?? null;

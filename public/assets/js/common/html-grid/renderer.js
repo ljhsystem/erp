@@ -1,4 +1,4 @@
-import { createHeaderRenderer } from './header-renderer.js';
+import { createHeaderRenderer } from './header-renderer.js?v=20260811-pinned-1';
 import { createBodyRenderer } from './body-renderer.js';
 import { createFooterRenderer } from './footer-renderer.js';
 import { createEmptyRenderer } from './empty-renderer.js';
@@ -69,6 +69,7 @@ function buildRendererContext(config = {}, state) {
         cells: state?.cells || {},
         footer: state?.footer || {},
         ui: state?.ui || {},
+        selection: state?.selection || {},
     };
 }
 
@@ -96,6 +97,7 @@ export function createGridRenderer(config = {}) {
             cells: context.cells,
             editorRegistry: config.editorRegistry || null,
             formatterRegistry: config.formatterRegistry || null,
+            selectedRowIds: context.selection.selectedRowIds || [],
         });
 
         footerRenderer.renderFooter(structure.tfoot, context.columns, context.footer, {
@@ -130,6 +132,7 @@ export function createGridRenderer(config = {}) {
             cells: context.cells,
             editorRegistry: config.editorRegistry || null,
             formatterRegistry: config.formatterRegistry || null,
+            selectedRowIds: context.selection.selectedRowIds || [],
         });
     }
 
@@ -148,6 +151,7 @@ export function createGridRenderer(config = {}) {
             cells: context.cells,
             editorRegistry: config.editorRegistry || null,
             formatterRegistry: config.formatterRegistry || null,
+            selectedRowIds: context.selection.selectedRowIds || [],
         });
     }
 
@@ -162,6 +166,7 @@ export function createGridRenderer(config = {}) {
             cells: context.cells,
             editorRegistry: config.editorRegistry || null,
             formatterRegistry: config.formatterRegistry || null,
+            selectedRowIds: context.selection.selectedRowIds || [],
         });
     }
 

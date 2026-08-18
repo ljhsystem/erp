@@ -3,6 +3,7 @@
 namespace App\Services\System;
 
 use App\Models\System\ClientModel;
+use App\Models\Ledger\ChartAccountModel;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
 use Core\Helpers\ColumnPolicyRequestHelper;
@@ -98,6 +99,7 @@ class ClientExcelService
     ];
 
     private ClientModel $model;
+    private ChartAccountModel $chartAccountModel;
     private PDO $pdo;
     private $logger;
 
@@ -105,6 +107,7 @@ class ClientExcelService
     {
         $this->pdo = $pdo;
         $this->model = $model;
+        $this->chartAccountModel = new ChartAccountModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.ClientExcelService');
     }
 
@@ -654,47 +657,10 @@ class ClientExcelService
 
     private function tableColumnDropdownOptions(string $table, string $column): array
     {
-        $tableSql = '`' . str_replace('`', '``', $table) . '`';
-        $columnSql = '`' . str_replace('`', '``', $column) . '`';
-        $where = [];
-
-        if ($this->tableColumnExists($table, 'deleted_at')) {
-            $where[] = 'deleted_at IS NULL';
-        }
-        if ($this->tableColumnExists($table, 'is_active')) {
-            $where[] = 'COALESCE(is_active, 1) = 1';
-        }
-
-        try {
-            $stmt = $this->pdo->query(
-                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY {$columnSql} ASC"
-            );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (\Throwable) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($rows as $row) {
-            $value = trim((string) ($row['dropdown_value'] ?? ''));
-            if ($value !== '') {
-                $options[] = $value;
-            }
-        }
-
-        return array_values(array_unique($options));
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
-            $stmt->execute([':column' => $column]);
-            return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (\Throwable) {
-            return false;
-        }
+        return match ($table) {
+            'system_clients' => $this->model->getActiveDropdownValues($column),
+            'ledger_accounts' => $this->chartAccountModel->getActiveDropdownValues($column),
+            default => [],
+        };
     }
 }

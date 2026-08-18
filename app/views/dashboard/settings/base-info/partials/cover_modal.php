@@ -2,7 +2,7 @@
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/cover_modal.php'
 ?>
 
-<div class="modal fade" id="coverModal" tabindex="-1" aria-labelledby="coverModalLabel" aria-hidden="true">
+<div class="modal fade ui-form-modal" id="coverModal" tabindex="-1" aria-labelledby="coverModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form id="cover-form" method="post" enctype="multipart/form-data">
@@ -15,26 +15,33 @@
                 </div>
 
                 <div class="modal-body cover-modal-body">
-                    <div class="row align-items-start">
-                        <div class="col-md-5">
-                            <div style="width:100%;max-width:350px;min-height:350px;border:4px solid #000;padding:8px;background:#fff;">
-                                <div style="font-size:1.8rem;font-weight:700;">View</div>
-                                <img
-                                    id="modal-image-preview"
-                                    src=""
-                                    style="width:100%;margin-top:10px;display:none;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);background:#f8f8f8;"
-                                    alt="커버 이미지 미리보기"
-                                >
+                    <section class="ui-form-card ui-form-card--primary">
+                        <div class="ui-form-card__header">
+                            <div class="ui-form-card__heading">
+                                <h6 class="ui-form-card__title">커버이미지 정보</h6>
+                                <p class="ui-form-card__description">공개할 이미지와 표시 정보를 입력합니다.</p>
                             </div>
                         </div>
-
-                        <div class="col-md-7">
-                            <div class="mb-2">
-                                <label for="modal_year">해당년도</label>
-                                <select name="year" id="modal_year" class="form-select form-select-sm" required>
-                                    <option value="">선택하세요</option>
-                                </select>
+                        <div class="ui-form-card__body row align-items-start g-3">
+                            <div class="col-md-5">
+                                <div style="width:100%;max-width:350px;min-height:350px;border:4px solid #000;padding:8px;background:#fff;">
+                                    <div style="font-size:1.8rem;font-weight:700;">View</div>
+                                    <img
+                                        id="modal-image-preview"
+                                        src=""
+                                        style="width:100%;margin-top:10px;display:none;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);background:#f8f8f8;"
+                                        alt="커버 이미지 미리보기"
+                                    >
+                                </div>
                             </div>
+
+                            <div class="col-md-7">
+                                <div class="mb-2">
+                                    <label for="modal_year">해당년도</label>
+                                    <select name="year" id="modal_year" class="form-select form-select-sm" required>
+                                        <option value="">선택하세요</option>
+                                    </select>
+                                </div>
 
                             <div class="mb-2">
                                 <label for="modal_cover_image">이미지</label>
@@ -61,12 +68,29 @@
                                 <input type="text" name="alt" id="modal_alt" class="form-control form-control-sm">
                             </div>
 
-                            <div class="mb-2">
-                                <label for="modal_description">설명(Description)</label>
-                                <input type="text" name="description" id="modal_description" class="form-control form-control-sm">
+                                <div class="mb-2">
+                                    <label for="modal_description">설명(Description)</label>
+                                    <input type="text" name="description" id="modal_description" class="form-control form-control-sm">
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </section>
+
+                    <section class="ui-form-card cover-system-card" aria-label="시스템 처리 정보">
+                        <button type="button"
+                                class="ui-form-card__toggle collapsed"
+                                id="coverSystemInfoToggle"
+                                data-ui-modal-card-collapse
+                                data-bs-target="#coverSystemInfoCollapse"
+                                aria-expanded="false"
+                                aria-controls="coverSystemInfoCollapse">
+                            <span class="ui-form-card__title">시스템 처리 정보</span>
+                            <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div id="coverSystemInfoCollapse" class="collapse">
+                            <div class="ui-form-card__body cover-system-info-grid" id="coverSystemInfoFields"></div>
+                        </div>
+                    </section>
                 </div>
 
                 <div class="modal-footer">

@@ -2,10 +2,13 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\System\CodeModel;
 use PDO;
 
 class EvidenceTypePolicyService
 {
+    private array $codeNameCache = [];
     private const DEFAULT_EVIDENCE_UPLOAD_TYPES = [
         'TAX_INVOICE',
         'TAX_INVOICE_MANUAL',
@@ -54,7 +57,7 @@ class EvidenceTypePolicyService
         'DAILY_WORK_REPORT' => 'PAYROLL_WITHHOLDING',
         'PAYROLL_REPORT' => 'PAYROLL',
         'BUSINESS_INCOME_REPORT' => 'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE_PERSONAL' => 'EMPLOYEE_EXPENSE',
+        'EMPLOYEE_EXPENSE_PERSONAL' => 'EMPLOYEE_EXPENSE_PERSONAL',
     ];
 
     private const STATUS_VIEW_IMPORT_TYPES = [
@@ -72,6 +75,7 @@ class EvidenceTypePolicyService
         'PAYROLL',
         'BUSINESS_INCOME',
         'EMPLOYEE_EXPENSE',
+        'EMPLOYEE_EXPENSE_PERSONAL',
         'CONSTRUCTION',
     ];
 
@@ -132,6 +136,10 @@ class EvidenceTypePolicyService
             'excel_template' => 'employee_expense',
             'date_label' => '사용일자',
         ],
+        'EMPLOYEE_EXPENSE_PERSONAL' => [
+            'excel_template' => '',
+            'date_label' => '지출일자',
+        ],
         'CONSTRUCTION' => [
             'excel_template' => 'construction',
             'date_label' => '거래일자',
@@ -139,6 +147,32 @@ class EvidenceTypePolicyService
     ];
 
     private const STATUS_VIEW_POLICY_CONFIG = [
+        'PAYROLL' => [
+            'meta_domain' => 'evidence-payroll-report',
+            'summary_bucket' => 'evidence',
+            'date_candidate_keys' => ['raw_payment_date', 'created_at', 'updated_at'],
+            'sort_target_keys' => ['raw_payment_date'],
+            'transaction_workflow_required' => false,
+            'excel_manager_mode' => 'none',
+            'excel_manager_domain' => '',
+            'source_key_aliases' => [],
+            'modal_preset' => 'default',
+            'deprecated_format_fields' => [],
+            'deprecated_format_titles' => [],
+        ],
+        'EMPLOYEE_EXPENSE_PERSONAL' => [
+            'meta_domain' => 'evidence-employee-expense-personal',
+            'summary_bucket' => 'evidence',
+            'date_candidate_keys' => ['raw_expense_date', 'created_at', 'updated_at'],
+            'sort_target_keys' => ['raw_expense_date'],
+            'transaction_workflow_required' => false,
+            'excel_manager_mode' => 'none',
+            'excel_manager_domain' => '',
+            'source_key_aliases' => [],
+            'modal_preset' => 'default',
+            'deprecated_format_fields' => [],
+            'deprecated_format_titles' => [],
+        ],
         'BANK_TRANSACTION' => [
             'meta_domain' => 'evidence-bank-transaction',
             'summary_bucket' => 'bank',
@@ -162,13 +196,6 @@ class EvidenceTypePolicyService
                 'bank_transaction_raw_counterparty_name' => 'raw_counterparty_name',
             ],
             'modal_preset' => 'bank_like',
-            'split_key_aliases' => [
-                'withdrawal_amount' => 'raw_withdraw_amount',
-            ],
-            'split_value_fallbacks' => [
-                'raw_withdraw_amount' => ['withdrawal_amount'],
-            ],
-            'split_allowed_amount_keys' => ['raw_deposit_amount', 'raw_withdraw_amount', 'withdrawal_amount'],
             'deprecated_format_fields' => [
                 'voucher_date',
                 'summary_text',
@@ -206,9 +233,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-tax-invoice',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -222,9 +246,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-tax-invoice-manual',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -238,9 +259,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-cash-receipt',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -254,9 +272,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-card-hometax',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -270,9 +285,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-card-statement',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -286,9 +298,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => 'evidence-card-statement',
             'source_key_aliases' => [],
             'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
@@ -299,6 +308,8 @@ class EvidenceTypePolicyService
 
     /** @var array<string,string> */
     private array $legacyDataTypeMap;
+    private ?CodeModel $codeModel = null;
+    private ?EvidenceSchemaModel $schemaModel = null;
 
     public function __construct(
         ?callable $normalizeDataType = null,
@@ -307,6 +318,10 @@ class EvidenceTypePolicyService
     ) {
         $this->normalizeDataTypeCallback = $normalizeDataType;
         $this->legacyDataTypeMap = self::defaultLegacyDataTypeMap();
+        if ($this->pdo !== null) {
+            $this->codeModel = new CodeModel($this->pdo);
+            $this->schemaModel = new EvidenceSchemaModel($this->pdo);
+        }
     }
 
     /** @return array<string,string> */
@@ -386,37 +401,26 @@ class EvidenceTypePolicyService
 
     public function sourceTypeLabel(string $sourceType): string
     {
-        return match ($this->normalizeImportSourceType($sourceType)) {
-            'TAX' => 'Tax',
-            'CARD', 'CARD_COMPANY' => 'Card',
-            'BANK' => 'Bank',
-            'SHOPPING' => 'Shopping Mall',
-            'TRADE' => 'Trade/Import',
-            'MANUAL' => 'Manual',
-            default => '',
-        };
+        return $this->systemCodeName('SOURCE_TYPE', $sourceType);
     }
 
     public function importTypeLabel(string $importType): string
     {
-        return match ($this->normalizeDataType($importType)) {
-            'TAX_INVOICE_MANUAL' => '세금계산서매입매출(수기)',
-            'TAX_INVOICE' => '세금계산서',
-            'CASH_RECEIPT' => '현금영수증',
-            'CARD_HOMETAX' => '카드홈택스',
-            'CARD_STATEMENT' => '카드명세서',
-            'CARD_APPROVAL' => '카드승인',
-            'BANK_TRANSACTION' => '입출금거래내역',
-            'SHOPPING_ORDER' => '쇼핑몰주문',
-            'IMPORT_INVOICE' => '수입신고',
-            'PAYROLL_WITHHOLDING' => '원천징수',
-            'BUSINESS_DATA' => '사업자자료',
-            'PAYROLL' => '급여',
-            'BUSINESS_INCOME' => '사업소득',
-            'EMPLOYEE_EXPENSE' => '직원경비',
-            'CONSTRUCTION' => '공사관리',
-            default => '',
-        };
+        return $this->systemCodeName('IMPORT_TYPE', $importType);
+    }
+
+    private function systemCodeName(string $codeGroup, string $code): string
+    {
+        $codeGroup = strtoupper(trim($codeGroup));
+        $code = strtoupper(trim($code));
+        if ($codeGroup === '' || $code === '' || !$this->systemCodesTableExists()) {
+            return '';
+        }
+        $cacheKey = $codeGroup . ':' . $code;
+        if (!array_key_exists($cacheKey, $this->codeNameCache)) {
+            $this->codeNameCache[$cacheKey] = $this->codeModel?->findActiveName($codeGroup, $code) ?? '';
+        }
+        return $this->codeNameCache[$cacheKey];
     }
 
     public function statusViewImportTypePolicies(): array
@@ -446,13 +450,11 @@ class EvidenceTypePolicyService
                     'date_candidate_keys' => array_values($config['date_candidate_keys'] ?? []),
                     'sort_target_keys' => array_values($config['sort_target_keys'] ?? []),
                     'transaction_workflow_required' => (bool) ($config['transaction_workflow_required'] ?? true),
+                    'read_only' => $type === 'EMPLOYEE_EXPENSE_PERSONAL',
                     'excel_manager_mode' => (string) ($config['excel_manager_mode'] ?? 'custom'),
                     'excel_manager_domain' => (string) ($config['excel_manager_domain'] ?? ''),
                     'source_key_aliases' => (array) ($config['source_key_aliases'] ?? []),
                     'modal_preset' => (string) ($config['modal_preset'] ?? 'default'),
-                    'split_key_aliases' => (array) ($config['split_key_aliases'] ?? []),
-                    'split_value_fallbacks' => (array) ($config['split_value_fallbacks'] ?? []),
-                    'split_allowed_amount_keys' => array_values($config['split_allowed_amount_keys'] ?? []),
                     'deprecated_format_fields' => array_values($config['deprecated_format_fields'] ?? []),
                     'deprecated_format_titles' => array_values($config['deprecated_format_titles'] ?? []),
                 ];
@@ -477,13 +479,11 @@ class EvidenceTypePolicyService
                 'date_candidate_keys' => array_values($config['date_candidate_keys'] ?? []),
                 'sort_target_keys' => array_values($config['sort_target_keys'] ?? []),
                 'transaction_workflow_required' => (bool) ($config['transaction_workflow_required'] ?? true),
+                'read_only' => $type === 'EMPLOYEE_EXPENSE_PERSONAL',
                 'excel_manager_mode' => (string) ($config['excel_manager_mode'] ?? 'custom'),
                 'excel_manager_domain' => (string) ($config['excel_manager_domain'] ?? ''),
                 'source_key_aliases' => (array) ($config['source_key_aliases'] ?? []),
                 'modal_preset' => (string) ($config['modal_preset'] ?? 'default'),
-                'split_key_aliases' => (array) ($config['split_key_aliases'] ?? []),
-                'split_value_fallbacks' => (array) ($config['split_value_fallbacks'] ?? []),
-                'split_allowed_amount_keys' => array_values($config['split_allowed_amount_keys'] ?? []),
                 'deprecated_format_fields' => array_values($config['deprecated_format_fields'] ?? []),
                 'deprecated_format_titles' => array_values($config['deprecated_format_titles'] ?? []),
             ];
@@ -511,9 +511,6 @@ class EvidenceTypePolicyService
             'excel_manager_domain' => '',
             'source_key_aliases' => [],
             'modal_preset' => 'default',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ];
@@ -547,19 +544,10 @@ class EvidenceTypePolicyService
             return [];
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT code, code_name
-            FROM system_codes
-            WHERE deleted_at IS NULL
-              AND is_active = 1
-              AND code_group = 'IMPORT_TYPE'
-            ORDER BY sort_no ASC, code ASC
-        ");
-        $stmt->execute();
-
         $rows = [];
-        foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
-            $type = strtoupper(trim((string) ($row['code'] ?? '')));
+        foreach (($this->codeModel?->getActiveCodesByGroup('IMPORT_TYPE') ?? []) as $row) {
+            $rawType = strtoupper(trim((string) ($row['code'] ?? '')));
+            $type = $this->normalizeDataType($rawType);
             if ($type === '' || isset($rows[$type])) {
                 continue;
             }
@@ -568,6 +556,7 @@ class EvidenceTypePolicyService
             $rows[$type] = [
                 'code' => $type,
                 'label' => $label !== '' ? $label : ($this->importTypeLabel($type) !== '' ? $this->importTypeLabel($type) : $type),
+                'source_code' => $rawType,
             ];
         }
 
@@ -727,7 +716,7 @@ class EvidenceTypePolicyService
                 'objects' => ['BANK_FLOW', 'RECONCILIATION'],
                 'label' => 'Bank flow load and reconciliation',
             ],
-            'BUSINESS_DATA', 'SHOPPING_ORDER', 'PAYROLL', 'PAYROLL_WITHHOLDING', 'BUSINESS_INCOME', 'EMPLOYEE_EXPENSE', 'IMPORT_INVOICE', 'CONSTRUCTION' => [
+            'BUSINESS_DATA', 'SHOPPING_ORDER', 'PAYROLL', 'PAYROLL_WITHHOLDING', 'BUSINESS_INCOME', 'EMPLOYEE_EXPENSE', 'EMPLOYEE_EXPENSE_PERSONAL', 'IMPORT_INVOICE', 'CONSTRUCTION' => [
                 'type' => 'BUSINESS_DATA',
                 'target' => 'BUSINESS_DATA',
                 'objects' => ['BUSINESS_SYSTEM'],
@@ -780,16 +769,7 @@ class EvidenceTypePolicyService
             return $types;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT code
-            FROM system_codes
-            WHERE deleted_at IS NULL
-              AND is_active = 1
-              AND code_group = 'IMPORT_TYPE'
-            ORDER BY sort_no ASC, code ASC
-        ");
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $rows = array_column($this->codeModel?->getActiveCodesByGroup('IMPORT_TYPE') ?? [], 'code');
         $codeTypes = array_values(array_filter(array_map(
             fn($code): string => $this->normalizeDataType((string) $code),
             $rows
@@ -836,15 +816,7 @@ class EvidenceTypePolicyService
             return false;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = DATABASE()
-              AND table_name = 'system_codes'
-            LIMIT 1
-        ");
-        $stmt->execute();
-        $exists = (bool) $stmt->fetchColumn();
+        $exists = $this->schemaModel?->tableExists('system_codes') ?? false;
 
         return $exists;
     }

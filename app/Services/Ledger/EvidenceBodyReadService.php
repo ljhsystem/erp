@@ -10,12 +10,15 @@ use App\Models\Ledger\CashReceiptEvidenceReadModel;
 use App\Models\Ledger\ConstructionEvidenceReadModel;
 use App\Models\Ledger\PayrollEvidenceReadModel;
 use App\Models\Ledger\TaxInvoiceReadModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Repositories\Ledger\EvidenceSourceRepository;
 use Closure;
 use PDO;
 
 class EvidenceBodyReadService
 {
-    private ?BodyTableSchemaService $schemaService = null;
+    private ?EvidenceSchemaModel $schemaService = null;
     private ?BankEvidenceReadModel $bankReadModel = null;
     private ?TaxInvoiceReadModel $taxInvoiceReadModel = null;
     private ?CashReceiptEvidenceReadModel $cashReceiptReadModel = null;
@@ -24,10 +27,11 @@ class EvidenceBodyReadService
     private ?BusinessDataEvidenceReadModel $businessDataReadModel = null;
     private ?PayrollEvidenceReadModel $payrollReadModel = null;
     private ?ConstructionEvidenceReadModel $constructionReadModel = null;
+    private ?EvidenceSourceRepository $evidenceSourceRepository = null;
 
     public function __construct(
         private PDO $pdo,
-        private EvidenceProcessingPolicyService $evidenceProcessingPolicyService,
+        private EvidenceBodyStatusProjectionModel $evidenceBodyStatusProjectionModel,
         private Closure $normalizeDataType
     ) {
     }
@@ -41,6 +45,8 @@ class EvidenceBodyReadService
             'CASH_RECEIPT',
             'CARD_HOMETAX',
             'CARD_STATEMENT',
+            'EMPLOYEE_EXPENSE_PERSONAL',
+            'PAYROLL',
         ];
     }
 
@@ -80,14 +86,11 @@ class EvidenceBodyReadService
 
     public function bodyEvidenceTypeCounts(): array
     {
-        return [
-            'BANK_TRANSACTION' => $this->bankReadModel()->findCount(),
-            'TAX_INVOICE' => $this->taxInvoiceReadModel()->findCount('TAX_INVOICE'),
-            'TAX_INVOICE_MANUAL' => $this->taxInvoiceReadModel()->findCount('TAX_INVOICE_MANUAL'),
-            'CASH_RECEIPT' => $this->cashReceiptReadModel()->findCount(),
-            'CARD_HOMETAX' => $this->cardHometaxReadModel()->findCount(),
-            'CARD_STATEMENT' => $this->cardStatementReadModel()->findCount('CARD_STATEMENT'),
-        ];
+        $counts = [];
+        foreach ($this->readyBodyImportTypes() as $type) {
+            $counts[$type] = $this->countRowsForType($type, '', '');
+        }
+        return $counts;
     }
 
     private function normalizeDataType(string $type): string
@@ -107,6 +110,7 @@ class EvidenceBodyReadService
                 => $this->businessDataReadModel()->findList($normalizedType, $status, $requestedId),
             'PAYROLL', 'PAYROLL_WITHHOLDING' => $this->payrollReadModel()->findList($normalizedType, $status, $requestedId),
             'CONSTRUCTION' => $this->constructionReadModel()->findList($status, $requestedId),
+            'EMPLOYEE_EXPENSE_PERSONAL' => $this->personalExpenseRows($status, $requestedId),
             default => [],
         };
     }
@@ -123,14 +127,51 @@ class EvidenceBodyReadService
                 => $this->businessDataReadModel()->findCount($normalizedType, $status, $requestedId),
             'PAYROLL', 'PAYROLL_WITHHOLDING' => $this->payrollReadModel()->findCount($normalizedType, $status, $requestedId),
             'CONSTRUCTION' => $this->constructionReadModel()->findCount($status, $requestedId),
+            'EMPLOYEE_EXPENSE_PERSONAL' => $this->personalExpenseCount($status, $requestedId),
             default => 0,
         };
     }
 
-    private function schemaService(): BodyTableSchemaService
+    private function personalExpenseRows(string $status, string $requestedId): array
+    {
+        $page = $this->evidenceSourceRepository()->pagedProjections([
+            'import_types' => ['EMPLOYEE_EXPENSE_PERSONAL'],
+            'status' => $status,
+            'id' => $requestedId,
+            'filters' => [],
+            'start' => 0,
+            'length' => 5000,
+            'order_field' => 'raw_expense_date',
+            'order_direction' => 'desc',
+        ]);
+        return array_values(array_filter(array_map(
+            static fn(array $projection): mixed => $projection['body'] ?? null,
+            $page['projections'] ?? []
+        ), 'is_array'));
+    }
+
+    private function personalExpenseCount(string $status, string $requestedId): int
+    {
+        $page = $this->evidenceSourceRepository()->pagedProjections([
+            'import_types' => ['EMPLOYEE_EXPENSE_PERSONAL'],
+            'status' => $status,
+            'id' => $requestedId,
+            'filters' => [],
+            'start' => 0,
+            'length' => 1,
+        ]);
+        return (int) ($page['records_filtered'] ?? 0);
+    }
+
+    private function evidenceSourceRepository(): EvidenceSourceRepository
+    {
+        return $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
+    }
+
+    private function schemaService(): EvidenceSchemaModel
     {
         if ($this->schemaService === null) {
-            $this->schemaService = new BodyTableSchemaService($this->pdo);
+            $this->schemaService = new EvidenceSchemaModel($this->pdo);
         }
 
         return $this->schemaService;
@@ -142,7 +183,7 @@ class EvidenceBodyReadService
             $this->bankReadModel = new BankEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -155,7 +196,7 @@ class EvidenceBodyReadService
             $this->taxInvoiceReadModel = new TaxInvoiceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -168,7 +209,7 @@ class EvidenceBodyReadService
             $this->cashReceiptReadModel = new CashReceiptEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -181,7 +222,7 @@ class EvidenceBodyReadService
             $this->cardStatementReadModel = new CardStatementEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -194,7 +235,7 @@ class EvidenceBodyReadService
             $this->cardHometaxReadModel = new CardHometaxEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -207,7 +248,7 @@ class EvidenceBodyReadService
             $this->businessDataReadModel = new BusinessDataEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -220,7 +261,7 @@ class EvidenceBodyReadService
             $this->payrollReadModel = new PayrollEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 
@@ -233,7 +274,7 @@ class EvidenceBodyReadService
             $this->constructionReadModel = new ConstructionEvidenceReadModel(
                 $this->pdo,
                 $this->schemaService(),
-                $this->evidenceProcessingPolicyService
+                $this->evidenceBodyStatusProjectionModel
             );
         }
 

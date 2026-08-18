@@ -1,4 +1,3 @@
-// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/calendar/sidebar.left.mini.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 
 (() => {
@@ -14,7 +13,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
   wrap.appendChild(container);
 
   const picker = AdminPicker.create({
-    type: 'base',   // ✅ 여기! base 말고 mini 추천 (UI/구조 분리)  base  mini  datetime
+    type: 'base',
     container
   });
 
@@ -22,19 +21,18 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 
   picker.subscribe((state) => {
     if (!(state.date instanceof Date)) return;
-  
+
     const d = new Date(state.date);
-  
-    // 🔥 타임존 안전 고정
+
     d.setHours(12, 0, 0, 0);
-  
+
     window.__calendar?.gotoDate?.(d);
-  
+
     requestAnimationFrame(() => {
       setTimeout(() => {
         window.flashCalendarDate?.(d);
       }, 60);
     });
   });
-  
+
 })();

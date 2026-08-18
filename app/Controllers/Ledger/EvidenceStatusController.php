@@ -5,6 +5,7 @@ namespace App\Controllers\Ledger;
 use App\Controllers\Ledger\Concerns\ImportControllerBusinessInfoTrait;
 use App\Controllers\Ledger\Concerns\ImportControllerUtilityTrait;
 use App\Services\Ledger\EvidenceBusinessRefService;
+use App\Services\Ledger\EvidenceMetadataService;
 use App\Services\Ledger\EvidencePayloadHelperService;
 use App\Services\Ledger\EvidenceReferenceResolverService;
 use App\Services\Ledger\EvidenceSortHelperService;
@@ -22,6 +23,7 @@ class EvidenceStatusController
 
     private PDO $pdo;
     private ?EvidenceStatusService $evidenceStatusService = null;
+    private ?EvidenceMetadataService $evidenceMetadataService = null;
     private ?EvidencePayloadHelperService $evidencePayloadHelperService = null;
     private ?EvidenceTypePolicyService $evidenceTypePolicyService = null;
     private ?EvidenceSortHelperService $evidenceSortHelperService = null;
@@ -77,11 +79,21 @@ class EvidenceStatusController
                 fn(string $type): array => $this->evidenceTypePolicyService()->queryDataTypes($type),
                 fn(string $table): bool => $this->tableExists($table),
                 fn(string $table, string $column): bool => $this->tableColumnExists($table, $column),
-                fn(array $row, string $key): int => $this->evidenceSortHelperService()->evidencePayloadSortNo($row, $key)
+                fn(array $row, string $key): int => $this->evidenceSortHelperService()->evidencePayloadSortNo($row, $key),
+                fn(string $type): ?array => $this->evidenceMetadataService()->getByImportType($type)
             );
         }
 
         return $this->evidenceStatusService;
+    }
+
+    private function evidenceMetadataService(): EvidenceMetadataService
+    {
+        if ($this->evidenceMetadataService === null) {
+            $this->evidenceMetadataService = new EvidenceMetadataService($this->pdo);
+        }
+
+        return $this->evidenceMetadataService;
     }
 
     private function evidencePayloadHelperService(): EvidencePayloadHelperService

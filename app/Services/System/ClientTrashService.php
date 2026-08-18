@@ -3,6 +3,7 @@
 namespace App\Services\System;
 
 use App\Models\System\ClientModel;
+use App\Repositories\System\ClientDependencyRepository;
 use App\Services\File\FileService;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
@@ -13,6 +14,7 @@ class ClientTrashService
     private readonly PDO $pdo;
     private ClientModel $model;
     private FileService $fileService;
+    private ClientDependencyRepository $dependencyRepository;
     private $logger;
 
     public function __construct(PDO $pdo, ClientModel $model, FileService $fileService)
@@ -20,6 +22,7 @@ class ClientTrashService
         $this->pdo = $pdo;
         $this->model = $model;
         $this->fileService = $fileService;
+        $this->dependencyRepository = new ClientDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.ClientTrashService');
     }
 
@@ -67,7 +70,7 @@ class ClientTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -154,7 +157,7 @@ class ClientTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -192,215 +195,140 @@ class ClientTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ];
         }
     }
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
+        $this->logger->info('purge() called', ['id' => $id, 'actorType' => $actorType]);
 
-        $this->logger->info('purge() called', [
-            'id' => $id,
-            'actorType' => $actorType,
-            'actor' => $actor,
-        ]);
-
-        $client = $this->model->getById($id);
-
-        if (!$client) {
-            return [
-                'success' => false,
-                'message' => '거래처 정보를 찾을 수 없습니다.',
-            ];
+        $result = $this->purgeClients([$id]);
+        if (($result['deleted_count'] ?? 0) > 0) {
+            return $result;
         }
+
+        return [
+            ...$result,
+            'success' => false,
+        ];
+    }
+
+    public function purgeBulk(array $ids, string $actorType = 'USER'): array
+    {
+        $this->logger->info('purgeBulk() called', ['ids' => $ids, 'actorType' => $actorType]);
+        return $this->purgeClients($ids);
+    }
+
+    public function purgeAll(string $actorType = 'USER'): array
+    {
+        $this->logger->info('purgeAll() called', ['actorType' => $actorType]);
+        return $this->purgeClients(array_column($this->model->getDeleted(), 'id'));
+    }
+
+    private function purgeClients(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn($id): string => trim((string) $id),
+            $ids
+        ))));
+        if ($ids === []) {
+            return $this->purgeResult(0, 0, []);
+        }
+
+        $deletedCount = 0;
+        $blocked = [];
+        $filesToDelete = [];
 
         $this->pdo->beginTransaction();
 
         try {
-            if (!empty($client['business_certificate'])) {
-                $this->fileService->delete($client['business_certificate']);
+            foreach ($ids as $id) {
+                $client = $this->model->getById($id);
+                if (!$client || empty($client['deleted_at'])) {
+                    $blocked[] = ['id' => $id, 'references' => ['휴지통에 없는 거래처']];
+                    continue;
+                }
 
-                $this->logger->info('business_certificate deleted', [
-                    'path' => $client['business_certificate'],
-                ]);
-            }
-            if (!empty($client['rrn_image'])) {
-                $this->fileService->delete($client['rrn_image']);
+                $references = $this->dependencyRepository->findReferences($id);
+                if ($references !== []) {
+                    $blocked[] = [
+                        'id' => $id,
+                        'references' => array_column($references, 'label'),
+                    ];
+                    continue;
+                }
 
-                $this->logger->info('rrn_image deleted', [
-                    'path' => $client['rrn_image'],
-                ]);
-            }
-            if (!empty($client['bank_file'])) {
-                $this->fileService->delete($client['bank_file']);
+                if (!$this->model->hardDeleteById($id)) {
+                    throw new \RuntimeException('거래처 영구삭제 DB 처리 실패');
+                }
 
-                $this->logger->info('bank_file deleted', [
-                    'path' => $client['bank_file'],
-                ]);
-            }
-
-            $ok = $this->model->hardDeleteById($id);
-
-            if (!$ok) {
-                throw new \Exception('영구삭제 중 오류가 발생했습니다.');
+                foreach (['business_certificate', 'rrn_image', 'bank_file'] as $fileColumn) {
+                    if (!empty($client[$fileColumn])) {
+                        $filesToDelete[] = (string) $client[$fileColumn];
+                    }
+                }
+                $deletedCount++;
             }
 
             $this->pdo->commit();
-
-            return [
-                'success' => true,
-            ];
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purge() failed', [
-                'error' => $e->getMessage(),
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            $this->logger->error('purgeClients() failed', [
+                'exception' => $e->getMessage(),
+                'ids' => $ids,
             ]);
 
             return [
                 'success' => false,
                 'message' => '영구삭제 중 오류가 발생했습니다.',
+                'deleted_count' => 0,
+                'skipped_count' => count($ids),
+                'data' => [
+                    'deleted_count' => 0,
+                    'skipped_count' => count($ids),
+                ],
             ];
         }
+
+        foreach ($filesToDelete as $file) {
+            if (!$this->fileService->delete($file)) {
+                $this->logger->warning('purged client attachment cleanup failed', ['path' => $file]);
+            }
+        }
+
+        return $this->purgeResult($deletedCount, count($blocked), $blocked);
     }
 
-    public function purgeBulk(array $ids, string $actorType = 'USER'): array
+    private function purgeResult(int $deletedCount, int $skippedCount, array $blocked): array
     {
-        $actor = ActorHelper::resolve($actorType);
-
-        if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID가 올바르지 않습니다.'];
+        if ($deletedCount === 0 && $skippedCount > 0) {
+            $labels = array_values(array_unique(array_merge(...array_column($blocked, 'references'))));
+            $summary = $labels === [] ? '' : ' 참조 업무: ' . implode(', ', $labels) . '.';
+            $message = '다른 업무에서 사용 중인 거래처이므로 영구삭제할 수 없습니다.' . $summary;
+        } elseif ($skippedCount > 0) {
+            $message = "거래처 {$deletedCount}건을 영구삭제했고, 사용 중인 {$skippedCount}건은 유지했습니다.";
+        } elseif ($deletedCount > 0) {
+            $message = "거래처 {$deletedCount}건을 영구삭제했습니다.";
+        } else {
+            $message = '영구삭제할 거래처가 없습니다.';
         }
 
-        $this->pdo->beginTransaction();
-
-        try {
-            $success = 0;
-
-            foreach ($ids as $id) {
-                $client = $this->model->getById($id);
-
-                if (!$client) {
-                    continue;
-                }
-
-                if (!empty($client['business_certificate'])) {
-                    $this->fileService->delete($client['business_certificate']);
-
-                    $this->logger->info('business_certificate deleted', [
-                        'id' => $id,
-                        'path' => $client['business_certificate'],
-                    ]);
-                }
-
-                if (!empty($client['rrn_image'])) {
-                    $this->fileService->delete($client['rrn_image']);
-
-                    $this->logger->info('rrn_image deleted', [
-                        'id' => $id,
-                        'path' => $client['rrn_image'],
-                    ]);
-                }
-
-                if (!empty($client['bank_file'])) {
-                    $this->fileService->delete($client['bank_file']);
-
-                    $this->logger->info('bank_file deleted', [
-                        'id' => $id,
-                        'path' => $client['bank_file'],
-                    ]);
-                }
-
-                $ok = $this->model->hardDeleteById($id);
-
-                if ($ok) {
-                    $success++;
-                }
-            }
-
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "영구삭제 완료 ({$success}건)",
-            ];
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purgeBulk() failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
-    }
-
-    public function purgeAll(string $actorType = 'USER'): array
-    {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->pdo->beginTransaction();
-
-        try {
-            $rows = $this->model->getDeleted();
-            $success = 0;
-
-            foreach ($rows as $row) {
-                if (!empty($row['business_certificate'])) {
-                    $this->fileService->delete($row['business_certificate']);
-
-                    $this->logger->info('business_certificate deleted', [
-                        'id' => $row['id'],
-                        'path' => $row['business_certificate'],
-                    ]);
-                }
-                if (!empty($row['rrn_image'])) {
-                    $this->fileService->delete($row['rrn_image']);
-
-                    $this->logger->info('rrn_image deleted', [
-                        'id' => $row['id'],
-                        'path' => $row['rrn_image'],
-                    ]);
-                }
-                if (!empty($row['bank_file'])) {
-                    $this->fileService->delete($row['bank_file']);
-
-                    $this->logger->info('bank_file deleted', [
-                        'id' => $row['id'],
-                        'path' => $row['bank_file'],
-                    ]);
-                }
-
-                $ok = $this->model->hardDeleteById($row['id']);
-
-                if ($ok) {
-                    $success++;
-                }
-            }
-
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "전체 영구삭제 완료 ({$success}건)",
-            ];
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purgeAll() failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
+        return [
+            'success' => true,
+            'message' => $message,
+            'deleted_count' => $deletedCount,
+            'skipped_count' => $skippedCount,
+            'blocked' => $blocked,
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped_count' => $skippedCount,
+                'blocked' => $blocked,
+            ],
+        ];
     }
 
     public function reorder(array $changes): bool

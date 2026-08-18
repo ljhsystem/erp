@@ -1,24 +1,6 @@
 <?php
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings.php'
-use App\Models\System\MenuRegistryModel;
-use App\Services\Auth\AuthSessionService;
-use App\Services\Auth\PermissionService;
-use Core\Database;
 use Core\Helpers\AssetHelper;
-
-$hasSettingsPermission = static function (string $permissionKey): bool {
-    try {
-        $user = (new AuthSessionService())->getCurrentUser();
-        if (!$user || empty($user['id'])) {
-            return false;
-        }
-
-        return (new PermissionService(Database::getInstance()->getConnection()))
-            ->hasPermission((string) $user['id'], $permissionKey);
-    } catch (\Throwable $e) {
-        return false;
-    }
-};
 
 $cat = $cat ?? 'base-info';
 $sub = $sub ?? 'company';
@@ -48,13 +30,19 @@ $fallbackLabels = [
             'approval-template' => '결재템플릿',
         ],
     ],
+    'standard' => [
+        'label' => '기준관리',
+        'subs' => [
+            'code' => '코드',
+            'statutory-standards' => '법정기준',
+        ],
+    ],
     'system' => [
         'label' => '시스템설정',
         'subs' => [
             'site' => '사이트정보',
             'session' => '세션관리',
             'security' => '보안정책',
-            'codes' => '기준정보',
             'api' => '외부연동(API)',
             'external_services' => '외부서비스연동',
             'storage' => '파일저장소',
@@ -67,6 +55,7 @@ $fallbackLabels = [
 $settingsCategoryMeta = [
     'base-info' => ['prefix' => 'settings.base_info.', 'label' => '기초정보관리'],
     'organization' => ['prefix' => 'settings.organization.', 'label' => '조직관리'],
+    'standard' => ['prefix' => 'settings.standard.', 'label' => '기준관리'],
     'system' => ['prefix' => 'settings.system.', 'label' => '시스템설정'],
 ];
 
@@ -86,10 +75,11 @@ $settingsSubKeyMap = [
     'settings.organization.role_permissions' => 'permission-assignment',
     'settings.organization.permissions' => 'permissions',
     'settings.organization.approval' => 'approval-template',
+    'settings.statutory_standards.manage' => 'statutory-standards',
     'settings.system.site' => 'site',
     'settings.system.session' => 'session',
     'settings.system.security' => 'security',
-    'settings.system.codes' => 'codes',
+    'settings.system.codes' => 'code',
     'settings.system.api' => 'api',
     'settings.system.external_services' => 'external_services',
     'settings.system.storage' => 'storage',
@@ -98,6 +88,9 @@ $settingsSubKeyMap = [
 ];
 
 $resolveSettingsCategoryKey = static function (string $pageKey) use ($settingsCategoryMeta): ?string {
+    if (in_array($pageKey, ['settings.system.codes', 'settings.statutory_standards.manage'], true)) {
+        return 'standard';
+    }
     foreach ($settingsCategoryMeta as $categoryKey => $meta) {
         if (str_starts_with($pageKey, $meta['prefix'])) {
             return $categoryKey;
@@ -110,11 +103,8 @@ $resolveSettingsCategoryKey = static function (string $pageKey) use ($settingsCa
 $labels = [];
 $settingsPermissionMap = [];
 
-try {
-    $settingsMenuRows = (new MenuRegistryModel())->getSettingsMenus();
-} catch (\Throwable $e) {
-    $settingsMenuRows = [];
-}
+$settingsMenuRows = is_array($settingsMenuRows ?? null) ? $settingsMenuRows : [];
+$settingsPermissionAllowed = is_array($settingsPermissionAllowed ?? null) ? $settingsPermissionAllowed : [];
 
 foreach ($settingsMenuRows as $row) {
     $pageKey = trim((string) ($row['page_key'] ?? ''));
@@ -135,8 +125,19 @@ foreach ($settingsMenuRows as $row) {
         ];
     }
 
-    $labels[$categoryKey]['subs'][$subKey] = (string) ($row['page_label'] ?? $row['menu_label'] ?? $subKey);
-    $settingsPermissionMap[$categoryKey][$subKey] = trim((string) ($row['default_route_key'] ?? ''));
+    $specialLabels = [
+        'settings.base_info.work_teams' => '팀',
+        'settings.system.codes' => '코드',
+        'settings.statutory_standards.manage' => '법정기준',
+    ];
+    $labels[$categoryKey]['subs'][$subKey] = $specialLabels[$pageKey]
+        ?? (string) ($row['page_label'] ?? $row['menu_label'] ?? $subKey);
+    $specialPermissionKeys = [
+        'settings.system.codes' => 'code.view',
+        'settings.statutory_standards.manage' => 'web.settings.statutory_standards.manage',
+    ];
+    $settingsPermissionMap[$categoryKey][$subKey] = $specialPermissionKeys[$pageKey]
+        ?? trim((string) ($row['default_route_key'] ?? ''));
 }
 
 if (empty($labels)) {
@@ -146,16 +147,38 @@ if (empty($labels)) {
             'work-team' => 'work_team.view',
         ],
         'organization' => [],
-        'system' => [
-            'codes' => 'code.view',
+        'standard' => [
+            'code' => 'code.view',
+            'statutory-standards' => 'web.settings.statutory_standards.manage',
         ],
     ];
 }
 
+if (isset($labels['standard']['subs'])) {
+    $standardSubOrder = ['code', 'statutory-standards'];
+    $labels['standard']['subs'] = array_replace(
+        array_fill_keys($standardSubOrder, null),
+        $labels['standard']['subs']
+    );
+    $labels['standard']['subs'] = array_filter(
+        $labels['standard']['subs'],
+        static fn($label): bool => $label !== null
+    );
+}
+
+// 메뉴 레지스트리 조회 순서와 무관하게 설정 카테고리의 표시 순서를 고정한다.
+$orderedLabels = [];
+foreach (array_keys($settingsCategoryMeta) as $categoryKey) {
+    if (isset($labels[$categoryKey])) {
+        $orderedLabels[$categoryKey] = $labels[$categoryKey];
+    }
+}
+$labels = $orderedLabels;
+
 foreach ($labels as $categoryKey => &$categoryInfo) {
     foreach ($categoryInfo['subs'] as $subKey => $label) {
         $permissionKey = trim((string) ($settingsPermissionMap[$categoryKey][$subKey] ?? ''));
-        if ($permissionKey !== '' && !$hasSettingsPermission($permissionKey)) {
+        if ($permissionKey !== '' && !($settingsPermissionAllowed[$permissionKey] ?? false)) {
             unset($categoryInfo['subs'][$subKey]);
         }
     }
@@ -174,32 +197,48 @@ if (!isset($labels[$cat]['subs']) || !array_key_exists($sub, $labels[$cat]['subs
     $sub = array_key_first($labels[$cat]['subs']);
 }
 
-$viewFile = __DIR__ . "/settings/{$cat}/{$sub}.php";
+$viewFileMap = [
+    'standard/code' => __DIR__ . '/settings/system/codes.php',
+    'standard/statutory-standards' => __DIR__ . '/settings/statutory-standards/standards.php',
+];
+$viewFile = $viewFileMap[$cat . '/' . $sub] ?? (__DIR__ . "/settings/{$cat}/{$sub}.php");
 if (!file_exists($viewFile)) {
     $viewFile = __DIR__ . '/settings/base-info/company.php';
 }
 
 $pageStyles = $pageStyles ?? '';
 $pageScripts = $pageScripts ?? '';
+$pageAssetProfile = in_array($cat . '/' . $sub, ['base-info/company', 'base-info/brand'], true)
+    ? 'form-detail-light'
+    : (in_array($cat . '/' . $sub, ['organization/employee', 'organization/department', 'organization/position', 'organization/role', 'organization/permission-assignment'], true)
+        ? 'data-list-light'
+        : ($pageAssetProfile ?? 'default'));
 
-$pageStyles .=
-    AssetHelper::css('/assets/css/pages/dashboard/settings.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/company.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/brand.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/cover.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/client.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/project.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/bank-account.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/card.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/work-team.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/databasebackup.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/employee.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/department.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/position.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/role.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/permission-assignment.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/approval-template.css');
+$pageStyles .= AssetHelper::css('/assets/css/pages/dashboard/settings.css');
+
+$settingsPageStyleMap = [
+    'base-info/company' => '/assets/css/pages/dashboard/settings/company.css',
+    'base-info/brand' => '/assets/css/pages/dashboard/settings/brand.css',
+    'base-info/cover' => '/assets/css/pages/dashboard/settings/cover.css',
+    'base-info/client' => '/assets/css/pages/dashboard/settings/client.css',
+    'base-info/project' => '/assets/css/pages/dashboard/settings/project.css',
+    'base-info/bank-account' => '/assets/css/pages/dashboard/settings/bank-account.css',
+    'base-info/card' => '/assets/css/pages/dashboard/settings/card.css',
+    'base-info/work-team' => '/assets/css/pages/dashboard/settings/work-team.css',
+    'organization/employee' => '/assets/css/pages/dashboard/settings/employee.css',
+    'organization/department' => '/assets/css/pages/dashboard/settings/department.css',
+    'organization/position' => '/assets/css/pages/dashboard/settings/position.css',
+    'organization/role' => '/assets/css/pages/dashboard/settings/role.css',
+    'organization/permission-assignment' => '/assets/css/pages/dashboard/settings/permission-assignment.css',
+    'organization/approval-template' => '/assets/css/pages/dashboard/settings/approval-template.css',
+    'standard/code' => '/assets/css/pages/dashboard/settings/system/code.css',
+    'system/databasebackup' => '/assets/css/pages/dashboard/settings/databasebackup.css',
+];
+
+$activeSettingsStyle = $settingsPageStyleMap[$cat . '/' . $sub] ?? null;
+if ($activeSettingsStyle !== null) {
+    $pageStyles .= AssetHelper::css($activeSettingsStyle);
+}
 
 if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -260,11 +299,18 @@ if ($cat === 'organization' && $sub === 'role') {
 }
 
 if ($cat === 'organization' && $sub === 'permission-assignment') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/permission-assignment.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/permission-assignment/index.js');
 }
 
 if ($cat === 'organization' && $sub === 'approval-template') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/approval-template.js');
+}
+
+if ($cat === 'standard' && $sub === 'statutory-standards') {
+    $pageStyles .= AssetHelper::css('/assets/css/components/html-grid.css');
+    $pageStyles .= AssetHelper::css('/assets/css/components/structured-field-editor.css');
+    $pageStyles .= AssetHelper::css('/assets/css/pages/dashboard/settings/statutory-standards.css');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/statutory-standards/index.js');
 }
 
 if ($cat === 'system' && $sub === 'site') {
@@ -279,7 +325,7 @@ if ($cat === 'system' && $sub === 'security') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/security.js');
 }
 
-if ($cat === 'system' && $sub === 'codes') {
+if ($cat === 'standard' && $sub === 'code') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/system/code.js');
 }
 
@@ -323,16 +369,16 @@ if ($cat === 'system' && $sub === 'logs') {
     </div>
 
     <div class="settings-sub-tabs-wrap">
-        <ul class="nav nav-tabs settings-sub-tabs">
-            <?php foreach ($labels[$cat]['subs'] as $key => $label): ?>
-                <li class="nav-item">
-                    <a class="nav-link <?= ($sub === $key) ? 'active' : '' ?>"
-                       href="/dashboard/settings/<?= htmlspecialchars($cat, ENT_QUOTES, 'UTF-8') ?>/<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>">
-                        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
-                    </a>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+            <ul class="nav nav-tabs settings-sub-tabs">
+                <?php foreach ($labels[$cat]['subs'] as $key => $label): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= ($sub === $key) ? 'active' : '' ?>"
+                           href="/dashboard/settings/<?= htmlspecialchars($cat, ENT_QUOTES, 'UTF-8') ?>/<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
     </div>
 
     <div class="settings-content-card">

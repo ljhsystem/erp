@@ -1,5 +1,3 @@
-//경로: PROJECT_ROOT/assets/js/pages/home/contact.js
-
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('form[data-contact-form], form[action*="/api/contact/send"]');
     if (!form) return;

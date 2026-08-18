@@ -3,6 +3,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\ProjectService;
 use Core\DbPdo;
+use Core\Session;
 
 class ProjectController
 {
@@ -16,6 +17,7 @@ class ProjectController
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $filters = [];
@@ -38,7 +40,6 @@ class ProjectController
             echo json_encode([
                 'success' => false,
                 'message' => '프로젝트 목록 조회 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -78,7 +79,6 @@ class ProjectController
             echo json_encode([
                 'success' => false,
                 'message' => '프로젝트 상세 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -102,7 +102,6 @@ class ProjectController
                 'success' => false,
                 'data'    => [],
                 'message' => '검색 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -126,7 +125,7 @@ class ProjectController
             echo json_encode([
                 'success' => false,
                 'data' => [],
-                'message' => $e->getMessage(),
+                'message' => '프로젝트 선택값 조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -194,8 +193,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -216,8 +214,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '휴지통 목록 조회 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '휴지통 조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -245,8 +242,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 복구 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -275,8 +271,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 복구 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -294,8 +289,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '전체 복구 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -323,8 +317,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '영구 삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -353,8 +346,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 영구 삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -372,8 +364,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '전체 영구 삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -404,8 +395,7 @@ class ProjectController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '순서 변경 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
+                'message' => '정렬 저장 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -419,7 +409,7 @@ class ProjectController
             $this->service->downloadMigrationTemplate($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
-            echo '양식 다운로드 오류: ' . $e->getMessage();
+            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }
@@ -446,7 +436,6 @@ class ProjectController
             echo json_encode([
                 'success' => false,
                 'message' => '엑셀 업로드 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -460,7 +449,7 @@ class ProjectController
             $this->service->downloadMigrationExcel($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
-            echo '엑셀 다운로드 오류: ' . $e->getMessage();
+            echo '엑셀 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }

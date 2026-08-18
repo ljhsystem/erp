@@ -1,0 +1,30 @@
+.structured-matrix-editor { min-width: 0; }
+.structured-matrix-section-toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .75rem; width: 100%; padding: .85rem 1rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; background: color-mix(in srgb, var(--bs-primary) 6%, #fff); color: var(--bs-body-color); text-align: left; }
+.structured-matrix-section-toggle span:first-child { min-width: 0; }
+.structured-matrix-section-toggle strong, .structured-matrix-section-toggle small { display: block; }
+.structured-matrix-section-toggle small { margin-top: .2rem; color: var(--bs-secondary-color); font-weight: 400; }
+.structured-matrix-section-toggle i { transition: transform .18s ease; }
+.structured-matrix-section-toggle:not(.collapsed) i { transform: rotate(180deg); }
+.structured-matrix-section-summary { color: var(--bs-primary); font-size: .8125rem; font-weight: 700; white-space: nowrap; }
+.structured-matrix-section-toggle + [data-matrix-section-body] { padding-top: .75rem; }
+.structured-matrix-dimension { max-width: 36rem; margin-bottom: .75rem; }
+.structured-matrix-dimension .form-label { margin-bottom: .25rem; font-weight: 600; }
+.structured-matrix-dimension small { display: block; margin-top: .25rem; }
+.structured-matrix-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.structured-matrix-count { color: var(--bs-secondary-color); font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.structured-matrix-paste { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .5rem; margin-bottom: .75rem; }
+.structured-matrix-paste textarea { min-width: 0; font-family: var(--bs-font-monospace); }
+.structured-matrix-paste-actions { display: flex; gap: .35rem; }
+.structured-matrix-paste-progress { grid-column: 1 / -1; color: var(--bs-secondary-color); font-size: .8125rem; }
+.structured-matrix-paste-progress .progress { height: .45rem; margin-top: .35rem; }
+.structured-matrix-grid { max-height: min(48vh, 520px); }
+.structured-matrix-grid .html-grid-table { min-width: max-content; }
+.structured-matrix-grid .html-grid-column-salary_from,
+.structured-matrix-grid .html-grid-column-salary_to { background-color: color-mix(in srgb, var(--bs-secondary-bg) 55%, var(--bs-body-bg)); }
+.structured-matrix-grid .html-grid-column-salary_to { border-right-color: #94a3b8; }
+@media (max-width: 575.98px) {
+    .structured-matrix-toolbar { align-items: flex-start; flex-direction: column; }
+    .structured-matrix-toolbar .btn-group { display: grid; width: 100%; grid-template-columns: 1fr 1fr; }
+    .structured-matrix-paste { grid-template-columns: 1fr; }
+    .structured-matrix-paste-progress { grid-column: 1; }
+}

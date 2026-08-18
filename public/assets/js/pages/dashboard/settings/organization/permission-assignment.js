@@ -1,201 +1,54 @@
+import '/public/assets/js/common/core/AppAjax.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
-import { readDataTableSettingsState } from '/public/assets/js/common/datatable/dataTableSettings.js';
-import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { bindTableSettingsPolicy } from './permission-assignment/table-settings-policy.js';
+import { mergePermissionSelection, revealDataTable } from './permission-assignment/permission-cache.js';
+import { loadPermissionMaster, loadPermissionSelection, postPermissionJson } from './permission-assignment/api.js';
+import { bindPermissionAssignmentStickyLayout } from './permission-assignment/sticky-layout.js?v=20260814-1';
+import { buildStatusBadge, escapeHtml, notify, responseRows } from './permission-assignment/ui-helpers.js';
 
 const API_ROLE_LIST = '/api/settings/organization/role/list';
 const API_ROLE_PERMISSIONS = '/api/settings/organization/role-permission/list';
-const API_ASSIGN = '/api/settings/organization/role-permission/assign';
-const API_REMOVE = '/api/settings/organization/role-permission/remove';
+const API_SAVE = '/api/settings/organization/role-permission/save';
 const API_REORDER = '/api/settings/organization/role-permission/reorder';
-const API_PERMISSION_DELETE = '/api/settings/organization/permission/delete';
+const CORE_MANAGEMENT_PERMISSION_KEYS = new Set([
+    'web.settings.organization.role_permissions',
+    'api.settings.rolepermission.list',
+    'api.settings.rolepermission.assign',
+]);
 
 const PAGE_TABLE_SELECTOR = '#permission-assignment-table';
 const ROLE_TABLE_SELECTOR = '#role-list-table';
 const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.permission-assignment.role-list-table.v2';
-const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v2';
+const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v4';
 const ROLE_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-role';
 const PERMISSION_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-permission';
 
 let roleTable = null;
+let roleDataLoaded = false;
 let permissionTable = null;
 let selectedRoleId = '';
+let selectedRoleActive = false;
 let currentTree = [];
+let permissionMasterPromise = null;
 let currentDisplayRows = [];
 let pendingChanges = {};
 let originalPermissionStates = new Map();
 let lastClientReorderPlan = null;
 let lastReorderWarningMessage = '';
-
-function sanitizeTableSettingsState(state = null, deprecatedKeys = []) {
-    if (!state || typeof state !== 'object') {
-        return state;
-    }
-
-    const deprecatedKeySet = new Set(
-        (Array.isArray(deprecatedKeys) ? deprecatedKeys : [])
-            .map((key) => String(key || '').trim())
-            .filter(Boolean)
-    );
-    let changed = false;
-    const nextState = { ...state };
-
-    [
-        'columnWidths',
-        'pageLength',
-        'sortSettings',
-        'currentPage',
-        'searchFormExpanded',
-        'searchFormState',
-        'requiredColumns',
-        'columnWidth',
-    ].forEach((key) => {
-        if (Object.prototype.hasOwnProperty.call(nextState, key)) {
-            delete nextState[key];
-            changed = true;
-        }
-    });
-
-    ['visibleColumns', 'columnOrder'].forEach((key) => {
-        if (!Array.isArray(nextState[key])) {
-            return;
-        }
-        const filtered = nextState[key]
-            .map((item) => String(item || '').trim())
-            .filter((item) => item !== '' && !deprecatedKeySet.has(item));
-        if (filtered.length !== nextState[key].length) {
-            nextState[key] = filtered;
-            changed = true;
-        }
-    });
-
-    ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
-        if (!nextState[key] || typeof nextState[key] !== 'object') {
-            return;
-        }
-        const filtered = Object.fromEntries(
-            Object.entries(nextState[key]).filter(([itemKey]) => !deprecatedKeySet.has(String(itemKey || '').trim()))
-        );
-        if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
-            nextState[key] = filtered;
-            changed = true;
-        }
-    });
-
-    return changed ? nextState : state;
-}
-
-function sanitizeRoleTableSettingsState(state = null) {
-    return sanitizeTableSettingsState(state, ['__legacy_role_status']);
-}
-
-function sanitizePermissionTableSettingsState(state = null) {
-    return sanitizeTableSettingsState(state, ['grant', '__select', 'handle']);
-}
-
-function persistTableSettingsState(storageKey, userSettingPageKey, state = null) {
-    if (!state || typeof state !== 'object') {
-        return;
-    }
-
-    writeSystemUserSettingsStorage(
-        storageKey,
-        {
-            ...state,
-            updatedAt: new Date().toISOString(),
-        },
-        {
-            userSettingPageKey,
-            settingType: 'TABLE',
-        }
-    );
-}
-
-function normalizeRoleTableSettingsState() {
-    const currentState = readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, {
-        userSettingPageKey: ROLE_TABLE_USER_SETTING_PAGE_KEY,
-    });
-    const sanitizedState = sanitizeRoleTableSettingsState(currentState);
-    if (!sanitizedState || sanitizedState === currentState) {
-        return;
-    }
-
-    persistTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, ROLE_TABLE_USER_SETTING_PAGE_KEY, sanitizedState);
-}
-
-function normalizePermissionTableSettingsState() {
-    const currentState = readDataTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY, {
-        userSettingPageKey: PERMISSION_TABLE_USER_SETTING_PAGE_KEY,
-    });
-    const sanitizedState = sanitizePermissionTableSettingsState(currentState);
-    if (!sanitizedState || sanitizedState === currentState) {
-        return;
-    }
-
-    persistTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY, PERMISSION_TABLE_USER_SETTING_PAGE_KEY, sanitizedState);
-}
+let permissionRequestSequence = 0;
+let isSavingPermissions = false;
 
 function bindRoleTableSettingsPolicy() {
-    normalizeRoleTableSettingsState();
-
-    document.removeEventListener('datatable-settings:updated', window.__roleTableSettingsPolicyHandler);
-    window.__roleTableSettingsPolicyHandler = (event) => {
-        const storageKey = String(event?.detail?.storageKey || '').trim();
-        if (storageKey !== ROLE_TABLE_SETTINGS_STORAGE_KEY) {
-            return;
-        }
-
-        normalizeRoleTableSettingsState();
-    };
-    document.addEventListener('datatable-settings:updated', window.__roleTableSettingsPolicyHandler);
+    bindTableSettingsPolicy({ storageKey: ROLE_TABLE_SETTINGS_STORAGE_KEY, userSettingPageKey: ROLE_TABLE_USER_SETTING_PAGE_KEY,
+        deprecatedKeys: ['__legacy_role_status'], handlerKey: '__roleTableSettingsPolicyHandler' });
 }
 
 function bindPermissionTableSettingsPolicy() {
-    normalizePermissionTableSettingsState();
-
-    document.removeEventListener('datatable-settings:updated', window.__permissionTableSettingsPolicyHandler);
-    window.__permissionTableSettingsPolicyHandler = (event) => {
-        const storageKey = String(event?.detail?.storageKey || '').trim();
-        if (storageKey !== PERMISSION_TABLE_SETTINGS_STORAGE_KEY) {
-            return;
-        }
-
-        normalizePermissionTableSettingsState();
-    };
-    document.addEventListener('datatable-settings:updated', window.__permissionTableSettingsPolicyHandler);
-}
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-function notify(type, message) {
-    if (window.AppCore?.notify) {
-        window.AppCore.notify(type, message);
-        return;
-    }
-
-    if (type === 'error' || type === 'warning') {
-        alert(message);
-        return;
-    }
-
-    console.log(message);
-}
-
-function buildStatusBadge(value) {
-    return String(value) === '1'
-        ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
-        : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>';
-}
-
-function getResponseRows(json) {
-    return Array.isArray(json?.data) ? json.data : [];
+    bindTableSettingsPolicy({ storageKey: PERMISSION_TABLE_SETTINGS_STORAGE_KEY, userSettingPageKey: PERMISSION_TABLE_USER_SETTING_PAGE_KEY,
+        deprecatedKeys: ['grant', '__select', 'handle'], handlerKey: '__permissionTableSettingsPolicyHandler' });
 }
 
 function getDom() {
@@ -227,66 +80,16 @@ function hideRoleTableControls() {
     });
 }
 
-function updateRoleListStickyOffset() {
-    const page = document.getElementById('rolePermissionPage');
-    if (!page) {
-        return;
-    }
-
-    const nav = document.querySelector('.top-nav.fixed-top, .top-nav, .navbar.fixed-top, .navbar');
-    const navRect = nav?.getBoundingClientRect?.();
-    const navBottom = Math.max(0, Math.ceil(navRect?.bottom ?? nav?.offsetHeight ?? 0));
-    const scrollParent = document.querySelector('.main-content');
-    const scrollParentTop = Math.max(
-        0,
-        Math.ceil(scrollParent?.getBoundingClientRect?.().top ?? 0),
-    );
-    const stickyTop = Math.max(0, navBottom - scrollParentTop);
-
-    page.style.setProperty('--rp-role-sticky-top', `${stickyTop}px`);
-
-    const roleWrapper = document.getElementById('role-list-table_wrapper');
-    const toolbar = roleWrapper?.querySelector('.dt-top');
-    const toolbarHeight = Math.max(
-        0,
-        Math.ceil(toolbar?.getBoundingClientRect?.().height ?? toolbar?.offsetHeight ?? 0),
-    );
-    page.style.setProperty('--rp-role-toolbar-height', `${toolbarHeight}px`);
-}
-
-function bindRoleListStickyLayout() {
-    updateRoleListStickyOffset();
-
-    if (window.__roleListStickyLayoutBound) {
-        return;
-    }
-
-    let rafId = null;
-    const syncStickyOffset = () => {
-        if (rafId !== null) {
-            return;
-        }
-
-        rafId = window.requestAnimationFrame(() => {
-            rafId = null;
-            updateRoleListStickyOffset();
-        });
-    };
-
-    window.addEventListener('resize', syncStickyOffset, { passive: true });
-    window.addEventListener('orientationchange', syncStickyOffset, { passive: true });
-    window.__roleListStickyLayoutBound = true;
-}
-
 function setSaveDirty(isDirty) {
     const { saveButton } = getDom();
     if (!saveButton) {
         return;
     }
 
-    saveButton.disabled = !isDirty;
-    saveButton.classList.toggle('btn-primary', isDirty);
-    saveButton.classList.toggle('btn-secondary', !isDirty);
+    const canSave = Boolean(isDirty && selectedRoleActive && !isSavingPermissions);
+    saveButton.disabled = !canSave;
+    saveButton.classList.toggle('btn-primary', canSave);
+    saveButton.classList.toggle('btn-secondary', !canSave);
 }
 
 function normalizeRoleTableHeader() {
@@ -304,10 +107,10 @@ function normalizeRoleTableHeader() {
     `;
 }
 
-function initRoleTable() {
+async function initRoleTable() {
     normalizeRoleTableHeader();
 
-    roleTable = createDataTable({
+    roleTable = await createDataTable({
         tableSelector: ROLE_TABLE_SELECTOR,
         api: API_ROLE_LIST,
         tableSettings: {
@@ -323,7 +126,7 @@ function initRoleTable() {
         defaultOrder: [[0, 'asc']],
         pageLength: 100,
         autoWidth: false,
-        fixedLayout: true,
+        fixedLayout: false,
         cellSearchFill: false,
         selectable: false,
         deleteButton: false,
@@ -372,7 +175,8 @@ function initRoleTable() {
             },
         ],
         dataSrc(json) {
-            const rows = getResponseRows(json).sort((a, b) => Number(a.sort_no || 0) - Number(b.sort_no || 0));
+            roleDataLoaded = true;
+            const rows = responseRows(json).sort((a, b) => Number(a.sort_no || 0) - Number(b.sort_no || 0));
             document.getElementById('roleListCount').textContent = `\uCD1D ${rows.length}\uAC74`;
             return rows;
         },
@@ -390,8 +194,9 @@ function initRoleTable() {
     });
 
     roleTable.on('draw.dt', () => {
-        updateRoleListStickyOffset();
-
+        if (roleDataLoaded && document.getElementById('roleListCard')?.classList.contains('rp-table-pending')) {
+            revealDataTable(roleTable, 'roleListCard', 'roleListCardBody');
+        }
         if (!selectedRoleId) {
             return;
         }
@@ -405,12 +210,12 @@ function initRoleTable() {
     });
 }
 
-function initPermissionTable() {
+async function initPermissionTable() {
     if (permissionTable) {
         return permissionTable;
     }
 
-    permissionTable = createDataTable({
+    permissionTable = await createDataTable({
         tableSelector: PAGE_TABLE_SELECTOR,
         initialData: [],
         columns: buildPermissionColumns(),
@@ -418,7 +223,7 @@ function initPermissionTable() {
         pageLength: 100,
         scrollX: false,
         autoWidth: false,
-        fixedLayout: true,
+        fixedLayout: false,
         paging: true,
         searching: true,
         info: true,
@@ -427,8 +232,8 @@ function initPermissionTable() {
         selectionColumn: { widthResizable: true },
         rowIdField: (row) => (row?.row_type === 'permission' ? String(row.permission_id || '') : ''),
         isRowSelectable: (row) => row?.row_type === 'permission',
-        deleteButton: true,
-        showCopyButton: false,
+        deleteButton: false,
+        showCopyButton: true,
         showColumnVisibility: false,
         widthScopeSelector: '#permission-assignment-table-wrap',
         searchTableId: 'rolePermissionMatrix',
@@ -441,6 +246,7 @@ function initPermissionTable() {
             metaDomain: 'permission-assignment',
             tableLabel: '\uC5ED\uD560\uBCC4 \uAD8C\uD55C\uBAA9\uB85D',
             columns: buildPermissionColumns(),
+            resetOnColumnSchemaChange: true,
             defaultVisibleColumns: [
                 '__select',
                 'handle',
@@ -450,10 +256,11 @@ function initPermissionTable() {
                 'category',
                 'permission_name',
                 'description',
-                'role_permission_id',
             ],
         },
     });
+
+    revealDataTable(permissionTable, 'permissionListCard', 'permissionListCardBody');
 
     permissionTable.on('draw.dt', () => {
         applyPermissionRowStyles();
@@ -498,6 +305,15 @@ function buildPermissionColumns() {
                     </span>
                 `;
             },
+        },
+        {
+            title: 'ID',
+            data: 'id',
+            settingsKey: 'id',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
         },
         {
             title: '\uC21C\uBC88',
@@ -577,6 +393,15 @@ function buildPermissionColumns() {
             },
         },
         {
+            title: '\uAD8C\uD55C\uD0A4',
+            data: 'permission_key',
+            settingsKey: 'permission_key',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
+        },
+        {
             title: '\uAD8C\uD55C\uBA85',
             data: 'permission_name',
             settingsKey: 'permission_name',
@@ -611,11 +436,66 @@ function buildPermissionColumns() {
             },
         },
         {
-            title: '\uAD8C\uD55C\uBD80\uC5EC',
+            title: '\uD398\uC774\uC9C0\uD0A4',
+            data: 'page_key',
+            settingsKey: 'page_key',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
+        },
+        {
+            title: '\uC0C1\uD0DC',
+            data: 'is_active',
+            settingsKey: 'is_active',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
+        },
+        {
+            title: '\uC0DD\uC131\uC77C\uC2DC',
+            data: 'created_at',
+            settingsKey: 'created_at',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
+        },
+        {
+            title: '\uC0DD\uC131\uC790',
+            data: 'created_by',
+            settingsKey: 'created_by',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (_, __, row) => escapeHtml(actorDisplay(row, 'created_by')),
+        },
+        {
+            title: '\uC218\uC815\uC77C\uC2DC',
+            data: 'updated_at',
+            settingsKey: 'updated_at',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (value) => escapeHtml(value || ''),
+        },
+        {
+            title: '\uC218\uC815\uC790',
+            data: 'updated_by',
+            settingsKey: 'updated_by',
+            visible: false,
+            defaultContent: '',
+            widthResizable: true,
+            render: (_, __, row) => escapeHtml(actorDisplay(row, 'updated_by')),
+        },
+        {
+            title: '\uAD8C\uD55C',
             data: null,
             settingsKey: 'role_permission_id',
-            className: 'text-center',
-            headerClassName: 'text-center',
+            __dtColumnKind: 'virtual',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
             width: '96px',
             widthResizable: true,
             orderable: false,
@@ -628,6 +508,7 @@ function buildPermissionColumns() {
                             class="form-check-input rp-page-checkbox"
                             data-page-key="${escapeHtml(row.page_key || '')}"
                             ${row.checked ? 'checked' : ''}
+                            ${selectedRoleActive ? '' : 'disabled'}
                         >
                     `;
                 }
@@ -639,6 +520,7 @@ function buildPermissionColumns() {
                         data-page-key="${escapeHtml(row.page_key || '')}"
                         data-permission-id="${escapeHtml(row.permission_id || '')}"
                         ${row.checked ? 'checked' : ''}
+                        ${selectedRoleActive ? '' : 'disabled'}
                     >
                 `;
             },
@@ -702,9 +584,14 @@ function updatePendingChange(permissionId, checked) {
 }
 
 function setSelectedRole(row) {
+    if (isSavingPermissions) {
+        notify('warning', '권한 저장이 끝난 후 다른 역할을 선택해 주세요.');
+        return;
+    }
     const { selectedRoleName, permissionHeader } = getDom();
 
     selectedRoleId = String(row?.id ?? '');
+    selectedRoleActive = Number(row?.is_active ?? 0) === 1;
     pendingChanges = {};
     setSaveDirty(false);
 
@@ -726,28 +613,34 @@ function setSelectedRole(row) {
     }
 
     reloadPermissions();
+    if (!selectedRoleActive) {
+        notify('warning', '비활성 역할의 기존 권한은 조회만 가능하며 저장할 수 없습니다.');
+    }
 }
 
-function reloadPermissions() {
+async function reloadPermissions() {
     if (!selectedRoleId) {
         return;
     }
-
-    $.post(API_ROLE_PERMISSIONS, { role_id: selectedRoleId })
-        .done((res) => {
-            if (!res || res.success === false) {
-                notify('error', '\uC5ED\uD560 \uAD8C\uD55C \uC870\uD68C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
-                return;
-            }
-
-            currentTree = getResponseRows(res);
-            recomputeTreeState();
-            rebuildOriginalPermissionStates(currentTree);
-            pendingChanges = {};
-            setSaveDirty(false);
-            renderPermissionTable();
-        })
-        .fail(() => notify('error', '\uC5ED\uD560 \uAD8C\uD55C \uC870\uD68C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.'));
+    const requestedRoleId = selectedRoleId;
+    const requestSequence = ++permissionRequestSequence;
+    try {
+        const [masterTree, response] = await Promise.all([
+            permissionMasterPromise,
+            loadPermissionSelection(API_ROLE_PERMISSIONS, requestedRoleId),
+        ]);
+        if (requestSequence !== permissionRequestSequence || requestedRoleId !== selectedRoleId) return;
+        currentTree = mergePermissionSelection(masterTree, response?.data || {});
+        recomputeTreeState();
+        rebuildOriginalPermissionStates(currentTree);
+        pendingChanges = {};
+        setSaveDirty(false);
+        await renderPermissionTable();
+    } catch (error) {
+        if (requestSequence === permissionRequestSequence && requestedRoleId === selectedRoleId) {
+            notify('error', error?.message || '역할 권한 조회에 실패했습니다.');
+        }
+    }
 }
 
 function buildSearchText(pageNode, childNode = null) {
@@ -904,9 +797,15 @@ function updatePermissionCount() {
         return;
     }
 
-    const pageCount = currentTree.length;
-    const permissionCountValue = currentTree.reduce((sum, pageNode) => sum + (pageNode.children || []).length, 0);
-    permissionCount.textContent = `\uD398\uC774\uC9C0 ${pageCount}\uAC1C / \uAD8C\uD55C ${permissionCountValue}\uAC1C`;
+    const totalPageCount = currentTree.length;
+    const totalPermissionCount = currentTree.reduce((sum, pageNode) => sum + (pageNode.children || []).length, 0);
+    const configuredPageCount = currentTree.filter((pageNode) =>
+        (pageNode.children || []).some((permissionNode) => !!permissionNode.checked)).length;
+    const configuredPermissionCount = currentTree.reduce(
+        (sum, pageNode) => sum + (pageNode.children || []).filter((permissionNode) => !!permissionNode.checked).length,
+        0
+    );
+    permissionCount.textContent = `설정: 페이지 ${configuredPageCount}개, 권한 ${configuredPermissionCount}개 / 전체: 페이지 ${totalPageCount}개, 권한 ${totalPermissionCount}개`;
 }
 
 function getPermissionSortColumnIndex() {
@@ -925,8 +824,8 @@ function getPermissionSortColumnIndex() {
     return columnIndex >= 0 ? columnIndex : 2;
 }
 
-function renderPermissionTable() {
-    const table = initPermissionTable();
+async function renderPermissionTable() {
+    const table = await initPermissionTable();
     currentDisplayRows = selectedRoleId ? buildDisplayRows() : [];
 
     table.clear();
@@ -987,7 +886,7 @@ function syncPermissionHeaderCheckboxState() {
     const totalCount = permissionNodes.length;
     const checkedCount = permissionNodes.filter((node) => !!node.checked).length;
 
-    checkAll.disabled = totalCount === 0;
+    checkAll.disabled = totalCount === 0 || !selectedRoleActive;
     checkAll.checked = totalCount > 0 && checkedCount === totalCount;
     checkAll.indeterminate = checkedCount > 0 && checkedCount < totalCount;
 }
@@ -1021,6 +920,7 @@ function syncVisiblePermissionCheckboxes() {
 function syncPermissionSelectionState() {
     syncVisiblePermissionCheckboxes();
     syncPermissionHeaderCheckboxState();
+    updatePermissionCount();
 }
 
 function setPageNodeChecked(pageKey, checked) {
@@ -1057,7 +957,6 @@ function bindPermissionTableEvents() {
     $(document).off('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-page-checkbox`);
     $(document).off('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-permission-checkbox`);
     $(document).off('change.rolePermissionFlat', '#permission-check-all');
-    $(document).off('datatable:delete-selected.rolePermissionFlat', PAGE_TABLE_SELECTOR);
 
     $(document).on('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-page-checkbox`, function onPageCheckboxChange() {
         setPageNodeChecked(String(this.dataset.pageKey || ''), !!this.checked);
@@ -1083,32 +982,6 @@ function bindPermissionTableEvents() {
         syncPermissionSelectionState();
     });
 
-    $(document).on('datatable:delete-selected.rolePermissionFlat', PAGE_TABLE_SELECTOR, async function onDeleteSelected(event) {
-        const ids = Array.isArray(event.originalEvent?.detail?.ids) ? event.originalEvent.detail.ids : [];
-        if (!ids.length) {
-            notify('warning', '삭제할 권한을 선택해주세요.');
-            return;
-        }
-
-        const confirmed = window.confirm('선택한 권한을 영구 삭제하시겠습니까?\n\n삭제된 권한은 복구되지 않습니다.');
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            for (const id of ids) {
-                const response = await $.post(API_PERMISSION_DELETE, { id });
-                if (!response?.success) {
-                    throw new Error(response?.message || '권한 삭제에 실패했습니다.');
-                }
-            }
-
-            notify('success', '권한이 삭제되었습니다.');
-            reloadPermissions();
-        } catch (error) {
-            notify('error', error?.message || '권한 삭제에 실패했습니다.');
-        }
-    });
 }
 
 function moveSelectedPermissionRows(rows = [], selectedRowIds = new Set(), direction = 'up') {
@@ -1197,16 +1070,7 @@ function bindPermissionSelectedMove() {
         permissionTable.setSelectedIds?.(ids);
 
         try {
-            const response = await fetch(API_REORDER, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ changes: plan.changes }),
-            });
-            const json = await response.json().catch(() => ({}));
-
-            if (!response.ok || json?.success === false) {
-                throw new Error(json?.message || '순서 저장에 실패했습니다.');
-            }
+            await postPermissionJson(API_REORDER, { changes: plan.changes });
 
             notify('success', '순서가 저장되었습니다.');
             reloadPermissions();
@@ -1557,49 +1421,80 @@ function bindSaveButton() {
         return;
     }
 
-    saveButton.addEventListener('click', () => {
+    saveButton.addEventListener('click', async () => {
         if (!selectedRoleId) {
             notify('warning', '\uC5ED\uD560\uC744 \uBA3C\uC800 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.');
             return;
         }
 
-        const changes = Object.entries(pendingChanges);
-        if (!changes.length) {
+        if (!selectedRoleActive) {
+            notify('warning', '비활성 역할에는 권한을 저장할 수 없습니다.');
+            return;
+        }
+
+        if (!Object.keys(pendingChanges).length) {
             notify('warning', '\uBCC0\uACBD\uB41C \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
+        const requestedRoleId = selectedRoleId;
+        isSavingPermissions = true;
         saveButton.disabled = true;
 
-        const tasks = changes.map(([permissionId, checked]) => {
-            const url = checked ? API_ASSIGN : API_REMOVE;
-            return $.post(url, {
-                role_id: selectedRoleId,
-                permission_id: permissionId,
-            });
-        });
+        const permissionIds = currentTree
+            .flatMap((pageNode) => pageNode.children || [])
+            .filter((permissionNode) => !!permissionNode.checked)
+            .map((permissionNode) => String(permissionNode.permission_id || ''))
+            .filter(Boolean);
 
-        Promise.all(tasks)
-            .then(() => {
-                notify('success', '\uAD8C\uD55C\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
-                reloadPermissions();
-            })
-            .catch(() => notify('error', '\uAD8C\uD55C \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.'))
-            .finally(() => {
-                saveButton.disabled = false;
-            });
+        if (permissionIds.length === 0 && !await confirmDialog({
+            title: '전체 권한 해제',
+            message: '선택한 역할의 모든 권한을 해제하시겠습니까?',
+            confirmText: '전체 해제',
+            confirmClass: 'btn-danger',
+        })) {
+            isSavingPermissions = false;
+            saveButton.disabled = false;
+            return;
+        }
+
+        const removesCorePermission = permissionIds.length > 0 && currentTree
+            .flatMap(pageNode => pageNode.children || [])
+            .some(permission => CORE_MANAGEMENT_PERMISSION_KEYS.has(String(permission.permission_key || '')) && !permission.checked);
+        if (removesCorePermission && !await confirmDialog({
+            title: '핵심 관리 권한 해제',
+            message: '권한부여 접근에 필요한 핵심 관리 권한이 해제됩니다. 계속하시겠습니까?',
+            confirmText: '계속',
+            confirmClass: 'btn-danger',
+        })) {
+            isSavingPermissions = false;
+            saveButton.disabled = false;
+            return;
+        }
+
+        try {
+            await postPermissionJson(API_SAVE, { role_id: requestedRoleId, permission_ids: permissionIds });
+            if (requestedRoleId !== selectedRoleId) return;
+            notify('success', '권한이 저장되었습니다.');
+            await reloadPermissions();
+        } catch (error) {
+            notify('error', error?.message || '권한 저장 중 오류가 발생했습니다.');
+        } finally {
+            isSavingPermissions = false;
+            saveButton.disabled = false;
+        }
     });
 }
 
-$(function onReady() {
+$(async function onReady() {
     bindRoleTableSettingsPolicy();
     bindPermissionTableSettingsPolicy();
-    initRoleTable();
-    initPermissionTable();
-    bindRoleListStickyLayout();
+    permissionMasterPromise = loadPermissionMaster(API_ROLE_PERMISSIONS).then(responseRows);
+    await Promise.all([initRoleTable(), initPermissionTable(), permissionMasterPromise]);
+    bindPermissionAssignmentStickyLayout();
     bindPermissionSelectedMove();
     bindSaveButton();
     setSaveDirty(false);
     syncPermissionHeaderCheckboxState();
-    renderPermissionTable();
+    await renderPermissionTable();
 });

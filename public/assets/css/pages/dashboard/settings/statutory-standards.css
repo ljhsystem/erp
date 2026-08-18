@@ -1,0 +1,54 @@
+.statutory-standards-page .page-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.statutory-standards-page .page-header h4 { margin-bottom: 0; }
+.statutory-standards-page .page-count { display: inline-flex; align-items: center; margin-left: 2px; font-size: 1rem; font-weight: 500; line-height: 1; }
+.statutory-standards-page .content-area { display: grid; gap: 1rem; }
+.statutory-standards-page.is-search-initializing #statutoryStandardSearchFormContainer { visibility: hidden; }
+.statutory-standards-page .table-box { margin-top: 0; }
+#standardModal .ui-form-card + .ui-form-card { margin-top: 1rem; }
+#standardModal .statutory-standard-dialog { width: min(1180px, calc(100vw - 32px)); max-width: min(1180px, calc(100vw - 32px)); height: calc(100vh - 40px); max-height: calc(100vh - 40px); margin: 20px auto; display: flex; }
+#standardModal .statutory-standard-modal-card { height: 100%; max-height: calc(100vh - 40px); overflow: hidden; }
+#standardModal .statutory-standard-modal-header { align-items: flex-start; padding: 10px 16px; }
+#standardModal .modal-title { color: #0f172a; font-size: 16px; font-weight: 700; }
+#standardModal .statutory-standard-modal-subtitle { margin-top: 4px; color: #64748b; font-size: 12px; }
+#standardModal .statutory-standard-modal-body { padding: 12px 16px; background: #fff; }
+#standardModal .ui-form-card { border: 1px solid #dbe3ef; border-radius: 12px; box-shadow: 0 10px 24px rgba(15, 23, 42, .04); overflow: hidden; }
+#standardModal .ui-form-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); }
+#standardModal .ui-form-card__heading { display: grid; gap: 4px; min-width: 0; }
+#standardModal .ui-form-card__title { margin: 0; color: #0f172a; font-size: 15px; font-weight: 800; line-height: 1.4; }
+#standardModal .ui-form-card__description { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+#standardModal .statutory-primary-card { border-color: #bfd7c1; box-shadow: 0 16px 32px rgba(22, 101, 52, .08); }
+#standardModal .statutory-primary-card .ui-form-card__header { background: linear-gradient(180deg, #eefbf1 0%, #dff4e4 100%); }
+#standardModal .statutory-table-reference { margin-top: 3px; color: #64748b; font-family: var(--bs-font-monospace); font-size: 11px; font-weight: 500; line-height: 1.45; }
+#standardModal .ui-form-card__body { padding: 16px; }
+#standardModal .date-input { position: relative; }
+#standardModal .date-input .admin-date { padding-right: 34px; }
+#standardModal .date-icon { position: absolute; top: 50%; right: 11px; color: #64748b; cursor: pointer; transform: translateY(-50%); }
+#standardModal .select2-container { width: 100% !important; }
+#standardModal .statutory-card-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border: 0; background: linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%); text-align: left; }
+#standardModal .statutory-card-heading { display: grid; gap: 4px; min-width: 0; }
+#standardModal .statutory-card-description { color: #64748b; font-size: 12px; line-height: 1.5; }
+#standardModal .statutory-card-icon { color: #475569; font-size: 14px; transition: transform .2s ease; }
+#standardModal .statutory-card-toggle.collapsed .statutory-card-icon { transform: rotate(-90deg); }
+#standardModal .statutory-system-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+#standardModal .statutory-system-field { display: grid; gap: 5px; min-width: 0; }
+#standardModal .statutory-system-label { color: #475569; font-size: 12px; font-weight: 700; }
+#standardModal .statutory-system-value { min-height: 32px; padding: 7px 9px; overflow-wrap: anywhere; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; color: #0f172a; font-size: 12px; }
+.statutory-source-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; padding: .9rem 0; border-bottom: 1px solid var(--bs-border-color); }
+.statutory-source-row:first-child { padding-top: 0; }
+.statutory-source-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.statutory-source-field { display: grid; align-content: start; gap: .5rem; min-width: 0; }
+.statutory-source-field .form-label { display: block; margin: 0; }
+.statutory-source-url { grid-column: span 3; }
+.statutory-source-url-line { display: flex; align-items: center; gap: .5rem; }
+.statutory-source-url-line .form-control { min-width: 0; flex: 1 1 auto; }
+.statutory-source-url-open { flex: 0 0 auto; align-self: stretch; white-space: nowrap; }
+.statutory-source-note { grid-column: span 3; }
+.statutory-source-note-line { display: flex; align-items: center; gap: .5rem; }
+.statutory-source-note-line .form-control { min-width: 0; flex: 1 1 auto; }
+.statutory-source-remove { flex: 0 0 auto; align-self: stretch; }
+.statutory-source-file-link { min-width: 0; max-width: 100%; width: fit-content; margin-top: .4rem; padding: .32rem .52rem; display: flex; align-items: center; gap: .35rem; border: 1px solid #bfdbfe; border-radius: .45rem; background: #eff6ff; color: #1d4ed8; font-size: .75rem; font-weight: 600; line-height: 1.3; text-decoration: none; transition: border-color .15s ease, background-color .15s ease, color .15s ease; }
+.statutory-source-file-link span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statutory-source-file-link:hover { border-color: #93c5fd; background: #dbeafe; color: #1e40af; }
+@media (max-width: 991.98px) { .statutory-source-row { grid-template-columns: 1fr 1fr; } .statutory-source-url, .statutory-source-note { grid-column: span 2; } #standardModal .statutory-system-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 575.98px) { .statutory-source-row { grid-template-columns: 1fr; } .statutory-source-url, .statutory-source-note { grid-column: auto; } }
+@media (max-width: 575.98px) { #standardModal .statutory-standard-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); height: calc(100vh - 16px); max-height: calc(100vh - 16px); margin: 8px auto; } #standardModal .statutory-system-grid { grid-template-columns: 1fr; } }

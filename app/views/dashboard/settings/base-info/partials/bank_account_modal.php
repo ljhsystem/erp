@@ -2,7 +2,7 @@
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/bank_account_modal.php'
 ?>
 
-<div class="modal fade" id="accountModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade ui-form-modal" id="accountModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
 
@@ -150,6 +150,22 @@
 
             </div>
           </div>
+
+          <section class="ui-form-card account-system-card" aria-label="시스템 처리 정보">
+            <button type="button"
+                    class="ui-form-card__toggle collapsed"
+                    id="accountSystemInfoToggle"
+                    data-ui-modal-card-collapse
+                    data-bs-target="#accountSystemInfoCollapse"
+                    aria-expanded="false"
+                    aria-controls="accountSystemInfoCollapse">
+              <span class="ui-form-card__title">시스템 처리 정보</span>
+              <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+            </button>
+            <div id="accountSystemInfoCollapse" class="collapse">
+              <div class="ui-form-card__body account-system-info-grid" id="accountSystemInfoFields"></div>
+            </div>
+          </section>
 
         </div>
 

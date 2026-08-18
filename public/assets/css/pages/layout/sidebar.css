@@ -14,15 +14,15 @@
   overflow-x: hidden;
   z-index: var(--z-sidebar, 990);
   box-sizing: border-box;
-  transition: width .3s ease;
+  transform: translate3d(0, 0, 0);
+  transition: transform .22s ease;
+  will-change: transform;
 }
 
 /* 접힘: 변수 기반 폭 유지(완전 0px가 아님) */
 .sidebar.collapsed {
-  width: 0;
-  padding: 0;
-  border-right: 0;
-  overflow: hidden;
+  transform: translate3d(calc(-1 * var(--sidebar-width, 240px)), 0, 0);
+  pointer-events: none;
 }
 
 /* 접힘 시 내부 텍스트 숨김(시각적 보정) */
@@ -43,7 +43,9 @@
   background: var(--color-sidebar-bg);
   border-left: 1px solid var(--color-sidebar-border);
   z-index: 995;
-  transition: left .25s ease;
+  transform: translate3d(0, 0, 0);
+  transition: transform .22s ease;
+  will-change: transform;
 }
 
 
@@ -100,7 +102,6 @@
   width: calc(100% - (var(--sidebar-width, 240px) + 16px));
   min-width: 0;
   overflow-x: hidden;
-  transition: margin-left .3s ease, width .3s ease;
   box-sizing: border-box;
 }
 
@@ -161,7 +162,7 @@ body.no-sidebar .main-content {
 }
 
 body.is-sidebar-collapsed .sidebar-right-border {
-  left: 0;
+  transform: translate3d(calc(-1 * var(--sidebar-width, 240px)), 0, 0);
 }
 /* sidebar collapse control */
 .sidebar .collapse {

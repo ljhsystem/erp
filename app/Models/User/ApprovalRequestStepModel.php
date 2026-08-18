@@ -1,94 +1,51 @@
 <?php
+
 namespace App\Models\User;
 
-use PDO;
 use Core\Database;
+use PDO;
 
 class ApprovalRequestStepModel
 {
-
     private PDO $db;
+    public function __construct(?PDO $pdo=null){$this->db=$pdo??Database::getInstance()->getConnection();}
 
-    public function __construct(?PDO $pdo = null)
+    public function getSteps(string $requestId): array { $s=$this->db->prepare('SELECT * FROM user_approval_request_steps WHERE request_id=? AND is_active=1 ORDER BY sort_no');$s->execute([$requestId]);return $s->fetchAll(PDO::FETCH_ASSOC)?:[]; }
+    public function getById(string $id,bool $forUpdate=false): ?array { $s=$this->db->prepare('SELECT * FROM user_approval_request_steps WHERE id=? AND is_active=1 LIMIT 1'.($forUpdate?' FOR UPDATE':''));$s->execute([$id]);return $s->fetch(PDO::FETCH_ASSOC)?:null; }
+    public function create(array $d): bool
     {
-        $this->db = $pdo ?? Database::getInstance()->getConnection();
-    }
-
-    public function getSteps(string $requestId): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT *
-            FROM user_approval_request_steps
-            WHERE request_id = ?
-            ORDER BY sequence ASC
-        ");
-        $stmt->execute([$requestId]);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    public function getById(string $id): ?array
-    {
-        $stmt = $this->db->prepare("
-            SELECT *
-            FROM user_approval_request_steps
-            WHERE id = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$id]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
-
-    public function create(array $data): bool
-    {
-        $stmt = $this->db->prepare("
-            INSERT INTO user_approval_request_steps (
-                id, request_id, sequence,
-                approver_id, role_id,
-                status, approved_at, rejected_at, comment,
-                is_active, created_by, created_at
-            )
-            VALUES (
-                :id, :request_id, :sequence,
-                :approver_id, :role_id,
-                :status, :approved_at, :rejected_at, :comment,
-                :is_active, :created_by, NOW()
-            )
-        ");
-
-        return $stmt->execute($data);
-    }
-
-    public function updateStatus(string $id, string $status, ?string $comment, ?string $updatedBy): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE user_approval_request_steps
-            SET
-                status      = :status,
-                comment     = :comment,
-                updated_by  = :updated_by,
-                updated_at  = NOW(),
-                approved_at = IF(:status = 'approved', NOW(), approved_at),
-                rejected_at = IF(:status = 'rejected', NOW(), rejected_at)
-            WHERE id = :id
-        ");
-
-        return $stmt->execute([
-            ':status'     => $status,
-            ':comment'    => $comment,
-            ':updated_by' => $updatedBy,
-            ':id'         => $id
+        $s = $this->db->prepare("INSERT INTO user_approval_request_steps
+            (id,request_id,sort_no,step_name,step_type,role_id,approver_id,acted_by,status,action_at,comment,is_active,created_by,updated_by)
+            VALUES
+            (:id,:request_id,:sort_no,:step_name,:step_type,:role_id,:approver_id,:acted_by,:status,:action_at,NULL,1,:created_by,:updated_by)");
+        return $s->execute([
+            ':id'=>$d['id'], ':request_id'=>$d['request_id'], ':sort_no'=>$d['sort_no'],
+            ':step_name'=>$d['step_name'], ':step_type'=>$d['step_type'], ':role_id'=>$d['role_id'],
+            ':approver_id'=>$d['approver_id'], ':acted_by'=>$d['acted_by'] ?? null,
+            ':status'=>$d['status'], ':action_at'=>$d['action_at'] ?? null,
+            ':created_by'=>$d['created_by'], ':updated_by'=>$d['updated_by'] ?? $d['created_by'],
         ]);
     }
 
-    public function delete(string $id): bool
+    public function act(string $id, string $status, ?string $comment, string $userId, ?string $roleId, string $actor): bool
     {
-        $stmt = $this->db->prepare("
-            DELETE FROM user_approval_request_steps
-            WHERE id = ?
-        ");
-
-        return $stmt->execute([$id]);
+        $s = $this->db->prepare("UPDATE user_approval_request_steps
+            SET status=:status,comment=:comment,acted_by=:acted_by,action_at=NOW(),updated_by=:actor,updated_at=NOW()
+            WHERE id=:id
+              AND status='pending'
+              AND is_active=1
+              AND step_type IN ('APPROVAL','FINAL_APPROVAL')
+              AND (
+                    approver_id=:specific_user_id
+                    OR (approver_id IS NULL AND role_id=:role_id)
+              )");
+        $s->execute([
+            ':status'=>$status, ':comment'=>$comment, ':acted_by'=>$userId,
+            ':specific_user_id'=>$userId, ':role_id'=>$roleId, ':actor'=>$actor, ':id'=>$id,
+        ]);
+        return $s->rowCount() === 1;
     }
+    public function activate(string $requestId,int $sortNo,string $actor): bool { $s=$this->db->prepare("UPDATE user_approval_request_steps SET status='pending',updated_by=:actor,updated_at=NOW() WHERE request_id=:request_id AND sort_no=:sort_no AND status='waiting' AND is_active=1");$s->execute([':actor'=>$actor,':request_id'=>$requestId,':sort_no'=>$sortNo]);return $s->rowCount()===1; }
+    public function cancelRemaining(string $requestId,string $actor): void { $s=$this->db->prepare("UPDATE user_approval_request_steps SET status='cancelled',updated_by=:actor,updated_at=NOW() WHERE request_id=:request_id AND status IN ('waiting','pending') AND is_active=1");$s->execute([':actor'=>$actor,':request_id'=>$requestId]); }
+    public function delete(string $id): bool { $s=$this->db->prepare('UPDATE user_approval_request_steps SET is_active=0,updated_at=NOW() WHERE id=?');return $s->execute([$id]); }
 }

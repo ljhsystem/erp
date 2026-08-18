@@ -180,6 +180,17 @@ function formatTime(value) {
     return text.length > 16 ? text.slice(0, 16) : text;
 }
 
+function formatRelativeTime(value) {
+    const timestamp = new Date(String(value || '').replace(' ', 'T')).getTime();
+    if (!Number.isFinite(timestamp)) return formatTime(value);
+    const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+    if (seconds < 60) return '방금 전';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}분 전`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간 전`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}일 전`;
+    return formatTime(value);
+}
+
 function setUnreadCount(count) {
     const unread = Number(count || 0);
     bell?.classList.toggle('has-unread', unread > 0);
@@ -204,14 +215,17 @@ function renderNotifications(list = []) {
     listEl.innerHTML = list
         .map((item) => {
             const unread = Number(item.is_read || 0) === 0;
+            const actionable = item.notification_kind === 'approval_actionable';
             const title = escapeHtml(item.title || 'Notification');
             const message = escapeHtml(item.message || '');
-            const time = escapeHtml(formatTime(item.created_at));
+            const time = escapeHtml(actionable ? formatRelativeTime(item.created_at) : formatTime(item.created_at));
 
             return `
                 <button type="button"
-                        class="notification-item${unread ? ' unread' : ''}"
-                        data-id="${escapeHtml(item.id)}">
+                        class="notification-item${unread ? ' unread' : ''}${actionable ? ' approval-actionable' : ''}"
+                        data-id="${escapeHtml(item.id)}"
+                        data-kind="${escapeHtml(item.notification_kind || 'stored')}"
+                        data-action-url="${escapeHtml(item.action_url || '')}">
                     <span class="notification-item-title">${title}</span>
                     <span class="notification-item-message">${message}</span>
                     <span class="notification-item-time">${time}</span>
@@ -235,7 +249,7 @@ async function loadNotifications() {
     }
 }
 
-async function markAsRead(id) {
+async function markAsRead(id, actionUrl = '') {
     if (!id) return;
 
     const body = new URLSearchParams();
@@ -246,6 +260,10 @@ async function markAsRead(id) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
         body,
     });
+    if (actionUrl) {
+        window.location.assign(actionUrl);
+        return;
+    }
     await loadNotifications();
 }
 
@@ -282,7 +300,11 @@ function bindNotificationUi() {
     listEl.addEventListener('click', (event) => {
         const item = event.target.closest('.notification-item');
         if (!item) return;
-        void markAsRead(item.dataset.id || '');
+        if (item.dataset.kind === 'approval_actionable' && item.dataset.actionUrl) {
+            window.location.assign(item.dataset.actionUrl);
+            return;
+        }
+        void markAsRead(item.dataset.id || '', item.dataset.actionUrl || '');
     });
 
     if (markAllReadBtn) {
@@ -298,6 +320,11 @@ window.AppCore.loadNotifications = loadNotifications;
 window.AppCore.renderNotifications = renderNotifications;
 window.AppCore.markNotificationAsRead = markAsRead;
 window.AppCore.markAllNotificationsAsRead = markAllAsRead;
+window.AppCore.refreshNavigationNotifications = loadNotifications;
+
+onDocument('approval:changed', () => {
+    void loadNotifications();
+});
 
 if (document.readyState === 'loading') {
     onDocument('DOMContentLoaded', bindNotificationUi, { once: true });

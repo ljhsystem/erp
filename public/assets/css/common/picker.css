@@ -566,6 +566,10 @@
 /* ===============================
    Time List Picker ONLY
 =============================== */
+.picker.is-time-list {
+  width: var(--picker-anchor-width, 308px);
+}
+
 .picker.is-time-list .admin-picker__panel {
   padding: 6px;
 }

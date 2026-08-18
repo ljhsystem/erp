@@ -4,6 +4,8 @@ import { manageButtonRenderer } from '/public/assets/js/common/table/renderers/i
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { importTypeLabel as sharedImportTypeLabel } from '/public/assets/js/pages/ledger/shared/labels.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -17,7 +19,6 @@ import '/public/assets/js/components/trash-manager.js';
         trash: '/api/ledger/evidence-metadata/trash',
         restore: '/api/ledger/evidence-metadata/restore',
         purge: '/api/ledger/evidence-metadata/purge',
-        purgeAll: '/api/ledger/evidence-metadata/purge-all',
         reorder: '/api/ledger/evidence-metadata/reorder',
         sourceColumns: '/api/ledger/evidence-metadata/source-columns',
         recommend: '/api/ledger/evidence-metadata/recommend',
@@ -27,12 +28,6 @@ import '/public/assets/js/components/trash-manager.js';
     const PAGE_KEY = 'ledger.evidence-metadata';
     const META_DOMAIN = 'evidence-metadata';
     const EVIDENCE_TYPE_LABELS = { DATA: '자료증빙', FUND: '자금증빙', BOTH: '자료·자금 공통' };
-    const PROCESS_ROLE_LABELS = {
-        TRANSACTION_SSOT: '거래 생성',
-        REPORT_SSOT: '신고 생성',
-        TRANSACTION_REPORT_SSOT: '거래·신고 생성',
-        REFERENCE: '참조자료',
-    };
 
     const tableElement = document.getElementById('evidence-metadata-table');
     const form = document.getElementById('evidenceMetadataForm');
@@ -74,7 +69,6 @@ import '/public/assets/js/components/trash-manager.js';
             <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(formatImportTypeDisplay(row.import_type))}</dd>
             <dt class="col-4">원본테이블</dt><dd class="col-8">${escapeHtml(row.source_table || '-')}</dd>
             <dt class="col-4">증빙유형</dt><dd class="col-8">${escapeHtml(EVIDENCE_TYPE_LABELS[row.evidence_type] || row.evidence_type || '-')}</dd>
-            <dt class="col-4">처리역할</dt><dd class="col-8">${escapeHtml(PROCESS_ROLE_LABELS[row.process_role] || row.process_role || '-')}</dd>
             <dt class="col-4">삭제일시</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
             <dt class="col-4">삭제자</dt><dd class="col-8">${escapeHtml(row.deleted_by_name || row.deleted_by || '-')}</dd>
         </dl>`;
@@ -85,7 +79,6 @@ import '/public/assets/js/components/trash-manager.js';
         <td>${escapeHtml(formatImportTypeDisplay(row.import_type))}</td>
         <td>${escapeHtml(row.source_table || '')}</td>
         <td>${escapeHtml(EVIDENCE_TYPE_LABELS[row.evidence_type] || row.evidence_type || '')}</td>
-        <td>${escapeHtml(PROCESS_ROLE_LABELS[row.process_role] || row.process_role || '')}</td>
         <td>${escapeHtml(row.deleted_at || '')}</td>
         <td>${escapeHtml(row.deleted_by_name || row.deleted_by || '')}</td>
         <td class="text-center">
@@ -113,7 +106,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     async function boot() {
         await loadOptions();
-        initTable();
+        await initTable();
         bindEvents();
     }
 
@@ -213,8 +206,8 @@ import '/public/assets/js/components/trash-manager.js';
                 render: (value, type) => type === 'display' ? escapeHtml(formatImportTypeDisplay(value)) : value,
             },
             { data: 'source_table', title: '원본테이블', settingsKey: 'source_table' },
-            { data: 'evidence_type', title: '증빙유형', settingsKey: 'evidence_type', render: (value, type) => type === 'display' ? (EVIDENCE_TYPE_LABELS[value] || value || '') : value },
-            { data: 'process_role', title: '처리역할', settingsKey: 'process_role', render: (value, type) => type === 'display' ? (PROCESS_ROLE_LABELS[value] || value || '') : value },
+            { data: 'evidence_type', title: '사용영역', settingsKey: 'evidence_type', render: (value, type) => type === 'display' ? (EVIDENCE_TYPE_LABELS[value] || value || '') : value },
+            { data: 'health_message', title: '정책상태', settingsKey: 'health_status', render: (value, type, row) => type === 'display' ? `<span class="badge ${row.health_status === 'NORMAL' ? 'text-bg-success' : 'text-bg-danger'}">${escapeHtml(value || '확인 필요')}</span>` : value },
             { data: 'created_at', title: '등록일시', settingsKey: 'created_at' },
             actorColumn('created_by', '등록자', { visible: true }),
             { data: 'updated_at', title: '수정일시', settingsKey: 'updated_at' },
@@ -232,8 +225,8 @@ import '/public/assets/js/components/trash-manager.js';
         ];
     }
 
-    function initTable() {
-        table = createDataTable({
+    async function initTable() {
+        table = await createDataTable({
             tableSelector: '#evidence-metadata-table',
             api: API.list,
             deleteApi: API.delete,
@@ -256,7 +249,7 @@ import '/public/assets/js/components/trash-manager.js';
                     'import_type',
                     'source_table',
                     'evidence_type',
-                    'process_role',
+                    'health_status',
                     'created_at',
                     'created_by',
                     'updated_at',
@@ -290,7 +283,7 @@ import '/public/assets/js/components/trash-manager.js';
         element.dataset.listUrl = API.trash;
         element.dataset.restoreUrl = API.restore;
         element.dataset.deleteUrl = API.purge;
-        element.dataset.deleteAllUrl = API.purgeAll;
+        element.dataset.deleteAllUrl = '';
         window.bootstrap.Modal.getOrCreateInstance(element).show();
     }
 
@@ -364,7 +357,6 @@ import '/public/assets/js/components/trash-manager.js';
         sourceTableInput.value = row.source_table || '';
         sourceTableDisplay.value = row.source_table || '';
         document.getElementById('evidenceMetadataEvidenceType').value = row.evidence_type || 'DATA';
-        document.getElementById('evidenceMetadataProcessRole').value = row.process_role || 'REFERENCE';
         const mappings = Array.isArray(row.mappings) ? row.mappings : [];
         const mappingValues = Object.fromEntries(mappings
             .filter((mapping) => mapping.semantic_key !== 'ADJUST_AMOUNT')
@@ -398,7 +390,6 @@ import '/public/assets/js/components/trash-manager.js';
         sourceTableInput.value = recommendation.source_table || '';
         sourceTableDisplay.value = recommendation.source_table || '';
         document.getElementById('evidenceMetadataEvidenceType').value = recommendation.evidence_type || 'DATA';
-        document.getElementById('evidenceMetadataProcessRole').value = recommendation.process_role || 'REFERENCE';
         const mappings = Array.isArray(recommendation.mappings) ? recommendation.mappings : [];
         const mappingValues = Object.fromEntries(mappings
             .filter((mapping) => mapping.semantic_key !== 'ADJUST_AMOUNT')
@@ -495,14 +486,36 @@ import '/public/assets/js/components/trash-manager.js';
 
     async function deleteCurrent() {
         const id = document.getElementById('evidenceMetadataId').value;
-        if (!id || !window.confirm('이 증빙정책을 삭제하시겠습니까?')) return;
-        const json = await fetchJson(API.delete, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
+        if (!id) return;
+        const detail = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
+        const row = detail.data || {};
+        const impact = row.impact || {};
+        const confirmed = await confirmDialog({
+            title: '증빙정책 삭제',
+            message: [
+                `자료유형: ${formatImportTypeDisplay(row.import_type)}`,
+                `원본테이블: ${row.source_table || '-'}`,
+                `사용영역: ${EVIDENCE_TYPE_LABELS[row.evidence_type] || row.evidence_type || '-'}`,
+                `의미 매핑: ${Array.isArray(row.mappings) ? row.mappings.length : 0}건`,
+                `원본 증빙: ${Number(impact.body_count || 0).toLocaleString('ko-KR')}건`,
+                `거래·전표 연결: ${Number(impact.link_count || 0).toLocaleString('ko-KR')}건`,
+                impact.runtime_required ? 'Runtime 영향: 시스템 필수 정책' : 'Runtime 영향: 필수 Consumer 없음',
+                '',
+                '이 정책을 휴지통으로 이동하시겠습니까?',
+            ].join('\n'),
+            confirmText: '삭제',
+            confirmClass: 'btn-danger',
         });
-        window.notify?.('success', json.message || '삭제되었습니다.');
-        modal.hide();
-        table.ajax.reload(null, false);
+        if (!confirmed) return;
+        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '증빙정책을 휴지통으로 이동 중' }, async () => {
+            const json = await fetchJson(API.delete, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+            });
+            window.notify?.('success', json.message || '삭제되었습니다.');
+            modal.hide();
+            await new Promise(resolve => table.ajax.reload(() => resolve(), false));
+        });
     }
 })();

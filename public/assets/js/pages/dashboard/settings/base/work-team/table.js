@@ -18,8 +18,8 @@ export function createWorkTeamTableModule({
 }) {
     let table = null;
 
-    function initDataTable() {
-        table = createDataTable({
+    async function initDataTable() {
+        table = await createDataTable({
             tableSelector: '#work-team-table',
             api: api.LIST,
             deleteApi: api.DELETE,

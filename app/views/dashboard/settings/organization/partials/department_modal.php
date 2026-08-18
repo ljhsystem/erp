@@ -37,6 +37,18 @@
             <input class="form-check-input" type="checkbox" id="dept_edit_is_active" name="is_active" checked>
             <label class="form-check-label" for="dept_edit_is_active">활성</label>
           </div>
+
+          <section class="ui-form-card department-system-card mt-3" aria-label="시스템 처리 정보">
+            <button type="button" class="ui-form-card__toggle collapsed"
+                    data-ui-modal-card-collapse data-bs-target="#departmentSystemInfoCollapse"
+                    aria-expanded="false" aria-controls="departmentSystemInfoCollapse">
+              <span class="ui-form-card__title">시스템 처리 정보</span>
+              <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+            </button>
+            <div id="departmentSystemInfoCollapse" class="collapse">
+              <div class="ui-form-card__body department-system-info-grid" id="departmentSystemInfoFields"></div>
+            </div>
+          </section>
         </div>
 
         <div class="modal-footer">

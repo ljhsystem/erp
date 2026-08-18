@@ -1,4 +1,3 @@
-// Path: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/system/site.js'
 (function () {
     "use strict";
 

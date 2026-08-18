@@ -93,7 +93,7 @@
     text-underline-offset: 2px;
 }
 
-#transactionModal .transaction-lines-footer {
+:is(#transactionModal, #expenseModal) .transaction-lines-footer {
     display: flex;
     justify-content: flex-end;
     margin: 0;
@@ -128,7 +128,7 @@
     background: rgba(255, 255, 255, 0.96);
 }
 
-#transactionModal .transaction-voucher-summary {
+#transactionModal .transaction-evidence-summary {
     min-height: 32px;
     padding: 8px 10px;
     border: 1px solid #e2e8f0;
@@ -138,13 +138,69 @@
     font-size: 12px;
 }
 
-#transactionModal .transaction-voucher-actions {
-    display: grid;
-    grid-template-columns: repeat(4, max-content);
+#transactionModal .transaction-evidence-actions {
+    display: flex;
     gap: 8px;
     align-items: center;
-    justify-content: end;
+    margin-bottom: 8px;
 }
+
+#transactionModal .transaction-evidence-grid-host {
+    width: 100%;
+    min-height: 0;
+    max-height: 254px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid #dfe6ee;
+    border-radius: 6px;
+    background: #fff;
+}
+
+#transactionModal .transaction-evidence-grid-host .html-grid-table {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+#transactionModal .transaction-evidence-grid-host .html-grid-header-cell,
+#transactionModal .transaction-evidence-grid-host .html-grid-cell {
+    box-sizing: border-box;
+    height: 42px;
+    padding: 8px 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border: 0;
+    border-right: 1px solid #e5ebf2;
+    border-bottom: 1px solid #e5ebf2;
+    vertical-align: middle;
+}
+
+#transactionModal .transaction-evidence-grid-host .html-grid-header-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f7f9fc;
+    font-weight: 600;
+    color: #334155;
+}
+
+#transactionModal .transaction-evidence-grid-host .html-grid-cell-value {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+#transactionModal .transaction-evidence-grid-host .html-grid-column-selection { text-align: center; }
+#transactionModal .transaction-evidence-grid-host .html-grid-column-display_amount { text-align: right; }
+#transactionModal .transaction-evidence-grid-host .html-grid-empty { display: flex; min-height: 118px; align-items: center; justify-content: center; color: #64748b; }
+#transactionModal .transaction-evidence-grid-host .html-grid-empty.is-hidden { display: none; }
+#transactionModal .transaction-evidence-grid-host .html-grid-table.is-hidden { display: none; }
 
 #transactionModal .form-control-sm,
 #transactionModal .form-select-sm {

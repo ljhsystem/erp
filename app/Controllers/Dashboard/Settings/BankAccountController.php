@@ -3,6 +3,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
 use App\Services\System\BankAccountService;
+use Core\Session;
 
 class BankAccountController
 {
@@ -16,6 +17,7 @@ class BankAccountController
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $filters = [];
@@ -37,7 +39,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '계좌 목록 조회 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -69,7 +70,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '계좌 정보를 불러오지 못했습니다.',
-                'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -186,7 +186,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '복구 중 오류가 발생했습니다.',
-                'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -215,7 +214,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '선택 복구 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -233,7 +231,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '전체 복구 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -261,7 +258,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '영구삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -290,7 +286,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '선택 항목 영구삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -308,7 +303,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '전체 영구삭제 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -341,7 +335,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '정렬 저장 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -360,7 +353,7 @@ class BankAccountController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
+            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다.';
         }
 
         exit;
@@ -409,7 +402,6 @@ class BankAccountController
             echo json_encode([
                 'success' => false,
                 'message' => '엑셀 업로드 중 오류가 발생했습니다.',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -428,7 +420,7 @@ class BankAccountController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '엑셀 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
+            echo '엑셀 다운로드 중 오류가 발생했습니다.';
         }
 
         exit;

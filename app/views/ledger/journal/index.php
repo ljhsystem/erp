@@ -10,6 +10,7 @@ if (!headers_sent()) {
 }
 
 $pageTitle = '전표입력';
+$pageAssetProfile = 'data-list-light';
 
 $layoutOptions = [
     'header' => true,
@@ -21,13 +22,20 @@ $layoutOptions = [
 
 $pageStyles =
     AssetHelper::css('/assets/css/pages/ledger/voucher/index.css') .
+    AssetHelper::css('/assets/css/pages/ledger/data-status.css') .
     AssetHelper::css('/assets/css/pages/ledger/account.css');
 
 $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucher/index.js');
+$evidenceTypePoliciesJson = json_encode(
+    $evidenceTypePolicies ?? [],
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+);
 ?>
 
+<script type="application/json" id="ledgerEvidenceTypePolicies"><?= $evidenceTypePoliciesJson ?></script>
+
 <main class="journal-page" id="journal-main">
-    <div class="container-fluid py-4 journal-shell">
+    <div class="container-fluid py-4 journal-shell dt-page-shell">
         <div class="page-header">
             <h5 class="mb-0 fw-bold">
                 <i class="bi bi-journal-check me-2"></i>전표입력
@@ -83,14 +91,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucher/index.js');
 
 <?php include __DIR__ . '/partials/journal_modal.php'; ?>
 <?php
-$modalId = 'voucherExcelModal';
-$formId = 'voucher-excel-upload-form';
-$modalTitle = '전표입력 엑셀관리';
-$modalSubtitle = '거래입력과 동일한 공용 엑셀관리에서 업로드 양식설정과 다운로드 설정을 관리합니다.';
-include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-?>
-
-<?php
 $modalId = 'journalTrashModal';
 $type = 'journal';
 $modalTitle = '전표 휴지통';
@@ -115,7 +115,6 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
-
 <template id="journal-client-modal-template">
     <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
 </template>

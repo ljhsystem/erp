@@ -22,6 +22,7 @@ export function createClientFormModule({
     let rrnVisible = false;
     let clientModalControlsPromise = null;
     let defaultAccountRows = [];
+    let defaultAccountRowsPromise = null;
 
     const notify = (type, message) => {
         if (window.AppCore?.notify) {
@@ -138,8 +139,8 @@ export function createClientFormModule({
         return statusMap[raw] || raw;
     }
 
-    async function checkBusinessStatusWithForm({ form, button, statusInput, statusText, prefix = '' }) {
-        const input = form?.querySelector('[name="business_number"]') || document.getElementById('modal_business_number');
+    async function checkBusinessStatusWithForm({ form, button, statusInput, statusText, businessNumberInput = null, prefix = '' }) {
+        const input = businessNumberInput || form?.querySelector('[name="business_number"]') || document.getElementById('modal_business_number');
         const bizNo = String(input?.value || '').replace(/\D/g, '');
         if (!bizNo) {
             notify('warning', `${prefix}사업자번호를 입력하세요.`);
@@ -401,19 +402,27 @@ export function createClientFormModule({
         });
     }
 
+    async function loadDefaultAccountRows() {
+        if (!defaultAccountRows.length) {
+            if (!defaultAccountRowsPromise) {
+                defaultAccountRowsPromise = (async () => {
+                const response = await fetch(API.ACCOUNTS, { cache: 'no-store' });
+                const json = await response.json();
+                    return (json.data || []).filter((row) => Number(row.is_active ?? 1) === 1 && Number(row.is_posting ?? 1) === 1);
+                })().catch((error) => {
+                    defaultAccountRowsPromise = null;
+                    throw error;
+                });
+            }
+            defaultAccountRows = await defaultAccountRowsPromise;
+        }
+        return defaultAccountRows;
+    }
+
     async function initDefaultAccountSelect(selectedValue = '') {
         const select = document.getElementById('modal_default_account_id');
         if (!select) return;
-        if (!defaultAccountRows.length) {
-            try {
-                const response = await fetch(API.ACCOUNTS, { cache: 'no-store' });
-                const json = await response.json();
-                defaultAccountRows = (json.data || []).filter((row) => Number(row.is_active ?? 1) === 1 && Number(row.is_posting ?? 1) === 1);
-            } catch (error) {
-                console.error('[client] default account load failed', error);
-                defaultAccountRows = [];
-            }
-        }
+        await loadDefaultAccountRows();
         const value = String(selectedValue || select.value || '').trim();
         const items = defaultAccountRows.map((row) => ({
             id: String(row.id || ''),
@@ -428,18 +437,23 @@ export function createClientFormModule({
 
     async function prepareClientModalControls(selectedDefaultAccountId = '') {
         const modalEl = document.getElementById('clientModal');
-        await loadBankAccountFormatRegistry?.();
-        await initCodeSelectControls(modalEl);
+        await preloadClientModalControls();
         applyClientOptionalCodeSelects(modalEl);
         bindClientBankAccountFormatting(modalEl);
         await initDefaultAccountSelect(selectedDefaultAccountId);
     }
 
-    function preloadClientModalControls(selectedDefaultAccountId = '') {
+    function preloadClientModalControls() {
         if (!clientModalControlsPromise) {
-            clientModalControlsPromise = prepareClientModalControls(selectedDefaultAccountId).catch((error) => {
+            const modalEl = document.getElementById('clientModal');
+            clientModalControlsPromise = Promise.all([
+                loadBankAccountFormatRegistry?.(),
+                initCodeSelectControls(modalEl),
+                loadDefaultAccountRows(),
+            ]).catch((error) => {
                 console.error('[client] modal controls preload failed', error);
                 clientModalControlsPromise = null;
+                throw error;
             });
         }
         return clientModalControlsPromise;

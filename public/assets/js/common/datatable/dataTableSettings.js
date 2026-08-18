@@ -2,6 +2,7 @@ import { openDataTableColumnSettings } from './dataTableColumnSettings.js';
 import {
     deleteSystemUserSettingsStorage,
     ensureSystemUserSettingsStorage,
+    peekSystemUserSettingsStorage,
     readSystemUserSettingsStorage,
     writeSystemUserSettingsStorage,
 } from '../user-settings/systemUserSettingsStorage.js';
@@ -9,6 +10,7 @@ import {
 const SETTINGS_VERSION = 5;
 const META_API_URL = '/api/settings/system/data-table-columns';
 const __dtMetaCache = new Map();
+const __dtMetaPending = new Map();
 const COLUMN_LABEL_OVERRIDES = {
     sort_no: '\uC21C\uBC88',
 };
@@ -100,6 +102,7 @@ function normalizeMetaColumns(metaColumns = []) {
                 table: String(column?.table || column?.table_name || '').trim(),
                 table_comment: String(column?.table_comment || column?.tableComment || '').trim(),
                 ordinal_position: Number(column?.ordinal_position || column?.settings_order || index + 1) || (index + 1),
+                source_ordinal_position: Number(column?.source_ordinal_position || column?.ordinal_position || index + 1) || (index + 1),
                 data_type: String(column?.data_type || '').trim(),
                 required: Boolean(column?.required),
                 settings_visible: column?.settings_visible !== false,
@@ -135,7 +138,7 @@ function buildMetaCacheKey(config = {}) {
     return '';
 }
 
-export function fetchDataTableMetaColumnsSync(config = {}, options = {}) {
+export async function fetchDataTableMetaColumns(config = {}, options = {}) {
     const metaColumns = normalizeMetaColumns(config.metaColumns || []);
     if (metaColumns.length > 0) {
         return metaColumns;
@@ -145,6 +148,9 @@ export function fetchDataTableMetaColumnsSync(config = {}, options = {}) {
     const forceRefresh = options?.forceRefresh === true;
     if (!forceRefresh && cacheKey !== '' && __dtMetaCache.has(cacheKey)) {
         return __dtMetaCache.get(cacheKey);
+    }
+    if (!forceRefresh && cacheKey !== '' && __dtMetaPending.has(cacheKey)) {
+        return __dtMetaPending.get(cacheKey);
     }
 
     const domain = String(config.metaDomain || '').trim();
@@ -157,30 +163,33 @@ export function fetchDataTableMetaColumnsSync(config = {}, options = {}) {
         return [];
     }
 
-    try {
-        const request = new XMLHttpRequest();
-        request.open('GET', requestUrl, false);
-        request.setRequestHeader('Accept', 'application/json');
-        request.send(null);
-
-        if (request.status < 200 || request.status >= 300) {
+    const pending = (async () => {
+        try {
+            const response = await fetch(requestUrl, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return [];
+            const json = await response.json();
+            const fetched = normalizeMetaColumns(json?.data || []);
+            if (cacheKey !== '') __dtMetaCache.set(cacheKey, fetched);
+            return fetched;
+        } catch (error) {
+            console.warn('[datatable-settings] meta fetch failed:', error);
             return [];
+        } finally {
+            if (cacheKey !== '') __dtMetaPending.delete(cacheKey);
         }
-
-        const json = JSON.parse(request.responseText || '{}');
-        const fetched = normalizeMetaColumns(json?.data || []);
-        if (cacheKey !== '') {
-            __dtMetaCache.set(cacheKey, fetched);
-        }
-        return fetched;
-    } catch (error) {
-        console.warn('[datatable-settings] meta fetch failed:', error);
-        return [];
-    }
+    })();
+    if (cacheKey !== '') __dtMetaPending.set(cacheKey, pending);
+    return pending;
 }
 
-export function buildDataTableDefaultMetaEntries(config = {}, options = {}) {
-    return fetchDataTableMetaColumnsSync(config, options)
+export function getCachedDataTableMetaColumns(config = {}) {
+    const inline = normalizeMetaColumns(config.metaColumns || []);
+    if (inline.length > 0) return inline;
+    return __dtMetaCache.get(buildMetaCacheKey(config)) || [];
+}
+
+export async function buildDataTableDefaultMetaEntries(config = {}, options = {}) {
+    return (await fetchDataTableMetaColumns(config, options))
         .filter((column) => String(column?.column_type || 'physical') === 'physical')
         .map((column) => ({
             key: String(column?.key || '').trim(),
@@ -423,14 +432,13 @@ function normalizeColumnDefinitions(columns = [], config = {}, metaColumns = [])
         const configurable = isConfigurableColumn(safeColumn);
         const hasStableKey = key !== '';
         const physicalMeta = hasStableKey ? physicalMetaByKey.get(key) : null;
-        const settingsConfigurable = hasStableKey && (physicalMeta ? true : configurable);
+        const settingsConfigurable = hasStableKey
+            && (hasPhysicalMetaColumns ? Boolean(physicalMeta) : configurable);
         const required = Boolean(physicalMeta?.required);
         const visible = settingsConfigurable
             ? (defaultVisibleSet.size > 0
                 ? defaultVisibleSet.has(key)
-                : (physicalMeta
-                    ? physicalMeta.settings_visible !== false
-                    : safeColumn.visible !== false))
+                : safeColumn.visible !== false)
             : safeColumn.visible !== false;
         const defaultOrder = Number(
             physicalMeta?.ordinal_position
@@ -611,11 +619,21 @@ function buildUserSettingOptions(config = {}, settingType = 'TABLE') {
         metaDomain: String(config.metaDomain || '').trim(),
         userSettingPageKey: String(config.userSettingPageKey || '').trim(),
         description: String(config.description || '').trim(),
+        resetOnColumnSchemaChange: config.resetOnColumnSchemaChange === true,
     };
 }
 
-function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = []) {
+function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], resetOnColumnSchemaChange = false) {
     const orderSet = new Set(defaults.columnOrder || []);
+    const parsedKeys = [
+        ...(Array.isArray(parsed.columnOrder) ? parsed.columnOrder : []),
+        ...(Array.isArray(parsed.visibleColumns) ? parsed.visibleColumns : []),
+        ...Object.keys(parsed.columnDisplayName && typeof parsed.columnDisplayName === 'object' ? parsed.columnDisplayName : {}),
+        ...Object.keys(parsed.columnRequirementPolicy && typeof parsed.columnRequirementPolicy === 'object' ? parsed.columnRequirementPolicy : {}),
+    ].map((key) => String(key || '').trim()).filter(Boolean);
+    if (resetOnColumnSchemaChange && parsedKeys.some((key) => !orderSet.has(key))) {
+        parsed = {};
+    }
     const availableKeySet = new Set(
         columns
             .map((column) => String(column.__dtSettingsKey || '').trim())
@@ -730,20 +748,27 @@ function normalizeLoadedViewState(parsed = {}, defaults = {}, columns = []) {
     };
 }
 
-function loadState(config = {}, columns = []) {
+async function loadState(config = {}, columns = [], preloaded = {}) {
     const tableDefaults = defaultTableState(columns, config);
     const viewDefaults = defaultViewState(columns, config);
     const storageKey = buildStorageKey(config);
 
     try {
-        const savedTableState = readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'TABLE'))
-            || ensureSystemUserSettingsStorage(storageKey, tableDefaults, buildUserSettingOptions(config, 'TABLE'))
-            || {};
-        const savedViewState = readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'VIEW'))
-            || ensureSystemUserSettingsStorage(storageKey, viewDefaults, buildUserSettingOptions(config, 'VIEW'))
-            || {};
+        const [loadedTableState, loadedViewState] = await Promise.all([
+            preloaded.table || readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'TABLE')),
+            preloaded.view || readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'VIEW')),
+        ]);
+        const savedTableState = loadedTableState
+            || await ensureSystemUserSettingsStorage(storageKey, tableDefaults, buildUserSettingOptions(config, 'TABLE')) || {};
+        const savedViewState = loadedViewState
+            || await ensureSystemUserSettingsStorage(storageKey, viewDefaults, buildUserSettingOptions(config, 'VIEW')) || {};
 
-        const normalizedTableState = normalizeLoadedTableState(savedTableState, tableDefaults, columns);
+        const normalizedTableState = normalizeLoadedTableState(
+            savedTableState,
+            tableDefaults,
+            columns,
+            config.resetOnColumnSchemaChange === true
+        );
         const normalizedViewState = normalizeLoadedViewState(savedViewState, viewDefaults, columns);
 
         return {
@@ -981,6 +1006,31 @@ function moveActionColumnsToEnd(columns = []) {
     return [...leadingColumns, ...actionColumns];
 }
 
+function moveColumnsImmediatelyBeforeActions(columns = [], keys = []) {
+    const trailingKeys = new Set((Array.isArray(keys) ? keys : [])
+        .map((key) => String(key || '').trim())
+        .filter(Boolean));
+    if (trailingKeys.size === 0) {
+        return moveActionColumnsToEnd(columns);
+    }
+
+    const leadingColumns = [];
+    const trailingColumns = [];
+    const actionColumns = [];
+    columns.forEach((column) => {
+        const copiedColumn = { ...column };
+        const key = String(copiedColumn?.__dtSettingsKey || copiedColumn?.settingsKey || '').trim();
+        if (key === '__actions') {
+            actionColumns.push(copiedColumn);
+        } else if (trailingKeys.has(key)) {
+            trailingColumns.push(copiedColumn);
+        } else {
+            leadingColumns.push(copiedColumn);
+        }
+    });
+    return [...leadingColumns, ...trailingColumns, ...actionColumns];
+}
+
 function currentEntries(context = {}) {
     const visibleSet = new Set(context.tableState?.visibleColumns || []);
 
@@ -1092,9 +1142,9 @@ function buildSettingsSubtitle(context = {}) {
     return `${tableLabel} \uCEEC\uB7FC \uD45C\uC2DC\uC640 \uC21C\uC11C\uB97C \uC124\uC815\uD569\uB2C8\uB2E4.`;
 }
 
-function buildPreparedSettingsState(context = {}, options = {}) {
+async function buildPreparedSettingsState(context = {}, options = {}) {
     const baseConfig = context.config || {};
-    const metaColumns = fetchDataTableMetaColumnsSync(baseConfig, {
+    const metaColumns = await fetchDataTableMetaColumns(baseConfig, {
         forceRefresh: options.forceRefresh === true,
     });
     const baseOriginalColumns = Array.isArray(context.originalColumns)
@@ -1113,7 +1163,7 @@ function buildPreparedSettingsState(context = {}, options = {}) {
         : baseColumnsWithoutInjectedPhysical;
     const normalizedColumns = normalizeColumnDefinitions(sourceColumns, baseConfig, metaColumns);
     const defaults = defaultTableState(normalizedColumns, baseConfig);
-    const appliedColumns = moveActionColumnsToEnd(
+    const appliedColumns = moveColumnsImmediatelyBeforeActions(
         applyColumnPolicies(
             applyVisibility(
                 reorderConfigurableColumns(normalizedColumns, defaults.columnOrder),
@@ -1121,7 +1171,8 @@ function buildPreparedSettingsState(context = {}, options = {}) {
                 defaults.requiredColumns
             ),
             defaults
-        )
+        ),
+        baseConfig.columnsImmediatelyBeforeActions
     );
 
     return {
@@ -1132,8 +1183,8 @@ function buildPreparedSettingsState(context = {}, options = {}) {
     };
 }
 
-function openSettings(table, context = {}) {
-    const preparedDefaults = buildPreparedSettingsState(context);
+async function openSettings(table, context = {}) {
+    const preparedDefaults = await buildPreparedSettingsState(context);
     context.metaColumns = preparedDefaults.metaColumns;
     context.originalColumns = preparedDefaults.originalColumns;
     const defaults = preparedDefaults.defaults;
@@ -1147,9 +1198,9 @@ function openSettings(table, context = {}) {
             tableState: defaults,
             appliedColumns: preparedDefaults.appliedColumns,
         }),
-        restoreDefaults() {
-            deleteSystemUserSettingsStorage(context.storageKey, buildUserSettingOptions(context.config, 'TABLE'));
-            const restored = buildPreparedSettingsState(context, { forceRefresh: true });
+        async restoreDefaults() {
+            await deleteSystemUserSettingsStorage(context.storageKey, buildUserSettingOptions(context.config, 'TABLE'));
+            const restored = await buildPreparedSettingsState(context, { forceRefresh: true });
             context.metaColumns = restored.metaColumns;
             context.originalColumns = restored.originalColumns;
             return currentEntries({
@@ -1187,12 +1238,13 @@ function openSettings(table, context = {}) {
             const requiresReapply = orderChanged(context.tableState.columnOrder, nextState.columnOrder)
                 || mapChanged(context.tableState.columnDisplayName, nextState.columnDisplayName);
             context.tableState = saveSettingState(context.config, nextState, context.tableState, 'TABLE');
-            context.appliedColumns = moveActionColumnsToEnd(
+            context.appliedColumns = moveColumnsImmediatelyBeforeActions(
                 applyColumnPolicies(applyVisibility(
                     reorderConfigurableColumns(context.originalColumns || [], context.tableState.columnOrder),
                     context.tableState.visibleColumns,
                     context.tableState.requiredColumns
-                ), context.tableState)
+                ), context.tableState),
+                context.config?.columnsImmediatelyBeforeActions
             ).map((column) => ({ ...column }));
             dispatchDataTableSettingsUpdated(context);
 
@@ -1294,7 +1346,7 @@ function normalizeSettingsTriggerUi(table) {
     });
 }
 
-export function prepareDataTableSettingsColumns(columns = [], config = null) {
+export async function prepareDataTableSettingsColumns(columns = [], config = null) {
     const enabled = Boolean(config?.enabled);
     if (!enabled) {
         return {
@@ -1303,21 +1355,27 @@ export function prepareDataTableSettingsColumns(columns = [], config = null) {
         };
     }
 
-    const metaColumns = fetchDataTableMetaColumnsSync(config);
+    const storageKey = buildStorageKey(config);
+    const preloaded = {
+        table: readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'TABLE')),
+        view: readSystemUserSettingsStorage(storageKey, buildUserSettingOptions(config, 'VIEW')),
+    };
+    const metaColumns = await fetchDataTableMetaColumns(config);
     const filteredColumns = filterColumnsByPhysicalMeta(columns, metaColumns);
     const sourceColumns = metaColumns.length > 0
         ? [...filteredColumns, ...buildMissingPhysicalColumns(filteredColumns, metaColumns)]
         : filteredColumns;
     const normalizedColumns = normalizeColumnDefinitions(sourceColumns, config, metaColumns);
-    const loadedState = loadState(config, normalizedColumns);
+    const loadedState = await loadState(config, normalizedColumns, preloaded);
     const tableState = loadedState.tableState;
     const viewState = loadedState.viewState;
     const orderedColumns = reorderConfigurableColumns(normalizedColumns, tableState.columnOrder);
-    const appliedColumns = moveActionColumnsToEnd(
+    const appliedColumns = moveColumnsImmediatelyBeforeActions(
         applyColumnPolicies(
             applyVisibility(orderedColumns, tableState.visibleColumns, tableState.requiredColumns),
             tableState
-        )
+        ),
+        config.columnsImmediatelyBeforeActions
     );
 
     return {
@@ -1366,10 +1424,19 @@ export function readDataTableSettingsState(storageKey = '', options = {}) {
         ? normalizedKey
         : `datatable.settings.${normalizedKey}`;
 
-    return readSystemUserSettingsStorage(resolvedKey, {
+    return peekSystemUserSettingsStorage(resolvedKey, {
         ...options,
         settingType: 'TABLE',
     });
+}
+
+export async function loadDataTableSettingsState(storageKey = '', options = {}) {
+    const normalizedKey = String(storageKey || '').trim();
+    if (normalizedKey === '') return null;
+    const resolvedKey = normalizedKey.startsWith('datatable.settings.')
+        ? normalizedKey
+        : `datatable.settings.${normalizedKey}`;
+    return readSystemUserSettingsStorage(resolvedKey, { ...options, settingType: 'TABLE' });
 }
 
 export function resolveDataTableColumnDisplayName(column = {}, stateOrStorageKey = null, fallback = '') {
@@ -1397,4 +1464,56 @@ export function resolveDataTableColumnRequirementPolicy(column = {}, stateOrStor
     return normalizeRequirementPolicy(
         firstPolicyValue(requirementPolicyMap, resolveColumnPolicyKeys(column))
     );
+}
+
+export async function openStandaloneDataTableSettings(config = {}) {
+    const storageKey = String(config.storageKey || '').trim();
+    const settingsOptions = buildUserSettingOptions(config, 'TABLE');
+    const defaults = await buildDataTableDefaultMetaEntries(config, { forceRefresh: config.forceRefresh === true });
+    const saved = await loadDataTableSettingsState(storageKey, settingsOptions) || {};
+    const entries = defaults.map(entry => ({
+        ...entry,
+        visible: Array.isArray(saved.visibleColumns) ? saved.visibleColumns.includes(entry.key) : entry.visible,
+        displayName: normalizedDisplayName(saved.columnDisplayName?.[entry.key], entry.displayName),
+        requirementPolicy: normalizeRequirementPolicy(
+            saved.columnRequirementPolicy?.[entry.key] ?? entry.requirementPolicy
+        ),
+    }));
+
+    return openDataTableColumnSettings({
+        title: String(config.title || '테이블 설정'),
+        subtitle: String(config.subtitle || '컬럼 표시, 순서, 사용컬럼명, 필수구분을 설정합니다.'),
+        entries,
+        defaultEntries: defaults,
+        async restoreDefaults() {
+            await deleteSystemUserSettingsStorage(storageKey, settingsOptions);
+            return buildDataTableDefaultMetaEntries(config, { forceRefresh: true });
+        },
+        onSave(nextEntries) {
+            const nextState = {
+                version: SETTINGS_VERSION,
+                updatedAt: new Date().toISOString(),
+                visibleColumns: nextEntries.filter(entry => entry.visible).map(entry => entry.key),
+                columnOrder: nextEntries.map(entry => entry.key),
+                columnDisplayName: Object.fromEntries(nextEntries.map(entry => [
+                    entry.key, normalizedDisplayName(entry.displayName, entry.title || entry.key),
+                ])),
+                columnRequirementPolicy: Object.fromEntries(nextEntries.map(entry => [
+                    entry.key, normalizeRequirementPolicy(entry.requirementPolicy),
+                ])),
+            };
+            writeSystemUserSettingsStorage(
+                storageKey,
+                buildDataTableStatePayload(nextState, 'TABLE'),
+                settingsOptions
+            );
+            dispatchDataTableSettingsUpdated({
+                storageKey,
+                tableKey: String(config.tableKey || '').trim(),
+                tableLabel: String(config.tableLabel || '').trim(),
+                config,
+            });
+            notify('success', '테이블 설정이 저장되었습니다.');
+        },
+    });
 }

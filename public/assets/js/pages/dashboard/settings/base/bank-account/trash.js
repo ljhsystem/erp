@@ -1,5 +1,3 @@
-import { actorDisplay } from '/public/assets/js/common/actor.js';
-
 export function bindTrashEvents({
     getTable,
     columnMap,
@@ -32,7 +30,7 @@ export function bindTrashEvents({
                 displayValue = formatAccountNumber(value, data.bank_name || '');
             }
             if (config.type === 'actor') {
-                displayValue = actorDisplay(data, key);
+                displayValue = data[`${key}_name`] ?? '';
             }
 
             html += `<div><b>${config.label}:</b> ${displayValue}</div>`;
@@ -53,7 +51,7 @@ export function bindTrashEvents({
             <td>${escapeHtml(getCodeName('account_type', row.account_type) || row.account_type || '')}</td>
             <td>${row.currency ?? ''}</td>
             <td>${row.deleted_at ?? ''}</td>
-            <td>${actorDisplay(row, 'deleted_by')}</td>
+            <td>${row.deleted_by_name ?? ''}</td>
             <td>
                 <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                 <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">삭제</button>

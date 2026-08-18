@@ -20,10 +20,9 @@ class CodeModel
             SELECT
                 c.*,
                 c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                c.updated_by AS updated_by_name
             FROM system_codes c
-            WHERE c.deleted_at IS NULL
+            WHERE 1 = 1
         ";
 
         $params = [];
@@ -43,9 +42,6 @@ class CodeModel
             'updated_at' => ['col' => 'c.updated_at', 'type' => 'date'],
             'updated_by' => ['col' => 'c.updated_by', 'type' => 'like'],
             'updated_by_name' => ['col' => 'c.updated_by', 'type' => 'like'],
-            'deleted_at' => ['col' => 'c.deleted_at', 'type' => 'date'],
-            'deleted_by' => ['col' => 'c.deleted_by', 'type' => 'like'],
-            'deleted_by_name' => ['col' => 'c.deleted_by', 'type' => 'like'],
         ];
 
         $globalSearch = [];
@@ -103,8 +99,7 @@ class CodeModel
                 'c.created_by',
                 'c.updated_by',
                 'c.created_by',
-                'c.updated_by',
-                'c.deleted_by'
+                'c.updated_by'
             ];
             $sql .= " AND (";
 
@@ -131,7 +126,6 @@ class CodeModel
         return ActorHelper::enrichActorNames($rows, [
             'created_by_name' => 'created_by_name',
             'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
         ]);
     }
 
@@ -141,8 +135,7 @@ class CodeModel
             SELECT
                 c.*,
                 c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                c.updated_by AS updated_by_name
             FROM system_codes c
             WHERE c.id = :id
             LIMIT 1
@@ -157,7 +150,6 @@ class CodeModel
         return ActorHelper::enrichActorNamesRow($row, [
             'created_by_name' => 'created_by_name',
             'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
         ]);
     }
 
@@ -168,8 +160,7 @@ class CodeModel
                 UPPER(TRIM(code_group)) AS code_group,
                 MIN(TRIM(group_name)) AS group_name
             FROM system_codes
-            WHERE deleted_at IS NULL
-              AND code_group IS NOT NULL
+            WHERE code_group IS NOT NULL
               AND TRIM(code_group) <> ''
             GROUP BY UPPER(TRIM(code_group))
             ORDER BY group_name ASC, code_group ASC
@@ -185,7 +176,6 @@ class CodeModel
             SELECT *
             FROM system_codes
             WHERE code_group = :code_group
-              AND deleted_at IS NULL
         ";
 
         if ($activeOnly) {
@@ -207,7 +197,6 @@ class CodeModel
             FROM system_codes
             WHERE code_group = :code_group
               AND is_active = 1
-              AND deleted_at IS NULL
             ORDER BY sort_no ASC, code_name ASC
         ");
         $stmt->execute([':code_group' => $codeGroup]);
@@ -222,7 +211,6 @@ class CodeModel
             FROM system_codes
             WHERE code_group = :code_group
               AND code = :code
-              AND deleted_at IS NULL
             LIMIT 1
         ");
         $stmt->execute([
@@ -231,6 +219,37 @@ class CodeModel
         ]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function findActiveName(string $codeGroup, string $code): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT code_name FROM system_codes
+            WHERE code_group = :code_group AND code = :code
+              AND is_active = 1
+            LIMIT 1
+        ");
+        $stmt->execute([':code_group' => $codeGroup, ':code' => $code]);
+        return trim((string) ($stmt->fetchColumn() ?: ''));
+    }
+
+    public function resolveActiveCode(string $codeGroup, string $code, string $name): ?string
+    {
+        $stmt = $this->db->prepare("SELECT code FROM system_codes WHERE is_active = 1 AND code_group = :code_group AND (UPPER(code) = :code OR code_name = :name) LIMIT 1");
+        $stmt->execute([':code_group' => $codeGroup, ':code' => strtoupper($code), ':name' => $name]);
+        $value = $stmt->fetchColumn();
+        return $value !== false ? (string) $value : null;
+    }
+
+    public function getActiveCodesByGroup(string $codeGroup): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT code, code_name FROM system_codes
+            WHERE is_active = 1 AND code_group = :code_group
+            ORDER BY sort_no ASC, code ASC
+        ");
+        $stmt->execute([':code_group' => $codeGroup]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function existsByGroupAndCode(string $codeGroup, string $code, ?string $excludeId = null): bool
@@ -264,7 +283,6 @@ class CodeModel
             SELECT group_name
             FROM system_codes
             WHERE code_group = :code_group
-              AND deleted_at IS NULL
               AND TRIM(group_name) <> ''
         ";
 
@@ -355,7 +373,6 @@ class CodeModel
             SET group_name = :group_name,
                 updated_by = :updated_by
             WHERE code_group = :code_group
-              AND deleted_at IS NULL
         ");
 
         return $stmt->execute([
@@ -365,74 +382,12 @@ class CodeModel
         ]);
     }
 
-    public function deleteById(string $id, string $actor): bool
+    public function deleteById(string $id): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE system_codes
-            SET is_active = 0,
-                deleted_at = NOW(),
-                deleted_by = :deleted_by,
-                updated_by = :updated_by
-            WHERE id = :id
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([
-            ':id' => $id,
-            ':deleted_by' => $actor,
-            ':updated_by' => $actor,
-        ]);
+        $stmt = $this->db->prepare('DELETE FROM system_codes WHERE id = :id');
+        $stmt->execute([':id' => $id]);
 
         return $stmt->rowCount() > 0;
-    }
-
-    public function getDeleted(): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT
-                c.*,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
-            FROM system_codes c
-            WHERE c.deleted_at IS NOT NULL
-            ORDER BY c.deleted_at DESC
-        ");
-        $stmt->execute();
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
-        ]);
-    }
-
-    public function restoreById(string $id, string $actor): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE system_codes
-            SET is_active = 1,
-                deleted_at = NULL,
-                deleted_by = NULL,
-                updated_by = :actor
-            WHERE id = :id
-              AND deleted_at IS NOT NULL
-        ");
-
-        $stmt->execute([
-            ':id' => $id,
-            ':actor' => $actor,
-        ]);
-
-        return $stmt->rowCount() > 0;
-    }
-
-    public function hardDeleteById(string $id): bool
-    {
-        $stmt = $this->db->prepare("DELETE FROM system_codes WHERE id = :id");
-
-        return $stmt->execute([':id' => $id]);
     }
 
     public function tableExists(string $table): bool
@@ -508,35 +463,54 @@ class CodeModel
         $jsonPath = '$."' . str_replace('"', '\"', $jsonKey) . '"';
         $deletedFilter = $this->columnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
 
-        try {
-            $stmt = $this->db->prepare("
-                SELECT COUNT(*)
-                FROM {$quotedTable}
-                WHERE JSON_VALID({$quotedColumn})
-                  AND JSON_UNQUOTE(JSON_EXTRACT({$quotedColumn}, :json_path)) = :value
-                  {$deletedFilter}
-            ");
-            $stmt->execute([
-                ':json_path' => $jsonPath,
-                ':value' => $value,
-            ]);
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM {$quotedTable}
+            WHERE JSON_VALID({$quotedColumn})
+              AND JSON_UNQUOTE(JSON_EXTRACT({$quotedColumn}, :json_path)) = :value
+              {$deletedFilter}
+        ");
+        $stmt->execute([
+            ':json_path' => $jsonPath,
+            ':value' => $value,
+        ]);
 
-            return (int)$stmt->fetchColumn();
-        } catch (\Throwable) {
-            return 0;
-        }
+        return (int)$stmt->fetchColumn();
     }
 
-    public function updateSortNo(string $id, string $newSortNo): bool
+    public function countJsonReferences(string $table, string $column, string $value): int
+    {
+        if (!$this->tableExists($table) || !$this->columnExists($table, $column)) {
+            return 0;
+        }
+
+        $quotedTable = $this->quoteIdentifier($table);
+        $quotedColumn = $this->quoteIdentifier($column);
+        $deletedFilter = $this->columnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM {$quotedTable}
+            WHERE JSON_VALID({$quotedColumn})
+              AND JSON_SEARCH({$quotedColumn}, 'one', :value) IS NOT NULL
+              {$deletedFilter}
+        ");
+        $stmt->execute([':value' => $value]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function updateSortNo(string $id, string $newSortNo, string $actor): bool
     {
         $stmt = $this->db->prepare("
             UPDATE system_codes
-            SET sort_no = :sort_no
+            SET sort_no = :sort_no,
+                updated_at = NOW(),
+                updated_by = :updated_by
             WHERE id = :id
         ");
 
         return $stmt->execute([
             ':sort_no' => (int)$newSortNo,
+            ':updated_by' => $actor,
             ':id' => $id,
         ]);
     }

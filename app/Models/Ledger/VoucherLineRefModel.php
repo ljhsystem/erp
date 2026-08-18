@@ -92,7 +92,7 @@ class VoucherLineRefModel
                 $payload = [
                     'id' => UuidHelper::generate(),
                     'voucher_line_id' => $voucherLineId,
-                    'ref_target' => trim((string) ($ref['ref_target'] ?? $ref['ref_type'] ?? '')),
+                    'ref_target' => trim((string) ($ref['ref_target'] ?? '')),
                     'ref_id' => trim((string) ($ref['ref_id'] ?? '')),
                     'created_at' => $timestamp,
                     'created_by' => $actor,
@@ -127,6 +127,17 @@ class VoucherLineRefModel
             WHERE voucher_line_id IN ({$placeholders})
         ");
         $stmt->execute($params);
+    }
+
+    public function purgeByVoucherId(string $voucherId): void
+    {
+        $stmt = $this->db->prepare("
+            DELETE r
+            FROM {$this->table} r
+            INNER JOIN ledger_voucher_lines l ON l.id = r.voucher_line_id
+            WHERE l.voucher_id = :voucher_id
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
     }
 
     public function insert(array $data): bool

@@ -6,6 +6,7 @@ use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\User\EmployeeModel;
 use App\Models\Auth\LogModel;
+use App\Models\Auth\RoleModel;
 use App\Services\File\FileService;
 use App\Services\Mail\MailService;
 use App\Services\System\SettingService;
@@ -19,6 +20,7 @@ class RegisterService
     private UserModel $usersModel;
     private EmployeeModel $employeeModel;
     private LogModel $authLogs;
+    private RoleModel $roleModel;
     private MailService $mailService;
     private FileService $fileService;
     private SettingService $settingService;
@@ -30,6 +32,7 @@ class RegisterService
         $this->usersModel = new UserModel($pdo);
         $this->employeeModel = new EmployeeModel($pdo);
         $this->authLogs = new LogModel($pdo);
+        $this->roleModel = new RoleModel($pdo);
         $this->mailService = new MailService();
         $this->fileService = new FileService($pdo);
         $this->settingService = new SettingService($pdo);
@@ -120,8 +123,6 @@ class RegisterService
                 'emergency_phone'  => null,
                 'client_id'        => null,
                 'profile_image'    => $profileImage['db_path'],
-                'certificate_name' => null,
-                'certificate_file' => null,
                 'note'             => null,
                 'memo'             => null,
                 'created_by'       => $userId,
@@ -255,8 +256,6 @@ class RegisterService
 
     private function getDefaultRoleId(): ?string
     {
-        $stmt = $this->pdo->prepare("SELECT id FROM auth_roles WHERE role_key = 'user' LIMIT 1");
-        $stmt->execute();
-        return $stmt->fetchColumn() ?: null;
+        return $this->roleModel->findIdByKey('staff');
     }
 }

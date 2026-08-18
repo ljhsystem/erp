@@ -103,6 +103,7 @@ $tableHead = '
 ';
 
 $emptyMessage = '삭제된 거래처를 선택하세요';
+$purgeConfirm = '다른 업무에서 사용 중인 거래처는 유지되며, 미사용 거래처만 영구삭제됩니다. 계속하시겠습니까?';
 
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>

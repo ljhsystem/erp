@@ -19,5 +19,3 @@ if ($footerText === '') {
         <small><?= htmlspecialchars($footerText, ENT_QUOTES, 'UTF-8') ?></small>
     </div>
 </footer>
-
-<?= AssetHelper::js('https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js') ?>

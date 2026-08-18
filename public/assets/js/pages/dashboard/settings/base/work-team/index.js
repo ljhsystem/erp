@@ -11,6 +11,7 @@ import { createWorkTeamExcelModule } from './excel.js';
 import { escapeHtml } from './form.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
+import '/public/assets/js/common/core/AppAjax.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -39,14 +40,10 @@ async function updateWorkTeamActive(teamId, active, toggleEl) {
 
         if (toggleEl) toggleEl.disabled = true;
 
-        const res = await fetch(WORK_TEAM_API.SAVE, {
+        await window.AppAjax.fetchJson(WORK_TEAM_API.SAVE, {
             method: 'POST',
             body: formData
         });
-        const json = await res.json();
-        if (!json.success) {
-            throw new Error(json.message || '상태 변경에 실패했습니다.');
-        }
 
         tableModule.reloadTable();
         notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
@@ -59,7 +56,7 @@ async function updateWorkTeamActive(teamId, active, toggleEl) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     if (!window.jQuery) {
         console.error('jQuery not loaded');
         return;
@@ -130,8 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modalModule.initModal();
     modalModule.initAdminDatePicker();
     modalModule.initExcelDataset();
-    excelModule.initExcelDataset();
-    tableModule.initDataTable();
+    await tableModule.initDataTable();
+    tableModule.getTable()?.one('draw.dt', () => { void excelModule.initExcelDataset(); });
     tableModule.bindTableEvents();
     modalModule.bindModalEvents();
     modalModule.preloadModalControls();

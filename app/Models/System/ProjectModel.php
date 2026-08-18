@@ -24,10 +24,7 @@ class ProjectModel
                     WHEN se.employee_name IS NULL THEN NULL
                     WHEN COALESCE(sau.is_active, 1) = 0 THEN CONCAT(se.employee_name, ' (비활성)')
                     ELSE se.employee_name
-                END AS site_agent_name,
-                p.created_by AS created_by_name,
-                p.updated_by AS updated_by_name,
-                p.deleted_by AS deleted_by_name
+                END AS site_agent_name
             FROM system_projects p
             LEFT JOIN system_clients c ON p.client_id = c.id
             LEFT JOIN user_employees e ON p.employee_id = e.id
@@ -197,7 +194,7 @@ class ProjectModel
             $sql .= ")";
         }
 
-        $sql .= " ORDER BY p.sort_no DESC";
+        $sql .= " ORDER BY p.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -205,9 +202,9 @@ class ProjectModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -223,11 +220,7 @@ class ProjectModel
                     WHEN se.employee_name IS NULL THEN NULL
                     WHEN COALESCE(sau.is_active, 1) = 0 THEN CONCAT(se.employee_name, ' (비활성)')
                     ELSE se.employee_name
-                END AS site_agent_name,
-
-                p.created_by AS created_by_name,
-                p.updated_by AS updated_by_name,
-                p.deleted_by AS deleted_by_name
+                END AS site_agent_name
 
             FROM system_projects p
 
@@ -256,9 +249,9 @@ class ProjectModel
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -291,6 +284,7 @@ class ProjectModel
                     WHEN project_name LIKE :prefix THEN 0
                     ELSE 1
                 END,
+                sort_no ASC,
                 project_name ASC
 
             LIMIT {$limit}
@@ -659,11 +653,7 @@ class ProjectModel
                 p.*,
 
                 c.client_name AS linked_client_name,
-                e.employee_name AS employee_name,
-
-                p.created_by AS created_by_name,
-                p.updated_by AS updated_by_name,
-                p.deleted_by AS deleted_by_name
+                e.employee_name AS employee_name
 
             FROM system_projects p
 
@@ -682,9 +672,9 @@ class ProjectModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 

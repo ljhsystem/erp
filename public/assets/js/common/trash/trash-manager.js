@@ -1,3 +1,6 @@
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
+
 (function () {
     'use strict';
 
@@ -36,6 +39,12 @@
         } else {
             console.warn(message);
         }
+    }
+
+    function escapeHtml(value) {
+        const node = document.createElement('div');
+        node.textContent = String(value ?? '');
+        return node.innerHTML;
     }
 
     function showGlobalLoading(message = '처리 중입니다...') {
@@ -110,6 +119,11 @@
     function changedCount(json, key, fallback = 0) {
         const value = Number(json?.data?.[key] ?? fallback);
         return Number.isFinite(value) ? value : fallback;
+    }
+
+    function purgeConfirmMessage(modal, prefix = '') {
+        const message = String(modal?.dataset?.purgeConfirm || '영구삭제하시겠습니까?');
+        return prefix ? `${prefix}\n\n${message}` : message;
     }
 
     function notifyActionResult(json, {
@@ -240,7 +254,12 @@
             event.stopPropagation();
 
             const id = restoreBtn.dataset.id;
-            if (!id || !confirm('복원하시겠습니까?')) return;
+            if (!id || !await confirmDialog({
+                title: '복원',
+                message: '이 항목을 복원하시겠습니까?',
+                confirmText: '복원',
+                confirmClass: 'btn-success',
+            })) return;
             await runTrashAction(modal, '복원 처리 중입니다...', async () => {
                 const json = await postFormJson(restoreUrl, actionPayload(modal, { id }));
                 if (json.success === false) {
@@ -262,7 +281,7 @@
             event.stopPropagation();
 
             const id = deleteBtn.dataset.id;
-            if (!id || !confirm('영구삭제하시겠습니까?')) return;
+            if (!id || !await confirmDialog({ title: '영구삭제', message: purgeConfirmMessage(modal), confirmText: '영구삭제', confirmClass: 'btn-danger' })) return;
             await runTrashAction(modal, '영구삭제 처리 중입니다...', async () => {
                 const json = await postFormJson(deleteUrl, actionPayload(modal, { id }));
                 if (json.success === false) {
@@ -274,7 +293,7 @@
                     countKey: 'deleted_count',
                 });
                 await triggerChange(modal);
-            });
+            }, { deleteProgress: true, total: 1, title: '완전삭제 처리 중' });
             return;
         }
 
@@ -284,7 +303,7 @@
                 notify('warning', '선택된 항목이 없습니다.');
                 return;
             }
-            if (!confirm('선택 항목을 복원하시겠습니까?')) return;
+            if (!await confirmDialog({ title: '선택 복원', message: '선택 항목을 복원하시겠습니까?', confirmText: '복원', confirmClass: 'btn-success' })) return;
 
             await runTrashAction(modal, `선택 복원 처리 중입니다... (${ids.length}건)`, async () => {
                 const json = await postJson(actionUrl(modal, 'restoreBulk'), actionPayload(modal, { ids }));
@@ -307,7 +326,7 @@
                 notify('warning', '선택된 항목이 없습니다.');
                 return;
             }
-            if (!confirm('선택 항목을 영구삭제하시겠습니까?')) return;
+            if (!await confirmDialog({ title: '선택 영구삭제', message: purgeConfirmMessage(modal, '선택 항목을 완전삭제합니다.'), confirmText: '영구삭제', confirmClass: 'btn-danger' })) return;
 
             await runTrashAction(modal, `선택 영구삭제 처리 중입니다... (${ids.length}건)`, async () => {
                 const json = await postJson(actionUrl(modal, 'deleteBulk'), actionPayload(modal, { ids }));
@@ -320,12 +339,12 @@
                     countKey: 'deleted_count',
                 });
                 await triggerChange(modal);
-            });
+            }, { deleteProgress: true, total: ids.length, title: '선택 완전삭제 처리 중' });
             return;
         }
 
         if (event.target.closest('.btn-restore-all')) {
-            if (!confirm('전체 항목을 복원하시겠습니까?')) return;
+            if (!await confirmDialog({ title: '전체 복원', message: '전체 항목을 복원하시겠습니까?', confirmText: '복원', confirmClass: 'btn-success' })) return;
 
             await runTrashAction(modal, '전체 복원 처리 중입니다...', async () => {
                 const json = await postJson(actionUrl(modal, 'restoreAll'), actionPayload(modal));
@@ -343,8 +362,9 @@
         }
 
         if (event.target.closest('.btn-delete-all')) {
-            if (!confirm('전체 항목을 영구삭제하시겠습니까?')) return;
+            if (!await confirmDialog({ title: '전체 영구삭제', message: purgeConfirmMessage(modal, '휴지통의 전체 항목을 완전삭제합니다.'), confirmText: '영구삭제', confirmClass: 'btn-danger' })) return;
 
+            const total = Math.max(1, modal.querySelectorAll('.trash-check').length);
             await runTrashAction(modal, '전체 영구삭제 처리 중입니다...', async () => {
                 const json = await postJson(actionUrl(modal, 'deleteAll'), actionPayload(modal));
                 if (json.success === false) {
@@ -356,7 +376,7 @@
                     countKey: 'deleted_count',
                 });
                 await triggerChange(modal);
-            });
+            }, { deleteProgress: true, total, title: '전체 완전삭제 처리 중' });
         }
     });
 
@@ -401,6 +421,8 @@
 
     function actionPayload(modal, extra = {}) {
         const payload = { ...extra };
+        payload.request_key = window.crypto?.randomUUID?.()
+            || `trash-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         let importType = String(modal?.dataset.importType || '').trim();
         if (importType === '') {
             try {
@@ -431,7 +453,9 @@
             restoreBulk: modal.dataset.restoreBulkUrl || (restoreUrl ? `${restoreUrl}-bulk` : ''),
             restoreAll: modal.dataset.restoreAllUrl || (restoreUrl ? `${restoreUrl}-all` : ''),
             deleteBulk: modal.dataset.deleteBulkUrl || (deleteUrl ? `${deleteUrl}-bulk` : ''),
-            deleteAll: modal.dataset.deleteAllUrl || (deleteUrl ? `${deleteUrl}-all` : ''),
+            deleteAll: modal.dataset.enableDeleteAll === '0'
+                ? ''
+                : (modal.dataset.deleteAllUrl || (deleteUrl ? `${deleteUrl}-all` : '')),
         };
         return urls[action] || '';
     }
@@ -452,23 +476,43 @@
         });
     }
 
-    async function runTrashAction(modal, message, callback) {
+    function closeTrashModal(modal) {
+        if (!modal) return;
+        const modalApi = window.bootstrap?.Modal;
+        if (modalApi?.getOrCreateInstance) {
+            modalApi.getOrCreateInstance(modal).hide();
+            return;
+        }
+        modal.querySelector('[data-bs-dismiss="modal"]')?.click();
+    }
+
+    async function runTrashAction(modal, message, callback, {
+        deleteProgress = false,
+        total = 1,
+        title = '삭제 처리 중',
+    } = {}) {
         if (!modal || busyTrashModals.has(modal)) return null;
 
-        const releaseLoading = showGlobalLoading(message);
+        const releaseLoading = deleteProgress ? null : showGlobalLoading(message);
         setTrashBusy(modal, true);
 
         try {
-            return await callback();
+            const result = deleteProgress
+                ? await runDeleteProgress({ total, title, step: message }, callback)
+                : await callback();
+            closeTrashModal(modal);
+            return result;
         } catch (error) {
             console.error(error);
             notify('error', error?.message || '요청 처리 중 오류가 발생했습니다.');
             return null;
         } finally {
-            if (typeof releaseLoading === 'function') {
-                releaseLoading();
-            } else {
-                hideGlobalLoading('manual');
+            if (!deleteProgress) {
+                if (typeof releaseLoading === 'function') {
+                    releaseLoading();
+                } else {
+                    hideGlobalLoading('manual');
+                }
             }
             setTrashBusy(modal, false);
         }
@@ -612,7 +656,32 @@
 
     function getColumns(row, modal) {
         const fn = window.TrashColumns?.[modal.dataset.type];
-        return typeof fn === 'function' ? fn(row) : `<td>${row.id}</td>`;
+        const rendered = typeof fn === 'function' ? fn(row) : `<td>${escapeHtml(row.id)}</td><td></td>`;
+        const holder = document.createElement('table');
+        const rowElement = document.createElement('tr');
+        rowElement.innerHTML = rendered;
+        holder.appendChild(rowElement);
+
+        const expectedCells = Math.max(1, getColumnCount(modal) - 1);
+        while (rowElement.children.length < expectedCells) {
+            rowElement.appendChild(document.createElement('td'));
+        }
+
+        const managementCell = rowElement.children[expectedCells - 1];
+        if (managementCell) {
+            const id = escapeHtml(row.id);
+            const buttons = [];
+            if (modal.dataset.restoreUrl) {
+                buttons.push(`<button type="button" class="btn btn-success btn-sm btn-restore" data-id="${id}">복원</button>`);
+            }
+            if (modal.dataset.deleteUrl) {
+                buttons.push(`<button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${id}">완전삭제</button>`);
+            }
+            managementCell.className = 'text-nowrap';
+            managementCell.innerHTML = buttons.join(' ');
+        }
+
+        return rowElement.innerHTML;
     }
 
     function getColumnCount(modal) {

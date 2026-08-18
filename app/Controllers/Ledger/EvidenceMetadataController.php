@@ -59,17 +59,15 @@ class EvidenceMetadataController
     {
         $payload = $this->payload();
         $ids = $this->ids($payload);
-        if (count($ids) > 1) {
-            $this->json($this->service->deleteBulk($ids));
-            return;
-        }
         $id = trim((string) ($payload['id'] ?? $ids[0] ?? ''));
         if ($id === '') {
             $this->json(['success' => false, 'message' => '증빙정책 ID는 필수입니다.'], 400);
             return;
         }
         try {
-            $this->json($this->service->delete($id));
+            $this->json(count($ids) > 1 ? $this->service->deleteBulk($ids) : $this->service->delete($id));
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable) {
             $this->json(['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'], 500);
         }
@@ -83,35 +81,42 @@ class EvidenceMetadataController
     public function apiRestore(): void
     {
         $id = trim((string) ($this->payload()['id'] ?? ''));
-        $this->json($id !== '' ? $this->service->restore($id) : ['success' => false, 'message' => '증빙정책 ID는 필수입니다.'], $id !== '' ? 200 : 400);
+        if ($id === '') {
+            $this->json(['success' => false, 'message' => '증빙정책 ID는 필수입니다.'], 400);
+        }
+        $this->respond(fn(): array => $this->service->restore($id), '복구 중 오류가 발생했습니다.');
     }
 
     public function apiRestoreBulk(): void
     {
         $ids = $this->ids($this->payload());
-        $this->json($ids !== [] ? $this->service->restoreBulk($ids) : ['success' => false, 'message' => '복원할 증빙정책을 선택해 주세요.'], $ids !== [] ? 200 : 400);
+        if ($ids === []) {
+            $this->json(['success' => false, 'message' => '복원할 증빙정책을 선택해 주세요.'], 400);
+        }
+        $this->respond(fn(): array => $this->service->restoreBulk($ids), '복구 중 오류가 발생했습니다.');
     }
 
     public function apiRestoreAll(): void
     {
-        $this->json($this->service->restoreAll());
+        $this->respond(fn(): array => $this->service->restoreAll(), '복구 중 오류가 발생했습니다.');
     }
 
     public function apiPurge(): void
     {
         $id = trim((string) ($this->payload()['id'] ?? ''));
-        $this->json($id !== '' ? $this->service->purge($id) : ['success' => false, 'message' => '증빙정책 ID는 필수입니다.'], $id !== '' ? 200 : 400);
+        if ($id === '') {
+            $this->json(['success' => false, 'message' => '증빙정책 ID는 필수입니다.'], 400);
+        }
+        $this->respond(fn(): array => $this->service->purge($id), '영구삭제 중 오류가 발생했습니다.');
     }
 
     public function apiPurgeBulk(): void
     {
         $ids = $this->ids($this->payload());
-        $this->json($ids !== [] ? $this->service->purgeBulk($ids) : ['success' => false, 'message' => '영구삭제할 증빙정책을 선택해 주세요.'], $ids !== [] ? 200 : 400);
-    }
-
-    public function apiPurgeAll(): void
-    {
-        $this->json($this->service->purgeAll());
+        if ($ids === []) {
+            $this->json(['success' => false, 'message' => '영구삭제할 증빙정책을 선택해 주세요.'], 400);
+        }
+        $this->respond(fn(): array => $this->service->purgeBulk($ids), '영구삭제 중 오류가 발생했습니다.');
     }
 
     public function apiReorder(): void
@@ -156,6 +161,17 @@ class EvidenceMetadataController
             static fn(mixed $id): string => trim((string) $id),
             is_array($payload['ids'] ?? null) ? $payload['ids'] : []
         )));
+    }
+
+    private function respond(callable $callback, string $fallback): void
+    {
+        try {
+            $this->json($callback());
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable) {
+            $this->json(['success' => false, 'message' => $fallback], 500);
+        }
     }
 
     private function json(array $payload, int $status = 200): void

@@ -2,14 +2,18 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceImportModel;
 use PDO;
 
 class EvidenceBankHelperService
 {
     private array $bankAccountIdCache = [];
 
-    public function __construct(private PDO $pdo, private array $callbacks = [])
+    private EvidenceImportModel $evidenceModel;
+
+    public function __construct(PDO $pdo, private array $callbacks = [])
     {
+        $this->evidenceModel = new EvidenceImportModel($pdo);
     }
 
     public function bankTransactionPayloadFromRow(array $row): array
@@ -23,7 +27,7 @@ class EvidenceBankHelperService
 
         return [
             'data_type' => 'BANK_TRANSACTION',
-            'source_key' => trim((string) ($row['bank_reference_no'] ?? '')) !== '' ? (string) $row['bank_reference_no'] : 'BANK:' . (string) ($row['id'] ?? ''),
+            'source_key' => trim((string) ($row['bank_reference_no'] ?? '')),
             'import_type' => (string) ($row['import_type'] ?? 'BANK_TRANSACTION'),
             'business_unit' => (string) ($row['business_unit'] ?? ''),
             'transaction_direction' => $transactionDirection,
@@ -123,20 +127,7 @@ class EvidenceBankHelperService
             return;
         }
 
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_data_evidences
-            SET transaction_status = 'NONE',
-                updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE id = :id
-              AND source_type = 'BANK_TRANSACTION'
-              AND transaction_status = 'PROCESSING'
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([
-            ':id' => $evidenceId,
-            ':updated_by' => $actor,
-        ]);
+        $this->evidenceModel->resetBankTransactionClaim($evidenceId, $actor);
     }
 
 

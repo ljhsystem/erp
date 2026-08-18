@@ -1,7 +1,3 @@
-<?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/bank-accounts.php'
-?>
-
 <div class="account-page" id="account-main" data-flash="<?= htmlspecialchars($flashMsg ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
   <div class="page-header">
@@ -63,7 +59,7 @@
 ========================================================= */
 
 $templateUrl = '/api/settings/base-info/bank-account/template';
-$downloadUrl = '/api/settings/base-info/bank-account/excel';
+$downloadUrl = '/api/settings/base-info/bank-account/download';
 $uploadUrl   = '/api/settings/base-info/bank-account/excel-upload';
 
 $modalId        = 'accountExcelModal';

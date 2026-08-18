@@ -513,11 +513,20 @@ export function openDataTableColumnSettings(options = {}) {
         rerender();
     });
 
-    bind(restoreButton, 'click', () => {
-        const restoredEntries = state.restoreDefaults?.();
-        state.defaults = normalizeEntries(restoredEntries || state.defaults);
-        state.entries = normalizeEntries(state.defaults);
-        rerender();
+    bind(restoreButton, 'click', async () => {
+        if (restoreButton.disabled) return;
+        restoreButton.disabled = true;
+        try {
+            const restoredEntries = await state.restoreDefaults?.();
+            state.defaults = normalizeEntries(restoredEntries || state.defaults);
+            state.entries = normalizeEntries(state.defaults);
+            rerender();
+        } catch (error) {
+            console.error('[datatable-settings] restore defaults failed:', error);
+            notify('error', '테이블 설정 기본값 복원 중 오류가 발생했습니다.');
+        } finally {
+            restoreButton.disabled = false;
+        }
     });
 
     bind(saveButton, 'click', () => {

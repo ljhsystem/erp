@@ -1,6 +1,9 @@
-// ?롪퍔?δ빳? PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/positions.js'
-
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import '/public/assets/js/common/core/AppAjax.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
 import {
     createDataTable,
     bindTableHighlight
@@ -10,7 +13,6 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
-import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -27,19 +29,21 @@ window.AdminPicker = AdminPicker;
     };
 
     const POSITION_COLUMN_MAP = {
+        id:            { label: 'ID', visible: false },
         sort_no:       { label: '\uC21C\uBC88', visible: true },
         position_name: { label: '\uC9C1\uCC45\uBA85', visible: true },
         level_rank:    { label: '\uB808\uBCA8', visible: true },
         description:   { label: '\uC124\uBA85', visible: true },
         is_active:     { label: '\uC0C1\uD0DC', visible: true },
         created_at:    { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
-        created_by:    { label: '\uC0DD\uC131\uC790', visible: false },
+        created_by:    { label: '\uC0DD\uC131\uC790', visible: false, type: 'actor' },
         updated_at:    { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
-        updated_by:    { label: '\uC218\uC815\uC790', visible: false }
+        updated_by:    { label: '\uC218\uC815\uC790', visible: false, type: 'actor' }
     };
 
     const POSITION_COLUMN_WIDTHS = {
         __reorder: '40px',
+        id: '280px',
         sort_no: '80px',
         position_name: '180px',
         level_rank: '90px',
@@ -67,6 +71,7 @@ window.AdminPicker = AdminPicker;
 
     let positionTable = null;
     let positionModal = null;
+    let positionCardCollapses = null;
     let todayPicker = null;
     let globalBound = false;
     let positionModalEls = {};
@@ -74,17 +79,16 @@ window.AdminPicker = AdminPicker;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
-            console.error('[positions.js] jQuery not loaded');
+            console.error('[position.js] jQuery not loaded');
             return;
         }
 
         initPositionPage(window.jQuery);
     });
 
-    function initPositionPage($) {
-        sanitizePositionTableSettingsState();
+    async function initPositionPage($) {
         initModal();
-        initDataTable($);
+        await initDataTable($);
         bindRowReorder(positionTable, {
             api: API.REORDER,
             onSuccess() {
@@ -101,69 +105,12 @@ window.AdminPicker = AdminPicker;
         bindGlobalEvents();
     }
 
-    function sanitizePositionTableSettingsState() {
-        try {
-            const parsed = readDataTableSettingsState(POSITION_TABLE_SETTINGS_STORAGE_KEY, {
-                userSettingPageKey: 'position',
-            });
-            if (!parsed || typeof parsed !== 'object') return;
-
-            let changed = false;
-            const nextState = { ...parsed };
-            const deprecated = new Set(['__legacy_position_status']);
-
-            [
-                'columnWidths',
-                'pageLength',
-                'sortSettings',
-                'currentPage',
-                'searchFormExpanded',
-                'searchFormState',
-                'requiredColumns',
-                'columnWidth',
-            ].forEach((key) => {
-                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
-                    delete nextState[key];
-                    changed = true;
-                }
-            });
-
-            ['visibleColumns', 'columnOrder'].forEach((key) => {
-                if (!Array.isArray(nextState[key])) return;
-                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
-                if (filtered.length !== nextState[key].length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
-                if (!nextState[key] || typeof nextState[key] !== 'object') return;
-                const filtered = Object.fromEntries(
-                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
-                );
-                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                writeSystemUserSettingsStorage(POSITION_TABLE_SETTINGS_STORAGE_KEY, nextState, {
-                    userSettingPageKey: 'position',
-                    settingType: 'TABLE',
-                });
-            }
-        } catch (error) {
-            console.warn('[position] table settings sanitize failed:', error);
-        }
-    }
-
     function initModal() {
         const modalEl = document.getElementById('positionEditModal');
         if (!modalEl) return;
 
         positionModal = new bootstrap.Modal(modalEl, { focus: false });
+        positionCardCollapses = bindModalCardCollapses(modalEl, { resetOnShow: true });
         positionModalEls = {
             modal: modalEl,
             form: document.getElementById('position-edit-form'),
@@ -247,7 +194,7 @@ window.AdminPicker = AdminPicker;
 
             const displayName = positionFieldLabel(field.key, field.fallback);
             const starMarkup = positionFieldStarMarkup(field.key);
-            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+            labelEl.innerHTML = `${escapeHtml(displayName)}${starMarkup ? ` ${starMarkup}` : ''}`;
         });
     }
 
@@ -398,10 +345,10 @@ window.AdminPicker = AdminPicker;
         picker.open({ anchor: input });
     }
 
-    function initDataTable($) {
+    async function initDataTable($) {
         const columns = buildPositionColumns();
 
-        positionTable = createDataTable({
+        positionTable = await createDataTable({
             tableSelector: '#position-table',
             api: API.LIST,
             columns,
@@ -419,10 +366,11 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             selectable: true,
-            deleteButton: false,
+            deleteButton: true,
+            deleteApi: API.DELETE,
             buttons: [
                 {
-                    text: '\uC0C8 \uC9C1\uCC45',
+                    text: '신규등록',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -476,6 +424,7 @@ window.AdminPicker = AdminPicker;
                     ? 'text-center'
                     : (config.noVis ? 'noVis text-center' : (field === 'level_rank' ? 'text-center' : '')),
                 headerClassName: field === 'is_active' ? 'text-center' : '',
+                type: config.type || undefined,
                 defaultContent: '',
                 render: function (data, type, row) {
                     if (type !== 'display') return data ?? '';
@@ -491,6 +440,10 @@ window.AdminPicker = AdminPicker;
                                        aria-label='\uC0C1\uD0DC \uBCC0\uACBD'>
                             </div>
                         `;
+                    }
+
+                    if (config.type === 'actor') {
+                        return escapeHtml(actorDisplay(row, field));
                     }
 
                     if (data == null) return '';
@@ -550,7 +503,7 @@ window.AdminPicker = AdminPicker;
                     reloadPositionTable();
                     notify('success', active ? '\uC0AC\uC6A9\uC73C\uB85C \uBCC0\uACBD\uB418\uC5C8\uC2B5\uB2C8\uB2E4.' : '\uBBF8\uC0AC\uC6A9\uC73C\uB85C \uBCC0\uACBD\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
                 } catch (err) {
-                    console.error('[positions.js] status update failed:', err);
+                    console.error('[position.js] status update failed:', err);
                     this.checked = !active;
                     notify('error', err.message || '\uC0C1\uD0DC \uBCC0\uACBD\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
                 } finally {
@@ -585,7 +538,12 @@ window.AdminPicker = AdminPicker;
 
                 const id = $('#position_edit_id').val();
                 if (!id) return;
-                if (!confirm('\uC9C1\uCC45\uC744 \uC601\uAD6C\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
+                if (!await confirmDialog({
+                    title: '직책 영구삭제',
+                    message: '참조가 없는 오등록 직책만 영구삭제할 수 있습니다. 계속하시겠습니까?',
+                    confirmText: '영구삭제',
+                    confirmClass: 'btn-danger',
+                })) return;
 
                 await deletePosition(id);
             });
@@ -595,6 +553,8 @@ window.AdminPicker = AdminPicker;
         resetPositionForm();
         setPositionModalMode('create');
         positionModal?.show();
+        renderPositionSystemInfo();
+        resetPositionSystemInfoCollapse();
     }
 
     function openEditModal(row) {
@@ -608,6 +568,8 @@ window.AdminPicker = AdminPicker;
         if (positionModalEls.isActive) positionModalEls.isActive.checked = String(row.is_active) === '1';
 
         positionModal?.show();
+        renderPositionSystemInfo(row);
+        resetPositionSystemInfoCollapse();
     }
 
     function setPositionModalMode(mode) {
@@ -626,7 +588,7 @@ window.AdminPicker = AdminPicker;
         form?.reset();
 
         if (positionModalEls.id) positionModalEls.id.value = '';
-        if (positionModalEls.rank) positionModalEls.rank.value = '0';
+        if (positionModalEls.rank) positionModalEls.rank.value = '';
         if (positionModalEls.isActive) positionModalEls.isActive.checked = true;
         setPositionModalMode('create');
     }
@@ -650,24 +612,18 @@ window.AdminPicker = AdminPicker;
         fd.set('is_active', $('#position_edit_is_active').is(':checked') ? '1' : '0');
 
         try {
-            const res = await fetch(API.SAVE, {
+            const json = await window.AppAjax.fetchJson(API.SAVE, {
                 method: 'POST',
                 body: fd,
                 credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', resolveSaveMessage(json?.message));
-                return;
-            }
-
-            notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
+            notify('success', json.message || '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
             positionModal?.hide();
             reloadPositionTable();
         } catch (err) {
-            console.error('[positions.js] save failed:', err);
-            notify('error', '\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
+            console.error('[position.js] save failed:', err);
+            notify('error', err.message || '\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
         }
     }
 
@@ -676,24 +632,18 @@ window.AdminPicker = AdminPicker;
         fd.append('id', id);
 
         try {
-            const res = await fetch(API.DELETE, {
+            const json = await window.AppAjax.fetchJson(API.DELETE, {
                 method: 'POST',
                 body: fd,
                 credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', json?.message || '\uC0AD\uC81C \uC2E4\uD328');
-                return;
-            }
-
-            notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
+            notify('success', json.message || '직책이 영구삭제되었습니다.');
             positionModal?.hide();
             reloadPositionTable();
         } catch (err) {
-            console.error('[positions.js] delete failed:', err);
-            notify('error', '\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
+            console.error('[position.js] delete failed:', err);
+            notify('error', err.message || '삭제 중 오류가 발생했습니다.');
         }
     }
 
@@ -706,24 +656,11 @@ window.AdminPicker = AdminPicker;
         fd.set('description', row.description || '');
         fd.set('is_active', active ? '1' : '0');
 
-        const res = await fetch(API.SAVE, {
+        return window.AppAjax.fetchJson(API.SAVE, {
             method: 'POST',
             body: fd,
             credentials: 'include'
         });
-        const json = await res.json();
-
-        if (!json?.success) {
-            throw new Error(resolveSaveMessage(json?.message));
-        }
-
-        return json;
-    }
-
-    function resolveSaveMessage(message) {
-        if (message === 'duplicate') return '\uC774\uBBF8 \uB4F1\uB85D\uB41C \uC9C1\uCC45\uBA85\uC785\uB2C8\uB2E4.';
-        if (message === 'empty') return '\uC9C1\uCC45\uBA85\uC744 \uC785\uB825\uD558\uC138\uC694.';
-        return message || '\uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.';
     }
 
     function reloadPositionTable() {
@@ -742,7 +679,7 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    
+
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -788,15 +725,41 @@ window.AdminPicker = AdminPicker;
     function notify(type, message) {
         if (window.AppCore?.notify) {
             window.AppCore.notify(type, message);
-            return;
         }
+    }
 
-        if (type === 'error' || type === 'warning') {
-            alert(message);
-            return;
-        }
+    function renderPositionSystemInfo(data = {}) {
+        const container = document.getElementById('positionSystemInfoFields');
+        if (!container) return;
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '순번'],
+            ['created_at', '생성일시', 'datetime'],
+            ['created_by', '생성자', 'actor'],
+            ['updated_at', '수정일시', 'datetime'],
+            ['updated_by', '수정자', 'actor'],
+        ];
 
-        console.log(message);
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'position-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'position-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'position-system-info-value';
+            const actorName = type === 'actor' ? String(data[`${key}_name`] || '').trim() : '';
+            const raw = type === 'actor'
+                ? (actorName !== '' ? actorDisplay(data, key) : '')
+                : (type === 'datetime' ? formatDateDisplay(data[key]) : data[key]);
+            value.textContent = raw == null || raw === '' || raw === '(알 수 없음)' ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
+    }
+
+    function resetPositionSystemInfoCollapse() {
+        positionCardCollapses?.reset();
     }
 
     function escapeHtml(value) {

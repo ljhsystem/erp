@@ -21,10 +21,8 @@ use App\Services\Ledger\EvidenceTypePolicyService;
 use App\Services\Ledger\EvidenceUploadParserService;
 use App\Services\Ledger\EvidenceUploadService;
 use App\Services\Ledger\EvidenceUploadValidationService;
-use App\Services\Ledger\JournalLearningService;
 use App\Services\Ledger\SystemFieldService;
 use App\Services\Ledger\VoucherCreateService;
-use App\Services\Ledger\VoucherLearningService;
 use App\Services\Ledger\VoucherPolicyService;
 use App\Services\Ledger\VoucherService;
 use Core\DbPdo;
@@ -69,8 +67,6 @@ class EvidenceUploadController
     private ?VoucherPolicyService $voucherPolicyService = null;
     private ?VoucherCreateService $voucherCreateService = null;
     private ?VoucherService $voucherService = null;
-    private ?JournalLearningService $journalLearningService = null;
-    private ?VoucherLearningService $voucherLearningService = null;
     private ?EvidenceRuleEngineService $evidenceRuleEngineService = null;
     private ?EvidenceUploadPersistService $evidenceUploadPersistService = null;
     private ?array $ownCompanyProfile = null;
@@ -121,6 +117,8 @@ class EvidenceUploadController
                 $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
                 return;
             }
+            $format['evidence_status_column_display_name'] = $this->decodeRequestMap($_POST['evidence_status_column_display_name'] ?? null);
+            $format['evidence_status_column_requirement_policy'] = $this->decodeRequestMap($_POST['evidence_status_column_requirement_policy'] ?? null);
 
             try {
                 if (!$this->isAllowedDataType($dataType)) {
@@ -152,7 +150,7 @@ class EvidenceUploadController
                 return;
             } catch (\Throwable $e) {
                 $this->evidenceUploadService()->uploadTrace('failed', $this->evidenceUploadService()->buildFailedUploadTraceContext($cancelToken, $startedAt, $e));
-                $this->json(['success' => false, 'message' => '엑셀 업로드 중 오류가 발생했습니다.'], 400);
+                $this->json(['success' => false, 'message' => $this->uploadFailureMessage($e)], 400);
             }
             return;
         }
@@ -218,7 +216,7 @@ class EvidenceUploadController
             return;
         } catch (\Throwable $e) {
             $this->evidenceUploadService()->uploadTrace('failed_preview', $this->evidenceUploadService()->buildFailedPreviewTraceContext($cancelToken, $startedAt, $e));
-            $this->json(['success' => false, 'message' => '엑셀 업로드 중 오류가 발생했습니다.'], 400);
+            $this->json(['success' => false, 'message' => $this->uploadFailureMessage($e)], 400);
         }
     }
 
@@ -366,6 +364,7 @@ class EvidenceUploadController
                 'number' => fn(mixed $value): float => $this->number($value),
                 'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
                 'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
+                'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
                 'applyReadinessToEvidenceRow' => function (array &$row): void {
                     $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
                 },
@@ -823,9 +822,6 @@ class EvidenceUploadController
                 'resolveVoucherRefId' => fn(string $refType, string $value): ?string => $this->evidenceReferenceResolverService()->resolveVoucherRefId($refType, $value),
                 'resolveBankAccountId' => fn(string $value): ?string => $this->evidenceReferenceResolverService()->resolveBankAccountId($value),
                 'saveVoucher' => fn(array $payload): array => $this->voucherService()->save($payload),
-                'recordBankVoucherLearning' => function (string $transactionId, string $voucherId, array $evidence, array $lines, string $actor): void {
-                    $this->voucherLearningService()->recordBankVoucherLearning($transactionId, $voucherId, $evidence, $lines, $actor);
-                },
                 'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
                 'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
                 'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
@@ -843,34 +839,6 @@ class EvidenceUploadController
         }
 
         return $this->voucherService;
-    }
-
-    private function journalLearningService(): JournalLearningService
-    {
-        if ($this->journalLearningService === null) {
-            $this->journalLearningService = new JournalLearningService($this->pdo);
-        }
-
-        return $this->journalLearningService;
-    }
-
-    private function voucherLearningService(): VoucherLearningService
-    {
-        if ($this->voucherLearningService === null) {
-            $this->voucherLearningService = new VoucherLearningService(
-                $this->journalLearningService(),
-                $this->voucherPolicyService(),
-                $this->evidenceBusinessRefService(),
-                [
-                    'bankVoucherPaymentDirectionAndAmount' => fn(array $evidence): array => $this->voucherCreateService()->bankVoucherPaymentDirectionAndAmount($evidence),
-                    'businessUnitForUpload' => fn(array $row, string $dataType): string => $this->evidenceTypePolicyService()->businessUnitForUpload($row, $dataType),
-                    'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                    'transactionDirectionForStorage' => fn(string $direction, array $payload, string $dataType): string => $this->evidenceTypePolicyService()->transactionDirectionForStorage($direction, $payload, $dataType),
-                ]
-            );
-        }
-
-        return $this->voucherLearningService;
     }
 
     private function evidenceRuleEngineService(): EvidenceRuleEngineService
@@ -939,11 +907,92 @@ class EvidenceUploadController
         }
 
         $payload = ['success' => $success, 'data' => $result] + $extra;
-        $payload['message'] = $success
-            ? $successMessage
-            : (string) ($nestedResult['message'] ?? $result['message'] ?? '엑셀 업로드 중 오류가 발생했습니다.');
+        if ($success && array_key_exists('total_count', $result)) {
+            $payload['message'] = sprintf(
+                '총 %d건 중 신규 %d건을 등록했습니다. 동일 원본 %d건은 건너뛰었고, 충돌 %d건과 오류 %d건이 있습니다.',
+                (int) $result['total_count'],
+                (int) ($result['inserted_count'] ?? 0),
+                (int) ($result['duplicate_count'] ?? 0),
+                (int) ($result['conflict_count'] ?? 0),
+                (int) ($result['error_count'] ?? 0)
+            );
+        } else {
+            $payload['message'] = $success
+                ? $successMessage
+                : (string) ($nestedResult['message'] ?? $result['message'] ?? '엑셀 업로드 중 오류가 발생했습니다.');
+        }
 
         $status = (int) ($nestedResult['status'] ?? $result['status'] ?? ($success ? 200 : 400));
         $this->json($payload, $status);
+    }
+
+    private function uploadFailureMessage(\Throwable $e): string
+    {
+        $message = trim($e->getMessage());
+        if (!str_starts_with($message, '업로드할 수 없습니다.')) {
+            foreach ([
+                '업로드 파일 헤더와 양식이 충분히 일치하지 않습니다.',
+                '업로드할 데이터 행을 찾지 못했습니다.',
+                '업로드된 파일을 읽을 수 없습니다.',
+                '지원하지 않는 자료유형입니다.',
+                '미리보기 파일을 찾을 수 없습니다.',
+                '미리보기 데이터가 없습니다.',
+            ] as $safePrefix) {
+                if (str_starts_with($message, $safePrefix)) {
+                    return $message;
+                }
+            }
+
+            return '엑셀 업로드 중 오류가 발생했습니다.';
+        }
+
+        $missingRowsByLabel = [];
+        foreach (preg_split('/\R/u', $message) ?: [] as $line) {
+            if (preg_match('/^(\d+)행:\s*(.+?)\s+필수값 누락$/u', trim($line), $matches) !== 1) {
+                continue;
+            }
+
+            $label = preg_replace('/\s*필수값이 없습니다\.$/u', '', trim($matches[2])) ?? trim($matches[2]);
+            $missingRowsByLabel[$label][] = (int) $matches[1];
+        }
+
+        if ($missingRowsByLabel === []) {
+            return $message;
+        }
+
+        $summaries = [];
+        $total = 0;
+        foreach ($missingRowsByLabel as $label => $rows) {
+            $rows = array_values(array_unique($rows));
+            sort($rows, SORT_NUMERIC);
+            $total += count($rows);
+            $summaries[] = $label . ' (' . $this->uploadRowRangeSummary($rows) . ')';
+        }
+
+        return "업로드할 수 없습니다.\n필수값 누락: " . implode(', ', $summaries) . "\n총 {$total}건의 필수값을 확인해 주세요.";
+    }
+
+    private function uploadRowRangeSummary(array $rows): string
+    {
+        $ranges = [];
+        $start = null;
+        $end = null;
+        foreach ($rows as $row) {
+            if ($start === null) {
+                $start = $end = $row;
+                continue;
+            }
+            if ($row === $end + 1) {
+                $end = $row;
+                continue;
+            }
+            $ranges[] = $start === $end ? "{$start}행" : "{$start}~{$end}행";
+            $start = $end = $row;
+        }
+        if ($start !== null) {
+            $ranges[] = $start === $end ? "{$start}행" : "{$start}~{$end}행";
+        }
+
+        return implode(', ', $ranges);
     }
 }

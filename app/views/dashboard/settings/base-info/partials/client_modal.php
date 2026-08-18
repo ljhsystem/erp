@@ -398,6 +398,22 @@
             </div>
           </div>
 
+          <section class="ui-form-card client-system-card" aria-label="시스템 처리 정보">
+            <button type="button"
+                    class="ui-form-card__toggle collapsed"
+                    id="clientSystemInfoToggle"
+                    data-ui-modal-card-collapse
+                    data-bs-target="#clientSystemInfoCollapse"
+                    aria-expanded="false"
+                    aria-controls="clientSystemInfoCollapse">
+              <span class="ui-form-card__title">시스템 처리 정보</span>
+              <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+            </button>
+            <div id="clientSystemInfoCollapse" class="collapse">
+              <div class="ui-form-card__body client-system-info-grid" id="clientSystemInfoFields"></div>
+            </div>
+          </section>
+
         </div>
 
         <div class="modal-footer">

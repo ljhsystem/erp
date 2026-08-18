@@ -1,6 +1,3 @@
-/**
- * Path: /public/assets/js/pages/dashboard/settings/system/security.js
- */
 (() => {
     'use strict';
 

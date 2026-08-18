@@ -64,13 +64,6 @@ class LedgerController
         ]);
     }
 
-    public function webDataCreate(): void
-    {
-        $this->renderPage('/app/views/ledger/data/create.php', [
-            'pageTitle' => '생성센터',
-        ]);
-    }
-
     public function webPlaceholder(): void
     {
         $meta = Router::currentRouteMeta();
@@ -97,6 +90,7 @@ class LedgerController
             'pageStyles' => $pageStyles ?? '',
             'pageScripts' => $pageScripts ?? '',
             'layoutOptions' => $layoutOptions ?? [],
+            'pageAssetProfile' => $pageAssetProfile ?? 'default',
         ]);
     }
 }

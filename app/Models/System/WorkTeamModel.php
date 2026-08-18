@@ -19,9 +19,6 @@ class WorkTeamModel
         $sql = "
             SELECT
                 t.*,
-                t.created_by AS created_by_name,
-                t.updated_by AS updated_by_name,
-                t.deleted_by AS deleted_by_name,
                 c.client_name AS team_leader_client_name
             FROM system_work_teams t
             LEFT JOIN system_clients c
@@ -128,9 +125,9 @@ class WorkTeamModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -155,9 +152,9 @@ class WorkTeamModel
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -200,6 +197,7 @@ class WorkTeamModel
                 is_active = :is_active,
                 updated_by = :updated_by
             WHERE id = :id
+              AND deleted_at IS NULL
         ";
 
         $stmt = $this->db->prepare($sql);
@@ -225,6 +223,7 @@ class WorkTeamModel
                 deleted_by = :deleted_by,
                 updated_by = :updated_by
             WHERE id = :id
+              AND deleted_at IS NULL
         ");
         $stmt->execute([
             ':id' => $id,
@@ -240,7 +239,6 @@ class WorkTeamModel
         $stmt = $this->db->prepare("
             SELECT
                 t.*,
-                t.deleted_by AS deleted_by_name,
                 c.client_name AS team_leader_client_name
             FROM system_work_teams t
             LEFT JOIN system_clients c
@@ -254,7 +252,9 @@ class WorkTeamModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -267,6 +267,7 @@ class WorkTeamModel
                 deleted_by = NULL,
                 updated_by = :actor
             WHERE id = :id
+              AND deleted_at IS NOT NULL
         ");
 
         return $stmt->execute([
@@ -277,9 +278,9 @@ class WorkTeamModel
 
     public function hardDeleteById(string $id): bool
     {
-        $stmt = $this->db->prepare("DELETE FROM system_work_teams WHERE id = :id");
-
-        return $stmt->execute([':id' => $id]);
+        $stmt = $this->db->prepare("DELETE FROM system_work_teams WHERE id = :id AND deleted_at IS NOT NULL");
+        $stmt->execute([':id' => $id]);
+        return $stmt->rowCount() > 0;
     }
 
     public function updateSortNo(string $id, string $newSortNo): bool

@@ -75,40 +75,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 
     <?php
-    $templateUrl = '/api/ledger/account/template';
-    $downloadUrl = '/api/ledger/account/excel';
-    $uploadUrl = '/api/ledger/account/excel-upload';
-
-    $modalId = 'accountExcelModal';
-    $formId = 'account-excel-upload-form';
-    $modalTitle = '계정과목 엑셀 관리';
-    $fileInputId = 'excelUpload';
-    $fileInputName = 'file';
-    $spinnerId = 'excelUploadSpinner';
-    $btnTemplateId = 'btnDownloadAccountTemplate';
-    $btnDownloadAll = 'btnDownloadAllAccounts';
-    $uploadBtnId = 'btnUploadExcel';
-    include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-    ?>
-
-    <?php
-    $templateUrl = '/api/ledger/sub-account/template';
-    $downloadUrl = '/api/ledger/sub-account/excel';
-    $uploadUrl = '/api/ledger/sub-account/excel-upload';
-
-    $modalId = 'subAccountExcelModal';
-    $formId = 'sub-account-excel-upload-form';
-    $modalTitle = '보조계정 엑셀 관리';
-    $fileInputId = 'subAccountExcelUpload';
-    $fileInputName = 'file';
-    $spinnerId = 'subAccountExcelUploadSpinner';
-    $btnTemplateId = 'btnDownloadSubAccountTemplate';
-    $btnDownloadAll = 'btnDownloadAllSubAccounts';
-    $uploadBtnId = 'btnUploadSubAccountExcel';
-    include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-    ?>
-
-    <?php
     $modalId = 'accountTrashModal';
     $type = 'account';
     $modalTitle = '계정과목 휴지통';
@@ -119,8 +85,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     $btnDeleteAll = 'btnDeleteAllAccounts';
     $listUrl = '/api/ledger/account/trash';
     $restoreUrl = '/api/ledger/account/restore';
-    $deleteUrl = '/api/ledger/account/hard-delete';
-    $deleteAllUrl = '/api/ledger/account/hard-delete-all';
+    $deleteUrl = '/api/ledger/account/purge';
+    $deleteAllUrl = '/api/ledger/account/purge-all';
     $tableHead = '
       <th width="110">계정코드</th>
       <th>계정과목명</th>

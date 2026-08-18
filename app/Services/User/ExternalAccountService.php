@@ -110,10 +110,7 @@ class ExternalAccountService
     {
         $userId = $this->userId();
 
-        $sql = "DELETE FROM user_external_accounts
-                WHERE user_id = ? AND service_key = ?";
-        $stmt = $this->pdo->prepare($sql);
-        $ok = $stmt->execute([$userId, $serviceKey]);
+        $ok = $this->model->deleteByUserAndService($userId, $serviceKey);
 
         return [
             'success' => $ok,

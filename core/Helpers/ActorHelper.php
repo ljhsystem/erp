@@ -3,9 +3,8 @@
 
 namespace Core\Helpers;
 
-use Core\Database;
+use App\Models\User\ActorDirectoryModel;
 use App\Services\Auth\AuthSessionService;
-use PDO;
 
 class ActorHelper
 {
@@ -97,7 +96,7 @@ class ActorHelper
                 return $actor;
             }
 
-            return self::employeeNameByUserId($id) ?: $id;
+            return self::employeeNameByUserId($id) ?: '삭제된 사용자';
         }
 
         return $actor;
@@ -193,15 +192,7 @@ class ActorHelper
             return [];
         }
 
-        $pdo = Database::getInstance()->getConnection();
-        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare("
-            SELECT user_id, employee_name
-            FROM user_employees
-            WHERE user_id IN ({$placeholders})
-        ");
-        $stmt->execute($ids);
-        $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        $rows = (new ActorDirectoryModel())->findEmployeeNamesByUserIds($ids);
 
         $result = [];
         foreach ($rows as $userId => $name) {
@@ -225,10 +216,7 @@ class ActorHelper
             return (string) $cache[$userId];
         }
 
-        $pdo = Database::getInstance()->getConnection();
-        $stmt = $pdo->prepare('SELECT employee_name FROM user_employees WHERE user_id = :user_id LIMIT 1');
-        $stmt->execute([':user_id' => $userId]);
-        $name = (string) ($stmt->fetchColumn() ?: '');
+        $name = (new ActorDirectoryModel())->findEmployeeNameByUserId($userId);
         $cache[$userId] = $name;
 
         return $name;

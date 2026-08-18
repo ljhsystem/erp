@@ -128,6 +128,7 @@ $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiB
     'description' => '설정 > 시스템설정 > API관리 > 사업자상태조회',
     'category' => '설정 > 시스템설정',
     'auth' => true,
+    'skip_permission' => true,
     'permissions' => ['save'],
     'log' => true,
 ]);
@@ -139,8 +140,8 @@ $router->get('/api/settings/system/code/list', 'CodeController@apiList', [
     'permission_name' => '목록조회',
     'permission_description' => '코드 목록 조회',
     'name' => '코드 목록조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 목록조회',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 목록조회',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => true,
@@ -167,11 +168,25 @@ $router->get('/api/settings/system/code/detail', 'CodeController@apiDetail', [
     'permission_name' => '상세조회',
     'permission_description' => '코드 상세 조회',
     'name' => '코드 상세조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 상세조회',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 상세조회',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => true,
+]);
+
+$router->get('/api/settings/system/code/references', 'CodeController@apiReferences', [
+    'key' => 'code.view',
+    'page' => '코드관리',
+    'page_description' => '코드 관리',
+    'permission_name' => '참조내역조회',
+    'permission_description' => '코드 참조내역 조회',
+    'name' => '코드 참조내역조회',
+    'description' => '설정 > 기준관리 > 코드관리 > 참조내역조회',
+    'category' => '설정 > 기준관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
 ]);
 
 $router->get('/api/settings/system/code/groups', 'CodeController@apiGroups', [
@@ -181,8 +196,8 @@ $router->get('/api/settings/system/code/groups', 'CodeController@apiGroups', [
     'permission_name' => '그룹조회',
     'permission_description' => '코드 그룹 조회',
     'name' => '코드 그룹조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 그룹조회',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 그룹조회',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
@@ -195,8 +210,8 @@ $router->post('/api/settings/system/code/save', 'CodeController@apiSave', [
     'permission_name' => '저장',
     'permission_description' => '코드 저장',
     'name' => '코드 저장',
-    'description' => '설정 > 시스템설정 > 코드관리 > 저장',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 저장',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['save'],
     'log' => true,
@@ -209,106 +224,8 @@ $router->post('/api/settings/system/code/delete', 'CodeController@apiDelete', [
     'permission_name' => '삭제',
     'permission_description' => '코드 삭제',
     'name' => '코드 삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/system/code/trash', 'CodeController@apiTrashList', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '휴지통조회',
-    'permission_description' => '코드 휴지통 조회',
-    'name' => '코드 휴지통조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 휴지통조회',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/restore', 'CodeController@apiRestore', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '복구',
-    'permission_description' => '코드 복구',
-    'name' => '코드 복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/restore-bulk', 'CodeController@apiRestoreBulk', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '일괄복구',
-    'permission_description' => '코드 일괄 복구',
-    'name' => '코드 일괄복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 일괄복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/restore-all', 'CodeController@apiRestoreAll', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '전체복구',
-    'permission_description' => '코드 전체 복구',
-    'name' => '코드 전체복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 전체복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/purge', 'CodeController@apiPurge', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '영구삭제',
-    'permission_description' => '코드 영구 삭제',
-    'name' => '코드 영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 영구삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/purge-bulk', 'CodeController@apiPurgeBulk', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '일괄영구삭제',
-    'permission_description' => '코드 일괄 영구 삭제',
-    'name' => '코드 일괄영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 일괄영구삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/purge-all', 'CodeController@apiPurgeAll', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '전체영구삭제',
-    'permission_description' => '코드 전체 영구 삭제',
-    'name' => '코드 전체영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 전체영구삭제',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 삭제',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['delete'],
     'log' => true,
@@ -321,50 +238,8 @@ $router->post('/api/settings/system/code/reorder', 'CodeController@apiReorder', 
     'permission_name' => '정렬저장',
     'permission_description' => '코드 정렬 저장',
     'name' => '코드 정렬저장',
-    'description' => '설정 > 시스템설정 > 코드관리 > 정렬저장',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/system/code/template', 'CodeController@apiDownloadTemplate', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '양식다운로드',
-    'permission_description' => '코드 양식 다운로드',
-    'name' => '코드 양식다운로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 양식다운로드',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/settings/system/code/excel', 'CodeController@apiDownloadExcel', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '코드 엑셀 다운로드',
-    'name' => '코드 엑셀다운로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 엑셀다운로드',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/system/code/excel-upload', 'CodeController@apiExcelUpload', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '코드 엑셀 업로드',
-    'name' => '코드 엑셀업로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 엑셀업로드',
-    'category' => '설정 > 시스템설정',
+    'description' => '설정 > 기준관리 > 코드관리 > 정렬저장',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['save'],
     'log' => true,
@@ -482,31 +357,17 @@ $router->post('/api/settings/organization/role-permission/list', 'RolePermission
     'log' => false,
 ]);
 
-$router->post('/api/settings/organization/role-permission/assign', 'RolePermissionController@apiAssign', [
+$router->post('/api/settings/organization/role-permission/save', 'RolePermissionController@apiSave', [
     'key' => 'api.settings.rolepermission.assign',
     'page' => '권한부여',
     'page_description' => '역할별 권한부여 관리',
-    'permission_name' => '부여',
-    'permission_description' => '권한 부여',
-    'name' => '권한부여 부여',
-    'description' => '설정 > 조직관리 > 권한부여 > 부여',
+    'permission_name' => '저장',
+    'permission_description' => '역할별 전체 권한 저장',
+    'name' => '권한부여 저장',
+    'description' => '설정 > 조직관리 > 권한부여 > 저장',
     'category' => '설정 > 조직관리',
     'auth' => true,
     'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/organization/role-permission/remove', 'RolePermissionController@apiRemove', [
-    'key' => 'api.settings.rolepermission.remove',
-    'page' => '권한부여',
-    'page_description' => '역할별 권한부여 관리',
-    'permission_name' => '해제',
-    'permission_description' => '권한 해제',
-    'name' => '권한부여 해제',
-    'description' => '설정 > 조직관리 > 권한부여 > 해제',
-    'category' => '설정 > 조직관리',
-    'auth' => true,
-    'permissions' => ['delete'],
     'log' => true,
 ]);
 
@@ -518,6 +379,48 @@ $router->post('/api/settings/organization/role-permission/reorder', 'RolePermiss
     'permission_description' => '권한 순서 저장',
     'name' => '권한순서저장',
     'description' => '설정 > 조직관리 > 권한부여 > 순서저장',
+    'category' => '설정 > 조직관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/settings/organization/user-permission/list', 'UserPermissionController@apiList', [
+    'key' => 'api.settings.user_permission.list',
+    'page' => '권한부여',
+    'page_description' => '개별 사용자 권한 관리',
+    'permission_name' => '개별권한조회',
+    'permission_description' => '사용자별 개별권한 대상 조회',
+    'name' => '개별권한조회',
+    'description' => '설정 > 조직관리 > 권한부여 > 개별권한조회',
+    'category' => '설정 > 조직관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->post('/api/settings/organization/user-permission/detail', 'UserPermissionController@apiDetail', [
+    'key' => 'api.settings.user_permission.detail',
+    'page' => '권한부여',
+    'page_description' => '개별 사용자 권한 관리',
+    'permission_name' => '개별권한상세조회',
+    'permission_description' => '사용자별 역할·개별·최종권한 조회',
+    'name' => '개별권한상세조회',
+    'description' => '설정 > 조직관리 > 권한부여 > 개별권한상세조회',
+    'category' => '설정 > 조직관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->post('/api/settings/organization/user-permission/save', 'UserPermissionController@apiSave', [
+    'key' => 'api.settings.user_permission.save',
+    'page' => '권한부여',
+    'page_description' => '개별 사용자 권한 관리',
+    'permission_name' => '개별권한저장',
+    'permission_description' => '사용자별 개별권한 전체 Set 저장',
+    'name' => '개별권한저장',
+    'description' => '설정 > 조직관리 > 권한부여 > 개별권한저장',
     'category' => '설정 > 조직관리',
     'auth' => true,
     'permissions' => ['save'],

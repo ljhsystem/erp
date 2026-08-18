@@ -4,11 +4,10 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\TransactionItemModel;
 use App\Models\Ledger\TransactionFileModel;
-use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
 use App\Models\Ledger\TransactionSettlementModel;
-use App\Models\Ledger\EvidenceDataModel;
 use App\Models\Ledger\EvidenceLinkModel;
+use App\Repositories\Ledger\EvidenceSourceRepository;
 use App\Services\File\FileService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
@@ -21,10 +20,11 @@ class TransactionCrudService
     private TransactionItemModel $transactionItemModel;
     private TransactionSettlementModel $transactionSettlementModel;
     private TransactionFileModel $transactionFileModel;
-    private TransactionLinkModel $transactionLinkModel;
     private FileService $fileService;
-    private EvidenceDataModel $evidenceDataModel;
     private EvidenceLinkModel $evidenceLinkModel;
+    private EvidenceSourceRepository $evidenceSourceRepository;
+    private TransactionEvidenceReferenceService $evidenceReferenceService;
+    private TransactionReferenceValidatorService $referenceValidator;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -32,10 +32,11 @@ class TransactionCrudService
         $this->transactionItemModel = new TransactionItemModel($pdo);
         $this->transactionSettlementModel = new TransactionSettlementModel($pdo);
         $this->transactionFileModel = new TransactionFileModel($pdo);
-        $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->fileService = new FileService($pdo);
-        $this->evidenceDataModel = new EvidenceDataModel($pdo);
         $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
+        $this->evidenceSourceRepository = new EvidenceSourceRepository($pdo);
+        $this->evidenceReferenceService = new TransactionEvidenceReferenceService($pdo);
+        $this->referenceValidator = new TransactionReferenceValidatorService($pdo);
     }
 
     public function getList(array $filters): array
@@ -46,7 +47,6 @@ class TransactionCrudService
             'business_unit',
             'transaction_direction',
             'status',
-            'match_status',
             'project_id',
             'client_id',
             'date_from',
@@ -54,6 +54,10 @@ class TransactionCrudService
             'updated_from',
             'updated_to',
             'search_conditions',
+            '_start',
+            '_length',
+            '_order_field',
+            '_order_direction',
         ];
 
         $normalized = [];
@@ -89,16 +93,89 @@ class TransactionCrudService
         }, $rows);
     }
 
+    public function reorder(array $changes): bool
+    {
+        if ($changes === []) {
+            throw new \InvalidArgumentException('정렬 데이터가 없습니다.');
+        }
+
+        $normalized = [];
+        foreach ($changes as $row) {
+            $id = trim((string) ($row['id'] ?? ''));
+            $sortNo = filter_var($row['newSortNo'] ?? null, FILTER_VALIDATE_INT);
+            if ($id === '' || $sortNo === false || $sortNo < 1) {
+                throw new \InvalidArgumentException('정렬 저장에 필요한 거래 ID 또는 순번이 올바르지 않습니다.');
+            }
+            if (isset($normalized[$id])) {
+                throw new \InvalidArgumentException('중복된 거래 정렬 데이터가 있습니다.');
+            }
+            $normalized[$id] = $sortNo;
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+        try {
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
+            foreach ($normalized as $id => $sortNo) {
+                $this->transactionModel->updateSortNo($id, $sortNo + 1000000);
+            }
+            foreach ($normalized as $id => $sortNo) {
+                $this->transactionModel->updateSortNo($id, $sortNo);
+            }
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+            return true;
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    public function getPage(array $filters): array
+    {
+        $rows = $this->getList($filters);
+        $normalizedFilters = $this->normalizeSearchFilters($filters);
+        $businessFilters = array_diff_key($normalizedFilters, [
+            '_start' => true,
+            '_length' => true,
+            '_order_field' => true,
+            '_order_direction' => true,
+            'draw' => true,
+            'start' => true,
+            'length' => true,
+            'columns' => true,
+            'order' => true,
+            'search' => true,
+            'sort_field' => true,
+            'sort_direction' => true,
+        ]);
+        $recordsFiltered = $this->transactionModel->lastFilteredCount();
+        return [
+            'rows' => $rows,
+            'records_total' => $businessFilters === []
+                ? $recordsFiltered
+                : $this->transactionModel->activeTotalCount(),
+            'records_filtered' => $recordsFiltered,
+        ];
+    }
+
     private function normalizeSearchFilters(array $filters): array
     {
         if ($filters === []) {
             return [];
         }
 
+        $page = array_intersect_key($filters, ['_start' => true, '_length' => true]);
+        unset($filters['_start'], $filters['_length']);
+
         $keys = array_keys($filters);
         $isList = $keys === range(0, count($filters) - 1);
         if (!$isList) {
-            return $filters;
+            return $filters + $page;
         }
 
         $normalized = [];
@@ -137,7 +214,6 @@ class TransactionCrudService
             'currency_name',
             'transaction_exchange_rate',
             'status',
-            'match_status',
             'transaction_note',
             'transaction_memo',
             'created_at',
@@ -182,7 +258,7 @@ class TransactionCrudService
             $normalized['search_conditions'] = $searchConditions;
         }
 
-        return $normalized;
+        return $normalized + $page;
     }
 
     public function getById(string $id): ?array
@@ -195,7 +271,10 @@ class TransactionCrudService
         $transaction['items'] = $this->transactionItemModel->getByTransactionId($id);
         $transaction['settlements'] = $this->transactionSettlementModel->getByTransactionId($id);
         $transaction['files'] = $this->transactionFileModel->getByTransactionId($id);
-        $transaction['links'] = $this->transactionLinkModel->getByTransactionId($id);
+        $transaction['links'] = [];
+        $transaction['linked_evidences'] = $this->evidenceReferenceService->hydrateLinks(
+            $this->evidenceLinkModel->getTransactionEvidences($id)
+        );
 
         $transaction['description'] = $transaction['transaction_description'] ?? '';
         $transaction['note'] = $transaction['transaction_note'] ?? '';
@@ -246,80 +325,7 @@ class TransactionCrudService
 
     public function getTrashList(): array
     {
-        $hasOperationType = $this->tableColumnExists('ledger_transactions', 'operation_type');
-        $operationTypeSelect = $hasOperationType
-            ? "COALESCE(ot.code_name, '') AS operation_type_name,
-                COALESCE(NULLIF(ot.code_name, ''), '') AS operation_type,"
-            : "'' AS operation_type_name,
-                '' AS operation_type,";
-        $operationTypeJoin = $hasOperationType
-            ? "
-            LEFT JOIN system_codes ot
-                ON ot.deleted_at IS NULL
-               AND ot.is_active = 1
-               AND ot.code_group = 'OPERATION_TYPE'
-               AND ot.code = t.operation_type"
-            : '';
-
-        $stmt = $this->pdo->query("
-            SELECT
-                t.*,
-                COALESCE(bu.code_name, '') AS business_unit_name,
-                COALESCE(td.code_name, '') AS transaction_direction_name,
-                {$operationTypeSelect}
-                COALESCE(cur.code_name, '') AS currency_name,
-                COALESCE(NULLIF(bu.code_name, ''), '') AS business_unit,
-                COALESCE(NULLIF(td.code_name, ''), '') AS transaction_direction,
-                COALESCE(NULLIF(cur.code_name, ''), '') AS currency,
-                COALESCE(sc.client_name, '') AS client_name,
-                COALESCE(sp.project_name, '') AS project_name,
-                COALESCE(sba.account_name, '') AS bank_account_name,
-                COALESCE(scd.card_name, '') AS card_name,
-                COALESCE(swt.team_name, '') AS team_name,
-                COALESCE(ue.employee_name, '') AS employee_name,
-                COALESCE(NULLIF(sc.client_name, ''), '') AS client_id,
-                COALESCE(NULLIF(sp.project_name, ''), '') AS project_id,
-                COALESCE(NULLIF(sba.account_name, ''), '') AS bank_account_id,
-                COALESCE(NULLIF(scd.card_name, ''), '') AS card_id,
-                COALESCE(NULLIF(swt.team_name, ''), '') AS team_id,
-                COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id
-            FROM ledger_transactions t
-            LEFT JOIN system_codes bu
-                ON bu.deleted_at IS NULL
-               AND bu.is_active = 1
-               AND bu.code_group = 'BUSINESS_UNIT'
-               AND bu.code = t.business_unit
-            LEFT JOIN system_codes td
-                ON td.deleted_at IS NULL
-               AND td.is_active = 1
-               AND td.code_group = 'TRANSACTION_DIRECTION'
-               AND td.code = t.transaction_direction
-            {$operationTypeJoin}
-            LEFT JOIN system_codes cur
-                ON cur.deleted_at IS NULL
-               AND cur.is_active = 1
-               AND cur.code_group = 'CURRENCY'
-               AND cur.code = t.currency
-            LEFT JOIN system_clients sc
-                ON t.client_id = sc.id
-            LEFT JOIN system_projects sp
-                ON t.project_id = sp.id
-            LEFT JOIN system_bank_accounts sba
-                ON t.bank_account_id = sba.id
-            LEFT JOIN system_cards scd
-                ON t.card_id = scd.id
-            LEFT JOIN system_work_teams swt
-                ON t.team_id = swt.id
-            LEFT JOIN user_employees ue
-                ON t.employee_id = ue.id
-            WHERE t.deleted_at IS NOT NULL
-            ORDER BY t.deleted_at DESC, t.transaction_date DESC
-        ");
-
-        return array_map(static function (array $row): array {
-            unset($row['tax_type']);
-            return $row;
-        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        return $this->transactionModel->getTrashList();
     }
 
     public function restoreTransactions(array $ids): void
@@ -335,12 +341,16 @@ class TransactionCrudService
             $this->pdo->beginTransaction();
 
             foreach ($ids as $id) {
+                if ($this->evidenceLinkModel->transactionRestoreHasConflict($id)) {
+                    throw new \RuntimeException('현재 증빙 연결과 충돌하는 거래는 복원할 수 없습니다.');
+                }
                 $this->transactionModel->update($id, [
                     'deleted_at' => null,
                     'deleted_by' => null,
                     'updated_at' => date('Y-m-d H:i:s'),
                     'updated_by' => $actorId,
                 ]);
+                $this->evidenceLinkModel->restoreByTarget('TRANSACTION', $id);
             }
 
             $this->pdo->commit();
@@ -369,36 +379,26 @@ class TransactionCrudService
         try {
             $this->pdo->beginTransaction();
 
-            $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_items WHERE transaction_id = :id");
-            $softDeleteLinks = $this->pdo->prepare("
-                UPDATE ledger_transaction_links
-                SET is_active = 0,
-                    deleted_at = NOW(),
-                    deleted_by = :deleted_by,
-                    updated_at = NOW(),
-                    updated_by = :updated_by
-                WHERE transaction_id = :id
-                  AND is_active = 1
-                  AND deleted_at IS NULL
-            ");
-            $actor = ActorHelper::user();
-            $actorId = is_array($actor) ? (string) ($actor['id'] ?? 'SYSTEM') : (string) $actor;
-
             foreach ($ids as $id) {
-                $transaction = $this->transactionModel->getById($id) ?: [];
+                $transaction = $this->transactionModel->getByIdForUpdate($id) ?: [];
+                if (empty($transaction['deleted_at'])) {
+                    throw new \RuntimeException('휴지통에 있는 거래만 영구삭제할 수 있습니다.');
+                }
+                if (($transaction['status'] ?? '') === 'closed') {
+                    throw new \RuntimeException('마감된 거래는 영구삭제할 수 없습니다.');
+                }
+                if ($this->journalLearningEventCount($id) > 0) {
+                    throw new \RuntimeException('분개 학습 이력이 있는 거래는 영구삭제할 수 없습니다.');
+                }
                 foreach ($this->transactionFileModel->getByTransactionId($id) as $file) {
                     if (!empty($file['file_path'])) {
                         $filePaths[] = (string) $file['file_path'];
                     }
                 }
 
-                $this->resetGeneratedTransactionState($id, $actorId, $transaction);
-                $deleteItems->execute([':id' => $id]);
-                $softDeleteLinks->execute([
-                    ':id' => $id,
-                    ':deleted_by' => $actorId,
-                    ':updated_by' => $actorId,
-                ]);
+                $this->transactionItemModel->hardDeleteByTransactionId($id);
+                $this->transactionSettlementModel->hardDeleteByTransactionId($id);
+                $this->evidenceLinkModel->purgeByTransactionId($id);
                 $this->transactionModel->hardDelete($id);
             }
 
@@ -421,98 +421,21 @@ class TransactionCrudService
         $this->purgeTransactions($this->deletedTransactionIds());
     }
 
-    public function updateLinkStatus(string $transactionId, string $matchStatus, string $actor): bool
-    {
-        return $this->transactionModel->update($transactionId, [
-            'match_status' => $matchStatus,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'updated_by' => $actor,
-        ]);
-    }
-
-    public function recalculateMatchStatus(string $transactionId, string $actor): void
-    {
-        $activeCount = $this->transactionLinkModel->countActiveByTransactionId($transactionId);
-        $matchStatus = $activeCount > 0 ? 'matched' : 'none';
-
-        if (!$this->transactionModel->update($transactionId, [
-            'match_status' => $matchStatus,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'updated_by' => $actor,
-        ])) {
-            throw new \RuntimeException('Transaction link status update failed.');
-        }
-    }
-
-    public function reorder(array $changes): bool
-    {
-        if ($changes === []) {
-            return true;
-        }
-
-        try {
-            if (!$this->pdo->inTransaction()) {
-                $this->pdo->beginTransaction();
-            }
-
-            foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newSortNo'])) {
-                    throw new \RuntimeException('정렬 저장에 필요한 거래 ID 또는 순번이 없습니다.');
-                }
-            }
-
-            foreach ($changes as $row) {
-                $this->transactionModel->updateSortNo((string) $row['id'], (int) $row['newSortNo'] + 1000000);
-            }
-
-            foreach ($changes as $row) {
-                $this->transactionModel->updateSortNo((string) $row['id'], (int) $row['newSortNo']);
-            }
-
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->commit();
-            }
-
-            return true;
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            throw $e;
-        }
-    }
-
     public function softDelete(string $transactionId): array
     {
         $actor = ActorHelper::user();
-        $transaction = $this->transactionModel->getById($transactionId) ?: [];
-
         try {
             $this->pdo->beginTransaction();
 
-            $this->assertTransactionDeleteAllowed($transactionId);
-            $this->deleteLinkedVouchersForTransaction($transactionId, $actor);
-            $this->resetGeneratedTransactionState($transactionId, (string) $actor, $transaction);
-
-            $this->pdo->prepare("
-                UPDATE ledger_transaction_links
-                SET is_active = 0,
-                    deleted_at = NOW(),
-                    deleted_by = :deleted_by,
-                    updated_at = NOW(),
-                    updated_by = :updated_by
-                WHERE transaction_id = :transaction_id
-                  AND is_active = 1
-                  AND deleted_at IS NULL
-            ")->execute([
-                ':deleted_by' => $actor,
-                ':updated_by' => $actor,
-                ':transaction_id' => $transactionId,
-            ]);
+            $existing = $this->transactionModel->getByIdForUpdate($transactionId);
+            if (!$existing || !empty($existing['deleted_at'])) {
+                throw new \RuntimeException('삭제할 거래를 찾을 수 없습니다.');
+            }
+            if (($existing['status'] ?? '') !== 'draft') {
+                throw new \RuntimeException('작성 중인 거래만 삭제할 수 있습니다.');
+            }
 
             if (!$this->transactionModel->update($transactionId, [
-                'match_status' => 'none',
                 'deleted_at' => date('Y-m-d H:i:s'),
                 'deleted_by' => $actor,
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -520,6 +443,7 @@ class TransactionCrudService
             ])) {
                 throw new \RuntimeException('거래 삭제에 실패했습니다.');
             }
+            $this->evidenceLinkModel->softDeleteByTarget('TRANSACTION', $transactionId);
 
             $this->pdo->commit();
 
@@ -534,227 +458,16 @@ class TransactionCrudService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof \RuntimeException || $e instanceof \InvalidArgumentException
+                    ? $e->getMessage()
+                    : '삭제 중 오류가 발생했습니다.',
             ];
         }
     }
 
-    public function resetGeneratedTransactionState(string $transactionId, string $actor, array $transaction = []): void
-    {
-        $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor, $transaction);
-    }
-
-    private function restoreSeedRowsForDeletedTransaction(string $transactionId, string $actor, array $transaction = []): void
-    {
-        if ($this->tableColumnExists('ledger_data_evidences', 'transaction_id')) {
-            $stmt = $this->pdo->prepare("
-                UPDATE ledger_data_evidences
-                SET evidence_status = 'ACTIVE',
-                    transaction_status = 'NONE',
-                    transaction_id = NULL,
-                    error_message = NULL,
-                    updated_at = NOW(),
-                    updated_by = :actor
-                WHERE transaction_id = :transaction_id
-                  AND transaction_status NOT IN ('NONE', 'PROCESSING')
-            ");
-            $stmt->execute([
-                ':transaction_id' => $transactionId,
-                ':actor' => $actor,
-            ]);
-        } else {
-            return;
-        }
-
-        if ($this->tableColumnExists('ledger_data_seed_rows', 'transaction_id')) {
-            $stmt = $this->pdo->prepare("
-                UPDATE ledger_data_seed_rows
-                SET process_status = 'READY',
-                    transaction_id = NULL,
-                    error_message = NULL,
-                    processed_at = NULL,
-                    updated_at = NOW(),
-                    updated_by = :actor
-                WHERE transaction_id = :transaction_id
-                  AND process_status NOT IN ('READY', 'PROCESSING')
-            ");
-            $stmt->execute([
-                ':transaction_id' => $transactionId,
-                ':actor' => $actor,
-            ]);
-        }
-
-        return;
-    }
-
-    private function restoreProcessingItemsForDeletedTransaction(string $transactionId, string $actor): void
-    {
-        return;
-    }
-
-    private function assertTransactionDeleteAllowed(string $transactionId): void
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT v.status, v.voucher_no
-            FROM ledger_transaction_links l
-            INNER JOIN ledger_vouchers v
-                ON v.id = l.voucher_id
-               AND v.deleted_at IS NULL
-            WHERE l.transaction_id = :transaction_id
-              AND l.is_active = 1
-              AND l.deleted_at IS NULL
-              AND v.status IN ('REVIEW_REQUESTED', 'REVIEWED', 'POSTED', 'CLOSED', 'DELETED')
-            LIMIT 1
-        ");
-        $stmt->execute([':transaction_id' => $transactionId]);
-        $voucher = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        if ($voucher) {
-            throw new \RuntimeException('Cannot delete a transaction linked to a locked voucher workflow.');
-        }
-    }
-
-    private function deleteLinkedVouchersForTransaction(string $transactionId, string $actor): void
-    {
-        $voucherIds = $this->linkedVoucherIdsForTransaction($transactionId);
-        if ($voucherIds === []) {
-            return;
-        }
-
-        [$inSql, $params] = $this->placeholders($voucherIds, 'voucher_id');
-
-        $stmt = $this->pdo->prepare("
-            SELECT id, status, voucher_no
-            FROM ledger_vouchers
-            WHERE id IN ({$inSql})
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute($params);
-        $vouchers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $deletableIds = [];
-        foreach ($vouchers as $voucher) {
-            if (VoucherStatus::isLocked($voucher['status'] ?? null)) {
-                $label = trim((string) ($voucher['voucher_no'] ?? $voucher['id'] ?? ''));
-                throw new \RuntimeException('확정 전표와 연결된 거래는 삭제할 수 없습니다. 전표번호: ' . $label);
-            }
-            $deletableIds[] = (string) $voucher['id'];
-        }
-
-        if ($deletableIds === []) {
-            return;
-        }
-
-        [$deleteInSql, $deleteParams] = $this->placeholders($deletableIds, 'delete_voucher_id');
-
-        if ($this->tableExists('ledger_voucher_lines')) {
-            $this->pdo->prepare("
-                DELETE FROM ledger_voucher_lines
-                WHERE voucher_id IN ({$deleteInSql})
-            ")->execute($deleteParams);
-        }
-
-        $updateParams = $deleteParams;
-        $updateParams[':deleted_by'] = $actor;
-        $updateParams[':updated_by'] = $actor;
-        $this->pdo->prepare("
-            UPDATE ledger_vouchers
-            SET status = 'DELETED',
-                deleted_at = NOW(),
-                deleted_by = :deleted_by,
-                updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE id IN ({$deleteInSql})
-              AND deleted_at IS NULL
-        ")->execute($updateParams);
-    }
-
-    private function linkedVoucherIdsForTransaction(string $transactionId): array
-    {
-        $ids = [];
-
-        if ($this->tableExists('ledger_transaction_links')) {
-            $stmt = $this->pdo->prepare("
-                SELECT DISTINCT voucher_id
-                FROM ledger_transaction_links
-                WHERE transaction_id = :transaction_id
-                  AND voucher_id IS NOT NULL
-                  AND deleted_at IS NULL
-            ");
-            $stmt->execute([':transaction_id' => $transactionId]);
-            $ids = array_merge($ids, array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []));
-        }
-
-        if ($this->tableColumnExists('ledger_vouchers', 'transaction_id')) {
-            $stmt = $this->pdo->prepare("
-                SELECT DISTINCT id
-                FROM ledger_vouchers
-                WHERE transaction_id = :transaction_id
-                  AND deleted_at IS NULL
-            ");
-            $stmt->execute([':transaction_id' => $transactionId]);
-            $ids = array_merge($ids, array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []));
-        }
-
-        return array_values(array_unique(array_filter($ids)));
-    }
-
     private function deletedTransactionIds(): array
     {
-        $stmt = $this->pdo->query("SELECT id FROM ledger_transactions WHERE deleted_at IS NOT NULL");
-        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-    }
-
-    private function placeholders(array $ids, string $prefix): array
-    {
-        $placeholders = [];
-        $params = [];
-        foreach (array_values($ids) as $index => $id) {
-            $key = ':' . $prefix . '_' . $index;
-            $placeholders[] = $key;
-            $params[$key] = $id;
-        }
-
-        return [implode(', ', $placeholders), $params];
-    }
-
-    private function tableExists(string $table): bool
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
-            return false;
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $table]);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
-            return false;
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-              AND COLUMN_NAME = :column_name
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':table_name' => $table,
-            ':column_name' => $column,
-        ]);
-
-        return (bool) $stmt->fetchColumn();
+        return $this->transactionModel->getDeletedIds();
     }
 
     private function dateString(mixed $value): string
@@ -788,13 +501,19 @@ class TransactionCrudService
         $timestamp = date('Y-m-d H:i:s');
         $transactionId = trim((string) ($data['id'] ?? ''));
         $items = $this->normalizeItems($data['items'] ?? [], $data);
+        if ($items === []) {
+            return ['success' => false, 'message' => '거래 항목을 한 건 이상 입력해 주세요.'];
+        }
         $settlements = $this->normalizeSettlements($data['settlements'] ?? [], $data);
-        $evidenceId = trim((string) ($data['evidence_id'] ?? ''));
-        if ($evidenceId !== '' && !$this->evidenceDataModel->isLinkableByPolicy($evidenceId, ['DATA', 'BOTH'])) {
-            return [
-                'success' => false,
-                'message' => '증빙정책에서 거래 연결이 허용되지 않은 증빙입니다.',
-            ];
+        $linkedEvidences = $this->normalizeLinkedEvidences($data['linked_evidences'] ?? []);
+        foreach ($linkedEvidences as $linkedEvidence) {
+            $evidence = $this->evidenceSourceRepository->find(
+                $linkedEvidence['import_type'],
+                $linkedEvidence['evidence_id']
+            );
+            if (!$evidence || !in_array((string) ($evidence['evidence_type'] ?? ''), ['DATA', 'BOTH'], true)) {
+                return ['success' => false, 'message' => '증빙정책에서 거래 연결이 허용되지 않은 증빙입니다.'];
+            }
         }
 
         $itemTotals = $this->calculateItemTotals($items);
@@ -803,28 +522,49 @@ class TransactionCrudService
         if (abs((float) $totals['transaction_final_amount']) <= 0) {
             return [
                 'success' => false,
-                'message' => 'Enter the transaction header amount.',
+                'message' => '거래금액을 확인해 주세요.',
             ];
         }
-        $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
-
+        $ownsTransaction = !$this->pdo->inTransaction();
+        $isUpdate = $transactionId !== '';
         try {
-            $this->pdo->beginTransaction();
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
 
             $isUpdate = false;
+            $existing = null;
             if ($transactionId !== '') {
-                $existing = $this->transactionModel->getById($transactionId);
+                $existing = $this->transactionModel->getByIdForUpdate($transactionId);
                 if (!$existing) {
-                    throw new \RuntimeException('Transaction not found for update.');
+                    throw new \RuntimeException('수정할 거래를 찾을 수 없습니다.');
+                }
+
+                if (!empty($existing['deleted_at'])) {
+                    throw new \RuntimeException('삭제된 거래는 수정할 수 없습니다.');
+                }
+                if (($existing['status'] ?? '') !== 'draft') {
+                    throw new \RuntimeException('작성 중인 거래만 수정할 수 있습니다.');
+                }
+                $loadedUpdatedAt = trim((string) ($data['loaded_updated_at'] ?? ''));
+                if ($loadedUpdatedAt === '') {
+                    throw new \InvalidArgumentException('거래 수정 기준시각이 없습니다. 다시 불러온 후 저장해 주세요.');
+                }
+                if (!hash_equals((string) ($existing['updated_at'] ?? ''), $loadedUpdatedAt)) {
+                    throw new \RuntimeException('다른 사용자가 먼저 수정했습니다. 다시 불러온 후 저장해 주세요.');
                 }
 
                 $isUpdate = true;
+                $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
+                $this->referenceValidator->validate($transactionPayload['update'], $existing);
                 if (!$this->transactionModel->update($transactionId, $transactionPayload['update'])) {
                     throw new \RuntimeException('거래 수정에 실패했습니다.');
                 }
                 $this->recreateSettlements($transactionId, [], $actor, $timestamp);
             } else {
                 $transactionId = UuidHelper::generate();
+                $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
+                $this->referenceValidator->validate($transactionPayload['insert']);
                 $insertPayload = $transactionPayload['insert'];
                 $insertPayload['id'] = $transactionId;
                 $insertPayload['sort_no'] = SequenceHelper::next('ledger_transactions', 'sort_no');
@@ -838,17 +578,22 @@ class TransactionCrudService
                 $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
                 foreach ($existingItems as $row) {
                     if (!$this->transactionItemModel->hardDelete((string) $row['id'])) {
-                        throw new \RuntimeException('Failed to clean existing transaction items.');
+                        throw new \RuntimeException('기존 거래 항목 정리에 실패했습니다.');
                     }
                 }
             } else {
                 $this->recreateItems($transactionId, $items, $actor, $timestamp);
                 $this->recreateSettlements($transactionId, $settlements, $actor, $timestamp);
             }
-            $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
-            $this->evidenceLinkModel->syncTransactionLink($transactionId, $evidenceId);
+            $deletedFilePaths = $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
+            $this->evidenceLinkModel->replaceTransactionEvidences($transactionId, $linkedEvidences);
 
-            $this->pdo->commit();
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+                foreach ($deletedFilePaths as $deletedFilePath) {
+                    $this->fileService->delete($deletedFilePath);
+                }
+            }
 
             return [
                 'success' => true,
@@ -856,13 +601,15 @@ class TransactionCrudService
                 'id' => $transactionId,
             ];
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof \RuntimeException || $e instanceof \InvalidArgumentException
+                    ? $e->getMessage()
+                    : ($isUpdate ? '수정 중 오류가 발생했습니다.' : '저장 중 오류가 발생했습니다.'),
             ];
         }
     }
@@ -902,10 +649,8 @@ class TransactionCrudService
             'transaction_final_amount' => $totals['transaction_final_amount'],
             'transaction_description' => $this->nullable($data['transaction_description'] ?? $data['description'] ?? null),
             'status' => $this->normalizeTransactionStatus($data['status'] ?? 'draft'),
-            'match_status' => $this->resolveMatchStatusForSave($transactionId),
             'transaction_note' => $this->nullable($data['transaction_note'] ?? $data['note'] ?? null),
             'transaction_memo' => $this->nullable($data['transaction_memo'] ?? $data['memo'] ?? null),
-            'evidence_id' => $this->nullable($data['evidence_id'] ?? null),
             'updated_at' => $timestamp,
             'updated_by' => $actor,
         ];
@@ -919,12 +664,38 @@ class TransactionCrudService
         ];
     }
 
+    private function normalizeLinkedEvidences(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('연결 증빙 형식이 올바르지 않습니다.');
+        }
+        $normalized = [];
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $importType = strtoupper(trim((string) ($row['import_type'] ?? '')));
+            $evidenceId = trim((string) ($row['evidence_id'] ?? ''));
+            if ($importType === '' || $evidenceId === '') {
+                continue;
+            }
+            $normalized[$importType . "\0" . $evidenceId] = [
+                'import_type' => $importType,
+                'evidence_id' => $evidenceId,
+            ];
+        }
+        return array_values($normalized);
+    }
+
     private function recreateItems(string $transactionId, array $items, string $actor, string $timestamp): void
     {
         $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
         foreach ($existingItems as $row) {
             if (!$this->transactionItemModel->hardDelete((string) $row['id'])) {
-                throw new \RuntimeException('Failed to clean existing transaction items.');
+                throw new \RuntimeException('기존 거래 항목 정리에 실패했습니다.');
             }
         }
 
@@ -933,7 +704,6 @@ class TransactionCrudService
                 'id' => UuidHelper::generate(),
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
-                'transaction_line_type' => $item['transaction_line_type'] ?? 'GOODS',
                 'item_date' => $item['item_date'],
                 'item_name' => $item['item_name'],
                 'item_specification' => $item['item_specification'],
@@ -943,7 +713,6 @@ class TransactionCrudService
                 'item_foreign_unit_price' => $item['item_foreign_unit_price'],
                 'item_foreign_amount' => $item['item_foreign_amount'],
                 'item_supply_amount' => $item['item_supply_amount'],
-                'item_tax_type' => $item['item_tax_type'],
                 'item_description' => $item['item_description'],
                 'created_at' => $timestamp,
                 'created_by' => $actor,
@@ -962,7 +731,7 @@ class TransactionCrudService
         $existingRows = $this->transactionSettlementModel->getByTransactionId($transactionId);
         foreach ($existingRows as $row) {
             if (!$this->transactionSettlementModel->hardDelete((string) $row['id'])) {
-                throw new \RuntimeException('Failed to clean existing transaction settlements.');
+                throw new \RuntimeException('기존 정산내역 정리에 실패했습니다.');
             }
         }
 
@@ -989,12 +758,6 @@ class TransactionCrudService
                 throw new \RuntimeException(($index + 1) . '번째 정산정보 저장에 실패했습니다.');
             }
         }
-    }
-
-    private function normalizeTaxType(mixed $value): ?string
-    {
-        $taxType = strtoupper(trim((string) ($value ?? '')));
-        return preg_match('/^[A-Z0-9_]+$/', $taxType) ? $taxType : null;
     }
 
     private function normalizeTransactionStatus(mixed $value): string
@@ -1033,17 +796,6 @@ class TransactionCrudService
         ];
     }
 
-    private function resolveMatchStatusForSave(string $transactionId): string
-    {
-        if ($transactionId === '') {
-            return 'none';
-        }
-
-        return $this->transactionLinkModel->countActiveByTransactionId($transactionId) > 0
-            ? 'matched'
-            : 'none';
-    }
-
     private function normalizeCurrencyCode(mixed $value): string
     {
         $currency = strtoupper(trim((string) ($value ?? 'KRW')));
@@ -1058,6 +810,10 @@ class TransactionCrudService
         $finalAmount = $supplyAmount + $settlementAmount;
 
         if (abs($supplyAmount) > 0 || abs($settlementAmount) > 0) {
+            $explicitFinalAmount = $this->numericOrNull($data['transaction_final_amount'] ?? $data['final_amount'] ?? null);
+            if ($explicitFinalAmount !== null && abs($explicitFinalAmount - $finalAmount) >= 0.01) {
+                throw new \InvalidArgumentException('거래금액이 항목 및 정산내역 합계와 일치하지 않습니다.');
+            }
             return [
                 'transaction_foreign_amount' => round($foreignAmount, 2),
                 'transaction_supply_amount' => round($supplyAmount, 2),
@@ -1066,31 +822,25 @@ class TransactionCrudService
             ];
         }
 
-        $foreignAmount = (float) ($this->numericOrNull($data['transaction_foreign_amount'] ?? null) ?? 0);
-        $supplyAmount = (float) ($this->numericOrNull($data['transaction_supply_amount'] ?? $data['supply_amount'] ?? null) ?? 0);
-        $settlementAmount = (float) ($this->numericOrNull($data['transaction_settlement_amount'] ?? $data['settlement_amount'] ?? null) ?? 0);
-        $finalAmount = (float) ($this->numericOrNull($data['transaction_final_amount'] ?? $data['final_amount'] ?? null) ?? 0);
-        if (abs($finalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($settlementAmount) > 0)) {
-            $finalAmount = $supplyAmount + $settlementAmount;
-        }
-        if (abs($finalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($settlementAmount) > 0)) {
-            $finalAmount = $supplyAmount + $settlementAmount;
-        }
-
-        return [
-            'transaction_foreign_amount' => round($foreignAmount, 2),
-            'transaction_supply_amount' => round($supplyAmount, 2),
-            'transaction_settlement_amount' => round($settlementAmount, 2),
-            'transaction_final_amount' => round($finalAmount, 2),
-        ];
+        throw new \InvalidArgumentException('거래 항목을 한 건 이상 입력해 주세요.');
     }
 
-    private function syncFiles(string $transactionId, array $data, array $files, string $actor, string $timestamp): void
+    private function journalLearningEventCount(string $transactionId): int
     {
+        $stmt = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM ledger_journal_learning_events WHERE transaction_id = :transaction_id'
+        );
+        $stmt->execute([':transaction_id' => $transactionId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    private function syncFiles(string $transactionId, array $data, array $files, string $actor, string $timestamp): array
+    {
+        $deletedFilePaths = [];
         foreach ($this->normalizeIdList($data['delete_file_ids'] ?? []) as $fileId) {
             $fileRow = $this->transactionFileModel->getById($fileId);
             if ($fileRow && !empty($fileRow['file_path'])) {
-                $this->fileService->delete((string) $fileRow['file_path']);
+                $deletedFilePaths[] = (string) $fileRow['file_path'];
             }
             $this->transactionFileModel->hardDelete($fileId);
         }
@@ -1123,9 +873,11 @@ class TransactionCrudService
                 'created_at' => $timestamp,
                 'created_by' => $actor,
             ])) {
-                throw new \RuntimeException('Failed to save evidence file metadata.');
+                throw new \RuntimeException('증빙 파일정보 저장에 실패했습니다.');
             }
         }
+
+        return array_values(array_unique($deletedFilePaths));
     }
 
     private function normalizeUploadedFiles(mixed $input): array
@@ -1238,8 +990,6 @@ class TransactionCrudService
             $itemUnitPrice = $usesForeignAmount && $itemQuantity > 0
                 ? round(((float) $itemForeignAmount * $exchangeRate) / $itemQuantity, 2)
                 : (float) ($this->numericOrNull($item['item_unit_price'] ?? $item['unit_price'] ?? 0) ?? 0);
-            $itemTaxType = $this->normalizeTaxType($item['item_tax_type'] ?? $item['tax_type'] ?? null)
-                ?? ($usesForeignAmount ? 'ZERO' : 'TAXABLE');
             $itemDate = trim((string) ($item['item_date'] ?? ($data['transaction_date'] ?? date('Y-m-d'))));
             if ($itemDate === '') {
                 $itemDate = date('Y-m-d');
@@ -1268,7 +1018,6 @@ class TransactionCrudService
             }
 
             $rows[] = [
-                'transaction_line_type' => $this->normalizeTransactionLineType($item['transaction_line_type'] ?? null),
                 'item_date' => $itemDate,
                 'item_name' => $itemName,
                 'item_specification' => $this->nullable($item['item_specification'] ?? $item['specification'] ?? null),
@@ -1278,7 +1027,6 @@ class TransactionCrudService
                 'item_foreign_unit_price' => $usesForeignAmount ? (float) ($itemForeignUnitPrice ?? 0) : null,
                 'item_foreign_amount' => $usesForeignAmount ? (float) ($itemForeignAmount ?? 0) : null,
                 'item_supply_amount' => $supplyAmount,
-                'item_tax_type' => $itemTaxType,
                 'item_description' => $this->nullable($item['item_description'] ?? $item['description'] ?? null),
             ];
         }
@@ -1339,48 +1087,10 @@ class TransactionCrudService
         return $rows;
     }
 
-    private function processingItemIdsForTransaction(string $transactionId): array
-    {
-        return [];
-    }
-
-    private function extractProcessingItemIds(array $items): array
-    {
-        return [];
-    }
-
-    private function normalizeProcessingItemIds(array $ids): array
-    {
-        return array_values(array_unique(array_filter(array_map(
-            static fn (mixed $id): string => trim((string) $id),
-            $ids
-        ))));
-    }
-
-    private function syncProcessingItemStatusesForTransaction(array $previousIds, array $currentIds, string $actor): void
-    {
-        return;
-    }
-
-    private function syncProcessingItemEvidenceHeaders(array $processingItemIds, string $actor): void
-    {
-        return;
-    }
-
     private function normalizeSettlementType(mixed $value): string
     {
         $type = strtoupper(trim((string) ($value ?? '')));
         return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
-    }
-
-    private function normalizeTransactionLineType(mixed $value): string
-    {
-        $type = strtoupper(trim((string) ($value ?? '')));
-        if ($type === '' || $type === 'ITEM') {
-            return 'GOODS';
-        }
-
-        return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : 'GOODS';
     }
 
     private function normalizeAmountSign(mixed $value): string

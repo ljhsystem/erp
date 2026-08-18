@@ -3,25 +3,26 @@
 namespace App\Services\Ledger;
 
 use App\Models\Ledger\ChartAccountModel;
+use App\Models\Ledger\SubChartAccountModel;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\ColumnPolicyRequestHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ChartAccountService
 {
     private ChartAccountModel $model;
-    private SubAccountPolicyService $policyService;
+    private SubChartAccountModel $subAccountModel;
+    private ChartAccountReferenceGuardService $referenceGuard;
     private CustomSubAccountService $customSubAccountService;
     private $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->model = new ChartAccountModel($pdo);
-        $this->policyService = new SubAccountPolicyService($pdo);
+        $this->subAccountModel = new SubChartAccountModel($pdo);
+        $this->referenceGuard = new ChartAccountReferenceGuardService($pdo);
         $this->customSubAccountService = new CustomSubAccountService($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.ChartAccountService');
         $this->logger->info('ChartAccountService initialized');
@@ -172,6 +173,14 @@ class ChartAccountService
                     'message' => '상위 계정을 찾을 수 없습니다.',
                 ];
             }
+            if (!empty($data['parent_id']) && (int) ($this->model->getById($data['parent_id'])['is_active'] ?? 0) !== 1) {
+                return ['success' => false, 'message' => '비활성 계정은 신규 상위계정으로 선택할 수 없습니다.'];
+            }
+
+            $classificationValidation = $this->validateClassification($data);
+            if (!($classificationValidation['success'] ?? false)) {
+                return $classificationValidation;
+            }
 
             $validation = $this->validateParent(null, $data['parent_id'] ?? null);
             if (!($validation['success'] ?? false)) {
@@ -212,19 +221,6 @@ class ChartAccountService
                 ];
             }
 
-            if (array_key_exists('sub_policies', $data)) {
-                $policyResult = $this->policyService->replacePolicies(
-                    $data['id'],
-                    $data['sub_policies'] ?? [],
-                    $data['updated_by'] ?? $data['created_by'] ?? null
-                );
-
-                if (!$policyResult['success']) {
-                    $this->pdo->rollBack();
-                    return $policyResult;
-                }
-            }
-
             if (array_key_exists('sub_accounts', $data)) {
                 $subAccountResult = $this->customSubAccountService->replaceForAccount(
                     $data['id'],
@@ -258,7 +254,7 @@ class ChartAccountService
 
             return [
                 'success' => false,
-                'message' => '계정 생성 중 오류가 발생했습니다. ' . $e->getMessage(),
+                'message' => '저장 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -297,6 +293,15 @@ class ChartAccountService
                     'success' => false,
                     'message' => '상위 계정을 찾을 수 없습니다.',
                 ];
+            }
+            $parentChanged = (string) ($existing['parent_id'] ?? '') !== (string) ($data['parent_id'] ?? '');
+            if ($parentChanged && !empty($data['parent_id']) && (int) ($this->model->getById($data['parent_id'])['is_active'] ?? 0) !== 1) {
+                return ['success' => false, 'message' => '비활성 계정으로 계층을 이동할 수 없습니다.'];
+            }
+
+            $classificationValidation = $this->validateClassification($data);
+            if (!($classificationValidation['success'] ?? false)) {
+                return $classificationValidation;
             }
 
             $validation = $this->validateParent($id, $data['parent_id'] ?? null);
@@ -339,19 +344,6 @@ class ChartAccountService
                     'success' => false,
                     'message' => '계정 수정에 실패했습니다.',
                 ];
-            }
-
-            if (array_key_exists('sub_policies', $data)) {
-                $policyResult = $this->policyService->replacePolicies(
-                    $id,
-                    $data['sub_policies'] ?? [],
-                    $data['updated_by'] ?? null
-                );
-
-                if (!$policyResult['success']) {
-                    $this->pdo->rollBack();
-                    return $policyResult;
-                }
             }
 
             if (array_key_exists('sub_accounts', $data)) {
@@ -427,7 +419,7 @@ class ChartAccountService
 
             return [
                 'success' => false,
-                'message' => '상태 변경 중 오류가 발생했습니다. ' . $e->getMessage(),
+                'message' => '수정 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -443,10 +435,10 @@ class ChartAccountService
                 ];
             }
 
-            if ($this->model->hasVoucherUsage($id)) {
+            if ($this->referenceGuard->referencesFor($id) !== []) {
                 return [
                     'success' => false,
-                    'message' => '전표에서 사용 중인 계정은 삭제할 수 없습니다.',
+                    'message' => '다른 업무에서 사용 중인 계정은 삭제할 수 없습니다.',
                 ];
             }
 
@@ -494,47 +486,7 @@ class ChartAccountService
 
     public function hardDelete(string $id): array
     {
-        $actor = $this->currentActor();
-        if ($this->model->hasChildren($id)) {
-            return [
-                'success' => false,
-                'message' => '하위 계정이 존재하여 완전 삭제할 수 없습니다.',
-            ];
-        }
-
-        if ($this->model->hasVoucherUsage($id)) {
-            return [
-                'success' => false,
-                'message' => '전표에서 사용 중인 계정은 완전 삭제할 수 없습니다.',
-            ];
-        }
-
-        $this->pdo->beginTransaction();
-
-        try {
-            $stmt = $this->pdo->prepare("DELETE FROM ledger_accounts_sub WHERE account_id = :account_id");
-            $stmt->execute([':account_id' => $id]);
-
-            $ok = $this->model->hardDelete($id, $actor);
-            if (!$ok) {
-                $this->pdo->rollBack();
-                return ['success' => false];
-            }
-
-            $this->pdo->commit();
-            $this->model->refreshHierarchyMetadata();
-            $this->model->refreshPostableFlags();
-            return ['success' => true];
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
+        return $this->hardDeleteMany([$id]);
     }
 
     public function hasChildren(string $id): bool
@@ -588,366 +540,19 @@ class ChartAccountService
         return $this->customSubAccountService->create($data);
     }
 
-    public function saveFromExcelFile(string $filePath): array
-    {
-        try {
-            $displayNameMap = ColumnPolicyRequestHelper::displayNameMap($_REQUEST['column_display_name'] ?? null);
-            $requirementPolicyMap = ColumnPolicyRequestHelper::requirementPolicyMap($_REQUEST['column_requirement_policy'] ?? null);
-            $uploadColumns = array_map(static function (array $column) use ($displayNameMap, $requirementPolicyMap): array {
-                $label = ColumnPolicyRequestHelper::displayNameForColumn($column, $displayNameMap, (string) ($column['label'] ?? ''));
-                $policy = ColumnPolicyRequestHelper::requirementPolicyForColumn(
-                    $column,
-                    $requirementPolicyMap,
-                    !empty($column['required']) ? 'required' : 'none'
-                );
-
-                return $column + [
-                    'header' => $label,
-                    'required' => $policy === 'required',
-                    'requirement_policy' => $policy,
-                ];
-            }, [
-                ['key' => 'account_code', 'label' => '계정코드', 'required' => true],
-                ['key' => 'account_name', 'label' => '계정과목명', 'required' => true],
-                ['key' => 'parent_code', 'label' => '상위계정코드', 'required' => false],
-                ['key' => 'account_group', 'label' => '계정구분', 'required' => false],
-                ['key' => 'normal_balance', 'label' => '정상잔액', 'required' => false],
-                ['key' => 'is_posting', 'label' => '전표입력', 'required' => false],
-                ['key' => 'is_active', 'label' => '사용여부', 'required' => false],
-                ['key' => 'note', 'label' => '비고', 'required' => false],
-                ['key' => 'memo', 'label' => '메모', 'required' => false],
-                ['key' => 'sub_name', 'label' => '보조계정 대상', 'required' => false],
-            ]);
-            $spreadsheet = IOFactory::load($filePath);
-            $sheet = $spreadsheet->getActiveSheet();
-            $rows = $sheet->toArray(null, false, false, false);
-
-            if (empty($rows) || count($rows) < 2) {
-                return [
-                    'success' => false,
-                    'message' => '업로드할 데이터가 없습니다.',
-                ];
-            }
-
-            $headerAliases = [
-                '계정명' => 'account_name',
-                'account_name' => 'account_name',
-                '계정코드' => 'account_code',
-                'account_code' => 'account_code',
-                '상위계정' => 'parent_code',
-                '상위계정코드' => 'parent_code',
-                'parent_code' => 'parent_code',
-                '사용여부' => 'is_active',
-                'is_active' => 'is_active',
-                '비고' => 'note',
-                'note' => 'note',
-                '구분' => 'account_group',
-                '계정구분' => 'account_group',
-                'account_group' => 'account_group',
-                '보조계정' => 'sub_name',
-                'sub_name' => 'sub_name',
-            ];
-
-            $headerAliases = array_merge($headerAliases, [
-                '계정코드' => 'account_code',
-                '코드' => 'account_code',
-                '계정과목명' => 'account_name',
-                '계정과목' => 'account_name',
-                '계정명' => 'account_name',
-                '상위계정코드' => 'parent_code',
-                '상위계정' => 'parent_code',
-                '계정구분' => 'account_group',
-                '구분' => 'account_group',
-                '정상잔액' => 'normal_balance',
-                '차대구분' => 'normal_balance',
-                '차/대' => 'normal_balance',
-                'normal_balance' => 'normal_balance',
-                '전표입력' => 'is_posting',
-                '전표입력가능' => 'is_posting',
-                'is_posting' => 'is_posting',
-                '사용여부' => 'is_active',
-                '비고' => 'note',
-                '메모' => 'memo',
-                'memo' => 'memo',
-                '보조계정 대상' => 'sub_name',
-                '보조계정' => 'sub_name',
-            ]);
-            foreach ($uploadColumns as $column) {
-                $headerName = trim((string) ($column['header'] ?? ''));
-                $columnKey = trim((string) ($column['key'] ?? ''));
-                if ($headerName !== '') {
-                    $headerAliases[$headerName] = $columnKey;
-                }
-                if ($columnKey !== '') {
-                    $headerAliases[$columnKey] = $columnKey;
-                }
-            }
-
-            $excelHeaders = array_map(
-                static fn ($value) => trim((string) $value),
-                $rows[0]
-            );
-
-            $columnMap = [];
-            foreach ($excelHeaders as $index => $headerName) {
-                if (isset($headerAliases[$headerName])) {
-                    $columnMap[$headerAliases[$headerName]] = $index;
-                }
-            }
-
-            $missingHeaders = [];
-            foreach ($uploadColumns as $column) {
-                if (empty($column['required'])) {
-                    continue;
-                }
-                $key = (string) ($column['key'] ?? '');
-                if ($key === '' || isset($columnMap[$key])) {
-                    continue;
-                }
-                $missingHeaders[] = (string) ($column['header'] ?? $key);
-            }
-
-            if ($missingHeaders !== []) {
-                return [
-                    'success' => false,
-                    'message' => '필수 컬럼이 누락되었습니다. ' . implode(', ', $missingHeaders),
-                ];
-            }
-
-            array_shift($rows);
-
-            $createdCount = 0;
-            $updatedCount = 0;
-            $errors = [];
-
-            foreach ($rows as $rowIndex => $row) {
-                if (count(array_filter($row, static fn ($value) => trim((string) $value) !== '')) === 0) {
-                    continue;
-                }
-
-                $accountCode = trim((string) ($row[$columnMap['account_code']] ?? ''));
-                $accountName = trim((string) ($row[$columnMap['account_name']] ?? ''));
-                $parentCode = trim((string) ($row[$columnMap['parent_code']] ?? ''));
-                $rawIsActive = trim((string) ($row[$columnMap['is_active']] ?? ''));
-                $note = trim((string) ($row[$columnMap['note']] ?? ''));
-                $accountGroup = trim((string) ($row[$columnMap['account_group']] ?? ''));
-                $subName = trim((string) ($row[$columnMap['sub_name']] ?? ''));
-                $rawNormalBalance = trim((string) ($row[$columnMap['normal_balance']] ?? ''));
-                $rawIsPosting = trim((string) ($row[$columnMap['is_posting']] ?? ''));
-                $memo = trim((string) ($row[$columnMap['memo']] ?? ''));
-                $missingFields = [];
-
-                foreach ($uploadColumns as $column) {
-                    if (empty($column['required'])) {
-                        continue;
-                    }
-                    $key = (string) ($column['key'] ?? '');
-                    if ($key === '' || !isset($columnMap[$key])) {
-                        continue;
-                    }
-
-                    $value = trim((string) ($row[$columnMap[$key]] ?? ''));
-                    if ($value !== '') {
-                        continue;
-                    }
-
-                    $missingFields[] = (string) ($column['header'] ?? $key);
-                }
-
-                if ($missingFields !== []) {
-                    $errors[] = ($rowIndex + 2) . '행: 필수값이 누락되었습니다. ' . implode(', ', $missingFields);
-                    continue;
-                }
-
-                if ($accountCode === '' || $accountName === '') {
-                    $errors[] = ($rowIndex + 2) . '행: 계정코드 또는 계정명이 비어 있습니다.';
-                    continue;
-                }
-
-                $existing = $this->findByCode($accountCode);
-                $parent = null;
-                $parentColumnExists = isset($columnMap['parent_code']);
-                $parentId = ($existing && !$parentColumnExists) ? ($existing['parent_id'] ?? null) : null;
-
-                if (!isset($columnMap['note'])) {
-                    $note = (string) ($existing['note'] ?? '');
-                }
-
-                if (!isset($columnMap['memo'])) {
-                    $memo = (string) ($existing['memo'] ?? '');
-                }
-
-                if ($parentCode !== '') {
-                    $parent = $this->findByCode($parentCode);
-                    if (!$parent) {
-                        $errors[] = ($rowIndex + 2) . "행: 상위계정 [{$parentCode}]를 찾을 수 없습니다.";
-                        continue;
-                    }
-
-                    $parentId = $parent['id'] ?? null;
-                }
-
-                if ($accountGroup === '') {
-                    if ($existing && !empty($existing['account_group'])) {
-                        $accountGroup = (string) $existing['account_group'];
-                    } elseif ($parent && !empty($parent['account_group'])) {
-                        $accountGroup = (string) $parent['account_group'];
-                    }
-                }
-
-                if ($accountGroup === '') {
-                    $errors[] = ($rowIndex + 2) . "행: 신규 계정 [{$accountCode}]의 구분 값을 확인해주세요.";
-                    continue;
-                }
-
-                $isActive = $this->normalizeExcelBoolean($rawIsActive, (int) ($existing['is_active'] ?? 1));
-                $normalBalance = in_array($accountGroup, ['자산', '비용'], true) ? 'debit' : 'credit';
-
-                $isPosting = $this->normalizeExcelBoolean($rawIsPosting, (int) ($existing['is_posting'] ?? 1));
-                $normalBalance = $this->normalizeExcelNormalBalanceValue($rawNormalBalance);
-
-                if ($rawNormalBalance !== '' && $normalBalance === null) {
-                    $errors[] = ($rowIndex + 2) . "행 정상잔액 값이 올바르지 않습니다. [{$rawNormalBalance}]";
-                    continue;
-                }
-
-                if ($normalBalance === null) {
-                    $normalBalance = $this->inferNormalBalanceFromGroupValue(
-                        $accountGroup,
-                        (string) ($existing['normal_balance'] ?? 'debit')
-                    );
-                }
-
-                $payload = [
-                    'account_code' => $accountCode,
-                    'account_name' => $accountName,
-                    'parent_id' => $parentId,
-                    'account_group' => $accountGroup,
-                    'normal_balance' => $normalBalance,
-                    'is_posting' => $isPosting,
-                    'is_active' => $isActive,
-                    'note' => $note,
-                    'memo' => $memo,
-                ];
-
-                if ($existing) {
-                    $result = $this->update($existing['id'], $payload);
-                    if (!$result['success']) {
-                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 수정 실패 - " . ($result['message'] ?? '원인을 확인할 수 없습니다.');
-                        continue;
-                    }
-
-                    $updatedCount++;
-                    $accountId = $existing['id'];
-                } else {
-                    $result = $this->create($payload);
-                    if (!$result['success']) {
-                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 생성 실패 - " . ($result['message'] ?? '원인을 확인할 수 없습니다.');
-                        continue;
-                    }
-
-                    $createdCount++;
-                    $accountId = $result['id'] ?? null;
-                }
-
-                if ($subName !== '' && $accountId) {
-                    $subResult = $this->createSubAccount([
-                        'account_id' => $accountId,
-                        'sub_name' => $subName,
-                    ]);
-
-                    if (!($subResult['success'] ?? false)) {
-                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 보조계정 생성 실패 - " . ($subResult['message'] ?? '원인을 확인할 수 없습니다.');
-                    }
-                }
-            }
-
-            $processedCount = $createdCount + $updatedCount;
-            $errorCount = count($errors);
-
-            if ($processedCount === 0 && $errorCount > 0) {
-                return [
-                    'success' => false,
-                    'message' => '엑셀 업로드에 실패했습니다. ' . $errors[0],
-                    'created_count' => $createdCount,
-                    'updated_count' => $updatedCount,
-                    'errors' => $errors,
-                ];
-            }
-
-            $message = "엑셀 업로드 완료 (생성 {$createdCount}건, 수정 {$updatedCount}건";
-            if ($errorCount > 0) {
-                $message .= ", 실패 {$errorCount}건";
-            }
-            $message .= ')';
-
-            return [
-                'success' => true,
-                'message' => $message,
-                'created_count' => $createdCount,
-                'updated_count' => $updatedCount,
-                'errors' => $errors,
-            ];
-        } catch (\Throwable $e) {
-            $this->logger->error('saveFromExcelFile failed', [
-                'file' => $filePath,
-                'exception' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => '엑셀 업로드 중 오류가 발생했습니다. ' . $e->getMessage(),
-                'error' => $e->getMessage(),
-            ];
-        }
-    }
     public function getList(array $filters = []): array
     {
-        $modelFilters = [];
-        $statusFilters = [];
-
-        foreach ($filters as $filter) {
-            $field = $filter['field'] ?? '';
-            if ($field === 'sub_account_status') {
-                $statusFilters[] = $filter;
-                continue;
-            }
-
-            $modelFilters[] = $filter;
-        }
-
-        $rows = $this->model->getList($modelFilters);
-        $subAccountCounts = $this->customSubAccountService->countByAccountIds(array_column($rows, 'id'));
+        $rows = $this->model->getList($filters);
 
         foreach ($rows as &$row) {
-            $accountId = (string) ($row['id'] ?? '');
             $allowSubAccount = (int) ($row['allow_sub_account'] ?? 0);
-            $hasSubAccounts = $accountId !== '' && ($subAccountCounts[$accountId] ?? 0) > 0;
+            $hasSubAccounts = (int) ($row['has_sub_account'] ?? 0) === 1;
 
             $row['sub_account_status'] = $hasSubAccounts
                 ? '사용중'
                 : ($allowSubAccount === 1 ? '가능' : '미사용');
         }
         unset($row);
-
-        if (!empty($statusFilters)) {
-            $rows = array_values(array_filter($rows, static function (array $row) use ($statusFilters): bool {
-                $status = (string) ($row['sub_account_status'] ?? '');
-
-                foreach ($statusFilters as $filter) {
-                    $value = trim((string) ($filter['value'] ?? ''));
-                    if ($value === '') {
-                        continue;
-                    }
-
-                    if (mb_stripos($status, $value, 0, 'UTF-8') === false) {
-                        return false;
-                    }
-                }
-
-                return true;
-            }));
-        }
 
         $this->logger->info('getList returned', [
             'count' => count($rows),
@@ -977,7 +582,6 @@ class ChartAccountService
         }
 
         $hasSubAccounts = $this->customSubAccountService->countByAccountId($row['id']) > 0;
-        $row['sub_policies'] = [];
         $row['allow_sub_account_computed'] = (
             (int) ($row['allow_sub_account'] ?? 0) === 1
             || $hasSubAccounts
@@ -992,49 +596,53 @@ class ChartAccountService
             return;
         }
 
-        $in = implode(',', array_fill(0, count($ids), '?'));
-        $statusSet = $this->accountColumnExists('status') ? "status = 'active'," : '';
-
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_accounts
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                {$statusSet}
-                is_active = 1
-            WHERE id IN ($in)
-        ");
-
-        $stmt->execute($ids);
+        $this->model->restoreByIds($ids);
         $this->model->refreshHierarchyMetadata();
         $this->model->refreshPostableFlags();
     }
 
     public function restoreAll(): void
     {
-        $statusSet = $this->accountColumnExists('status') ? "status = 'active'," : '';
-        $this->pdo->exec("
-            UPDATE ledger_accounts
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                {$statusSet}
-                is_active = 1
-            WHERE deleted_at IS NOT NULL
-        ");
+        $this->model->restoreAllDeleted();
         $this->model->refreshHierarchyMetadata();
         $this->model->refreshPostableFlags();
     }
 
-    public function hardDeleteAll(): void
+    public function hardDeleteMany(array $ids): array
     {
-        $this->pdo->exec("
-            DELETE sa
-            FROM ledger_accounts_sub sa
-            INNER JOIN ledger_accounts a ON a.id = sa.account_id
-            WHERE a.deleted_at IS NOT NULL
-        ");
-        $this->pdo->exec("DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL");
-        $this->model->refreshHierarchyMetadata();
-        $this->model->refreshPostableFlags();
+        $validation = $this->referenceGuard->validatePurge($ids);
+        if (!($validation['success'] ?? false)) {
+            return $validation;
+        }
+
+        $targetIds = $validation['ids'];
+        $this->pdo->beginTransaction();
+        try {
+            $this->subAccountModel->deleteByAccountIds($targetIds);
+            $deleted = $this->model->hardDeleteByIds($targetIds);
+            if ($deleted !== count($targetIds)) {
+                throw new \RuntimeException('계정 영구삭제 처리 건수가 일치하지 않습니다.');
+            }
+
+            $this->pdo->commit();
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
+            return ['success' => true, 'deleted_count' => $deleted];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            $this->logger->error('hardDeleteMany failed', [
+                'ids' => $targetIds,
+                'exception' => $e->getMessage(),
+            ]);
+            return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
+        }
+    }
+
+    public function hardDeleteAll(): array
+    {
+        return $this->hardDeleteMany([]);
     }
 
     private function validateParent(?string $id, ?string $parentId): array
@@ -1067,6 +675,26 @@ class ChartAccountService
         return ['success' => true];
     }
 
+    private function validateClassification(array $data): array
+    {
+        $group = trim((string) ($data['account_group'] ?? ''));
+        $balance = strtolower(trim((string) ($data['normal_balance'] ?? '')));
+        $expected = match ($group) {
+            '자산', '비용' => 'debit',
+            '부채', '자본', '수익' => 'credit',
+            default => null,
+        };
+
+        if ($expected === null) {
+            return ['success' => false, 'message' => '유효한 계정구분을 선택하세요.'];
+        }
+        if ($balance !== $expected) {
+            return ['success' => false, 'message' => '계정구분과 정상잔액의 조합이 올바르지 않습니다.'];
+        }
+
+        return ['success' => true];
+    }
+
     private function normalizePostable(mixed $value): string
     {
         $normalized = strtoupper(trim((string) $value));
@@ -1091,117 +719,12 @@ class ChartAccountService
 
     private function syncLegacyAllowSubAccountFlag(string $accountId): void
     {
-        $hasPolicies = $this->policyService->countByAccountId($accountId) > 0;
         $hasCustom = $this->customSubAccountService->countByAccountId($accountId) > 0;
 
         $this->model->updateAllowSubAccount(
             $accountId,
-            ($hasPolicies || $hasCustom) ? 1 : 0
+            $hasCustom ? 1 : 0
         );
-    }
-
-    private function normalizeExcelNormalBalance(string $value): ?string
-    {
-        if ($value === '') {
-            return null;
-        }
-
-        $normalized = mb_strtolower(trim($value), 'UTF-8');
-
-        if (in_array($normalized, ['1', 'y', 'yes', 'true', '사용', '사용함', '가능', '허용', '예'], true)) {
-            return 1;
-        }
-
-        if (in_array($normalized, ['0', 'n', 'no', 'false', '미사용', '사용안함', '불가', '미허용', '아니오'], true)) {
-            return 0;
-        }
-
-        if (in_array($normalized, ['debit', '차변', '차', 'dr', 'd', '李⑤?'], true)) {
-            return 'debit';
-        }
-
-        if (in_array($normalized, ['credit', '대변', '대', 'cr', 'c', '?蹂'], true)) {
-            return 'credit';
-        }
-
-        return null;
-    }
-
-    private function inferNormalBalanceFromGroup(string $accountGroup, string $default = 'debit'): string
-    {
-        $normalized = trim($accountGroup);
-
-        if (in_array($normalized, ['ڻ', '', '?산', '비용'], true)) {
-            return 'debit';
-        }
-
-        if (in_array($normalized, ['부채', '자본', '수익', '遺梨?', '?먮낯', '?섏씡'], true)) {
-            return 'credit';
-        }
-
-        return in_array($default, ['debit', 'credit'], true) ? $default : 'debit';
-    }
-
-    private function normalizeExcelNormalBalanceValue(string $value): ?string
-    {
-        if ($value === '') {
-            return null;
-        }
-
-        $normalized = mb_strtolower(trim($value), 'UTF-8');
-
-        if (in_array($normalized, ['debit', '차변', '차', 'dr', 'd'], true)) {
-            return 'debit';
-        }
-
-        if (in_array($normalized, ['credit', '대변', '대', 'cr', 'c'], true)) {
-            return 'credit';
-        }
-
-        return null;
-    }
-
-    private function inferNormalBalanceFromGroupValue(string $accountGroup, string $default = 'debit'): string
-    {
-        $normalized = trim($accountGroup);
-
-        if (in_array($normalized, ['자산', '비용'], true)) {
-            return 'debit';
-        }
-
-        if (in_array($normalized, ['부채', '자본', '수익'], true)) {
-            return 'credit';
-        }
-
-        return in_array($default, ['debit', 'credit'], true) ? $default : 'debit';
-    }
-
-    private function normalizeExcelBoolean(string $value, int $default): int
-    {
-        $quickNormalized = mb_strtolower(trim($value), 'UTF-8');
-
-        if ($quickNormalized !== '' && in_array($quickNormalized, ['1', 'y', 'yes', 'true', '사용', '사용함', '가능', '허용', '예'], true)) {
-            return 1;
-        }
-
-        if ($quickNormalized !== '' && in_array($quickNormalized, ['0', 'n', 'no', 'false', '미사용', '사용안함', '불가', '미허용', '아니오'], true)) {
-            return 0;
-        }
-        if ($value === '') {
-            return $default;
-        }
-
-        $normalized = mb_strtolower(trim($value), 'UTF-8');
-
-        if (in_array($normalized, ['1', 'y', 'yes', 'true', '사용', '사용함'], true)) {
-            return 1;
-        }
-
-        if (in_array($normalized, ['0', 'n', 'no', 'false', '미사용', '사용안함'], true)) {
-            return 0;
-        }
-
-        return $default;
     }
 
     private function validateRequiredSubAccounts(array $data): array
@@ -1229,17 +752,4 @@ class ChartAccountService
         return ['success' => true];
     }
 
-    private function accountColumnExists(string $column): bool
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'ledger_accounts'
-              AND COLUMN_NAME = :column
-        ");
-        $stmt->execute([':column' => $column]);
-
-        return (int) $stmt->fetchColumn() > 0;
-    }
 }

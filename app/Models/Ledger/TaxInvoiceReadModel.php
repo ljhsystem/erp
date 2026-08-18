@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class TaxInvoiceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -62,7 +62,6 @@ class TaxInvoiceReadModel
                 '' AS source_type_name,
                 '' AS import_type_name,
                 body.sort_no AS sort_no,
-                body.evidence_sort_no AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect($taxTable) . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect($taxTable) . " AS raw_json,

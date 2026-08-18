@@ -21,7 +21,7 @@
 
           <div class="mb-3">
             <label class="form-label" for="position_edit_rank">레벨</label>
-            <input type="number" name="level_rank" id="position_edit_rank" class="form-control form-control-sm" min="0" step="1" value="0" required>
+            <input type="number" name="level_rank" id="position_edit_rank" class="form-control form-control-sm" step="1">
           </div>
 
           <div class="mb-3">
@@ -37,6 +37,18 @@
             <input class="form-check-input" type="checkbox" id="position_edit_is_active" name="is_active" checked>
             <label class="form-check-label" for="position_edit_is_active">활성</label>
           </div>
+
+          <section class="ui-form-card position-system-card mt-3" aria-label="시스템 처리 정보">
+            <button type="button" class="ui-form-card__toggle collapsed"
+                    data-ui-modal-card-collapse data-bs-target="#positionSystemInfoCollapse"
+                    aria-expanded="false" aria-controls="positionSystemInfoCollapse">
+              <span class="ui-form-card__title">시스템 처리 정보</span>
+              <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+            </button>
+            <div id="positionSystemInfoCollapse" class="collapse">
+              <div class="ui-form-card__body position-system-info-grid" id="positionSystemInfoFields"></div>
+            </div>
+          </section>
         </div>
 
         <div class="modal-footer">

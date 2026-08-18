@@ -20,16 +20,16 @@ class SubAccountPolicyModel
             SELECT
                 id,
                 account_id,
-                sub_account_type,
+                ref_target,
+                ref_target AS sub_account_type,
                 is_required,
-                is_multiple,
-                sort_order,
-                custom_group_code,
-                note
-            FROM ledger_account_sub_policies
+                0 AS is_multiple,
+                sort_no AS sort_order,
+                NULL AS custom_group_code,
+                NULL AS note
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
-              AND deleted_at IS NULL
-            ORDER BY sort_order ASC, created_at ASC
+            ORDER BY sort_no ASC, created_at ASC
         ";
 
         $stmt = $this->db->prepare($sql);
@@ -40,10 +40,35 @@ class SubAccountPolicyModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getGroupedByAccountIds(array $accountIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $id): string => trim((string) $id),
+            $accountIds
+        ))));
+        if ($ids === []) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("SELECT id, account_id, ref_target,
+                ref_target AS sub_account_type, is_required, 0 AS is_multiple,
+                sort_no AS sort_order, NULL AS custom_group_code, NULL AS note
+            FROM ledger_accounts_sub
+            WHERE account_id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")
+            ORDER BY account_id ASC, sort_no ASC, created_at ASC");
+        $stmt->execute($ids);
+
+        $grouped = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $grouped[(string) $row['account_id']][] = $row;
+        }
+        return $grouped;
+    }
+
     public function deleteByAccountId(string $accountId): bool
     {
         $stmt = $this->db->prepare("
-            DELETE FROM ledger_account_sub_policies
+            DELETE FROM ledger_accounts_sub
             WHERE account_id = :account_id
         ");
 
@@ -55,26 +80,20 @@ class SubAccountPolicyModel
     public function create(array $data): bool
     {
         $sql = "
-            INSERT INTO ledger_account_sub_policies (
+            INSERT INTO ledger_accounts_sub (
                 id,
                 account_id,
-                sub_account_type,
+                ref_target,
                 is_required,
-                is_multiple,
-                sort_order,
-                custom_group_code,
-                note,
+                sort_no,
                 created_by,
                 updated_by
             ) VALUES (
                 :id,
                 :account_id,
-                :sub_account_type,
+                :ref_target,
                 :is_required,
-                :is_multiple,
-                :sort_order,
-                :custom_group_code,
-                :note,
+                :sort_no,
                 :created_by,
                 :updated_by
             )
@@ -85,12 +104,9 @@ class SubAccountPolicyModel
         return $stmt->execute([
             ':id' => $data['id'],
             ':account_id' => $data['account_id'],
-            ':sub_account_type' => $data['sub_account_type'],
+            ':ref_target' => $data['ref_target'],
             ':is_required' => $data['is_required'],
-            ':is_multiple' => $data['is_multiple'],
-            ':sort_order' => $data['sort_order'],
-            ':custom_group_code' => $data['custom_group_code'] ?? null,
-            ':note' => $data['note'] ?? null,
+            ':sort_no' => $data['sort_order'],
             ':created_by' => $data['created_by'] ?? null,
             ':updated_by' => $data['updated_by'] ?? null,
         ]);
@@ -100,9 +116,8 @@ class SubAccountPolicyModel
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*)
-            FROM ledger_account_sub_policies
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
-              AND deleted_at IS NULL
         ");
 
         $stmt->execute([
@@ -110,5 +125,12 @@ class SubAccountPolicyModel
         ]);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    public function tableExists(): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ledger_accounts_sub' LIMIT 1");
+        $stmt->execute();
+        return (bool) $stmt->fetchColumn();
     }
 }

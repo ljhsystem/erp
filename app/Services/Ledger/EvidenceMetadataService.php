@@ -18,7 +18,7 @@ class EvidenceMetadataService
         'deleted_by_name' => 'deleted_by',
     ];
     private const EVIDENCE_TYPES = ['DATA', 'FUND', 'BOTH'];
-    private const PROCESS_ROLES = ['TRANSACTION_SSOT', 'REPORT_SSOT', 'TRANSACTION_REPORT_SSOT', 'REFERENCE'];
+    private const LEGACY_PROCESS_ROLE = 'REFERENCE';
     private const SEMANTIC_KEYS = [
         'BASE_DATE',
         'IN_AMOUNT', 'OUT_AMOUNT', 'PRE_TAX_AMOUNT', 'ADJUST_AMOUNT', 'POST_TAX_AMOUNT',
@@ -29,7 +29,8 @@ class EvidenceMetadataService
         'DESCRIPTION', 'MEMO',
     ];
     private const BASIS_FIELD_DEFINITIONS = [
-        ['semantic_key' => 'BASE_DATE', 'group' => '날짜', 'label' => '기준일', 'description' => '증빙과 후속 회계처리의 기준 날짜'],
+        ['semantic_key' => 'BASE_DATE', 'group' => '날짜와 적요', 'label' => '기준일', 'description' => '증빙과 후속 회계처리의 기준 날짜'],
+        ['semantic_key' => 'DESCRIPTION', 'group' => '날짜와 적요', 'label' => '적요', 'description' => '증빙을 식별하는 대표 거래내용 또는 품목 내용'],
         ['semantic_key' => 'IN_AMOUNT', 'group' => '금액', 'label' => '입금금액', 'description' => '자금이 유입된 금액'],
         ['semantic_key' => 'OUT_AMOUNT', 'group' => '금액', 'label' => '출금금액', 'description' => '자금이 유출된 금액'],
         ['semantic_key' => 'PRE_TAX_AMOUNT', 'group' => '금액', 'label' => '세전금액', 'description' => '세금과 가감 전 금액'],
@@ -37,6 +38,7 @@ class EvidenceMetadataService
     ];
     private const SEMANTIC_CANDIDATES = [
         'BASE_DATE' => ['base_date', 'transaction_date', 'transaction_datetime', 'purchase_datetime', 'evidence_date', 'written_date', 'issue_date', 'approval_date', 'billing_date', 'date'],
+        'DESCRIPTION' => ['description', 'raw_description', 'summary', 'summary_text', 'item_summary', 'raw_item_name', 'item_name', 'product_name', 'raw_note', 'note', 'raw_memo', 'memo'],
         'IN_AMOUNT' => ['deposit_amount', 'income_amount', 'in_amount', 'credit_amount'],
         'OUT_AMOUNT' => ['withdraw_amount', 'expense_amount', 'out_amount', 'debit_amount'],
         'PRE_TAX_AMOUNT' => ['pre_tax_amount', 'supply_amount', 'transaction_amount', 'transaction_amount_krw', 'purchase_amount_krw', 'amount'],
@@ -60,12 +62,55 @@ class EvidenceMetadataService
 
     public function getList(array $filters = []): array
     {
-        return ActorHelper::enrichActorNames($this->model->getList($filters), self::ACTOR_FIELDS);
+        $rows = $this->model->getList($filters);
+        $availableTables = array_fill_keys(array_column($this->repository->sourceTables(), 'name'), true);
+        foreach ($rows as &$row) {
+            $issues = [];
+            if (!isset($availableTables[(string) ($row['source_table'] ?? '')])) {
+                $issues[] = '원본 테이블 없음';
+            }
+            if ((int) ($row['mapping_count'] ?? 0) === 0) {
+                $issues[] = '의미 매핑 없음';
+            }
+            if ((int) ($row['base_date_count'] ?? 0) !== 1) {
+                $issues[] = '기준일 매핑 확인 필요';
+            }
+            if ((int) ($row['description_count'] ?? 0) !== 1) {
+                $issues[] = '적요 매핑 확인 필요';
+            }
+            $area = (string) ($row['evidence_type'] ?? '');
+            if (in_array($area, ['DATA', 'BOTH'], true) && (int) ($row['data_amount_count'] ?? 0) === 0) {
+                $issues[] = '자료금액 매핑 없음';
+            }
+            if ($area === 'FUND' && (int) ($row['fund_amount_count'] ?? 0) === 0) {
+                $issues[] = '자금금액 매핑 없음';
+            }
+            if ((int) ($row['invalid_adjustment_count'] ?? 0) > 0) {
+                $issues[] = '가감구분 오류';
+            }
+            if (!in_array((string) ($row['evidence_type'] ?? ''), self::EVIDENCE_TYPES, true)) {
+                $issues[] = '증빙 영역 구분 오류';
+            }
+            $row['health_status'] = $issues === [] ? 'NORMAL' : 'ERROR';
+            $row['health_message'] = $issues === [] ? '정상' : implode(', ', $issues);
+            unset($row['base_date_count'], $row['description_count'], $row['data_amount_count'], $row['fund_amount_count'], $row['invalid_adjustment_count']);
+            unset($row['process_role']);
+        }
+        unset($row);
+        return ActorHelper::enrichActorNames($rows, self::ACTOR_FIELDS);
     }
 
     public function getTrashList(): array
     {
-        return ActorHelper::enrichActorNames($this->model->getList([], true), self::ACTOR_FIELDS);
+        $rows = $this->model->getList([], true);
+        foreach ($rows as &$row) unset($row['process_role']);
+        unset($row);
+        return ActorHelper::enrichActorNames($rows, self::ACTOR_FIELDS);
+    }
+
+    public function getByImportType(string $importType): ?array
+    {
+        return $this->model->getByImportType($importType);
     }
 
     public function getById(string $id): ?array
@@ -76,6 +121,8 @@ class EvidenceMetadataService
         }
         $mappings = $this->columnModel->getByMetadataId($id);
         $row['mappings'] = $mappings;
+        $row['impact'] = $this->impactForRow($row);
+        unset($row['process_role']);
         return ActorHelper::enrichActorNamesRow($row, self::ACTOR_FIELDS);
     }
 
@@ -107,7 +154,6 @@ class EvidenceMetadataService
                 $mappings[] = [
                     'semantic_key' => $semanticKey,
                     'physical_column' => $physicalColumn,
-                    'is_required' => 'N',
                     'remark' => '실제 컬럼명 기준 자동 추천',
                 ];
             }
@@ -118,25 +164,17 @@ class EvidenceMetadataService
                     'semantic_key' => 'ADJUST_AMOUNT',
                     'physical_column' => $physicalColumn,
                     'adjustment_direction' => $direction,
-                    'is_required' => 'N',
                     'remark' => '실제 컬럼명 기준 자동 추천',
                 ];
             }
         }
         $mappedKeys = array_fill_keys(array_column($mappings, 'semantic_key'), true);
         $hasFundAmount = isset($mappedKeys['IN_AMOUNT']) || isset($mappedKeys['OUT_AMOUNT']);
-        $hasTaxAmount = $this->hasColumnMeaning($columnNames, [
-            'vat_amount', 'income_tax_amount', 'local_income_tax_amount', 'business_income_tax_amount',
-        ]);
-        $hasTransactionAmount = isset($mappedKeys['PRE_TAX_AMOUNT']) || isset($mappedKeys['POST_TAX_AMOUNT']) || $hasFundAmount;
 
         return [
             'import_type' => $importType,
             'source_table' => $sourceTable,
             'evidence_type' => $hasFundAmount ? 'FUND' : 'DATA',
-            'process_role' => $hasTaxAmount && $hasTransactionAmount
-                ? 'TRANSACTION_REPORT_SSOT'
-                : ($hasTransactionAmount ? 'TRANSACTION_SSOT' : 'REFERENCE'),
             'columns' => $columns,
             'mappings' => $mappings,
         ];
@@ -146,9 +184,10 @@ class EvidenceMetadataService
     {
         $registeredRows = [...$this->model->getList(), ...$this->model->getList([], true)];
         $registered = array_fill_keys(array_column($registeredRows, 'import_type'), true);
+        $availableTables = array_column($this->repository->sourceTables(), 'name');
         $importTypes = [];
         foreach ($this->repository->activeImportTypes() as $row) {
-            $sourceTable = $this->repository->recommendSourceTable((string) ($row['code'] ?? ''));
+            $sourceTable = $this->repository->recommendSourceTable((string) ($row['code'] ?? ''), $availableTables);
             if ($sourceTable === null) {
                 continue;
             }
@@ -228,6 +267,7 @@ class EvidenceMetadataService
 
     public function delete(string $id): array
     {
+        $this->assertDeletableRows($this->model->getByIds([$id]));
         $ok = $this->model->delete($id, ActorHelper::user());
         return [
             'success' => $ok,
@@ -239,13 +279,35 @@ class EvidenceMetadataService
     public function deleteBulk(array $ids): array
     {
         $ids = $this->normalizeIds($ids);
-        $count = $this->model->deleteByIds($ids, ActorHelper::user());
+        $rows = $this->model->getByIds($ids);
+        $this->assertCompleteRows($rows, $ids, '삭제할 증빙정책을 찾을 수 없습니다.');
+        $this->assertDeletableRows($rows);
+        $this->pdo->beginTransaction();
+        try {
+            $count = $this->model->deleteByIds($ids, ActorHelper::user());
+            if ($count !== count($ids)) {
+                throw new \RuntimeException('삭제 중 오류가 발생했습니다.');
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
         return $this->countResult('deleted_count', $count, count($ids), '선택한 증빙정책이 휴지통으로 이동되었습니다.', '삭제할 증빙정책이 없습니다.');
     }
 
     public function restore(string $id): array
     {
-        $ok = $this->model->restore($id, ActorHelper::user());
+        $this->assertRestorableRows($this->model->getByIds([$id], true));
+        $this->pdo->beginTransaction();
+        try {
+            $ok = $this->model->restore($id, ActorHelper::user());
+            if (!$ok) throw new \RuntimeException('복구 중 오류가 발생했습니다.');
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
         return [
             'success' => $ok,
             'data' => ['restored_count' => $ok ? 1 : 0],
@@ -256,18 +318,22 @@ class EvidenceMetadataService
     public function restoreBulk(array $ids): array
     {
         $ids = $this->normalizeIds($ids);
-        $count = $this->model->restoreByIds($ids, ActorHelper::user());
+        $count = $this->restoreRows($this->model->getByIds($ids, true), $ids);
         return $this->countResult('restored_count', $count, count($ids), '선택한 증빙정책이 복원되었습니다.', '복원할 증빙정책이 없습니다.');
     }
 
     public function restoreAll(): array
     {
-        $count = $this->model->restoreAll(ActorHelper::user());
+        $rows = $this->model->getList([], true);
+        $ids = array_column($rows, 'id');
+        $count = $ids === [] ? 0 : $this->restoreRows($rows, $ids);
         return $this->countResult('restored_count', $count, $count, '휴지통의 증빙정책이 모두 복원되었습니다.', '복원할 증빙정책이 없습니다.');
     }
 
     public function purge(string $id): array
     {
+        $rows = $this->model->getByIds([$id], true);
+        $this->assertPurgeableRows($rows);
         $ok = $this->model->purge($id);
         return [
             'success' => $ok,
@@ -279,24 +345,37 @@ class EvidenceMetadataService
     public function purgeBulk(array $ids): array
     {
         $ids = $this->normalizeIds($ids);
-        $count = $this->model->purgeByIds($ids);
+        $rows = $this->model->getByIds($ids, true);
+        $this->assertCompleteRows($rows, $ids, '영구삭제할 증빙정책을 찾을 수 없습니다.');
+        $this->assertPurgeableRows($rows);
+        $this->pdo->beginTransaction();
+        try {
+            $count = $this->model->purgeByIds($ids);
+            if ($count !== count($ids)) throw new \RuntimeException('영구삭제 중 오류가 발생했습니다.');
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
         return $this->countResult('deleted_count', $count, count($ids), '선택한 증빙정책이 영구삭제되었습니다.', '영구삭제할 증빙정책이 없습니다.');
-    }
-
-    public function purgeAll(): array
-    {
-        $count = $this->model->purgeAll();
-        return $this->countResult('deleted_count', $count, $count, '휴지통의 증빙정책이 모두 영구삭제되었습니다.', '영구삭제할 증빙정책이 없습니다.');
     }
 
     public function reorder(array $changes): array
     {
-        foreach ($changes as $row) {
-            $id = trim((string) ($row['id'] ?? ''));
-            $sortNo = (int) ($row['newSortNo'] ?? $row['sort_no'] ?? 0);
-            if ($id !== '' && $sortNo > 0) {
-                $this->model->updateOrder($id, $sortNo);
+        $actor = ActorHelper::user();
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($changes as $row) {
+                $id = trim((string) ($row['id'] ?? ''));
+                $sortNo = (int) ($row['newSortNo'] ?? $row['sort_no'] ?? 0);
+                if ($id !== '' && $sortNo > 0 && !$this->model->updateOrder($id, $sortNo, $actor)) {
+                    throw new \RuntimeException('정렬 저장 중 오류가 발생했습니다.');
+                }
             }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
         }
         return ['success' => true, 'message' => '증빙정책 순서가 저장되었습니다.'];
     }
@@ -306,7 +385,6 @@ class EvidenceMetadataService
         $importType = strtoupper(trim((string) ($payload['import_type'] ?? '')));
         $sourceTable = $this->normalizeIdentifier((string) ($payload['source_table'] ?? ''), '원본테이블은 필수입니다.');
         $evidenceType = strtoupper(trim((string) ($payload['evidence_type'] ?? '')));
-        $processRole = strtoupper(trim((string) ($payload['process_role'] ?? '')));
 
         if ($importType === '' || !$this->repository->activeImportTypeExists($importType)) {
             throw new \InvalidArgumentException('공용 자료유형 코드에서 자료유형을 선택해 주세요.');
@@ -320,15 +398,14 @@ class EvidenceMetadataService
         if (!in_array($evidenceType, self::EVIDENCE_TYPES, true)) {
             throw new \InvalidArgumentException('증빙유형 값이 올바르지 않습니다.');
         }
-        if (!in_array($processRole, self::PROCESS_ROLES, true)) {
-            throw new \InvalidArgumentException('처리역할 값이 올바르지 않습니다.');
-        }
         $columnSet = array_fill_keys(array_column($this->repository->sourceColumns($sourceTable), 'name'), true);
         $header = [
             'import_type' => $importType,
             'source_table' => $sourceTable,
             'evidence_type' => $evidenceType,
-            'process_role' => $processRole,
+            'process_role' => (string) ($payload['id'] ?? '') === ''
+                ? self::LEGACY_PROCESS_ROLE
+                : (string) ($this->model->getById((string) $payload['id'])['process_role'] ?? self::LEGACY_PROCESS_ROLE),
         ];
 
         $mappingPayload = is_array($payload['mappings'] ?? null) ? $payload['mappings'] : [];
@@ -347,7 +424,6 @@ class EvidenceMetadataService
                     'semantic_key' => $semanticKey,
                     'physical_column' => $column,
                     'adjustment_direction' => null,
-                    'is_required' => 'N',
                     'remark' => null,
                 ];
             }
@@ -373,7 +449,6 @@ class EvidenceMetadataService
                 'semantic_key' => 'ADJUST_AMOUNT',
                 'physical_column' => $column,
                 'adjustment_direction' => $direction,
-                'is_required' => 'N',
                 'remark' => null,
             ];
         }
@@ -445,6 +520,7 @@ class EvidenceMetadataService
     private function validateMappingSet(array $mappings): void
     {
         $physicalColumns = [];
+        $singleSemanticKeys = [];
         $compositeKeys = [];
         foreach ($mappings as $mapping) {
             $semanticKey = strtoupper(trim((string) ($mapping['semantic_key'] ?? '')));
@@ -462,6 +538,12 @@ class EvidenceMetadataService
             } elseif ($direction !== null && $direction !== '') {
                 throw new \InvalidArgumentException('가감구분은 가감금액에만 설정할 수 있습니다.');
             }
+            if ($semanticKey !== 'ADJUST_AMOUNT') {
+                if (isset($singleSemanticKeys[$semanticKey])) {
+                    throw new \InvalidArgumentException('동일한 컬럼 의미는 하나의 원본컬럼에만 연결할 수 있습니다.');
+                }
+                $singleSemanticKeys[$semanticKey] = true;
+            }
 
             if (isset($physicalColumns[$physicalColumn])) {
                 throw new \InvalidArgumentException('동일한 원본컬럼을 여러 의미에 중복 등록할 수 없습니다.');
@@ -474,20 +556,6 @@ class EvidenceMetadataService
             }
             $compositeKeys[$compositeKey] = true;
         }
-    }
-
-    private function hasColumnMeaning(array $columnNames, array $candidates): bool
-    {
-        foreach ($columnNames as $columnName) {
-            $normalized = strtolower((string) $columnName);
-            if (str_starts_with($normalized, 'raw_')) {
-                $normalized = substr($normalized, 4);
-            }
-            if (in_array($normalized, $candidates, true)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private function normalizeIds(array $ids): array
@@ -508,6 +576,66 @@ class EvidenceMetadataService
                 'skipped_count' => max(0, $requested - $count),
             ],
         ];
+    }
+
+    private function impactForRow(array $row): array
+    {
+        $usage = $this->repository->usageCounts((string) $row['import_type'], (string) $row['source_table']);
+        $plan = (new EvidenceTypePolicyService(null, $this->pdo))->processingPlanForDataType((string) $row['import_type']);
+        $required = (string) ($plan['type'] ?? 'UNSUPPORTED') !== 'UNSUPPORTED';
+        return [...$usage, 'runtime_required' => $required, 'deletable' => !$required && $usage['body_count'] === 0 && $usage['link_count'] === 0];
+    }
+
+    private function assertDeletableRows(array $rows): void
+    {
+        if ($rows === []) throw new \InvalidArgumentException('삭제할 증빙정책을 찾을 수 없습니다.');
+        foreach ($rows as $row) {
+            $impact = $this->impactForRow($row);
+            if ($impact['runtime_required']) throw new \InvalidArgumentException('시스템에서 사용 중인 증빙정책은 삭제할 수 없습니다.');
+            if ($impact['body_count'] > 0 || $impact['link_count'] > 0) throw new \InvalidArgumentException('연결된 증빙이 존재하여 삭제할 수 없습니다.');
+        }
+    }
+
+    private function assertPurgeableRows(array $rows): void
+    {
+        foreach ($rows as $row) {
+            if (empty($row['deleted_at'])) throw new \InvalidArgumentException('휴지통의 증빙정책만 영구삭제할 수 있습니다.');
+        }
+        $this->assertDeletableRows($rows);
+    }
+
+    private function assertRestorableRows(array $rows): void
+    {
+        if ($rows === []) throw new \InvalidArgumentException('복원할 증빙정책을 찾을 수 없습니다.');
+        $seen = [];
+        foreach ($rows as $row) {
+            $type = (string) $row['import_type'];
+            if (isset($seen[$type]) || $this->model->getByImportType($type)) {
+                throw new \InvalidArgumentException('동일한 자료유형의 활성 증빙정책이 존재하여 복원할 수 없습니다.');
+            }
+            $seen[$type] = true;
+        }
+    }
+
+    private function restoreRows(array $rows, array $ids): int
+    {
+        $this->assertCompleteRows($rows, $ids, '복원할 증빙정책을 찾을 수 없습니다.');
+        $this->assertRestorableRows($rows);
+        $this->pdo->beginTransaction();
+        try {
+            $count = $this->model->restoreByIds($ids, ActorHelper::user());
+            if ($count !== count($ids)) throw new \RuntimeException('복구 중 오류가 발생했습니다.');
+            $this->pdo->commit();
+            return $count;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    private function assertCompleteRows(array $rows, array $ids, string $message): void
+    {
+        if (count($rows) !== count($ids)) throw new \InvalidArgumentException($message);
     }
 
 }

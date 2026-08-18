@@ -5,27 +5,41 @@ export function createEvidenceUploadModule({
     notify,
     updateSummary,
     refreshEvidenceTypeCounts,
-    evidenceStatusTableSettingsStorageKey,
-    readDataTableSettingsState,
-    normalizeEvidenceType,
-    defaultEvidenceTypeCode,
-    evidenceMetaDomain,
+    currentStatusColumnPolicy,
 }) {
     function currentColumnPolicyPayload() {
-        const fallbackType = defaultEvidenceTypeCode();
-        const normalizedType = normalizeEvidenceType(state.currentType || fallbackType);
-        const storageKey = evidenceStatusTableSettingsStorageKey(normalizedType);
-        const userSettingPageKey = evidenceMetaDomain(normalizedType);
-        const settingsState = readDataTableSettingsState(storageKey, {
-            metaDomain: userSettingPageKey,
-            userSettingPageKey,
-        }) || {};
+        const form = state.refs.excelForm;
+        form?.dispatchEvent(new CustomEvent('excel:before-prepare-action', {
+            detail: { type: 'template' },
+        }));
+        const columns = Array.isArray(form?.__excelPreparedColumns?.template)
+            ? [...form.__excelPreparedColumns.template]
+            : [];
+        const settingsState = form?.__excelPreparedPolicy?.template
+            && typeof form.__excelPreparedPolicy.template === 'object'
+            ? form.__excelPreparedPolicy.template
+            : { displayName: {}, requirementPolicy: {} };
         return {
-            column_display_name: settingsState.columnDisplayName && typeof settingsState.columnDisplayName === 'object'
-                ? settingsState.columnDisplayName
+            columns,
+            column_display_name: settingsState.displayName && typeof settingsState.displayName === 'object'
+                ? settingsState.displayName
                 : {},
-            column_requirement_policy: settingsState.columnRequirementPolicy && typeof settingsState.columnRequirementPolicy === 'object'
-                ? settingsState.columnRequirementPolicy
+            column_requirement_policy: settingsState.requirementPolicy && typeof settingsState.requirementPolicy === 'object'
+                ? settingsState.requirementPolicy
+                : {},
+        };
+    }
+
+    function currentStatusPolicyPayload() {
+        const policyState = typeof currentStatusColumnPolicy === 'function'
+            ? currentStatusColumnPolicy()
+            : {};
+        return {
+            column_display_name: policyState?.columnDisplayName && typeof policyState.columnDisplayName === 'object'
+                ? policyState.columnDisplayName
+                : {},
+            column_requirement_policy: policyState?.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
+                ? policyState.columnRequirementPolicy
                 : {},
         };
     }
@@ -80,53 +94,25 @@ export function createEvidenceUploadModule({
     }
 
     function uploadResultProgressMessage(result = {}, fallback = '') {
-        const totalRows = Number(result.total_rows || 0);
-        const processed = Number(result.processed_count || 0)
-            || Number(result.new_count || 0)
-            + Number(result.updated_count || 0)
-            + Number(result.unchanged_count || 0)
-            + Number(result.error_count || 0);
-        const skipped = Number(result.skipped_count || Math.max(0, totalRows - processed));
-        const parts = [
-            `\uc2e4\uc81c \ucc98\ub9ac ${processed.toLocaleString('ko-KR')}\uac74`,
-            `\uc2e0\uaddc ${Number(result.new_count || 0).toLocaleString('ko-KR')}\uac74`,
-            `\ubcc0\uacbd ${Number(result.updated_count || 0).toLocaleString('ko-KR')}\uac74`,
-            `\ub3d9\uc77c ${Number(result.unchanged_count || 0).toLocaleString('ko-KR')}\uac74`,
-        ];
-        if (Number(result.error_count || 0) > 0) {
-            parts.push(`\uc624\ub958 ${Number(result.error_count || 0).toLocaleString('ko-KR')}\uac74`);
+        const total = Number(result.total_count ?? result.total_rows ?? 0);
+        const inserted = Number(result.inserted_count ?? result.new_count ?? 0);
+        const duplicates = Number(result.duplicate_count ?? result.unchanged_count ?? 0);
+        const deletedDuplicates = Number(result.deleted_duplicate_count || 0);
+        const conflicts = Number(result.conflict_count || 0);
+        const errors = Number(result.error_count || 0);
+        if (total <= 0) {
+            return fallback || '업로드할 데이터가 없습니다.';
         }
-        if (Number(result.protected_update_count || 0) > 0) {
-            const protectedParts = [];
-            if (Number(result.protected_transaction_count || 0) > 0) {
-                protectedParts.push(`\uac70\ub798\uc0dd\uc131 ${Number(result.protected_transaction_count || 0).toLocaleString('ko-KR')}\uac74`);
-            }
-            if (Number(result.protected_voucher_count || 0) > 0) {
-                protectedParts.push(`\uc804\ud45c\uc0dd\uc131 ${Number(result.protected_voucher_count || 0).toLocaleString('ko-KR')}\uac74`);
-            }
-            parts.push(`\uc0dd\uc131\uc644\ub8cc \uc218\uc815\uc81c\uc678 ${Number(result.protected_update_count || 0).toLocaleString('ko-KR')}\uac74${protectedParts.length > 0 ? `(${protectedParts.join(', ')})` : ''}`);
-        }
-        const otherSkipped = Math.max(0, skipped - Number(result.protected_update_count || 0));
-        if (otherSkipped > 0) {
-            parts.push(`\uc81c\uc678 ${otherSkipped.toLocaleString('ko-KR')}\uac74`);
-        }
-        if (totalRows > 0 && totalRows !== processed) {
-            return `\uc5d1\uc140 \uac10\uc9c0 ${totalRows.toLocaleString('ko-KR')}\ud589 / ${parts.join(', ')}`;
-        }
-        if (processed > 0) {
-            return `\uc5c5\ub85c\ub4dc \uc644\ub8cc: ${parts.join(', ')}`;
-        }
-        return fallback || '\uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5b4 \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud569\ub2c8\ub2e4.';
-    }
 
-    function dualWriteUploadMessage(result = {}) {
-        const status = String(result?.dual_write_status || '').trim();
-        if (!status) return '';
-        const successCount = Number(result?.dual_write_success_count || 0);
-        const failedCount = Number(result?.dual_write_failed_count || 0);
-        return `Dual write: ${status} (success ${successCount}, failed ${failedCount})`;
+        let message = `총 ${total.toLocaleString('ko-KR')}건 중 신규 ${inserted.toLocaleString('ko-KR')}건을 등록했습니다. `
+            + `동일 원본 ${duplicates.toLocaleString('ko-KR')}건은 건너뛰었습니다.`;
+        const details = [];
+        if (deletedDuplicates > 0) details.push(`삭제자료 중복 ${deletedDuplicates.toLocaleString('ko-KR')}건`);
+        if (conflicts > 0) details.push(`충돌 ${conflicts.toLocaleString('ko-KR')}건`);
+        if (errors > 0) details.push(`오류 ${errors.toLocaleString('ko-KR')}건`);
+        if (details.length > 0) message += ` ${details.join(', ')}이 있습니다.`;
+        return message;
     }
-
     async function uploadExcelFromModal(button) {
         if (state.uploadingExcel) return;
 
@@ -170,13 +156,16 @@ export function createEvidenceUploadModule({
         formData.append('import_type', importType);
         formData.append('type', importType);
         formData.append('file', file);
-        const templateColumns = state.refs.excelForm?.__excelPreparedColumns?.template || [];
         const columnPolicyPayload = currentColumnPolicyPayload();
+        const templateColumns = columnPolicyPayload.columns;
         if (Array.isArray(templateColumns) && templateColumns.length > 0) {
             formData.append('excel_template_columns', templateColumns.join(','));
         }
         formData.append('column_display_name', JSON.stringify(columnPolicyPayload.column_display_name));
         formData.append('column_requirement_policy', JSON.stringify(columnPolicyPayload.column_requirement_policy));
+        const statusPolicyPayload = currentStatusPolicyPayload();
+        formData.append('evidence_status_column_display_name', JSON.stringify(statusPolicyPayload.column_display_name));
+        formData.append('evidence_status_column_requirement_policy', JSON.stringify(statusPolicyPayload.column_requirement_policy));
         button.disabled = true;
         const originalText = button.textContent;
         button.textContent = '\uc5c5\ub85c\ub4dc \uc911';
@@ -234,11 +223,7 @@ export function createEvidenceUploadModule({
             }
 
             const result = uploadJson.data || {};
-            const dualWriteMessage = dualWriteUploadMessage(result);
-            const completedMessage = [
-                uploadResultProgressMessage(result, uploadJson.message),
-                dualWriteMessage,
-            ].filter(Boolean).join('\n');
+            const completedMessage = uploadResultProgressMessage(result, uploadJson.message);
 
             progress?.set(state.refs.excelModal, {
                 percent: 100,

@@ -2,70 +2,96 @@
 
 namespace App\Services\System;
 
+use App\Models\Approval\ApprovalInboxModel;
+use App\Models\Auth\UserModel;
+use App\Models\System\NotificationModel;
 use Core\Helpers\UuidHelper;
 use PDO;
 
 class NotificationService
 {
-    public function __construct(private readonly PDO $pdo)
+    private NotificationModel $notificationModel;
+    private ApprovalInboxModel $approvalInboxModel;
+    private UserModel $userModel;
+
+    public function __construct(PDO $pdo)
     {
+        $this->notificationModel = new NotificationModel($pdo);
+        $this->approvalInboxModel = new ApprovalInboxModel($pdo);
+        $this->userModel = new UserModel($pdo);
+    }
+
+    public function getNavigationFeed(string $userId, int $storedLimit = 20): array
+    {
+        $stored = array_map(static function (array $row): array {
+            $row['notification_kind'] = 'stored';
+            $row['action_url'] = (
+                (string) ($row['ref_table'] ?? '') === 'user_approval_requests'
+                && trim((string) ($row['ref_id'] ?? '')) !== ''
+            )
+                ? '/approval/status?box=submitted&request_id=' . rawurlencode((string) $row['ref_id'])
+                : null;
+            return $row;
+        }, $this->getNotifications($userId, $storedLimit));
+
+        $approvals = array_map(static function (array $row): array {
+            $documentTypeName = match ((string) $row['document_type']) {
+                'PERSONAL_EXPENSE' => '개인경비',
+                'EMPLOYMENT_CONTRACT' => '근로계약',
+                'PERSONNEL_ACTION' => '인사발령',
+                'LEAVE_REQUEST' => '휴가신청',
+                default => (string) $row['document_type'],
+            };
+            return [
+                'id' => 'approval:' . (string) $row['step_id'],
+                'notification_kind' => 'approval_actionable',
+                'action_type' => 'APPROVAL_REQUEST',
+                'ref_table' => 'user_approval_requests',
+                'ref_id' => (string) $row['request_id'],
+                'title' => '[' . $documentTypeName . ' 결재요청]',
+                'message' => sprintf(
+                    '%s · #%s · %s · %s원 · %s',
+                    (string) $row['requester_name'],
+                    (string) $row['document_no'],
+                    (string) $row['title'],
+                    number_format((float) $row['total_amount']),
+                    (string) $row['current_step_name']
+                ),
+                'is_read' => 0,
+                'created_at' => $row['arrived_at'],
+                'action_url' => '/approval/status?box=actionable&request_id=' . rawurlencode((string) $row['request_id']),
+            ];
+        }, $this->approvalInboxModel->actionableNotifications($userId));
+
+        $notifications = [...$approvals, ...$stored];
+        usort($notifications, static fn(array $left, array $right): int =>
+            strcmp((string) ($right['created_at'] ?? ''), (string) ($left['created_at'] ?? ''))
+        );
+        $storedUnreadCount = count(array_filter(
+            $stored,
+            static fn(array $row): bool => (int) ($row['is_read'] ?? 0) === 0
+        ));
+
+        return [
+            'notifications' => $notifications,
+            'approval_pending_count' => count($approvals),
+            'unread_count' => $storedUnreadCount + count($approvals),
+        ];
     }
 
     public function getNotifications(string $userId, int $limit = 20): array
     {
-        $stmt = $this->pdo->prepare("
-            SELECT n.id,
-                   n.recipient_user_id,
-                   n.actor_user_id,
-                   au.username AS actor_username,
-                   n.action_type,
-                   n.ref_table,
-                   n.ref_id,
-                   n.title,
-                   n.message,
-                   n.is_read,
-                   n.read_at,
-                   n.created_at
-              FROM system_notifications n
-              LEFT JOIN auth_users au ON au.id = n.actor_user_id
-             WHERE n.recipient_user_id = :user_id
-             ORDER BY n.created_at DESC
-             LIMIT :limit
-        ");
-        $stmt->bindValue(':user_id', $userId);
-        $stmt->bindValue(':limit', max(1, min($limit, 50)), PDO::PARAM_INT);
-        $stmt->execute();
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $this->notificationModel->findByRecipient($userId, max(1, min($limit, 50)));
     }
 
     public function markAsRead(string $id, string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE system_notifications
-               SET is_read = 1,
-                   read_at = COALESCE(read_at, NOW())
-             WHERE id = :id
-               AND recipient_user_id = :user_id
-        ");
-
-        return $stmt->execute([
-            ':id' => $id,
-            ':user_id' => $userId,
-        ]);
+        return $this->notificationModel->markAsRead($id, $userId);
     }
 
     public function markAllAsRead(string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE system_notifications
-               SET is_read = 1,
-                   read_at = COALESCE(read_at, NOW())
-             WHERE recipient_user_id = :user_id
-               AND is_read = 0
-        ");
-
-        return $stmt->execute([':user_id' => $userId]);
+        return $this->notificationModel->markAllAsRead($userId);
     }
 
     public function createNotification(array $data): bool
@@ -79,33 +105,7 @@ class NotificationService
             return false;
         }
 
-        $stmt = $this->pdo->prepare("
-            INSERT INTO system_notifications (
-                id,
-                recipient_user_id,
-                actor_user_id,
-                action_type,
-                ref_table,
-                ref_id,
-                title,
-                message,
-                is_read,
-                created_at
-            ) VALUES (
-                :id,
-                :recipient_user_id,
-                :actor_user_id,
-                :action_type,
-                :ref_table,
-                :ref_id,
-                :title,
-                :message,
-                0,
-                NOW()
-            )
-        ");
-
-        return $stmt->execute([
+        return $this->notificationModel->insert([
             ':id' => $data['id'] ?? UuidHelper::generate(),
             ':recipient_user_id' => $recipientUserId,
             ':actor_user_id' => $this->nullableString($data['actor_user_id'] ?? null),
@@ -119,18 +119,7 @@ class NotificationService
 
     public function getAdminUserIds(): array
     {
-        $stmt = $this->pdo->query("
-            SELECT u.id
-              FROM auth_users u
-              JOIN auth_roles r ON r.id = u.role_id
-             WHERE u.approved = 1
-               AND u.is_active = 1
-               AND u.deleted_at IS NULL
-               AND r.role_key IN ('super_admin', 'admin')
-             ORDER BY FIELD(r.role_key, 'super_admin', 'admin'), u.username ASC
-        ");
-
-        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        return $this->userModel->getActiveAdminUserIds();
     }
 
     private function nullableString(mixed $value): ?string

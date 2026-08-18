@@ -36,9 +36,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataRawStorage.js');
                 <a href="/ledger/data/upload" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-upload me-1"></i>자료 업로드
                 </a>
-                <a href="/ledger/data/create" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-database-check me-1"></i>생성센터
-                </a>
                 <button type="button" class="btn btn-outline-dark btn-sm" id="btnReloadRawData">
                     <i class="bi bi-arrow-clockwise me-1"></i>새로고침
                 </button>

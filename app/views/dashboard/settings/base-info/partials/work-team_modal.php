@@ -7,7 +7,7 @@
         <div class="modal-content">
             <form id="workTeamForm">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="workTeamModalLabel">팀관리</h5>
+                    <h5 class="modal-title" id="workTeamModalLabel">팀</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body work-team-modal-body">
@@ -42,6 +42,17 @@
                             <textarea class="form-control form-control-sm" name="memo" id="modal-work-team-memo" rows="3"></textarea>
                         </div>
                     </div>
+                    <section class="ui-form-card work-team-system-card mt-3" aria-label="시스템 처리 정보">
+                        <button type="button" class="ui-form-card__toggle collapsed"
+                                data-ui-modal-card-collapse data-bs-target="#workTeamSystemInfoCollapse"
+                                aria-expanded="false" aria-controls="workTeamSystemInfoCollapse">
+                            <span class="ui-form-card__title">시스템 처리 정보</span>
+                            <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div id="workTeamSystemInfoCollapse" class="collapse">
+                            <div class="ui-form-card__body work-team-system-info-grid" id="workTeamSystemInfoFields"></div>
+                        </div>
+                    </section>
                 </div>
                 <div class="modal-footer">
                     <button type="button" id="btnDeleteWorkTeam" class="btn btn-danger btn-sm" style="display:none;">삭제</button>

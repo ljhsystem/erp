@@ -2,13 +2,14 @@
 
 namespace App\Services\System;
 
+use App\Models\System\DatabaseReplicationStatusModel;
 use PDO;
 use RuntimeException;
 use Throwable;
 
 class DatabaseReplicationStatusService
 {
-    private readonly PDO $pdo;
+    private DatabaseReplicationStatusModel $statusModel;
     private array $topology;
     private array $primary;
     private array $secondary;
@@ -16,7 +17,7 @@ class DatabaseReplicationStatusService
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo = $pdo;
+        $this->statusModel = new DatabaseReplicationStatusModel();
         $this->topology = $this->loadTopologyConfig();
         $this->primary = $this->normalizeNodeConfig('primary');
         $this->secondary = $this->normalizeNodeConfig('secondary');
@@ -146,11 +147,7 @@ class DatabaseReplicationStatusService
     private function checkPrimary(): array
     {
         try {
-            $pdo = $this->connect($this->primary);
-
-            $row = $pdo->query(
-                'SELECT @@hostname AS host, @@port AS port, @@read_only AS read_only'
-            )->fetch(PDO::FETCH_ASSOC);
+            $row = $this->statusModel->getServerIdentity($this->primary);
 
             return [
                 'online' => true,
@@ -169,13 +166,7 @@ class DatabaseReplicationStatusService
     private function checkSecondary(): array
     {
         try {
-            $pdo = $this->connect($this->secondary);
-
-            try {
-                $status = $pdo->query('SHOW REPLICA STATUS')->fetch(PDO::FETCH_ASSOC);
-            } catch (Throwable) {
-                $status = $pdo->query('SHOW SLAVE STATUS')->fetch(PDO::FETCH_ASSOC);
-            }
+            $status = $this->statusModel->getReplicaStatus($this->secondary);
 
             if (!$status) {
                 return [
@@ -204,28 +195,4 @@ class DatabaseReplicationStatusService
         }
     }
 
-    private function connect(array $cfg): PDO
-    {
-        foreach (['host', 'port', 'user', 'pass'] as $key) {
-            if (!isset($cfg[$key]) || $cfg[$key] === '') {
-                throw new RuntimeException("Missing DB config: {$key}");
-            }
-        }
-
-        $dsn = sprintf(
-            'mysql:host=%s;port=%d;charset=utf8mb4',
-            (string) $cfg['host'],
-            (int) $cfg['port']
-        );
-
-        return new PDO(
-            $dsn,
-            (string) $cfg['user'],
-            (string) $cfg['pass'],
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_TIMEOUT => 2,
-            ]
-        );
-    }
 }

@@ -4,6 +4,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\BrandService;
 use Core\DbPdo;
+use Core\Session;
 
 class BrandController
 {
@@ -17,6 +18,7 @@ class BrandController
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         $filters = [];
         if (!empty($_POST['asset_type'])) {
@@ -36,6 +38,7 @@ class BrandController
     public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         $id = trim((string) ($_POST['id'] ?? ''));
         if ($id === '') {
@@ -56,6 +59,7 @@ class BrandController
     public function apiActiveType(): void
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         $assetType = trim((string) ($_POST['asset_type'] ?? ''));
         if ($assetType === '') {

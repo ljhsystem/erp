@@ -316,8 +316,9 @@ function normalizeOptions(options = {}) {
     };
 }
 
+const COMMON_EMPTY_OPTION_ID = '__none__';
 const COMMON_ADD_OPTION_ID = '__add__';
-const COMMON_ADD_OPTION_TEXT = '+추가';
+const COMMON_ADD_OPTION_TEXT = '+ 추가';
 
 function isCommonAddOption(item = {}) {
     const id = String(item.id ?? '').trim();
@@ -400,6 +401,10 @@ function withCommonAjaxOptions(result = {}, params = {}, options = {}) {
 
     const results = normalized;
 
+    if (page <= 1) {
+        results.unshift({ id: COMMON_EMPTY_OPTION_ID, text: '선택(없음)', isEmpty: true });
+    }
+
     if (page <= 1 && includeCommonAdd) {
         results.push({ id: COMMON_ADD_OPTION_ID, text: addText, isAdd: true, disabled: !quickAddEnabled });
     }
@@ -436,6 +441,18 @@ function bindCommonSelect2Options($el) {
     $el.off('select2:select.commonPickerOptions')
         .on('select2:select.commonPickerOptions', function (event) {
             const selectedId = String(event.params?.data?.id ?? '').trim();
+            if (selectedId === COMMON_EMPTY_OPTION_ID) {
+                let emptyOption = Array.from(this.options || []).find((option) => option.value === '');
+                if (!emptyOption) {
+                    emptyOption = new Option('선택(없음)', '', true, true);
+                    this.insertBefore(emptyOption, this.firstChild);
+                }
+                emptyOption.selected = true;
+                event.params.data.id = '';
+                event.params.data.text = '선택(없음)';
+                window.jQuery(this).val('').trigger('change');
+                return;
+            }
             if (selectedId === COMMON_ADD_OPTION_ID) {
                 if (this.dataset.quickAddEnabled !== 'true') {
                     return;
@@ -635,8 +652,22 @@ function createAjaxSelect2(target, options = {}) {
         throw new Error('[picker.select2] AJAX Select2는 url이 필요합니다.');
     }
 
+    const configuredLanguage = rest.language && typeof rest.language === 'object'
+        ? rest.language
+        : {};
+    const ajaxLanguage = {
+        ...configuredLanguage,
+        noResults: () => '검색 결과가 없습니다.',
+        errorLoading: () => '검색 결과가 없습니다.',
+        inputTooShort: (args = {}) => {
+            const remaining = Math.max(0, Number(args.minimum || 0) - Number(args.input?.length || 0));
+            return remaining > 0 ? `${remaining}자 이상 입력해 주세요.` : '검색어를 입력해 주세요.';
+        }
+    };
+
     const finalOptions = normalizeOptions({
         ...rest,
+        language: ajaxLanguage,
         minimumInputLength,
         ajax: {
             url,
@@ -691,6 +722,7 @@ function createAjaxSelect2(target, options = {}) {
 
                 return withCommonAjaxOptions({
                     results: rows.map(row => ({
+                        ...row,
                         id: row.id ?? row.code ?? row.value,
                         text: row.text
                             ?? row.display_name

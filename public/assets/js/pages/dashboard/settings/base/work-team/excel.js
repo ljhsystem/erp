@@ -1,8 +1,8 @@
 import { createExcelManagerSettingsCore } from '../../../../../components/excel-manager/index.js';
 
 export function createWorkTeamExcelModule({ reloadTable }) {
-    function initExcelDataset() {
-        createExcelManagerSettingsCore({
+    async function initExcelDataset() {
+        await createExcelManagerSettingsCore({
             domain: 'work-team',
             userSettingPageKey: 'work-team',
             formSelector: '#workTeamExcelForm',

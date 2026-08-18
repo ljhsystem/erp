@@ -3,7 +3,6 @@
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
-use App\Services\Ledger\EvidenceDualWriteService;
 use App\Services\Ledger\EvidenceSummarySearchService;
 use App\Services\Ledger\EvidenceTypePolicyService;
 use Core\DbPdo;
@@ -18,6 +17,8 @@ class EvidenceController
         'CASH_RECEIPT',
         'CARD_HOMETAX',
         'CARD_STATEMENT',
+        'EMPLOYEE_EXPENSE_PERSONAL',
+        'PAYROLL',
     ];
 
     private const PLANNED_PAGE_NOTICES = [
@@ -26,7 +27,6 @@ class EvidenceController
         'CARD_APPROVAL' => '카드매입(카드사) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'SHOPPING_ORDER' => '카드매출(쇼핑몰) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'EMPLOYEE_EXPENSE' => '직원경비(개인) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
-        'PAYROLL' => '급여(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'PAYROLL_WITHHOLDING' => '일용직(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'BUSINESS_INCOME' => '사업소득(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
     ];
@@ -48,6 +48,7 @@ class EvidenceController
         'PAYROLL' => '/ledger/data/payroll',
         'BUSINESS_INCOME' => '/ledger/data/business-income',
         'EMPLOYEE_EXPENSE' => '/ledger/data/employee-expenses',
+        'EMPLOYEE_EXPENSE_PERSONAL' => '/ledger/data/employee-personal-expenses',
         'CONSTRUCTION' => '/ledger/data/construction',
     ];
 
@@ -85,16 +86,6 @@ class EvidenceController
         $this->redirect($this->pagePathForType($requestedType));
     }
 
-    public function webBankTransactionList(): void
-    {
-        $this->webTypePage();
-    }
-
-    public function webTaxInvoiceList(): void
-    {
-        $this->webTypePage();
-    }
-
     public function webTypePage(): void
     {
         $type = $this->currentTypeFromRequestPath();
@@ -123,20 +114,12 @@ class EvidenceController
         ]);
     }
 
-    public function apiEvidenceDualWriteSync(): void
+    public function apiTypePolicies(): void
     {
-        $payload = json_decode((string) file_get_contents('php://input'), true);
-        if (!is_array($payload)) {
-            $payload = $_POST;
-        }
-        $evidenceId = trim((string) ($payload['evidence_id'] ?? $payload['id'] ?? ''));
-        if ($evidenceId === '') {
-            $this->json(['success' => false, 'message' => 'evidence_id is required.'], 400);
-            return;
-        }
-
-        (new EvidenceDualWriteService($this->pdo))->syncByEvidenceId($evidenceId);
-        $this->json(['success' => true, 'message' => 'Dual-write sync completed.', 'evidence_id' => $evidenceId]);
+        $this->json([
+            'success' => true,
+            'data' => $this->evidenceTypePolicyService()->statusViewImportTypePolicies(),
+        ]);
     }
 
     private function renderListPage(?string $pageTitle = null, string $initialEvidenceType = ''): void
@@ -298,6 +281,7 @@ class EvidenceController
             'pageStyles' => $pageStyles ?? '',
             'pageScripts' => $pageScripts ?? '',
             'layoutOptions' => $layoutOptions ?? [],
+            'pageAssetProfile' => $pageAssetProfile ?? 'default',
         ]);
     }
 

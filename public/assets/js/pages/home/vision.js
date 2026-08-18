@@ -1,7 +1,3 @@
-//📂 경로: /assets/js/pages/home/vision.js
-
-
-// 텍스트 작성 및 삭제 애니메이션
 document.addEventListener('DOMContentLoaded', () => {
     const spanEl = document.querySelector('#vision h2 span');
     if (!spanEl) return;
@@ -14,10 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let index = 0;
     let currentTxt = '';
 
-    const typingSpeed = 80;  // 한 글자 추가 속도(ms)
-    const deletingSpeed = 60; // 한 글자 삭제 속도(ms)
-    const holdTime = 2000;    // 전체 문장 유지 시간(ms)
-
+    const typingSpeed = 80;
+    const deletingSpeed = 60;
+    const holdTime = 2000;  
     function writeTxt() {
         currentTxt = txtArr[index];
         let i = 0;

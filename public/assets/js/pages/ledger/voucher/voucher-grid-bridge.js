@@ -1,64 +1,50 @@
 import { createHtmlGrid } from '/public/assets/js/common/html-grid/index.js';
-import {
-    ensureSystemUserSettingsStorage,
-    readSystemUserSettingsStorage,
-    writeSystemUserSettingsStorage,
-} from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { createVoucherLineGridSchema } from './voucher-grid-schema.js';
 import { createVoucherLineGridHooks } from './voucher-grid-hooks.js';
-
+import { createRecommendationSnapshot, normalizeVoucherRefs, recommendationOrigin, reconcileRecommendationTracking, serializeVoucherRefs } from './recommendation-tracking.js';
+import { createVoucherGridColumnState } from './voucher-grid-column-state.js';
 function destroySelect2(element) {
     const jquery = window.jQuery || window.$;
     if (!element || !jquery?.fn?.select2) {
         return;
     }
-
     const $element = jquery(element);
     if (!$element.hasClass('select2-hidden-accessible')) {
         return;
     }
-
     const instance = $element.data('select2');
     if (isMountedElement(element) && typeof instance?.isOpen === 'function' && instance.isOpen()) {
         $element.select2('close');
     }
-
     $element.select2('destroy');
 }
-
 function closeSelect2(element) {
     const jquery = window.jQuery || window.$;
     if (!element || !jquery?.fn?.select2) {
         return;
     }
-
     const $element = jquery(element);
     if (!$element.hasClass('select2-hidden-accessible')) {
         return;
     }
-
     const instance = $element.data('select2');
     const isMounted = element.ownerDocument?.documentElement?.contains(element) === true;
     if (isMounted && typeof instance?.isOpen === 'function' && instance.isOpen()) {
         $element.select2('close');
     }
 }
-
 function isMountedElement(element) {
     return element?.ownerDocument?.documentElement?.contains(element) === true;
 }
-
 function focusSelect2(element) {
     const jquery = window.jQuery || window.$;
     if (!isMountedElement(element)) {
         return;
     }
-
     if (jquery?.fn?.select2 && jquery(element).hasClass('select2-hidden-accessible')) {
         jquery(element).select2('open');
         return;
     }
-
     element.focus?.();
 }
 
@@ -74,22 +60,7 @@ function normalizeAccountValue(value) {
     return normalized;
 }
 
-function normalizeRefsValue(refs = []) {
-    return Array.isArray(refs)
-        ? refs
-            .map((ref) => ({
-                ref_target: String(ref?.ref_target || ref?.ref_type || ref?.line_ref_target || '').toUpperCase(),
-                ref_type: String(ref?.ref_type || ref?.ref_target || ref?.line_ref_target || '').toUpperCase(),
-                ref_id: String(ref?.ref_id || '').trim(),
-                is_primary: Number(ref?.is_primary) === 1 ? 1 : 0,
-            }))
-            .filter((entry) => entry.ref_target !== '' && entry.ref_id !== '')
-        : [];
-}
-
-function serializeRefsValue(refs = []) {
-    return JSON.stringify(normalizeRefsValue(refs));
-}
+const normalizeRefsValue = normalizeVoucherRefs, serializeRefsValue = serializeVoucherRefs;
 
 function deriveDirtyRowState(currentState = '') {
     const normalized = String(currentState || '').trim();
@@ -120,6 +91,10 @@ function buildEmptyLine(rowIndex = 0, rowState = 'created') {
 }
 
 function buildLineRow(line = {}, rowIndex = 0, rowState = 'created') {
+    const journalRuleId = String(line.journal_rule_id || '').trim();
+    const isUserModified = Number(line.is_user_modified) === 1 ? 1 : 0;
+    const recommendationSnapshot = String(line.recommendation_snapshot || '') || (
+        journalRuleId !== '' && isUserModified === 0 ? createRecommendationSnapshot(line) : '');
     return {
         rowId: String(line.rowId || `voucher-line-${Date.now()}-${rowIndex + 1}`),
         rowState,
@@ -130,12 +105,17 @@ function buildLineRow(line = {}, rowIndex = 0, rowState = 'created') {
             debit: String(line.debit ?? '0'),
             credit: String(line.credit ?? '0'),
             line_summary: String(line.line_summary || '').trim(),
+            journal_rule_id: journalRuleId,
+            is_user_modified: isUserModified,
+            recommendation_snapshot: recommendationSnapshot,
+            recommended_account_id: String(line.recommended_account_id || '').trim() || null,
+            recommended_line_type: String(line.recommended_line_type || '').trim().toUpperCase() || null,
+            recommended_amount: line.recommended_amount ?? null,
             row_action: '',
         },
         meta: {},
     };
 }
-
 function createBaseEditor(context, className) {
     const documentRef = context.document || context.host?.ownerDocument || document;
     const element = documentRef.createElement('div');
@@ -438,8 +418,7 @@ function createRefsEditorFactory(bridge, ctx) {
 
         const collectRefs = () => normalizeRefsValue(currentSelects
             .map((selectEl) => ({
-                ref_target: String(selectEl.dataset.refType || '').toUpperCase(),
-                ref_type: String(selectEl.dataset.refType || '').toUpperCase(),
+                ref_target: String(selectEl.dataset.refTarget || '').toUpperCase(),
                 ref_id: String(selectEl.value || '').trim(),
                 is_primary: selectEl.dataset.policyIndex === '0' ? 1 : 0,
             })));
@@ -535,7 +514,7 @@ function createRefsEditorFactory(bridge, ctx) {
             const selectedMap = new Map();
 
             refs.forEach((ref) => {
-                const refType = String(ref.ref_target || ref.ref_type || ref.line_ref_target || '').toUpperCase();
+                const refType = String(ref.ref_target || ref.line_ref_target || '').toUpperCase();
                 const refId = String(ref.ref_id || '').trim();
                 if (refType !== '' && refId !== '') {
                     ctx.refTypeAliases(refType).forEach((alias) => {
@@ -550,7 +529,7 @@ function createRefsEditorFactory(bridge, ctx) {
             try {
                 for (let index = 0; index < policies.length; index += 1) {
                     const policy = policies[index];
-                    const refTarget = String(policy.ref_target || policy.ref_type || '').toUpperCase();
+                    const refTarget = String(policy.ref_target || '').toUpperCase();
                     const field = documentRef.createElement('label');
                     field.className = 'journal-line-subaccount-field';
 
@@ -566,7 +545,7 @@ function createRefsEditorFactory(bridge, ctx) {
 
                     const selectEl = documentRef.createElement('select');
                     selectEl.className = 'form-select form-select-sm line-ref-picker voucher-grid-ref-picker';
-                    selectEl.dataset.refType = refTarget;
+                    selectEl.dataset.refTarget = refTarget;
                     selectEl.dataset.required = policy.is_required ? '1' : '0';
                     selectEl.dataset.policyIndex = String(index);
                     selectEl.dataset.rowId = rowId;
@@ -817,7 +796,6 @@ function createSummaryEditorFactory(bridge) {
 
 export function createVoucherLineGridBridge(ctx) {
     const hooks = createVoucherLineGridHooks();
-    const COLUMN_SETTINGS_STORAGE_KEY = 'html-grid.settings.ledger.voucher-line-grid.columns.v1';
     const bridge = {
         grid: null,
         dragRowId: '',
@@ -851,80 +829,11 @@ export function createVoucherLineGridBridge(ctx) {
     function getLineHost() {
         return ctx.lineGridHostEl || null;
     }
-
-    function normalizeColumnState(columnState = null) {
-        const payload = columnState && typeof columnState === 'object' && !Array.isArray(columnState)
-            ? columnState
-            : {};
-        const normalizeColumnKey = (key) => key === 'sort_no' ? 'line_no' : key;
-        const normalizeColumnKeys = (keys) => Array.isArray(keys)
-            ? keys.map(normalizeColumnKey).filter((key, index, values) => values.indexOf(key) === index)
-            : [];
-        const hidden = new Set(normalizeColumnKeys(payload.hidden));
-        hidden.delete('refs');
-        const widths = payload.widths && typeof payload.widths === 'object' ? { ...payload.widths } : {};
-        if (Object.prototype.hasOwnProperty.call(widths, 'sort_no')) {
-            if (!Object.prototype.hasOwnProperty.call(widths, 'line_no')) {
-                widths.line_no = widths.sort_no;
-            }
-            delete widths.sort_no;
-        }
-
-        return {
-            order: normalizeColumnKeys(payload.order),
-            hidden: Array.from(hidden),
-            pinned: normalizeColumnKeys(payload.pinned),
-            widths,
-            meta: payload.meta && typeof payload.meta === 'object' ? { ...payload.meta } : {},
-        };
-    }
-
-    function shouldApplyColumnState(currentState, nextState) {
-        return JSON.stringify(normalizeColumnState(currentState)) !== JSON.stringify(normalizeColumnState(nextState));
-    }
-
-    function readSavedColumnState() {
-        const payload = readSystemUserSettingsStorage(COLUMN_SETTINGS_STORAGE_KEY, {
-            settingType: 'VIEW',
-            userSettingPageKey: 'ledger.voucher-line-grid',
-            description: ctx.VOUCHER_PAGE_DESCRIPTION,
-        }) || ensureSystemUserSettingsStorage(COLUMN_SETTINGS_STORAGE_KEY, {
-            order: [],
-            hidden: [],
-            pinned: [],
-            widths: {},
-            meta: {},
-        }, {
-            settingType: 'VIEW',
-            userSettingPageKey: 'ledger.voucher-line-grid',
-            description: ctx.VOUCHER_PAGE_DESCRIPTION,
-        });
-
-        return payload && typeof payload === 'object' && !Array.isArray(payload)
-            ? normalizeColumnState(payload)
-            : null;
-    }
-
-    function persistColumnState(columnState = null) {
-        const grid = getGrid();
-        const payload = normalizeColumnState(columnState || grid?.getColumnState?.() || null);
-        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-            return;
-        }
-
-        ctx.state.lineGridColumnState = payload;
-        writeSystemUserSettingsStorage(COLUMN_SETTINGS_STORAGE_KEY, {
-            order: Array.isArray(payload.order) ? [...payload.order] : [],
-            hidden: Array.isArray(payload.hidden) ? [...payload.hidden] : [],
-            pinned: Array.isArray(payload.pinned) ? [...payload.pinned] : [],
-            widths: payload.widths && typeof payload.widths === 'object' ? { ...payload.widths } : {},
-            meta: payload.meta && typeof payload.meta === 'object' ? { ...payload.meta } : {},
-        }, {
-            settingType: 'VIEW',
-            userSettingPageKey: 'ledger.voucher-line-grid',
-            description: ctx.VOUCHER_PAGE_DESCRIPTION,
-        });
-    }
+    const columnState = createVoucherGridColumnState(ctx, getGrid);
+    const normalizeColumnState = columnState.normalize;
+    const shouldApplyColumnState = columnState.shouldApply;
+    const readSavedColumnState = columnState.read;
+    const persistColumnState = columnState.persist;
 
     function buildAccountPickerAdapter() {
         return ({ editorElement }) => {
@@ -1190,7 +1099,9 @@ export function createVoucherLineGridBridge(ctx) {
         if (!options.skipRefsFlush && !Object.prototype.hasOwnProperty.call(patch, 'refs')) {
             flushRefsForRow(rowId);
         }
-        return grid.updateRow(rowIndex, patch, options);
+        const currentValues = grid.getState().rows[rowIndex]?.values || {};
+        const tracking = reconcileRecommendationTracking({ ...currentValues, ...patch });
+        return grid.updateRow(rowIndex, { ...patch, ...tracking }, options);
     }
 
     function resequenceRows() {
@@ -1223,6 +1134,10 @@ export function createVoucherLineGridBridge(ctx) {
             liveRow.values = {
                 ...(liveRow.values || {}),
                 refs: normalizedRefs,
+                ...reconcileRecommendationTracking({
+                    ...(liveRow.values || {}),
+                    refs: normalizedRefs,
+                }),
             };
             liveRow.dirtyFields = Array.from(new Set([...(liveRow.dirtyFields || []), 'refs']));
             liveRow.rowState = deriveDirtyRowState(liveRow.rowState);
@@ -1281,12 +1196,18 @@ export function createVoucherLineGridBridge(ctx) {
     function serializeCollectedRows(rows = []) {
         return rows
             .map((row) => {
+                const recommendation = recommendationOrigin(row?.values?.recommendation_snapshot);
                 const line = {
                     account_id: String(row?.values?.account_id || '').trim(),
                     refs: normalizeRefsValue(row?.values?.refs || []),
                     debit: normalizeAmount(ctx, row?.values?.debit ?? ''),
                     credit: normalizeAmount(ctx, row?.values?.credit ?? ''),
                     line_summary: String(row?.values?.line_summary || '').trim(),
+                    journal_rule_id: String(row?.values?.journal_rule_id || '').trim() || null,
+                    is_user_modified: Number(row?.values?.is_user_modified) === 1 ? 1 : 0,
+                    recommended_account_id: recommendation.account_id || row?.values?.recommended_account_id || null,
+                    recommended_line_type: recommendation.line_type || row?.values?.recommended_line_type || null,
+                    recommended_amount: recommendation.amount ?? row?.values?.recommended_amount ?? null,
                 };
 
                 const hasContent = Boolean(

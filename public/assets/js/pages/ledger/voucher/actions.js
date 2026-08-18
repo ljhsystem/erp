@@ -1,3 +1,6 @@
+import { createRecommendationSnapshot } from './recommendation-tracking.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
+
 export function registerActions(ctx) {
     const state = ctx.state;
     const {
@@ -16,20 +19,20 @@ export function registerActions(ctx) {
         modalDeleteBtn,
         modalRequestReviewBtn,
         modalCancelReviewBtn,
-        evidenceSearchBody,
-        evidenceSearchKeywordEl,
-        linkedEvidenceIdEl,
-        linkedEvidenceSummaryEl,
         selectEvidenceBtn,
-        clearEvidenceLinkBtn,
-        searchEvidenceBtn,
+        clearSelectedEvidenceBtn,
+        evidenceSelectionCountEl,
+        applyEvidenceSelectionBtn,
+        recommendEvidenceBtn,
+        recommendationPanelEl,
+        recommendationListEl,
         modal,
         evidenceModal,
+        evidenceModalEl,
         lineGridBridge,
         basicInfoBridge,
         escapeHtml,
         notify,
-        queueEvidenceSearch,
         fetchJson,
         formatDateInputValue,
         closeSummaryAutocomplete,
@@ -58,6 +61,19 @@ export function registerActions(ctx) {
         reloadJournalTable,
         traceVoucherStep,
     } = ctx;
+
+let modalCodeControlsPromise = null;
+function ensureModalCodeControls() {
+    if (!modalCodeControlsPromise) {
+        modalCodeControlsPromise = Promise.resolve(initCodeSelectControls(modalEl))
+            .catch((error) => {
+                modalCodeControlsPromise = null;
+                console.error('[ledger-journal] modal code controls load failed', error);
+                notify('error', '전표 입력 항목을 불러오지 못했습니다.');
+            });
+    }
+    return modalCodeControlsPromise;
+}
 
 function bindDetailCardCollapses() {
     if (!modalEl || !window.bootstrap?.Collapse) {
@@ -113,14 +129,17 @@ function bindDetailCardCollapses() {
 
 async function openCreateModal() {
     resetModal();
+    state.journalRecommendations = [];
+    state.journalRecommendationMessages = [];
+    state.selectedRecommendationId = '';
+    renderJournalRecommendations();
     if (voucherNoDisplayEl) {
         voucherNoDisplayEl.value = '자동발번';
     }
-    await setVoucherDetailMeta?.({ status: 'DRAFT' });
     bindDetailCardCollapses();
     modal?.show();
-    await addLineRow();
-    await addLineRow();
+    void ensureModalCodeControls();
+    await setVoucherDetailMeta?.({ status: 'DRAFT' });
 }
 
 async function loadDetail(id) {
@@ -130,10 +149,15 @@ async function loadDetail(id) {
         },
     });
     resetModal();
+    state.journalRecommendations = [];
+    state.journalRecommendationMessages = [];
+    state.selectedRecommendationId = '';
+    renderJournalRecommendations();
     setModalTitle('edit');
     setJournalModalLoading(true);
     bindDetailCardCollapses();
     modal?.show();
+    void ensureModalCodeControls();
 
     try {
         const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
@@ -161,9 +185,6 @@ async function loadDetail(id) {
 
         if (Array.isArray(data.lines) && data.lines.length > 0) {
             await lineGridBridge?.loadLines?.(data.lines);
-        } else {
-            await addLineRow();
-            await addLineRow();
         }
 
         const summary = calculateTotals();
@@ -229,7 +250,10 @@ async function saveVoucher(options = {}) {
     }
     const formData = new FormData(form);
     formData.set('lines', JSON.stringify(collectLines()));
-    formData.set('linked_evidence_id', linkedEvidenceIdEl?.value || '');
+    formData.set('linked_evidences', JSON.stringify(state.linkedEvidences.map((item) => ({
+        import_type: item.import_type,
+        evidence_id: item.evidence_id,
+    }))));
 
     const json = await fetchJson(API.save, {
         method: 'POST',
@@ -244,6 +268,14 @@ async function saveVoucher(options = {}) {
     const idInput = form.querySelector('[name="id"]');
     if (json.data?.id && idInput) {
         idInput.value = json.data.id;
+    }
+    const savedVoucherId = String(json.data?.id || idInput?.value || '');
+    if (savedVoucherId !== '') {
+        const detailJson = await fetchJson(`${API.detail}?id=${encodeURIComponent(savedVoucherId)}`);
+        if (!detailJson.success || !detailJson.data) {
+            throw new Error(detailJson.message || '저장된 전표 상세 정보를 다시 불러오지 못했습니다.');
+        }
+        setLinkedEvidence(hydrateVoucher(detailJson.data));
     }
 
     if (shouldNotify) {
@@ -307,74 +339,6 @@ async function requestVoucherReview() {
     }
 }
 
-async function saveEvidenceLinkOnly() {
-    const voucherId = form.querySelector('[name="id"]')?.value || '';
-    if (!voucherId) {
-        notify('error', '증빙을 연결할 전표 ID를 확인할 수 없습니다.');
-        return null;
-    }
-
-    const formData = new FormData();
-    formData.append('id', voucherId);
-    formData.append('linked_evidence_id', linkedEvidenceIdEl?.value || '');
-
-    const json = await fetchJson(API.linkEvidence, {
-        method: 'POST',
-        body: formData,
-    });
-
-    if (!json.success) {
-        notify('error', json.message || '증빙 연결 저장에 실패했습니다.');
-        return null;
-    }
-
-    setLinkedEvidence({
-        linked_evidence: json.data?.linked_evidence || null,
-        evidence_id: json.data?.evidence_id || linkedEvidenceIdEl?.value || '',
-    });
-    notify('success', '증빙 연결이 저장되었습니다.');
-    reloadJournalTable();
-    return json.data || null;
-}
-
-function confirmEvidenceUnlink() {
-    const voucherNo = voucherNoEl?.value || form.querySelector('[name="voucher_no"]')?.value || '현재 전표';
-    const summary = linkedEvidenceSummaryEl?.textContent?.trim() || '연결된 증빙';
-    return window.confirm(
-        `${voucherNo}에 연결된 증빙을 해제합니다.\n\n현재 연결: ${summary}\n\n해제하면 이 전표는 증빙 미연결 상태가 되며, 필요 시 다시 증빙을 선택해야 합니다. 계속 해제하시겠습니까?`
-    );
-}
-
-async function clearEvidenceLinkOnly() {
-    const voucherId = form.querySelector('[name="id"]')?.value || '';
-    const evidenceId = linkedEvidenceIdEl?.value || '';
-    if (evidenceId && !confirmEvidenceUnlink()) {
-        return null;
-    }
-    setLinkedEvidence({});
-    if (!voucherId || !evidenceId) {
-        return null;
-    }
-
-    const formData = new FormData();
-    formData.append('id', voucherId);
-    formData.append('linked_evidence_id', evidenceId);
-
-    const json = await fetchJson(API.unlinkEvidence, {
-        method: 'POST',
-        body: formData,
-    });
-
-    if (!json.success) {
-        notify('error', json.message || '증빙 연결 해제에 실패했습니다.');
-        return null;
-    }
-
-    notify('success', '증빙 연결이 해제되었습니다.');
-    reloadJournalTable();
-    return json.data || null;
-}
-
 async function cancelVoucherReview() {
     const voucherId = form.querySelector('[name="id"]')?.value || '';
     if (!voucherId) {
@@ -401,22 +365,15 @@ async function cancelVoucherReview() {
 }
 
 async function deleteVoucher(id) {
-    const formData = new FormData();
-    formData.append('id', id);
-
-    const json = await fetchJson(API.remove, {
-        method: 'POST',
-        body: formData,
+    await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '전표를 휴지통으로 이동 중' }, async () => {
+        const formData = new FormData();
+        formData.append('id', id);
+        const json = await fetchJson(API.remove, { method: 'POST', body: formData });
+        if (!json.success) throw new Error(json.message || '전표 삭제에 실패했습니다.');
+        notify('success', '전표가 삭제되었습니다.');
+        modal?.hide();
+        await reloadJournalTable();
     });
-
-    if (!json.success) {
-        notify('error', json.message || '전표 삭제에 실패했습니다.');
-        return;
-    }
-
-    notify('success', '전표가 삭제되었습니다.');
-    modal?.hide();
-    reloadJournalTable();
 }
 
 function findJournalRowData(element) {
@@ -478,96 +435,251 @@ async function handleJournalAction(action, row = {}, button = null) {
         await deleteVoucher(id);
     }
 }
-function renderEvidenceSearchRows(rows = []) {
-    if (!evidenceSearchBody) {
-        return;
+function updateEvidenceSelectionCount() {
+    const selectedCount = state.evidenceSearchTable?.getSelectedIds?.().length || 0;
+    if (evidenceSelectionCountEl) evidenceSelectionCountEl.textContent = `${selectedCount}개 선택`;
+    if (applyEvidenceSelectionBtn) {
+        applyEvidenceSelectionBtn.disabled = selectedCount === 0 || state.evidenceRecommendationPending;
     }
-
-    if (!rows.length) {
-        evidenceSearchBody.innerHTML = `
-            <tr>
-                <td colspan="6" class="text-center text-muted py-4">선택할 증빙이 없습니다.</td>
-            </tr>
-        `;
-        return;
-    }
-
-    const linkedRowClass = (row) => {
-        if (row.is_linked_to_current_voucher) return ' class="journal-search-row-linked-current"';
-        if (row.is_linked_to_other_voucher) return ' class="journal-search-row-linked-other"';
-        return '';
-    };
-    const linkedBadge = (row) => {
-        const voucher = row.linked_voucher || {};
-        const voucherNo = voucher.voucher_no || '';
-        if (row.is_linked_to_current_voucher) {
-            return '<span class="journal-search-link-badge current">현재 전표 연결</span>';
-        }
-        if (row.is_linked_to_other_voucher) {
-            return `<span class="journal-search-link-badge other">다른 전표 연결${voucherNo ? `: ${escapeHtml(voucherNo)}` : ''}</span>`;
-        }
-        return '';
-    };
-
-    evidenceSearchBody.innerHTML = rows.map((row, index) => `
-        <tr data-index="${index}"${linkedRowClass(row)}>
-            <td>${escapeHtml(row.evidence_date || row.processed_at || row.created_at || '')}</td>
-            <td>${escapeHtml(row.display_type || row.format_name || importTypeLabel(row.source_type || ''))}</td>
-            <td>${escapeHtml(row.client_name || row.counterparty_name || '-')}</td>
-            <td class="text-end">${escapeHtml(formatAmountValue(row.display_amount || 0) || '0')}</td>
-            <td>
-                <div class="journal-search-main">${escapeHtml(row.display_summary || '-')}</div>
-                ${row.display_key ? `<div class="journal-search-sub">${escapeHtml(row.display_key)}</div>` : ''}
-                ${linkedBadge(row)}
-            </td>
-            <td class="text-center">
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm btn-pick-evidence">${row.is_linked_to_current_voucher ? '선택됨' : '선택'}</button>
-            </td>
-        </tr>
-    `).join('');
 }
+ctx.updateEvidenceSelectionCount = updateEvidenceSelectionCount;
+const isEvidenceComplete = (row = {}) => ['COMPLETED', 'READY', 'VERIFY_ONLY']
+    .includes(String(row.evidence_status || '').trim().toUpperCase());
 
+let restoreEvidenceSelectionAfterEditor = false;
+ctx.openEvidenceSourceEditor = async (row = {}) => {
+    const importType = String(row.import_type || '').trim().toUpperCase();
+    const evidenceId = String(row.evidence_id || row.id || '').trim();
+    if (!importType || !evidenceId) {
+        notify('warning', '증빙원본 수정 화면을 열 수 없습니다.');
+        return;
+    }
+    const evidenceEditor = await ctx.ensureEvidenceEditor?.();
+    if (!evidenceEditor?.open) {
+        notify('warning', '증빙원본 수정 화면을 열 수 없습니다.');
+        return;
+    }
+    const openEditor = async () => {
+        restoreEvidenceSelectionAfterEditor = true;
+        await evidenceEditor.open({ import_type: importType, evidence_id: evidenceId });
+    };
+    if (evidenceModalEl?.classList.contains('show')) {
+        evidenceModalEl.addEventListener('hidden.bs.modal', () => void openEditor(), { once: true });
+        evidenceModal?.hide();
+        return;
+    }
+    await openEditor();
+};
+
+evidenceModalEl?.addEventListener('shown.bs.modal', () => {
+    window.requestAnimationFrame(() => state.evidenceSearchTable?.columns?.adjust?.());
+});
+
+document.addEventListener('evidence:updated', () => ctx.reloadEvidenceSelectionTable?.());
+document.getElementById('evidenceSeedRowEditModal')?.addEventListener('hidden.bs.modal', () => {
+    if (!restoreEvidenceSelectionAfterEditor) return;
+    restoreEvidenceSelectionAfterEditor = false;
+    evidenceModal?.show();
+});
+
+
+ctx.buildEvidenceSearchRequest = (request = {}) => {
+    const order = request.order?.[0] || {};
+    const column = request.columns?.[Number(order.column)] || {};
+    const length = Math.max(1, Number(request.length || 100));
+    return {
+        draw: Number(request.draw || 1),
+        q: String(request.search?.value || '').trim(),
+        voucher_id: form.querySelector('[name="id"]')?.value || '',
+        evidence_type: 'ALL',
+        import_type: 'ALL',
+        exclude_evidences: JSON.stringify(state.linkedEvidences.map((item) => ({ import_type: item.import_type, evidence_id: item.evidence_id }))),
+        page: Math.floor(Number(request.start || 0) / length) + 1,
+        per_page: length,
+        sort_field: column.name || column.data || 'evidence_date',
+        sort_direction: String(order.dir || 'asc').toLowerCase(),
+    };
+};
 async function loadEvidenceSearch() {
-    if (!evidenceSearchBody) {
+    const table = ctx.ensureEvidenceSelectionTable?.();
+    if (table) table.ajax.reload(null, false);
+}
+
+function recommendationSourceLabel(source = '') {
+    return ({ JOURNAL_RULE: '분개규칙', RECENT_PATTERN: '최근사용', CLIENT_PATTERN: '거래처 사용패턴', CLIENT_DEFAULT_ACCOUNT: '거래처 기준계정', LEARNING_EVENT: '확정 분개학습' })[source] || source;
+}
+
+function recommendationAccountLabel(accountId = '') {
+    const account = state.accountPickerById.get(String(accountId || ''));
+    return account?.text || account?.account_name || '계정과목 확인 필요';
+}
+
+function recommendationRefLabel(refTarget = '') {
+    return ({ CLIENT: '거래처', PROJECT: '프로젝트', BANK_ACCOUNT: '계좌', CARD: '카드', TEAM: '팀', EMPLOYEE: '직원' })[refTarget] || refTarget;
+}
+
+function renderJournalRecommendations() {
+    if (!recommendationPanelEl || !recommendationListEl) return;
+    const recommendations = state.journalRecommendations || [];
+    const messages = state.journalRecommendationMessages || [];
+    if (recommendEvidenceBtn) {
+        recommendEvidenceBtn.disabled = state.linkedEvidences.length === 0 || state.evidenceRecommendationPending;
+    }
+    recommendationPanelEl.hidden = recommendations.length === 0 && messages.length === 0;
+    if (recommendations.length === 0 && messages.length === 0) {
+        recommendationListEl.innerHTML = '';
         return;
     }
+    const messageHtml = messages.map((message) => (
+        `<div class="alert alert-secondary py-2 px-3 mb-2" role="status">${escapeHtml(message)}</div>`
+    )).join('');
+    const recommendationHtml = recommendations.map((candidate, index) => {
+        const sources = (candidate.source_types || []).map(recommendationSourceLabel).filter(Boolean).join(' · ');
+        const lines = (candidate.lines || []).map((line) => {
+            const amount = Number(line.debit || line.credit || 0);
+            const side = Number(line.debit || 0) > 0 ? '차변' : '대변';
+            const refs = (line.refs || []).map((ref) => `${recommendationRefLabel(ref.ref_target)}: ${ref.ref_name || ref.ref_id}`).join(' · ');
+            return `<li><span class="voucher-recommendation-side">${side}</span><span><b>${escapeHtml(recommendationAccountLabel(line.account_id))}</b>${refs ? `<small>${escapeHtml(refs)}</small>` : ''}</span><strong>${escapeHtml(formatAmountValue(amount))}원</strong></li>`;
+        }).join('');
+        const reason = (candidate.reasons || []).join(' ');
+        return `<article class="voucher-recommendation-item${state.selectedRecommendationId === candidate.candidate_id ? ' is-selected' : ''}" data-candidate-id="${escapeHtml(candidate.candidate_id)}">
+            <div class="voucher-recommendation-heading"><div><strong>추천 ${index + 1}</strong><span>${escapeHtml(sources || '추천 근거 확인 필요')}</span></div><span class="voucher-recommendation-score">${escapeHtml(String(candidate.score || 0))}점</span></div>
+            <ul class="voucher-recommendation-lines">${lines}</ul>
+            <div class="voucher-recommendation-footer"><p title="${escapeHtml(reason)}">${escapeHtml(reason || '추천 근거가 없습니다.')}</p><button type="button" class="btn btn-outline-primary btn-sm btn-apply-journal-recommendation">이 추천 선택</button></div>
+        </article>`;
+    }).join('');
+    recommendationListEl.innerHTML = messageHtml + recommendationHtml;
+}
 
-    evidenceSearchBody.innerHTML = `
-        <tr>
-            <td colspan="6" class="text-center text-muted py-4">증빙 목록을 불러오는 중입니다.</td>
-        </tr>
-    `;
+async function applyJournalRecommendation(candidateId = '') {
+    const candidate = state.journalRecommendations.find((item) => item.candidate_id === candidateId);
+    if (!candidate) return;
+    const currentLineCount = collectLines().length;
+    const recommendedLineCount = Array.isArray(candidate.lines) ? candidate.lines.length : 0;
+    if (currentLineCount > 0 && !window.confirm(
+        `기존 분개라인 ${currentLineCount}개를 추천 분개라인 ${recommendedLineCount}개로 교체합니다. 적용하시겠습니까?`
+    )) return;
+    const journalRuleSignal = (candidate.signals || []).find((signal) => signal.source === 'JOURNAL_RULE');
+    const lines = (candidate.lines || []).map((line) => {
+        const recommendedLine = {
+            account_id: line.account_id,
+            debit: line.debit || 0,
+            credit: line.credit || 0,
+            line_summary: line.summary || '',
+            refs: Array.isArray(line.refs) ? line.refs : [],
+            journal_rule_id: journalRuleSignal?.source_id || '',
+            is_user_modified: 0,
+            recommendation_source: (candidate.source_types || []).join(','),
+            recommendation_score: candidate.score,
+            recommendation_reason: (candidate.reasons || []).join(' '),
+        };
+        recommendedLine.recommendation_snapshot = createRecommendationSnapshot(recommendedLine);
+        return recommendedLine;
+    });
+    await lineGridBridge?.loadLines?.(lines);
+    state.selectedRecommendationId = candidateId;
+    calculateTotals();
+    renderJournalRecommendations();
+    notify('success', '선택한 추천을 분개라인에 반영했습니다.');
+}
 
+async function recommendAddedEvidences(evidences = []) {
+    if (!evidences.length) {
+        state.journalRecommendations = [];
+        state.journalRecommendationMessages = [];
+        state.selectedRecommendationId = '';
+        renderJournalRecommendations();
+        notify('info', '분개추천을 조회할 증빙이 없습니다.');
+        return;
+    }
+    const identities = evidences.map((item) => ({
+        import_type: String(item.import_type || '').toUpperCase(),
+        evidence_id: String(item.evidence_id || ''),
+    })).sort((a, b) => `${a.import_type}:${a.evidence_id}`.localeCompare(`${b.import_type}:${b.evidence_id}`));
+    const contextToken = JSON.stringify({
+        voucher_id: form.querySelector('[name="id"]')?.value || 'NEW',
+        evidences: identities,
+    });
+    const requestSequence = state.evidenceRecommendationSequence + 1;
+    state.evidenceRecommendationSequence = requestSequence;
+    state.evidenceRecommendationContext = contextToken;
+    state.evidenceRecommendationAbort?.abort?.();
+    const abortController = typeof AbortController === 'function' ? new AbortController() : null;
+    state.evidenceRecommendationAbort = abortController;
+    evidences.forEach((evidence) => { evidence._recommendation_status = 'LOADING'; });
+    ctx.renderLinkedEvidenceGrid?.();
+    const originalText = recommendEvidenceBtn?.textContent || '분개추천 조회';
+    state.evidenceRecommendationPending = true;
+    updateEvidenceSelectionCount();
+    renderJournalRecommendations();
+    if (recommendEvidenceBtn) {
+        recommendEvidenceBtn.disabled = true;
+        recommendEvidenceBtn.textContent = '추천 조회 중...';
+    }
     try {
-        const query = new URLSearchParams();
-        const keyword = evidenceSearchKeywordEl?.value?.trim() || '';
-        if (keyword) {
-            query.set('q', keyword);
+        const json = await fetchJson(API.evidenceRecommendations, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ evidences: identities }),
+            signal: abortController?.signal,
+        });
+        if (requestSequence !== state.evidenceRecommendationSequence
+            || contextToken !== state.evidenceRecommendationContext) return;
+        if (!json.success) throw new Error(json.message || '분개 추천을 불러오지 못했습니다.');
+        const notices = [];
+        for (const result of (json.data?.results || [])) {
+            const linkedEvidence = state.linkedEvidences.find((item) => item.import_type === result.import_type && item.evidence_id === result.evidence_id);
+            if (linkedEvidence) {
+                linkedEvidence._recommendation_status = result.recommendation_status || result.status;
+                linkedEvidence._recommendation_reason_code = result.reason_code || '';
+                linkedEvidence._recommendation_message = result.message || '';
+            }
+            if (result.connection_status === 'BLOCKED') {
+                notices.push(result.message || '추천에 사용할 수 없는 증빙입니다.');
+            } else if (!['FULL', 'PAIRED'].includes(result.recommendation_status)) {
+                notices.push(result.message || '추천할 분개규칙이 없습니다.');
+            }
         }
-        const voucherId = form.querySelector('[name="id"]')?.value || '';
-        if (voucherId) {
-            query.set('voucher_id', voucherId);
+        state.journalRecommendations = Array.isArray(json.data?.recommendations) ? json.data.recommendations.slice(0, 3) : [];
+        state.journalRecommendationMessages = Array.from(new Set(notices));
+        state.selectedRecommendationId = '';
+        renderJournalRecommendations();
+        if (state.journalRecommendations.length > 0) {
+            notify('success', `분개추천 ${state.journalRecommendations.length}건을 조회했습니다. 적용할 내용을 확인해 주세요.`);
         }
-
-        const json = await fetchJson(`${API.evidenceSearch}?${query.toString()}`);
-        if (!json.success) {
-            throw new Error(json.message || '증빙 목록을 불러오지 못했습니다.');
-        }
-
-        state.evidenceRows = Array.isArray(json.data) ? json.data : [];
-        renderEvidenceSearchRows(state.evidenceRows);
+        ctx.renderLinkedEvidenceGrid?.();
     } catch (error) {
-        console.error('[ledger-journal] evidence search failed', error);
-        state.evidenceRows = [];
-        state.evidenceRows = [];
-        evidenceSearchBody.innerHTML = `
-            <tr>
-                <td colspan="6" class="text-center text-danger py-4">증빙 목록을 불러오지 못했습니다.</td>
-            </tr>
-        `;
+        if (error?.name === 'AbortError' || requestSequence !== state.evidenceRecommendationSequence) return;
+        state.journalRecommendations = [];
+        state.journalRecommendationMessages = ['분개추천 조회 중 오류가 발생했습니다. 기존 분개라인은 변경되지 않았습니다.'];
+        state.selectedRecommendationId = '';
+        renderJournalRecommendations();
+        notify('error', '분개추천 조회 중 오류가 발생했습니다.');
+    } finally {
+        if (requestSequence !== state.evidenceRecommendationSequence) return;
+        state.evidenceRecommendationPending = false;
+        state.evidenceRecommendationAbort = null;
+        if (recommendEvidenceBtn) {
+            recommendEvidenceBtn.disabled = false;
+            recommendEvidenceBtn.textContent = originalText;
+        }
+        updateEvidenceSelectionCount();
+        renderJournalRecommendations();
     }
 }
+
+ctx.clearJournalRecommendations = () => {
+    state.evidenceRecommendationSequence += 1;
+    state.evidenceRecommendationContext = '';
+    state.evidenceRecommendationAbort?.abort?.();
+    state.evidenceRecommendationAbort = null;
+    state.evidenceRecommendationPending = false;
+    state.journalRecommendations = [];
+    state.journalRecommendationMessages = [];
+    state.selectedRecommendationId = '';
+    renderJournalRecommendations();
+};
+ctx.syncRecommendationVisibility = renderJournalRecommendations;
 
 function bindEvents() {
     if (state.voucherEventsBound) {
@@ -576,9 +688,16 @@ function bindEvents() {
     state.voucherEventsBound = true;
 
     bindDetailCardCollapses();
-
     addLineBtn?.addEventListener('click', () => {
         void addLineRow();
+    });
+    recommendationListEl?.addEventListener('click', (event) => {
+        const button = event.target.closest('.btn-apply-journal-recommendation');
+        const item = button?.closest('.voucher-recommendation-item');
+        if (item?.dataset.candidateId) void applyJournalRecommendation(item.dataset.candidateId);
+    });
+    recommendEvidenceBtn?.addEventListener('click', () => {
+        void recommendAddedEvidences(state.linkedEvidences);
     });
 
     voucherDateEl.addEventListener('input', () => {
@@ -708,73 +827,56 @@ function bindEvents() {
         }
     });
 
-    selectEvidenceBtn?.addEventListener('click', () => {
+    const openEvidenceSearch = () => {
         if (!evidenceModal) {
-            notify('warning', '증빙 선택 모달을 찾을 수 없습니다.');
+            notify('warning', '증빙 추가 모달을 찾을 수 없습니다.');
             return;
         }
-
-        if (evidenceSearchKeywordEl) {
-            evidenceSearchKeywordEl.value = '';
-        }
-
+        state.evidencePage = 1;
+        state.evidenceSearchTable?.clearSelectedIds?.();
+        updateEvidenceSelectionCount();
         evidenceModal.show();
-        void loadEvidenceSearch();
-    });
-
-
-    clearEvidenceLinkBtn?.addEventListener('click', () => {
-        void clearEvidenceLinkOnly();
-    });
-
-    searchEvidenceBtn?.addEventListener('click', (event) => {
-        event.preventDefault();
-        void loadEvidenceSearch();
-    });
-
-    evidenceSearchKeywordEl?.addEventListener('input', () => {
-        queueEvidenceSearch();
-    });
-
-    evidenceSearchKeywordEl?.addEventListener('search', () => {
-        queueEvidenceSearch();
-    });
-
-    evidenceSearchKeywordEl?.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            void loadEvidenceSearch();
+        const tableWasInitialized = Boolean(state.evidenceSearchTable);
+        const table = ctx.ensureEvidenceSelectionTable?.();
+        if (tableWasInitialized) {
+            table?.ajax?.reload(() => table.columns?.adjust?.(), false);
+        } else {
+            window.requestAnimationFrame(() => table?.columns?.adjust?.());
         }
+    };
+    selectEvidenceBtn?.addEventListener('click', openEvidenceSearch);
+    clearSelectedEvidenceBtn?.addEventListener('click', () => {
+        if (!ctx.clearSelectedLinkedEvidences?.()) notify('info', '해제할 증빙을 선택해 주세요.');
     });
 
-    evidenceSearchBody?.addEventListener('click', (event) => {
-        const button = event.target.closest('.btn-pick-evidence');
-        if (!button) {
+    applyEvidenceSelectionBtn?.addEventListener('click', async () => {
+        if (state.evidenceRecommendationPending) return;
+        const selectedRows = (state.evidenceSearchTable?.getSelectedIds?.() || [])
+            .map((key) => state.pendingEvidenceRows.get(key))
+            .filter(Boolean);
+        if (selectedRows.length === 0) {
+            updateEvidenceSelectionCount();
             return;
         }
-
-        const rowEl = button.closest('tr');
-        const index = Number(rowEl?.dataset.index ?? -1);
-        const row = state.evidenceRows[index];
-        if (!row) {
+        if (selectedRows.some((row) => !isEvidenceComplete(row))) {
+            notify('warning', '증빙상태가 완료된 증빙만 추가할 수 있습니다.');
             return;
         }
-        if (row.is_linked_to_other_voucher) {
-            const voucherNo = row.linked_voucher?.voucher_no || '다른 전표';
-            const ok = window.confirm(
-                `이 증빙은 이미 ${voucherNo}에 연결되어 있습니다.\n\n현재 전표로 연결을 변경하려면 기존 연결 상태를 먼저 확인하는 것이 좋습니다. 그래도 선택하시겠습니까?`
-            );
-            if (!ok) return;
+        const linkedKeys = new Set(state.linkedEvidences.map((row) => `${row.import_type}:${row.evidence_id}`));
+        const additions = selectedRows
+            .filter((row) => !linkedKeys.has(`${row.import_type}:${row.evidence_id}`))
+            .map((item) => ({ ...item, _link_state: 'PENDING' }));
+        if (additions.length === 0) {
+            notify('info', '선택한 증빙은 이미 이 전표에 추가되어 있습니다.');
+            return;
         }
-
-        setLinkedEvidence({
-            linked_evidence: row,
-            evidence_id: row.id || '',
-        });
+        setLinkedEvidence({ linked_evidences: [...state.linkedEvidences, ...additions] });
+        ctx.clearJournalRecommendations?.();
+        state.evidenceSearchTable?.clearSelectedIds?.();
+        updateEvidenceSelectionCount();
+        state.evidenceSearchTable?.ajax?.reload(null, false);
         evidenceModal?.hide();
-        if (form.querySelector('[name="id"]')?.value) {
-            void saveEvidenceLinkOnly();
-        }
+        notify('success', `증빙 ${additions.length}건을 추가했습니다.`);
     });
 }
 
@@ -841,11 +943,13 @@ window.LedgerJournalModal = {
             modalEl.addEventListener('hidden.bs.modal', options.onClosed, { once: true });
         }
         await openCreateModal();
+        if (options.evidence) {
+            setLinkedEvidence({ linked_evidences: [options.evidence] });
+        }
     },
 };
 
 async function boot() {
-    await initCodeSelectControls(modalEl);
     basicInfoBridge.bindDateInputs(modalEl);
     onCodeOptionsLoaded(() => {
         state.journalTable?.rows().invalidate('data').draw(false);
@@ -863,14 +967,10 @@ async function boot() {
         loadDetail,
         saveVoucher,
         requestVoucherReview,
-        saveEvidenceLinkOnly,
-        confirmEvidenceUnlink,
-        clearEvidenceLinkOnly,
         cancelVoucherReview,
         deleteVoucher,
         findJournalRowData,
         handleJournalAction,
-        renderEvidenceSearchRows,
         loadEvidenceSearch,
         bindEvents,
         boot

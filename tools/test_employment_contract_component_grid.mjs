@@ -1,0 +1,134 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { normalizeHtmlGridNumberValue } from '../public/assets/js/common/html-grid/editors/number-editor.js';
+import { componentCalculation, componentPolicyDisplay } from '../public/assets/js/pages/institution/employment-contract/compensation.js';
+
+const indexSource = fs.readFileSync(new URL('../public/assets/js/pages/institution/employment-contract/index.js', import.meta.url), 'utf8');
+const gridSource = fs.readFileSync(new URL('../public/assets/js/pages/institution/employment-contract/modal-runtime.js', import.meta.url), 'utf8');
+const compensationSource = fs.readFileSync(new URL('../public/assets/js/pages/institution/employment-contract/compensation.js', import.meta.url), 'utf8');
+const serviceSource = fs.readFileSync(new URL('../app/Services/Institution/EmploymentContractService.php', import.meta.url), 'utf8');
+const viewSource = fs.readFileSync(new URL('../app/views/institution/employment-contract/index.php', import.meta.url), 'utf8');
+const adminPickerSource = fs.readFileSync(new URL('../public/assets/js/common/picker/admin_picker.js', import.meta.url), 'utf8');
+const valuesSource = fs.readFileSync(new URL('../public/assets/js/common/values.js', import.meta.url), 'utf8')
+    .replace(/^import .*$/m, '');
+const valuesModule = await import(`data:text/javascript;base64,${Buffer.from(valuesSource).toString('base64')}`);
+const { normalizeTimeInputValue } = valuesModule;
+
+assert.doesNotMatch(indexSource, /common\/html-grid\/index\.js/);
+assert.doesNotMatch(indexSource, /common\/picker\/admin_picker\.js/);
+assert.doesNotMatch(indexSource, /employment-contract\/compensation\.js/);
+assert.ok(gridSource.includes("import('/public/assets/js/common/html-grid/index.js')"));
+assert.ok(gridSource.includes("import('/public/assets/js/common/picker/admin_picker.js')"));
+assert.ok(gridSource.includes("import('/public/assets/js/pages/institution/employment-contract/compensation.js')"));
+assert.ok(indexSource.includes('let modalRuntimePromise = null;'));
+assert.ok(gridSource.includes('let modalRuntimeInitialized = false;'));
+assert.match(indexSource, /onOpen: id => loadModalRuntime\(\)/);
+assert.match(indexSource, /onNew: \(\) => loadModalRuntime\(\)/);
+
+assert.equal(normalizeHtmlGridNumberValue('1,234.50', false), '1234.50');
+assert.equal(normalizeHtmlGridNumberValue('-1', false), '');
+assert.equal(normalizeHtmlGridNumberValue('not-a-number', false), '');
+assert.equal(normalizeTimeInputValue('0900'), '09:00');
+assert.equal(normalizeTimeInputValue('900'), '09:00');
+assert.equal(normalizeTimeInputValue('18:30'), '18:30');
+assert.deepEqual(componentCalculation({
+    calculation_type: 'FORMULA', component_type: 'STATUTORY_PREMIUM', quantity: 65, premium_rate: 1.5, rate: 3124.455,
+}), { display: '65시간 × 1.5배 × 3,124.455원', calculatedAmount: 304634 });
+assert.deepEqual(componentCalculation({ calculation_type: 'FIXED_AMOUNT' }), {
+    display: '월 정액', calculatedAmount: null,
+});
+assert.deepEqual(componentCalculation({
+    calculation_type: 'FIXED_AMOUNT', component_type: 'BASE_PAY',
+    quantity: 209, rate: 3124.455,
+}), { display: '209시간 × 3,124.455원', calculatedAmount: 653011 });
+assert.match(componentPolicyDisplay({ tax_type: 'TAXABLE', ordinary_wage_treatment: 'INCLUDED' }), /과세 과세 · 통상임금 산입/);
+assert.match(gridSource, /componentGrid\?\.serialize\(\)\.rows/);
+assert.doesNotMatch(gridSource, /function serializeComponents\(/);
+assert.doesNotMatch(gridSource, /key: 'payment_cycle'/);
+assert.ok(gridSource.includes("key: 'row_action', label: '관리'"));
+assert.ok(gridSource.includes("button.textContent = '-삭제'"));
+assert.ok(viewSource.includes('employment-component-add-btn'));
+assert.ok(viewSource.includes('>+추가</button>'));
+assert.ok(gridSource.includes("btn btn-link btn-sm employment-component-delete"));assert.ok(gridSource.includes("const componentAddButton = document.getElementById('employmentComponentAdd')"));
+assert.ok(gridSource.includes("componentGrid.on('row:added', syncComponentGridActions)"));
+assert.ok(gridSource.includes('window.requestAnimationFrame(syncComponentHeaderActionButton)'));
+assert.ok(gridSource.includes("componentAddButton?.addEventListener('click', () => componentRow())"));
+assert.ok(gridSource.includes("setContractModalMode('create')"));
+assert.ok(gridSource.includes("setContractModalMode('edit')"));
+assert.ok(gridSource.includes("window.jQuery?.(field).val('').trigger('change.select2')"));
+assert.ok(gridSource.includes("'[name=\"contract_period_type\"], [name=\"fixed_term_reason_code\"]'"));
+assert.ok(gridSource.includes('payload.contract_end_date = null'));
+assert.ok(gridSource.includes('payload.fixed_term_reason_code = null'));
+assert.ok(gridSource.includes('payload.fixed_term_reason_detail = null'));
+assert.ok(viewSource.includes('id="employmentContractEndDateArea" hidden'));
+assert.ok(viewSource.includes('name="contract_end_date" data-employment-date'));
+assert.ok(viewSource.includes('name="contract_period_type" data-code-group="EMPLOYMENT_CONTRACT_PERIOD_TYPE"'));
+assert.ok(viewSource.includes('name="employment_category" data-code-group="EMPLOYMENT_CATEGORY"'));
+assert.ok(viewSource.includes('name="working_time_type" data-code-group="EMPLOYMENT_WORKING_TIME_TYPE"'));
+assert.ok(serviceSource.includes("'EMPLOYMENT_CATEGORY'"));
+assert.ok(serviceSource.includes("$input['employment_category']"));
+assert.match(serviceSource, /if \(\$isFixedTerm && \$end === null\)/);
+assert.match(serviceSource, /if \(\$end !== null && \$end < \$start\)/);
+assert.ok(viewSource.includes('id="employmentContractModalTitle">근로계약 신규'));
+assert.ok(gridSource.includes("componentGrid.deleteRow(rowIndex)"));
+assert.ok(gridSource.includes("Number(left.row.sort_no || 0) - Number(right.row.sort_no || 0)"));
+assert.ok(gridSource.includes(".map(({ row }) => componentGridRow(row, 'clean'))"));
+assert.match(gridSource, /row\.rowState === 'deleted'/);
+assert.match(serviceSource, /private function componentPaymentCycle\(array \$contract\): string/);
+assert.match(serviceSource, /return 'MONTHLY';/);
+assert.doesNotMatch(serviceSource, /\$row\['payment_cycle'\]/);
+assert.match(serviceSource, /\$isWorkAllowance \? \$this->nullableString/);
+assert.ok(viewSource.includes('id="employmentCompensationSummary"'));
+assert.ok(compensationSource.includes("totalLabel: '월 지급합계'"));
+assert.ok(compensationSource.includes("convertedLabel: '연 환산액'"));
+assert.ok(compensationSource.includes("totalLabel: '연봉 합계'"));
+assert.ok(compensationSource.includes("convertedLabel: '월 환산액'"));
+assert.ok(gridSource.includes('updateCompensationSummary()'));
+assert.ok(gridSource.includes('hasDuplicatePayComponent'));
+assert.ok(serviceSource.includes('public function compensationSummary'));
+assert.ok(gridSource.includes("key: 'formula_display', label: '산식'"));
+assert.ok(gridSource.includes("'employment-formula': (_value, { row }) => componentCalculation("));
+assert.ok(gridSource.includes('recalculateFormulaComponents()'));
+assert.match(gridSource, /componentGrid\.setState\(state\);\s*syncComponentHeaderActionButton\(\);/);
+assert.match(gridSource, /data-component-detail="rate"/);
+assert.match(gridSource, /data-component-detail="quantity"/);
+assert.ok(serviceSource.includes('public function componentCalculation'));
+assert.ok(serviceSource.includes("abs((float) $calculation['difference_amount']) > 1.0"));
+
+assert.match(gridSource, /createHtmlGrid\(\{[\s\S]*gridId: 'employment-contract-weekly-schedules'/);
+assert.match(gridSource, /weeklyScheduleGrid\?\.serialize\(\)\.rows/);
+assert.ok(gridSource.includes('type === scheduleTypes.normal ? 0 : Number(row.end_day_offset)'));
+assert.ok(gridSource.includes("String(row.start_time || '').slice(0, 5)"));
+assert.match(gridSource, /ensureWeeklyScheduleGrid\(\)\?\.validate\(\)/);
+assert.ok(gridSource.includes("day_type: workday ? 'WORKDAY' : (day === 7 ? 'WEEKLY_HOLIDAY' : 'UNPAID_DAY_OFF')"));
+assert.doesNotMatch(gridSource, /employmentWeeklySchedules/);
+assert.ok(gridSource.includes("setWeeklyScheduleExpanded(true);"));
+assert.ok(gridSource.includes("주근무일수 ${rows.length}일"));
+assert.ok(gridSource.includes("주휴일 ${weeklyHolidayLabel}"));
+assert.ok(gridSource.includes('updateScheduleTypePolicy({ applyDefaults: true })'));
+assert.ok(gridSource.includes('if (hydratingContract) return;'));
+assert.ok(gridSource.includes('저장된 주간 근무일정이 없습니다. 기본설정을 적용한 뒤 임시저장해 주세요.'));
+assert.doesNotMatch(gridSource, /if \(serializeWeeklySchedules\(\)\.length !== 7\) setWeeklySchedules\(emptyWeeklySchedules/);
+assert.ok(gridSource.includes("form?.addEventListener('change', handleWorkScheduleTypeChange)"));
+assert.ok(gridSource.includes(".on('select2:select select2:clear', '[name=\"work_schedule_type\"]'"));
+assert.ok(gridSource.includes("toggle.textContent = weeklyScheduleExpanded ? '상세 숨기기' : '상세 보기'"));
+assert.doesNotMatch(viewSource, /employmentWeeklyScheduleActions" hidden/);assert.ok(gridSource.includes("start_time: '09:00'"));
+assert.ok(gridSource.includes("end_time: '18:00'"));assert.ok(gridSource.includes("start_time: '22:00'"));
+assert.ok(gridSource.includes("end_time: '06:00'"));
+assert.ok(gridSource.includes('end_day_offset: 1'));
+assert.ok(gridSource.includes('settlement_period_days: null, reference_weekly_hours: null'));
+assert.ok(gridSource.includes("type === scheduleTypes.flexible && input.dataset.policyField === 'settlement_period_days'"));
+assert.ok(viewSource.includes('data-policy-types="SELECTIVE OTHER"'));
+assert.ok(viewSource.includes('>근무형태 상세설정</h6>'));
+assert.ok(gridSource.includes('data-component-detail="wage_treatment_basis"'));
+assert.ok(gridSource.includes("input.placeholder = 'HH:MM'"));
+assert.ok(gridSource.includes('input.maxLength = 5'));
+assert.ok(adminPickerSource.includes('picker.__scrollToActive?.()'));
+assert.ok(gridSource.includes('break_minutes: 60'));
+assert.ok(gridSource.includes('setWeeklySchedules(defaultWeeklySchedules(type, scheduleDefaultsForType(type))'));
+assert.ok(gridSource.includes('일반근무 기본 일정(09:00~18:00, 휴게 60분)이 자동 적용되었습니다.'));
+assert.doesNotMatch(viewSource, /employmentWeeklyDefaultStartTime|employmentWeeklyDefaultEndTime|employmentWeeklyDefaultEndDayOffset|employmentWeeklyDefaultBreakMinutes/);
+assert.ok(gridSource.includes("if (commentLabel === '' || commentLabel === columnKey) return;"));
+assert.doesNotMatch(gridSource, /setFormLabel\(label, column\.label \|\| column\.key/);
+assert.match(serviceSource, /'weekly_holiday' => \(int\) \$weeklyHoliday\[0\]\['day_of_week'\]/);
+console.log('employment contract component grid policy: PASS');

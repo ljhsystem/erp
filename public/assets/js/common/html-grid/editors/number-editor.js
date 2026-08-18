@@ -11,7 +11,7 @@ function resolveDocument(context = {}) {
     throw new Error('[html-grid] number editor requires document context.');
 }
 
-function parseNumericValue(value, allowNegative = true) {
+export function normalizeHtmlGridNumberValue(value, allowNegative = true) {
     const text = String(value ?? '').replaceAll(',', '').trim();
     if (text === '') {
         return '';
@@ -30,7 +30,7 @@ function parseNumericValue(value, allowNegative = true) {
 }
 
 function formatNumericInput(value, options = {}) {
-    const normalized = parseNumericValue(value, options.allowNegative !== false);
+    const normalized = normalizeHtmlGridNumberValue(value, options.allowNegative !== false);
     if (normalized === '') {
         return '';
     }
@@ -45,6 +45,21 @@ function formatNumericInput(value, options = {}) {
     }).format(numericValue);
 }
 
+export function formatHtmlGridNumberWhileTyping(value, caretPosition, options = {}) {
+    const text = String(value ?? '');
+    const caret = Math.max(0, Math.min(Number(caretPosition) || 0, text.length));
+    const semanticBeforeCaret = (text.slice(0, caret).match(/[0-9.\-]/g) || []).length;
+    const formatted = formatNumericInput(text, options);
+    if (formatted === '') return { value: '', caret: 0 };
+    let nextCaret = 0;
+    let semanticCount = 0;
+    while (nextCaret < formatted.length && semanticCount < semanticBeforeCaret) {
+        if (/[0-9.\-]/.test(formatted[nextCaret])) semanticCount += 1;
+        nextCaret += 1;
+    }
+    return { value: formatted, caret: nextCaret };
+}
+
 export function createNumberEditor(context = {}) {
     const documentRef = resolveDocument(context);
     const options = context.options && typeof context.options === 'object' ? context.options : {};
@@ -56,6 +71,22 @@ export function createNumberEditor(context = {}) {
     const rawInitialValue = context.value == null ? '' : String(context.value);
     const initialValue = formatNumericInput(rawInitialValue, options);
     element.value = initialValue;
+    const liveGrouping = options.liveGrouping === true
+        || ['amount', 'currency'].includes(String(context.column?.type || '').toLowerCase())
+        || String(context.column?.formatter || '').toLowerCase() === 'currency';
+    let composing = false;
+    const applyLiveGrouping = () => {
+        if (!liveGrouping || composing) return;
+        const formatted = formatHtmlGridNumberWhileTyping(element.value, element.selectionStart, options);
+        if (formatted.value === element.value) return;
+        element.value = formatted.value;
+        element.setSelectionRange?.(formatted.caret, formatted.caret);
+    };
+    const beginComposition = () => { composing = true; };
+    const endComposition = () => { composing = false; applyLiveGrouping(); };
+    element.addEventListener('input', applyLiveGrouping);
+    element.addEventListener('compositionstart', beginComposition);
+    element.addEventListener('compositionend', endComposition);
 
     return {
         element,
@@ -76,14 +107,14 @@ export function createNumberEditor(context = {}) {
             element.value = formatNumericInput(element.value, options);
         },
         getValue() {
-            return parseNumericValue(element.value, options.allowNegative !== false);
+            return normalizeHtmlGridNumberValue(element.value, options.allowNegative !== false);
         },
         setValue(value) {
             element.value = formatNumericInput(value, options);
             return element.value;
         },
         validate() {
-            const parsed = parseNumericValue(element.value, options.allowNegative !== false);
+            const parsed = normalizeHtmlGridNumberValue(element.value, options.allowNegative !== false);
             return parsed === '' && String(element.value || '').trim() !== ''
                 ? { valid: false, message: '숫자 형식이 아닙니다.' }
                 : { valid: true, message: '' };
@@ -92,6 +123,9 @@ export function createNumberEditor(context = {}) {
             return element.value !== initialValue;
         },
         destroy() {
+            element.removeEventListener('input', applyLiveGrouping);
+            element.removeEventListener('compositionstart', beginComposition);
+            element.removeEventListener('compositionend', endComposition);
             element.remove?.();
         },
     };

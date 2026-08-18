@@ -1,6 +1,9 @@
-// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/departments.js'
-
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import '/public/assets/js/common/core/AppAjax.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
 import {
     createDataTable,
     bindTableHighlight
@@ -10,7 +13,6 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
-import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -19,7 +21,7 @@ window.AdminPicker = AdminPicker;
 (() => {
     'use strict';
 
-        const API = {
+    const API = {
         LIST: '/api/settings/organization/department/list',
         SAVE: '/api/settings/organization/department/save',
         DELETE: '/api/settings/organization/department/delete',
@@ -28,19 +30,21 @@ window.AdminPicker = AdminPicker;
     };
 
     const DEPARTMENT_COLUMN_MAP = {
+        id:           { label: 'ID', visible: false },
         sort_no:      { label: '\uC21C\uBC88', visible: true },
         dept_name:    { label: '\uBD80\uC11C\uBA85', visible: true },
         manager_id:   { label: '\uBD80\uC11C\uC7A5', visible: true },
         description:  { label: '\uC124\uBA85', visible: true },
         is_active:    { label: '\uC0C1\uD0DC', visible: true },
         created_at:   { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
-        created_by:   { label: '\uC0DD\uC131\uC790', visible: false },
+        created_by:   { label: '\uC0DD\uC131\uC790', visible: false, type: 'actor' },
         updated_at:   { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
-        updated_by:   { label: '\uC218\uC815\uC790', visible: false }
+        updated_by:   { label: '\uC218\uC815\uC790', visible: false, type: 'actor' }
     };
 
     const DEPARTMENT_COLUMN_WIDTHS = {
         __reorder: '40px',
+        id: '280px',
         sort_no: '80px',
         dept_name: '180px',
         manager_id: '140px',
@@ -69,6 +73,7 @@ window.AdminPicker = AdminPicker;
 
     let departmentTable = null;
     let departmentModal = null;
+    let departmentCardCollapses = null;
     let todayPicker = null;
     let globalBound = false;
     let managerOptionsPromise = null;
@@ -77,17 +82,16 @@ window.AdminPicker = AdminPicker;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
-            console.error('[departments.js] jQuery not loaded');
+            console.error('[department.js] jQuery not loaded');
             return;
         }
 
         initDepartmentPage(window.jQuery);
     });
 
-    function initDepartmentPage($) {
-        sanitizeDepartmentTableSettingsState();
+    async function initDepartmentPage($) {
         initModal();
-        initDataTable($);
+        await initDataTable($);
         bindRowReorder(departmentTable, {
             api: API.REORDER,
             onSuccess() {
@@ -102,65 +106,6 @@ window.AdminPicker = AdminPicker;
         bindTableEvents($);
         bindModalEvents($);
         bindGlobalEvents();
-        void preloadManagerOptions();
-    }
-
-    function sanitizeDepartmentTableSettingsState() {
-        try {
-            const parsed = readDataTableSettingsState(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, {
-                userSettingPageKey: 'department',
-            });
-            if (!parsed || typeof parsed !== 'object') return;
-
-            let changed = false;
-            const nextState = { ...parsed };
-            const deprecated = new Set(['__legacy_department_status']);
-
-            [
-                'columnWidths',
-                'pageLength',
-                'sortSettings',
-                'currentPage',
-                'searchFormExpanded',
-                'searchFormState',
-                'requiredColumns',
-                'columnWidth',
-            ].forEach((key) => {
-                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
-                    delete nextState[key];
-                    changed = true;
-                }
-            });
-
-            ['visibleColumns', 'columnOrder'].forEach((key) => {
-                if (!Array.isArray(nextState[key])) return;
-                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
-                if (filtered.length !== nextState[key].length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
-                if (!nextState[key] || typeof nextState[key] !== 'object') return;
-                const filtered = Object.fromEntries(
-                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
-                );
-                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                writeSystemUserSettingsStorage(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, nextState, {
-                    userSettingPageKey: 'department',
-                    settingType: 'TABLE',
-                });
-            }
-        } catch (error) {
-            console.warn('[department] table settings sanitize failed:', error);
-        }
     }
 
     function initModal() {
@@ -168,6 +113,7 @@ window.AdminPicker = AdminPicker;
         if (!modalEl) return;
 
         departmentModal = new bootstrap.Modal(modalEl, { focus: false });
+        departmentCardCollapses = bindModalCardCollapses(modalEl, { resetOnShow: true });
         bindDepartmentPolicySync();
         applyDepartmentModalPolicyLabels(document);
 
@@ -241,7 +187,7 @@ window.AdminPicker = AdminPicker;
 
             const displayName = departmentFieldLabel(field.key, field.fallback);
             const starMarkup = departmentFieldStarMarkup(field.key);
-            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+            labelEl.innerHTML = `${escapeHtml(displayName)}${starMarkup ? ` ${starMarkup}` : ''}`;
         });
     }
 
@@ -392,10 +338,10 @@ window.AdminPicker = AdminPicker;
         picker.open({ anchor: input });
     }
 
-    function initDataTable($) {
+    async function initDataTable($) {
         const columns = buildDepartmentColumns();
 
-        departmentTable = createDataTable({
+        departmentTable = await createDataTable({
             tableSelector: '#department-table',
             api: API.LIST,
             columns,
@@ -413,10 +359,11 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             selectable: true,
-            deleteButton: false,
+            deleteButton: true,
+            deleteApi: API.DELETE,
             buttons: [
                 {
-                    text: '\uC0C8 \uBD80\uC11C',
+                    text: '신규등록',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -472,6 +419,7 @@ window.AdminPicker = AdminPicker;
                     ? 'text-center'
                     : (config.noVis ? 'noVis text-center' : ''),
                 headerClassName: field === 'is_active' ? 'text-center' : '',
+                type: config.type || undefined,
                 defaultContent: '',
                 render: function (data, type, row) {
                     if (type !== 'display') return data ?? '';
@@ -492,6 +440,10 @@ window.AdminPicker = AdminPicker;
                                        aria-label="상태 변경">
                             </div>
                         `;
+                    }
+
+                    if (config.type === 'actor') {
+                        return escapeHtml(actorDisplay(row, field));
                     }
 
                     if (data == null) return '';
@@ -550,7 +502,7 @@ window.AdminPicker = AdminPicker;
                     reloadDepartmentTable();
                     notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
                 } catch (err) {
-                    console.error('[departments.js] status update failed:', err);
+                    console.error('[department.js] status update failed:', err);
                     this.checked = !active;
                     notify('error', err.message || '상태 변경에 실패했습니다.');
                 } finally {
@@ -587,7 +539,12 @@ window.AdminPicker = AdminPicker;
 
                 const id = $('#dept_edit_id').val();
                 if (!id) return;
-                if (!confirm('\uBD80\uC11C\uB97C \uC601\uAD6C\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
+                if (!await confirmDialog({
+                    title: '부서 영구삭제',
+                    message: '참조가 없는 오등록 부서만 영구삭제할 수 있습니다. 계속하시겠습니까?',
+                    confirmText: '영구삭제',
+                    confirmClass: 'btn-danger',
+                })) return;
 
                 await deleteDepartment(id);
             });
@@ -597,7 +554,9 @@ window.AdminPicker = AdminPicker;
         resetDepartmentForm();
         setDepartmentModalMode('create');
         departmentModal?.show();
-        deferManagerOptions('');
+        renderDepartmentSystemInfo();
+        resetDepartmentSystemInfoCollapse();
+        deferManagerOptions('', '');
     }
 
     function openEditModal(row) {
@@ -610,7 +569,9 @@ window.AdminPicker = AdminPicker;
         $('#dept_edit_is_active').prop('checked', String(row.is_active) === '1');
 
         departmentModal?.show();
-        deferManagerOptions(row.manager_id || '');
+        renderDepartmentSystemInfo(row);
+        resetDepartmentSystemInfoCollapse();
+        deferManagerOptions(row.manager_id || '', row.manager_name || '');
     }
 
     function setDepartmentModalMode(mode) {
@@ -653,24 +614,18 @@ window.AdminPicker = AdminPicker;
         fd.set('is_active', $('#dept_edit_is_active').is(':checked') ? '1' : '0');
 
         try {
-            const res = await fetch(API.SAVE, {
+            const json = await window.AppAjax.fetchJson(API.SAVE, {
                 method: 'POST',
                 body: fd,
                 credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', json?.message === 'duplicate' ? '이미 등록된 부서명입니다.' : (json?.message || '저장에 실패했습니다.'));
-                return;
-            }
-
-            notify('success', '저장되었습니다.');
+            notify('success', json.message || '저장되었습니다.');
             departmentModal?.hide();
             reloadDepartmentTable();
         } catch (err) {
-            console.error('[departments.js] save failed:', err);
-            notify('error', '저장 중 오류가 발생했습니다.');
+            console.error('[department.js] save failed:', err);
+            notify('error', err.message || '저장 중 오류가 발생했습니다.');
         }
     }
 
@@ -679,24 +634,16 @@ window.AdminPicker = AdminPicker;
         fd.append('id', id);
 
         try {
-            const res = await fetch(API.DELETE, {
-                method: 'POST',
-                body: fd,
-                credentials: 'include'
+            const json = await window.AppAjax.fetchJson(API.DELETE, {
+                method: 'POST', body: fd, credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', json?.message || '삭제 실패');
-                return;
-            }
-
-            notify('success', '저장되었습니다.');
+            notify('success', json.message || '부서가 영구삭제되었습니다.');
             departmentModal?.hide();
             reloadDepartmentTable();
         } catch (err) {
-            console.error('[departments.js] delete failed:', err);
-            notify('error', '저장 중 오류가 발생했습니다.');
+            console.error('[department.js] delete failed:', err);
+            notify('error', err.message || '삭제 중 오류가 발생했습니다.');
         }
     }
 
@@ -709,21 +656,14 @@ window.AdminPicker = AdminPicker;
         fd.set('manager_id', normalizeManagerId(row.manager_id || ''));
         fd.set('is_active', active ? '1' : '0');
 
-        const res = await fetch(API.SAVE, {
+        return window.AppAjax.fetchJson(API.SAVE, {
             method: 'POST',
             body: fd,
             credentials: 'include'
         });
-        const json = await res.json();
-
-        if (!json?.success) {
-            throw new Error(json?.message || '상태 변경에 실패했습니다.');
-        }
-
-        return json;
     }
 
-    async function loadManagerOptions(selectedValue = '') {
+    async function loadManagerOptions(selectedValue = '', selectedText = '') {
         const select = document.getElementById('dept_edit_manager_id');
         if (!select) return;
 
@@ -743,7 +683,7 @@ window.AdminPicker = AdminPicker;
             if (selectedValue) {
                 const hasOption = items.some(item => String(item.id) === selectedValue);
                 if (!hasOption) {
-                    select.append(new Option('(이름 없음)', selectedValue, false, false));
+                    select.append(new Option(selectedText || '(현재 선택 불가)', selectedValue, false, false));
                 }
                 AdminPicker.setSelect2Value(select, selectedValue, true);
             } else {
@@ -754,7 +694,7 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    function preloadManagerOptions() {
+    function getManagerOptions() {
         if (!managerOptionsPromise) {
             managerOptionsPromise = fetchManagerOptions()
                 .then((items) => {
@@ -763,7 +703,7 @@ window.AdminPicker = AdminPicker;
                 })
                 .catch((err) => {
                     managerOptionsPromise = null;
-                    console.error('[departments.js] manager preload failed:', err);
+                    console.error('[department.js] manager load failed:', err);
                     return null;
                 });
         }
@@ -774,7 +714,7 @@ window.AdminPicker = AdminPicker;
     async function getManagerOptions() {
         if (managerOptionsCache) return managerOptionsCache;
 
-        const items = await preloadManagerOptions();
+        const items = await getManagerOptions();
         if (items) return items;
 
         return [
@@ -783,18 +723,17 @@ window.AdminPicker = AdminPicker;
     }
 
     async function fetchManagerOptions() {
-        const res = await fetch(API.EMPLOYEE_LIST, {
+        const json = await window.AppAjax.fetchJson(API.EMPLOYEE_LIST, {
             method: 'GET',
             credentials: 'include'
         });
-        const json = await res.json();
         const rows = Array.isArray(json?.data) ? json.data : [];
         const items = [
             { id: MANAGER_NONE_VALUE, text: '선택(없음)' }
         ];
 
         rows.forEach(row => {
-            if (!row.user_id) return;
+            if (!row.user_id || String(row.is_active) !== '1') return;
 
             items.push({
                 id: String(row.user_id),
@@ -805,10 +744,10 @@ window.AdminPicker = AdminPicker;
         return items;
     }
 
-    function deferManagerOptions(selectedValue = '') {
+    function deferManagerOptions(selectedValue = '', selectedText = '') {
         const run = () => {
-            loadManagerOptions(selectedValue).catch((err) => {
-                console.error('[departments.js] manager prepare failed:', err);
+            loadManagerOptions(selectedValue, selectedText).catch((err) => {
+                console.error('[department.js] manager prepare failed:', err);
                 notify('error', '부서장 목록 준비 중 오류가 발생했습니다.');
             });
         };
@@ -842,7 +781,7 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    
+
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -891,12 +830,41 @@ window.AdminPicker = AdminPicker;
             return;
         }
 
-        if (type === 'error' || type === 'warning') {
-            alert(message);
-            return;
-        }
+    }
 
-        console.log(message);
+    function renderDepartmentSystemInfo(data = {}) {
+        const container = document.getElementById('departmentSystemInfoFields');
+        if (!container) return;
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '순번'],
+            ['created_at', '생성일시', 'datetime'],
+            ['created_by', '생성자', 'actor'],
+            ['updated_at', '수정일시', 'datetime'],
+            ['updated_by', '수정자', 'actor'],
+        ];
+
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'department-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'department-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'department-system-info-value';
+            const actorName = type === 'actor' ? String(data[`${key}_name`] || '').trim() : '';
+            const actorSource = type === 'actor' ? String(data[key] || '').trim() : '';
+            const raw = type === 'actor'
+                ? (actorName !== '' && actorName !== actorSource ? actorDisplay(data, key) : '')
+                : (type === 'datetime' ? formatDateDisplay(data[key]) : data[key]);
+            value.textContent = raw == null || raw === '' || raw === '(알 수 없음)' ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
+    }
+
+    function resetDepartmentSystemInfoCollapse() {
+        departmentCardCollapses?.reset();
     }
 
     function escapeHtml(value) {

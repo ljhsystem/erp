@@ -1,12 +1,13 @@
 <?php
+
 namespace App\Models\Auth;
 
-use PDO;
 use Core\Database;
+use Core\Helpers\ActorHelper;
+use PDO;
 
 class RoleModel
 {
-
     private PDO $db;
 
     public function __construct(?PDO $pdo = null)
@@ -16,314 +17,200 @@ class RoleModel
 
     public function getAll(array $filters = []): array
     {
-        try {
-            $sql = "
-                SELECT
-                    id, sort_no, role_key, role_name,
-                    description, is_active,
-                    created_at, created_by,
-                    updated_at, updated_by
-                FROM auth_roles
-                WHERE 1=1
-            ";
+        $sql = "
+            SELECT id, sort_no, role_key, role_name, description, is_active,
+                   created_at, created_by, updated_at, updated_bY AS updated_by
+              FROM auth_roles
+             WHERE 1=1
+        ";
+        $params = [];
+        $fieldMap = [
+            'id' => ['expr' => 'id', 'type' => 'exact'],
+            'sort_no' => ['expr' => 'sort_no', 'type' => 'like'],
+            'role_key' => ['expr' => 'role_key', 'type' => 'like'],
+            'role_name' => ['expr' => 'role_name', 'type' => 'like'],
+            'description' => ['expr' => 'description', 'type' => 'like'],
+            'is_active' => ['expr' => 'is_active', 'type' => 'exact'],
+            'created_at' => ['expr' => 'created_at', 'type' => 'datetime'],
+            'created_by' => ['expr' => 'created_by', 'type' => 'like'],
+            'updated_at' => ['expr' => 'updated_at', 'type' => 'datetime'],
+            'updated_by' => ['expr' => 'updated_bY', 'type' => 'like'],
+            'updated_bY' => ['expr' => 'updated_bY', 'type' => 'like'],
+        ];
+        $globalSearchValues = [];
 
-            $params = [];
-
-            if (!empty($filters)) {
-                $fieldMap = [
-                    'id'          => ['expr' => 'id', 'type' => 'exact'],
-                    'sort_no'        => ['expr' => 'sort_no', 'type' => 'like'],
-                    'role_key'    => ['expr' => 'role_key', 'type' => 'like'],
-                    'role_name'   => ['expr' => 'role_name', 'type' => 'like'],
-                    'description' => ['expr' => 'description', 'type' => 'like'],
-                    'is_active'   => ['expr' => 'is_active', 'type' => 'exact'],
-                    'created_at'  => ['expr' => 'created_at', 'type' => 'datetime'],
-                    'created_by'  => ['expr' => 'created_by', 'type' => 'like'],
-                    'updated_at'  => ['expr' => 'updated_at', 'type' => 'datetime'],
-                    'updated_by'  => ['expr' => 'updated_by', 'type' => 'like'],
-                ];
-
-                $globalSearchValues = [];
-
-                foreach ($filters as $f) {
-                    $field = $f['field'] ?? '';
-                    $value = $f['value'] ?? '';
-
-                    if ($value === '' || $value === null) {
-                        continue;
-                    }
-
-                    if ($field === '') {
-                        $globalSearchValues[] = $value;
-                        continue;
-                    }
-
-                    if (!isset($fieldMap[$field])) {
-                        continue;
-                    }
-
-                    $expr = $fieldMap[$field]['expr'];
-                    $type = $fieldMap[$field]['type'];
-
-                    if ($type === 'datetime') {
-                        if (is_array($value) && isset($value['start'], $value['end'])) {
-                            $start = trim((string)($value['start'] ?? ''));
-                            $end   = trim((string)($value['end'] ?? ''));
-
-                            if ($start !== '' && $end !== '') {
-                                $sql .= " AND {$expr} BETWEEN ? AND ?";
-                                $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)
-                                    ? $start . ' 00:00:00'
-                                    : $start;
-                                $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)
-                                    ? $end . ' 23:59:59'
-                                    : $end;
-                            }
-                        } else {
-                            $stringValue = trim((string)$value);
-
-                            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
-                                $sql .= " AND {$expr} BETWEEN ? AND ?";
-                                $params[] = $stringValue . ' 00:00:00';
-                                $params[] = $stringValue . ' 23:59:59';
-                            } else {
-                                $sql .= " AND {$expr} = ?";
-                                $params[] = $stringValue;
-                            }
-                        }
-
-                        continue;
-                    }
-
-                    if ($type === 'exact') {
-                        $sql .= " AND {$expr} = ?";
-                        $params[] = $value;
-                        continue;
-                    }
-
-                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
-
-                    if (!$keywords) {
-                        continue;
-                    }
-
-                    $parts = [];
-                    foreach ($keywords as $keyword) {
-                        $parts[] = "{$expr} LIKE ?";
-                        $params[] = '%' . $keyword . '%';
-                    }
-
-                    $sql .= " AND (" . implode(' OR ', $parts) . ")";
-                }
-
-                foreach ($globalSearchValues as $value) {
-                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
-
-                    if (!$keywords) {
-                        continue;
-                    }
-
-                    $orParts = [];
-                    foreach ($keywords as $keyword) {
-                        foreach (['id', 'sort_no', 'role_key', 'role_name', 'description', 'created_by', 'updated_by'] as $expr) {
-                            $orParts[] = "{$expr} LIKE ?";
-                            $params[] = '%' . $keyword . '%';
-                        }
-                    }
-
-                    if ($orParts) {
-                        $sql .= " AND (" . implode(' OR ', $orParts) . ")";
-                    }
-                }
+        foreach ($filters as $filter) {
+            $field = trim((string) ($filter['field'] ?? ''));
+            $value = $filter['value'] ?? '';
+            if ($value === '' || $value === null) {
+                continue;
+            }
+            if ($field === '') {
+                $globalSearchValues[] = $value;
+                continue;
+            }
+            if (!isset($fieldMap[$field])) {
+                continue;
             }
 
-            $sql .= " ORDER BY sort_no ASC";
+            ['expr' => $expr, 'type' => $type] = $fieldMap[$field];
+            if ($type === 'datetime') {
+                if (is_array($value)) {
+                    $start = trim((string) ($value['start'] ?? ''));
+                    $end = trim((string) ($value['end'] ?? ''));
+                    if ($start !== '' && $end !== '') {
+                        $sql .= " AND {$expr} BETWEEN ? AND ?";
+                        $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ? $start . ' 00:00:00' : $start;
+                        $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end . ' 23:59:59' : $end;
+                    }
+                } else {
+                    $date = trim((string) $value);
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                        $sql .= " AND {$expr} BETWEEN ? AND ?";
+                        $params[] = $date . ' 00:00:00';
+                        $params[] = $date . ' 23:59:59';
+                    } else {
+                        $sql .= " AND {$expr} = ?";
+                        $params[] = $date;
+                    }
+                }
+                continue;
+            }
+            if ($type === 'exact') {
+                $sql .= " AND {$expr} = ?";
+                $params[] = $value;
+                continue;
+            }
 
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        } catch (\Throwable $e) {
-            return [];
+            $keywords = array_filter(array_map('trim', explode(',', (string) $value)));
+            if ($keywords !== []) {
+                $parts = [];
+                foreach ($keywords as $keyword) {
+                    $parts[] = "{$expr} LIKE ?";
+                    $params[] = '%' . $keyword . '%';
+                }
+                $sql .= ' AND (' . implode(' OR ', $parts) . ')';
+            }
         }
+
+        foreach ($globalSearchValues as $value) {
+            $keywords = array_filter(array_map('trim', explode(',', (string) $value)));
+            $parts = [];
+            foreach ($keywords as $keyword) {
+                foreach (['id', 'sort_no', 'role_key', 'role_name', 'description', 'created_by', 'updated_bY'] as $expr) {
+                    $parts[] = "{$expr} LIKE ?";
+                    $params[] = '%' . $keyword . '%';
+                }
+            }
+            if ($parts !== []) {
+                $sql .= ' AND (' . implode(' OR ', $parts) . ')';
+            }
+        }
+
+        $statement = $this->db->prepare($sql . ' ORDER BY sort_no ASC');
+        $statement->execute($params);
+        return ActorHelper::enrichActorNames(
+            $statement->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            ['created_by', 'updated_by']
+        );
     }
 
     public function getById(string $id): ?array
     {
-        if (!$id) return null;
-
-        try {
-            $stmt = $this->db->prepare("
-                SELECT
-                    id, sort_no, role_key, role_name,
-                    description, is_active,
-                    created_at, created_by,
-                    updated_at, updated_by
-                FROM auth_roles
-                WHERE id = ?
-            ");
-            $stmt->execute([$id]);
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
-        } catch (\Throwable $e) {
-            return null;
-        }
+        $statement = $this->db->prepare("
+            SELECT id, sort_no, role_key, role_name, description, is_active,
+                   created_at, created_by, updated_at, updated_bY AS updated_by
+              FROM auth_roles
+             WHERE id = ?
+             LIMIT 1
+        ");
+        $statement->execute([$id]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        return $row ? ActorHelper::enrichActorNamesRow($row, ['created_by', 'updated_by']) : null;
     }
 
     public function existsKey(string $roleKey, ?string $excludeId = null): bool
     {
-        try {
-            $sql = "SELECT COUNT(*) FROM auth_roles WHERE role_key = ?";
-            $params = [$roleKey];
-
-            if ($excludeId) {
-                $sql .= " AND id <> ?";
-                $params[] = $excludeId;
-            }
-
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-
-            return $stmt->fetchColumn() > 0;
-
-        } catch (\Throwable $e) {
-            return true;
+        $sql = 'SELECT COUNT(*) FROM auth_roles WHERE role_key = ?';
+        $params = [$roleKey];
+        if ($excludeId !== null && $excludeId !== '') {
+            $sql .= ' AND id <> ?';
+            $params[] = $excludeId;
         }
+        $statement = $this->db->prepare($sql);
+        $statement->execute($params);
+        return (int) $statement->fetchColumn() > 0;
     }
 
-    public function create(array $data): array
+    public function create(array $data): bool
     {
-        try {
-            if (empty($data['role_key']) || empty($data['role_name'])) {
-                return ['success' => false, 'message' => 'role_key 또는 role_name 누락'];
-            }
-
-            if ($this->existsKey($data['role_key'])) {
-                return ['success' => false, 'message' => 'duplicate'];
-            }
-
-            $stmt = $this->db->prepare("
-                INSERT INTO auth_roles (
-                    id, sort_no, role_key, role_name, description,
-                    is_active, created_at, created_by
-                ) VALUES (
-                    :id, :sort_no, :role_key, :role_name, :description,
-                    :is_active, NOW(), :created_by
-                )
-            ");
-
-            $ok = $stmt->execute([
-                ':id'          => $data['id'],     // ⭐ Service 생성값
-                ':sort_no'        => $data['sort_no'],   // ⭐ Service 생성값
-                ':role_key'    => $data['role_key'],
-                ':role_name'   => $data['role_name'],
-                ':description' => $data['description'] ?? null,
-                ':is_active'   => $data['is_active'] ?? 1,
-                ':created_by'  => $data['created_by'] ?? null
-            ]);
-
-            return ['success' => $ok];
-
-        } catch (\Throwable $e) {
-            return ['success' => false, 'message' => 'error'];
-        }
+        $statement = $this->db->prepare("
+            INSERT INTO auth_roles
+                (id, sort_no, role_key, role_name, description, is_active, created_at, created_by)
+            VALUES
+                (:id, :sort_no, :role_key, :role_name, :description, :is_active, NOW(), :created_by)
+        ");
+        return $statement->execute([
+            ':id' => $data['id'],
+            ':sort_no' => $data['sort_no'],
+            ':role_key' => $data['role_key'],
+            ':role_name' => $data['role_name'],
+            ':description' => $data['description'],
+            ':is_active' => $data['is_active'],
+            ':created_by' => $data['created_by'],
+        ]);
     }
 
-    public function update(string $id, array $data): array
+    public function update(string $id, array $data): bool
     {
-        if (!$id) return ['success' => false, 'message' => 'no_id'];
-
-        try {
-            if (!empty($data['role_key'])) {
-                if ($this->existsKey($data['role_key'], $id)) {
-                    return ['success' => false, 'message' => 'duplicate'];
-                }
-            }
-
-            $fields = [];
-            $params = [];
-
-            foreach (['role_key', 'role_name', 'description', 'is_active', 'updated_by'] as $col) {
-                if (array_key_exists($col, $data)) {
-                    $fields[] = "$col = ?";
-                    $params[] = $data[$col];
-                }
-            }
-
-            $fields[] = "updated_at = NOW()";
-            $params[] = $id;
-
-            $sql = "UPDATE auth_roles SET " . implode(", ", $fields) . " WHERE id = ?";
-            $stmt = $this->db->prepare($sql);
-
-            return ['success' => $stmt->execute($params)];
-
-        } catch (\Throwable $e) {
-            return ['success' => false];
-        }
+        $statement = $this->db->prepare("
+            UPDATE auth_roles
+               SET role_key = :role_key,
+                   role_name = :role_name,
+                   description = :description,
+                   is_active = :is_active,
+                   updated_at = NOW(),
+                   updated_bY = :updated_by
+             WHERE id = :id
+        ");
+        return $statement->execute([
+            ':role_key' => $data['role_key'],
+            ':role_name' => $data['role_name'],
+            ':description' => $data['description'],
+            ':is_active' => $data['is_active'],
+            ':updated_by' => $data['updated_by'],
+            ':id' => $id,
+        ]);
     }
 
     public function delete(string $id): bool
     {
-        if (!$id) return false;
-
-        try {
-            $stmt = $this->db->prepare("DELETE FROM auth_roles WHERE id = ?");
-            return $stmt->execute([$id]);
-
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
-
-    public function toggleActive(string $id, int $active): bool
-    {
-        try {
-            $stmt = $this->db->prepare("
-                UPDATE auth_roles
-                SET is_active = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-            return $stmt->execute([$active, $id]);
-
-        } catch (\Throwable $e) {
-            return false;
-        }
+        $statement = $this->db->prepare('DELETE FROM auth_roles WHERE id = ?');
+        $statement->execute([$id]);
+        return $statement->rowCount() === 1;
     }
 
     public function findByIdOrKey(?string $value): ?array
     {
-        try {
-            if (!$value) return null;
-
-            $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE id = ?");
-            $stmt->execute([$value]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($row) return $row;
-
-            $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE role_key = ?");
-            $stmt->execute([$value]);
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
-        } catch (\Throwable $e) {
+        if ($value === null || trim($value) === '') {
             return null;
         }
+        $statement = $this->db->prepare('SELECT * FROM auth_roles WHERE id = ? OR role_key = ? LIMIT 1');
+        $statement->execute([$value, $value]);
+        return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function updateSortNo(string $id, int $sort_no): bool
+    public function findIdByKey(string $roleKey): ?string
     {
-        try {
-            $stmt = $this->db->prepare("
-                UPDATE auth_roles
-                SET sort_no = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
+        $statement = $this->db->prepare('SELECT id FROM auth_roles WHERE role_key = ? LIMIT 1');
+        $statement->execute([$roleKey]);
+        $id = $statement->fetchColumn();
+        return $id === false ? null : (string) $id;
+    }
 
-            return $stmt->execute([$sort_no, $id]);
-        } catch (\Throwable $e) {
-            return false;
-        }
+    public function updateSortNo(string $id, int $sortNo): bool
+    {
+        $statement = $this->db->prepare('UPDATE auth_roles SET sort_no = ?, updated_at = NOW() WHERE id = ?');
+        return $statement->execute([$sortNo, $id]);
     }
 }

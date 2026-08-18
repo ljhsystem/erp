@@ -1,8 +1,5 @@
-// 📄 /assets/js/pages/layout/layout.js
-
 (function () {
 
-    // 🔥 Bootstrap modal focus 문제 전체 해결
     document.addEventListener(
         'hide.bs.modal',
         function () {
@@ -13,7 +10,6 @@
         true
     );
 
-    // 🔥 tooltip 잔상 제거
     document.addEventListener('hidden.bs.modal', function () {
         const tips = document.querySelectorAll('.tooltip');
         tips.forEach(t => t.remove());
@@ -28,11 +24,83 @@
 
     let sessionExpired = false;
     let popupShown = false;
+    let hasUserInteracted = Boolean(navigator.userActivation?.hasBeenActive);
+    let sessionAlertSoundPending = false;
+    let sessionAlertSoundUnlocked = false;
 
-    // 툴팁 캐시 및 상태
+    const markUserInteraction = () => {
+        hasUserInteracted = true;
+        if (sessionAlertSoundPending) {
+            playSessionAlertSound();
+            return;
+        }
+        unlockSessionAlertSound();
+    };
+    document.addEventListener('pointerdown', markUserInteraction, { passive: true });
+    document.addEventListener('keydown', markUserInteraction);
+
     let tooltipInst = null;
     let lastFullText = '';
     let pendingFullText = null;
+
+    function unlockSessionAlertSound() {
+        if (sessionAlertSoundUnlocked) return;
+
+        const audio = document.getElementById('session-alert-sound');
+        if (!audio) return;
+
+        const previousMuted = audio.muted;
+        audio.muted = true;
+        try {
+            const playResult = audio.play();
+            if (!playResult || typeof playResult.then !== 'function') {
+                audio.pause();
+                audio.currentTime = 0;
+                audio.muted = previousMuted;
+                sessionAlertSoundUnlocked = true;
+                return;
+            }
+            playResult.then(() => {
+                if (popupShown) {
+                    audio.muted = false;
+                    sessionAlertSoundUnlocked = true;
+                    return;
+                }
+                audio.pause();
+                audio.currentTime = 0;
+                audio.muted = previousMuted;
+                sessionAlertSoundUnlocked = true;
+            }).catch(() => {
+                audio.muted = previousMuted;
+            });
+        } catch (_) {
+            audio.muted = previousMuted;
+        }
+    }
+
+    function playSessionAlertSound() {
+        const userActivated = hasUserInteracted || Boolean(navigator.userActivation?.hasBeenActive);
+        if (!userActivated) {
+            sessionAlertSoundPending = true;
+            return;
+        }
+
+        const audio = document.getElementById('session-alert-sound');
+        if (!audio) return;
+
+        sessionAlertSoundPending = false;
+        audio.muted = false;
+        try {
+            const playResult = audio.play();
+            if (playResult && typeof playResult.catch === 'function') {
+                playResult.catch(() => {
+                    sessionAlertSoundPending = true;
+                });
+            }
+        } catch (_) {
+            sessionAlertSoundPending = true;
+        }
+    }
 
     function createOrGetTooltip(el, initialContent) {
         try {
@@ -142,26 +210,24 @@
                 }, { passive: true });
                 el._hasLeaveHandler = true;
             }
-        }        
+        }
     }
 
     function updateSessionTimer() {
         const now = Date.now();
         const remain = Math.floor((expireTime - now) / 1000);
         let sessionText = '';
-        
-    
+
+
         if (remain > 0) {
             const min = Math.floor(remain / 60);
             const sec = String(remain % 60).padStart(2, '0');
             sessionText = `남은시간 ${min}:${sec}`;
-    
-            // 팝업 표시 시점
+
             if (sessionAlert > 0 && remain <= sessionAlert && !popupShown) {
                 popupShown = true;
-                const audio = document.getElementById('session-alert-sound');
-                if (audio) { try { audio.play(); } catch (e) {} }
-    
+                playSessionAlertSound();
+
                 const popupWidth = 400;
                 const popupHeight = 250;
                 const left = window.screenX + (window.outerWidth - popupWidth) / 2;
@@ -173,10 +239,10 @@
                     `top=${top}`,
                     'toolbar=no','menubar=no','scrollbars=no','resizable=no','location=no','status=no'
                 ].join(',');
-    
+
                 const popup = window.open('/autologout/extend', 'SessionExtend', features);
                 window.SessionExtend = popup;
-    
+
                 if (!popup || popup.closed || typeof popup.closed === 'undefined') {
                     alert('팝업이 차단되어 있습니다.\n브라우저의 팝업 차단을 해제하고 다시 시도하세요.');
                 } else {
@@ -189,31 +255,28 @@
                 }
             }
         } else {
-    
-            // --------- 여기부터가 가장 중요한 수정 영역 ---------
+
             sessionText = '세션 만료';
-    
+
             if (!sessionExpired) {
                 sessionExpired = true;
-    
-                // 팝업 강제 닫기 (오류 무시)
+
                 if (window.SessionExtend) {
                     try { window.SessionExtend.close(); } catch (e) {}
                 }
-    
+
                 alert('세션이 만료되었습니다. 다시 로그인 해주세요.');
-    
-                // redirect를 딜레이 시켜 브라우저 정책 회피 + 안정적인 세션 종료
+
                 setTimeout(() => {
                     window.location.replace('/logout?type=expired');
                 }, 200);
             }
-            // --------- 수정 끝 ---------
+
         }
-    
+
         timerEl.innerText = sessionText;
     }
-    
+
 
     function extendSession() {
         fetch('/autologout/keepalive', {
@@ -249,7 +312,6 @@
     window.extendSession = extendSession;
     window.logoutWithPopupClose = logoutWithPopupClose;
 
-    // ----------------- 미니 달력 구현 -----------------
     const miniCalEl = document.getElementById('mini-calendar');
     const timeEl = document.getElementById('current-time');
     let calState = { year: null, month: null }; // month: 0-11
@@ -271,7 +333,7 @@
 #mini-calendar .cal-weekday.sun, #mini-calendar .cal-day.sun { color: #d9534f; } /* 일요일 빨강 */
 #mini-calendar .cal-weekday.sat, #mini-calendar .cal-day.sat { color: #0d6efd; } /* 토요일 파랑 */
 `;
-        const s = document.createElement('style');        
+        const s = document.createElement('style');
         s.appendChild(document.createTextNode(css));
         document.head.appendChild(s);
     })();
@@ -280,7 +342,7 @@
         if (!miniCalEl || !timeEl) return;
         const rect = timeEl.getBoundingClientRect();
         const calRect = miniCalEl.getBoundingClientRect();
-        // 기본: 아래로 표시, 화면 밖이면 위로 표시
+
         let top = window.scrollY + rect.bottom + 6;
         let left = window.scrollX + rect.left;
         if (left + calRect.width > window.scrollX + window.innerWidth) {
@@ -299,7 +361,7 @@
         const startDay = first.getDay(); // 0-6
         const daysInMonth = new Date(year, month+1, 0).getDate();
 
-        const prevDays = startDay; // number of leading cells
+        const prevDays = startDay;
         const totalCells = Math.ceil((prevDays + daysInMonth) / 7) * 7;
 
         const today = new Date();
@@ -311,7 +373,6 @@
         html += `<button type="button" class="cal-nav" data-action="next" aria-label="다음 달">&gt;</button>`;
         html += '</div>';
 
-        // weekdays
         const wdays = ['일','월','화','수','목','금','토'];
         html += '<div class="cal-grid">';
         for (let w=0; w<7; w++) {
@@ -320,7 +381,7 @@
             if (w === 6) cls.push('sat');
             html += `<div class="${cls.join(' ')}">${wdays[w]}</div>`;
         }
-        // days
+
         for (let i=0; i<totalCells; i++) {
             const dayNum = i - prevDays + 1;
             if (dayNum < 1 || dayNum > daysInMonth) {
@@ -337,7 +398,6 @@
         html += '</div>';
         miniCalEl.innerHTML = html;
 
-        // 바인딩: nav 버튼 클릭 시 전파 차단하여 외부 클릭 핸들러와 충돌 방지
         miniCalEl.querySelectorAll('[data-action="prev"]').forEach(b => b.addEventListener('click', function(e){ e.stopPropagation(); onPrevMonth(e); }));
         miniCalEl.querySelectorAll('[data-action="next"]').forEach(b => b.addEventListener('click', function(e){ e.stopPropagation(); onNextMonth(e); }));
         miniCalEl.querySelectorAll('.cal-day[data-day]').forEach(d => d.addEventListener('click', onSelectDay));
@@ -365,11 +425,10 @@
 
         if (timeEl) timeEl.dataset.selectedDate = iso;
 
-        // 툴팁/라벨 갱신
         const days = ['일','월','화','수','목','금','토'];
         const label = `${selected.getFullYear()}년${selected.getMonth()+1}월${selected.getDate()}일(${days[selected.getDay()]})`;
         try {
-            if (typeof tooltipInst !== 'undefined' && tooltipInst && tooltipInst.setContent) {                
+            if (typeof tooltipInst !== 'undefined' && tooltipInst && tooltipInst.setContent) {
                 tooltipInst.setContent({ '.tooltip-inner': label });
                 timeEl.setAttribute('data-bs-original-title', label);
             } else {
@@ -466,13 +525,10 @@
             }
         });
     }
-    // ----------------- 미니 달력 구현 끝 -----------------
 
-// 초기 실행
 setInterval(updateClock, 1000);
 updateClock();
 
-// 약간의 짧은 딜레이만 주기 (1500ms → 300~500ms)
 setInterval(updateSessionTimer, 1000);
 updateSessionTimer();
 

@@ -2,19 +2,20 @@
 
 namespace App\Services\System;
 
+use App\Models\User\EmployeeModel;
 use App\Services\Auth\AuthSessionService;
 use PDO;
 
 class LayoutService
 {
-    private readonly PDO $pdo;
+    private EmployeeModel $employeeModel;
     private SettingService $settingService;
     private SessionConfigService $sessionConfigService;
     private AuthSessionService $authSessionService;
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo = $pdo;
+        $this->employeeModel = new EmployeeModel($pdo);
         $this->settingService = new SettingService($pdo);
         $this->sessionConfigService = new SessionConfigService($pdo);
         $this->authSessionService = new AuthSessionService();
@@ -95,34 +96,14 @@ class LayoutService
 
     private function findEmployeeNameByUserId(string $userId): string
     {
-        $stmt = $this->pdo->prepare("
-            SELECT employee_name
-            FROM user_employees
-            WHERE user_id = :user_id
-            LIMIT 1
-        ");
-        $stmt->execute([':user_id' => $userId]);
-
-        return trim((string)($stmt->fetchColumn() ?: ''));
+        return trim((string) ($this->employeeModel->findEmployeeNameByUserId($userId) ?? ''));
     }
 
     public function getBrandInfo(): array
     {
-        $stmt = $this->pdo->prepare("
-            SELECT config_key, config_value
-            FROM system_settings_config
-            WHERE config_key IN ('main_logo','favicon')
-        ");
-        $stmt->execute();
-
-        $raw = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $raw[$row['config_key']] = $row['config_value'];
-        }
-
         return [
-            'main_logo_url' => $raw['main_logo'] ?? null,
-            'favicon_url' => $raw['favicon'] ?? null,
+            'main_logo_url' => $this->settingService->get('main_logo'),
+            'favicon_url' => $this->settingService->get('favicon'),
         ];
     }
 

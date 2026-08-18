@@ -66,6 +66,7 @@ class Router
             if (
                 !$permission['skip_permission'] &&
                 !empty($permission['key']) &&
+                empty($permission['permission_key']) &&
                 $permission['permissions'] !== []
             ) {
                 PermissionRegistry::register(
@@ -235,7 +236,6 @@ class Router
             '/ledger/data/bank-transactions' => ['category' => '회계관리 > 자료관리', 'page' => '증빙원본', 'name' => '증빙원본', 'description' => '회계관리 > 자료관리 > 증빙원본'],
             '/ledger/data/tax-invoices' => ['category' => '회계관리 > 자료관리', 'page' => '증빙원본', 'name' => '증빙원본', 'description' => '회계관리 > 자료관리 > 증빙원본'],
             '/ledger/data/raw' => ['category' => '회계관리 > 자료관리', 'page' => '원본자료', 'name' => '원본자료', 'description' => '회계관리 > 자료관리 > 원본자료'],
-            '/ledger/data/create' => ['category' => '회계관리 > 자료관리', 'page' => '생성센터', 'name' => '생성센터', 'description' => '회계관리 > 자료관리 > 생성센터'],
             '/ledger/data/upload' => ['category' => '회계관리 > 자료관리', 'page' => '자료업로드', 'name' => '자료업로드', 'description' => '회계관리 > 자료관리 > 자료업로드'],
             '/ledger/data' => ['category' => '회계관리 > 자료관리', 'page' => '증빙원본', 'name' => '증빙원본', 'description' => '회계관리 > 자료관리 > 증빙원본'],
             '/ledger/transactions/input' => ['category' => '회계관리 > 전표관리', 'page' => '거래입력', 'name' => '거래입력', 'description' => '회계관리 > 전표관리 > 거래입력'],
@@ -244,7 +244,7 @@ class Router
             '/ledger/transaction' => ['category' => '회계관리 > 전표관리', 'page' => '거래입력', 'name' => '거래입력', 'description' => '회계관리 > 전표관리 > 거래입력'],
             '/ledger/transaction/create' => ['category' => '회계관리 > 전표관리', 'page' => '거래입력', 'name' => '거래입력', 'description' => '회계관리 > 전표관리 > 거래입력'],
             '/ledger/vouchers/input' => ['category' => '회계관리 > 전표관리', 'page' => '전표입력', 'name' => '전표입력', 'description' => '회계관리 > 전표관리 > 전표입력'],
-            '/ledger/vouchers/review' => ['category' => '회계관리 > 전표관리', 'page' => '전표검토확인', 'name' => '전표검토확인', 'description' => '회계관리 > 전표관리 > 전표검토확인'],
+            '/ledger/vouchers/review' => ['category' => '회계관리 > 전표관리', 'page' => '전표검토·전기', 'name' => '전표검토·전기', 'description' => '회계관리 > 전표관리 > 전표검토·전기'],
             '/ledger/accounts' => ['category' => '회계관리 > 기초정보관리', 'page' => '계정과목', 'name' => '계정과목', 'description' => '회계관리 > 기초정보관리 > 계정과목'],
             '/ledger/journal' => ['category' => '회계관리 > 장부관리', 'page' => '분개장', 'name' => '분개장', 'description' => '회계관리 > 장부관리 > 분개장'],
             '/ledger/funds/account-transactions' => ['category' => '회계관리 > 자금관리', 'page' => '계좌별거래내역', 'name' => '계좌별거래내역', 'description' => '회계관리 > 자금관리 > 계좌별거래내역'],
@@ -257,11 +257,8 @@ class Router
             '/ledger/book/daily' => ['category' => '회계관리 > 장부관리', 'page' => '일계표', 'name' => '일계표', 'description' => '회계관리 > 장부관리 > 일계표'],
             '/ledger/book/purchase-sales' => ['category' => '회계관리 > 장부관리', 'page' => '매입매출장', 'name' => '매입매출장', 'description' => '회계관리 > 장부관리 > 매입매출장'],
             '/ledger/book/vehicle-log' => ['category' => '회계관리 > 장부관리', 'page' => '차량운행기록부', 'name' => '차량운행기록부', 'description' => '회계관리 > 장부관리 > 차량운행기록부'],
-            '/ledger/funds/deposit-ledger' => ['category' => '회계관리 > 자금관리', 'page' => '예금출납장', 'name' => '예금출납장', 'description' => '회계관리 > 자금관리 > 예금출납장'],
-            '/ledger/funds/cash-ledger' => ['category' => '회계관리 > 자금관리', 'page' => '현금출납장', 'name' => '현금출납장', 'description' => '회계관리 > 자금관리 > 현금출납장'],
             '/ledger/funds/daily-report' => ['category' => '회계관리 > 자금관리', 'page' => '자금일보', 'name' => '자금일보', 'description' => '회계관리 > 자금관리 > 자금일보'],
             '/ledger/funds/account-balances' => ['category' => '회계관리 > 자금관리', 'page' => '계좌잔액현황', 'name' => '계좌잔액현황', 'description' => '회계관리 > 자금관리 > 계좌잔액현황'],
-            '/ledger/funds/unlinked-transactions' => ['category' => '회계관리 > 자금관리', 'page' => '미연결입출금', 'name' => '미연결입출금', 'description' => '회계관리 > 자금관리 > 미연결입출금'],
             '/ledger/funds/payment-schedule' => ['category' => '회계관리 > 자금관리', 'page' => '지급예정현황', 'name' => '지급예정현황', 'description' => '회계관리 > 자금관리 > 지급예정현황'],
             '/ledger/financial/trial-balance' => ['category' => '회계관리 > 재무제표', 'page' => '시산표', 'name' => '시산표', 'description' => '회계관리 > 재무제표 > 시산표'],
             '/ledger/financial/income-statement' => ['category' => '회계관리 > 재무제표', 'page' => '손익계산서', 'name' => '손익계산서', 'description' => '회계관리 > 재무제표 > 손익계산서'],

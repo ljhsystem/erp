@@ -15,13 +15,21 @@ class ApprovalTemplateModel
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
+    public function findActiveByDocumentType(string $documentType, bool $forUpdate = false): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM user_approval_templates WHERE document_type = :document_type AND is_active = 1 ORDER BY sort_no, id' . ($forUpdate ? ' FOR UPDATE' : ''));
+        $stmt->execute([':document_type' => $documentType]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (count($rows) > 1) {
+            throw new \RuntimeException('동일 문서유형에 활성 결재템플릿이 여러 개 존재합니다. 관리자에게 문의해 주세요.');
+        }
+        return $rows[0] ?? null;
+    }
     public function getAll(): array
     {
         $stmt = $this->db->query("
             SELECT
-                t.*,
-                t.created_by AS created_by_name,
-                t.updated_by AS updated_by_name
+                t.*
             FROM user_approval_templates t
             ORDER BY t.sort_no ASC, t.created_at DESC
         ");
@@ -34,13 +42,22 @@ class ApprovalTemplateModel
         ]);
     }
 
+    public function getAllForUpdate(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT id, sort_no
+               FROM user_approval_templates
+              ORDER BY sort_no, id
+              FOR UPDATE'
+        );
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
             SELECT
-                t.*,
-                t.created_by AS created_by_name,
-                t.updated_by AS updated_by_name
+                t.*
             FROM user_approval_templates t
             WHERE t.id = ?
         ");
@@ -87,7 +104,7 @@ class ApprovalTemplateModel
             ':template_name' => $data['template_name'] ?? '',
             ':document_type' => $data['document_type'] ?? null,
             ':description' => $data['description'] ?? null,
-            ':is_active' => $data['is_active'] ?? 1,
+            ':is_active' => $data['is_active'] ?? 0,
             ':created_by' => $data['created_by'] ?? null,
             ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
         ]);
@@ -166,5 +183,27 @@ class ApprovalTemplateModel
         }
 
         return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function activeDocumentTypeExists(string $documentType, string $exceptId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM user_approval_templates WHERE document_type = :document_type AND is_active = 1 AND id <> :id LIMIT 1');
+        $stmt->execute([':document_type' => $documentType, ':id' => $exceptId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function dependencyCounts(string $id): array
+    {
+        $steps = $this->db->prepare('SELECT COUNT(*) FROM user_approval_template_steps WHERE template_id = :id');
+        $requests = $this->db->prepare('SELECT COUNT(*) FROM user_approval_requests WHERE template_id = :id');
+        $steps->execute([':id' => $id]);
+        $requests->execute([':id' => $id]);
+        return ['steps' => (int) $steps->fetchColumn(), 'requests' => (int) $requests->fetchColumn()];
+    }
+
+    public function deleteSteps(string $id): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM user_approval_template_steps WHERE template_id = :id');
+        return $stmt->execute([':id' => $id]);
     }
 }

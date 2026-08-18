@@ -34,14 +34,14 @@ export function createVoucherContext(deps = {}) {
     const modalRequestReviewBtn = document.getElementById('btnRequestVoucherReview');
     const modalCancelReviewBtn = document.getElementById('btnCancelVoucherReview');
     const evidenceModalEl = document.getElementById('journalEvidenceSearchModal');
-    const evidenceSearchBody = document.getElementById('journal_evidence_search_body');
-    const evidenceSearchKeywordEl = document.getElementById('journal_evidence_search_keyword');
-    const linkedEvidenceIdEl = document.getElementById('linked_evidence_id');
-    const linkedEvidenceSummaryEl = document.getElementById('linked_evidence_summary');
-    const linkedEvidenceOriginEl = document.getElementById('linked_evidence_origin');
+    const linkedEvidencesGridEl = document.getElementById('linked_evidences_grid');
     const selectEvidenceBtn = document.getElementById('btnSelectEvidence');
-    const clearEvidenceLinkBtn = document.getElementById('btnClearEvidenceLink');
-    const searchEvidenceBtn = document.getElementById('btnSearchEvidence');
+    const clearSelectedEvidenceBtn = document.getElementById('btnClearSelectedEvidence');
+    const recommendEvidenceBtn = document.getElementById('btnRecommendVoucherEvidence');
+    const evidenceSelectionCountEl = document.getElementById('journal_evidence_selection_count');
+    const applyEvidenceSelectionBtn = document.getElementById('btnApplyEvidenceSelection');
+    const recommendationPanelEl = document.getElementById('voucherRecommendationPanel');
+    const recommendationListEl = document.getElementById('voucher_recommendation_list');
     const pickerLayerEl = document.getElementById('journal-today-picker');
 
     if (!form || !modalEl || !lineGridHostEl || !voucherDateEl) {
@@ -59,7 +59,26 @@ export function createVoucherContext(deps = {}) {
         document.body.appendChild(pickerLayerEl);
     }
 
-    const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
+    const modalInstance = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
+    let journalModalClosing = false;
+    let journalModalReopenQueued = false;
+    const modal = modalInstance
+        ? {
+            show() {
+                if (journalModalClosing) {
+                    journalModalReopenQueued = true;
+                    return;
+                }
+                modalInstance.show();
+            },
+            hide() {
+                modalInstance.hide();
+            },
+            handleUpdate() {
+                modalInstance.handleUpdate();
+            },
+        }
+        : null;
     const evidenceModal = window.bootstrap && evidenceModalEl
         ? new bootstrap.Modal(evidenceModalEl, { focus: false })
         : null;
@@ -89,20 +108,30 @@ export function createVoucherContext(deps = {}) {
     modalEl.addEventListener('shown.bs.modal', () => {
         scheduleJournalModalLayoutUpdate();
     });
+    modalEl.addEventListener('hide.bs.modal', () => {
+        journalModalClosing = true;
+    });
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        journalModalClosing = false;
+        if (!journalModalReopenQueued) {
+            return;
+        }
+
+        journalModalReopenQueued = false;
+        window.requestAnimationFrame(() => modalInstance?.show());
+    });
     modalEl.addEventListener('hidden.bs.modal', cancelJournalModalLayoutUpdate);
 
     const API = {
         list: '/api/ledger/voucher/list',
         detail: '/api/ledger/voucher/detail',
         save: '/api/ledger/voucher/save',
-        linkEvidence: '/api/ledger/voucher/link-evidence',
-        unlinkEvidence: '/api/ledger/voucher/unlink-evidence',
         summarySearch: '/api/ledger/voucher/summary-search',
         remove: '/api/ledger/voucher/delete',
         requestReview: '/api/ledger/voucher/request-review',
         cancelReviewRequest: '/api/ledger/voucher/cancel-review-request',
-        transactionSearch: '/api/ledger/voucher/transaction-search',
         evidenceSearch: '/api/ledger/voucher/evidence-search',
+        evidenceRecommendations: '/api/ledger/voucher/evidence-recommendations',
         systemTableColumns: '/api/settings/system/data-table-columns',
         accountList: '/api/ledger/account/list',
         trash: '/api/ledger/voucher/trash',
@@ -189,14 +218,14 @@ export function createVoucherContext(deps = {}) {
         modalRequestReviewBtn,
         modalCancelReviewBtn,
         evidenceModalEl,
-        evidenceSearchBody,
-        evidenceSearchKeywordEl,
-        linkedEvidenceIdEl,
-        linkedEvidenceSummaryEl,
-        linkedEvidenceOriginEl,
+        linkedEvidencesGridEl,
         selectEvidenceBtn,
-        clearEvidenceLinkBtn,
-        searchEvidenceBtn,
+        clearSelectedEvidenceBtn,
+        recommendEvidenceBtn,
+        evidenceSelectionCountEl,
+        applyEvidenceSelectionBtn,
+        recommendationPanelEl,
+        recommendationListEl,
         pickerLayerEl,
         API,
         STATUS_LABELS,

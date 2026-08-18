@@ -111,7 +111,10 @@ export function createClientTableModule({
         if (titleEl) titleEl.textContent = '거래처 수정';
         state.clientModal?.show();
         try {
-            const data = await fetchClientDetail(id);
+            const [data] = await Promise.all([
+                fetchClientDetail(id),
+                modalModule.preloadClientModalControls(),
+            ]);
             window.jQuery('#btnDeleteClient').show();
             window.jQuery('#modal_client_id').val(data.id);
             modalModule.resetClientFileInputs();
@@ -244,9 +247,8 @@ export function createClientTableModule({
         });
     }
 
-    function initDataTable() {
-        console.log('[CLIENT] table exists', document.querySelector('#client-table'));
-        state.clientTable = createDataTable({
+    async function initDataTable() {
+        state.clientTable = await createDataTable({
             tableSelector: '#client-table',
             api: API.LIST,
             deleteApi: API.DELETE,
@@ -282,7 +284,7 @@ export function createClientTableModule({
                 },
                 { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
                 {
-                    text: '새 거래처',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action: () => {
                         modalModule.openClientQuickCreate({
@@ -309,7 +311,6 @@ export function createClientTableModule({
         state.clientTable.on('init.dt', () => updateClientCount(state.clientTable.page.info()?.recordsDisplay ?? 0));
         state.clientTable.on('draw.dt', () => {
             updateClientCount(state.clientTable.page.info()?.recordsDisplay ?? 0);
-            console.log('[CLIENT] table rendered');
         });
         bindRowReorder(state.clientTable, {
             api: API.REORDER,

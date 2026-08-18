@@ -142,6 +142,96 @@ class JournalRuleModel
         return (int) $stmt->fetchColumn() > 0;
     }
 
+    public function activeCodeExists(string $group, string $code): bool
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM system_codes WHERE code_group = :code_group AND code = :code AND is_active = 1');
+        $stmt->execute([':code_group' => $group, ':code' => $code]);
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function usableAccountExists(string $id): bool
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM ledger_accounts WHERE id = :id AND deleted_at IS NULL AND is_active = 1 AND COALESCE(is_posting, 1) = 1");
+        $stmt->execute([':id' => $id]);
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function conditionConflict(array $data, ?string $excludeId = null): ?array
+    {
+        $sql = "SELECT id, debit_account_id, credit_account_id, vat_account_id
+                FROM ledger_journal_rules
+                WHERE deleted_at IS NULL
+                  AND business_unit = :business_unit
+                  AND operation_type = :operation_type
+                  AND transaction_direction = :transaction_direction
+                  AND import_type = :import_type
+                  AND COALESCE(client_type, '') = COALESCE(:client_type, '')";
+        $params = [
+            ':business_unit' => $data[':business_unit'],
+            ':operation_type' => $data[':operation_type'],
+            ':transaction_direction' => $data[':transaction_direction'],
+            ':import_type' => $data[':import_type'],
+            ':client_type' => $data[':client_type'],
+        ];
+        if ($excludeId !== null && $excludeId !== '') {
+            $sql .= ' AND id <> :exclude_id';
+            $params[':exclude_id'] = $excludeId;
+        }
+        $sql .= ' LIMIT 1';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function referencedRuleIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) return [];
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("SELECT DISTINCT journal_rule_id FROM ledger_voucher_lines WHERE journal_rule_id IN ({$placeholders})");
+        $stmt->execute($ids);
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    public function recordConfirmedUsage(string $voucherId, string $actor): int
+    {
+        $stmt = $this->db->prepare("UPDATE ledger_journal_rules r
+            INNER JOIN (
+                SELECT DISTINCT l.journal_rule_id
+                FROM ledger_voucher_lines l
+                INNER JOIN ledger_vouchers v ON v.id = l.voucher_id
+                WHERE l.voucher_id = :voucher_id
+                  AND COALESCE(v.is_reversal, 0) = 0
+                  AND l.journal_rule_id IS NOT NULL
+                  AND l.journal_rule_id <> ''
+                  AND l.is_user_modified = 0
+            ) used ON used.journal_rule_id = r.id
+            SET r.usage_count = r.usage_count + 1,
+                r.last_used_at = NOW(),
+                r.updated_at = NOW(),
+                r.updated_by = :actor
+            WHERE r.deleted_at IS NULL AND r.is_active = 1");
+        $stmt->execute([':voucher_id' => $voucherId, ':actor' => $actor]);
+        return $stmt->rowCount();
+    }
+
+    public function confirmedUsageRuleIds(string $voucherId): array
+    {
+        $stmt = $this->db->prepare("SELECT DISTINCT l.journal_rule_id
+            FROM ledger_voucher_lines l
+            INNER JOIN ledger_vouchers v ON v.id = l.voucher_id
+            INNER JOIN ledger_journal_rules r ON r.id = l.journal_rule_id
+            WHERE l.voucher_id = :voucher_id
+              AND COALESCE(v.is_reversal, 0) = 0
+              AND l.journal_rule_id IS NOT NULL
+              AND l.journal_rule_id <> ''
+              AND l.is_user_modified = 0
+              AND r.deleted_at IS NULL
+              AND r.is_active = 1");
+        $stmt->execute([':voucher_id' => $voucherId]);
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
     public function create(array $data): bool
     {
         $stmt = $this->db->prepare("
@@ -376,11 +466,11 @@ class JournalRuleModel
                 va.account_code AS vat_account_code,
                 va.account_name AS vat_account_name
             FROM ledger_journal_rules r
-            LEFT JOIN system_codes bu ON bu.deleted_at IS NULL AND bu.is_active = 1 AND bu.code_group = 'BUSINESS_UNIT' AND bu.code = r.business_unit
-            LEFT JOIN system_codes ot ON ot.deleted_at IS NULL AND ot.is_active = 1 AND ot.code_group = 'OPERATION_TYPE' AND ot.code = r.operation_type
-            LEFT JOIN system_codes td ON td.deleted_at IS NULL AND td.is_active = 1 AND td.code_group = 'TRANSACTION_DIRECTION' AND td.code = r.transaction_direction
-            LEFT JOIN system_codes clt ON clt.deleted_at IS NULL AND clt.is_active = 1 AND clt.code_group = 'CLIENT_TYPE' AND clt.code = r.client_type
-            LEFT JOIN system_codes it ON it.deleted_at IS NULL AND it.is_active = 1 AND it.code_group = 'IMPORT_TYPE' AND it.code = r.import_type
+            LEFT JOIN system_codes bu ON bu.is_active = 1 AND bu.code_group = 'BUSINESS_UNIT' AND bu.code = r.business_unit
+            LEFT JOIN system_codes ot ON ot.is_active = 1 AND ot.code_group = 'OPERATION_TYPE' AND ot.code = r.operation_type
+            LEFT JOIN system_codes td ON td.is_active = 1 AND td.code_group = 'TRANSACTION_DIRECTION' AND td.code = r.transaction_direction
+            LEFT JOIN system_codes clt ON clt.is_active = 1 AND clt.code_group = 'CLIENT_TYPE' AND clt.code = r.client_type
+            LEFT JOIN system_codes it ON it.is_active = 1 AND it.code_group = 'IMPORT_TYPE' AND it.code = r.import_type
             LEFT JOIN ledger_accounts da ON da.id = r.debit_account_id
             LEFT JOIN ledger_accounts ca ON ca.id = r.credit_account_id
             LEFT JOIN ledger_accounts va ON va.id = r.vat_account_id

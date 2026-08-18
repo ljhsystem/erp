@@ -18,11 +18,7 @@ class BankAccountModel
     public function getList(array $filters = []): array
     {
         $sql = "
-            SELECT
-                a.*,
-                a.created_by AS created_by_name,
-                a.updated_by AS updated_by_name,
-                a.deleted_by AS deleted_by_name
+            SELECT a.*
             FROM system_bank_accounts a
             WHERE a.deleted_at IS NULL
         ";
@@ -160,21 +156,16 @@ class BankAccountModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT
-                a.*,
-
-                a.created_by AS created_by_name,
-                a.updated_by AS updated_by_name,
-                a.deleted_by AS deleted_by_name
+            SELECT a.*
 
             FROM system_bank_accounts a
 
@@ -191,9 +182,9 @@ class BankAccountModel
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -304,6 +295,16 @@ class BankAccountModel
         ]);
     }
 
+    public function getActiveDropdownValues(string $field): array
+    {
+        if (!in_array($field, ['id', 'account_name'], true)) return [];
+        $stmt = $this->db->query("SELECT DISTINCT `{$field}` AS dropdown_value FROM system_bank_accounts WHERE deleted_at IS NULL AND COALESCE(is_active, 1) = 1 ORDER BY `{$field}` ASC");
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['dropdown_value'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        ), static fn(string $value): bool => $value !== '')));
+    }
+
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -367,12 +368,7 @@ class BankAccountModel
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
-            SELECT
-                a.*,
-
-                a.created_by AS created_by_name,
-                a.updated_by AS updated_by_name,
-                a.deleted_by AS deleted_by_name
+            SELECT a.*
 
             FROM system_bank_accounts a
 
@@ -385,9 +381,9 @@ class BankAccountModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 

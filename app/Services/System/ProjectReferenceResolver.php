@@ -2,13 +2,20 @@
 
 namespace App\Services\System;
 
+use App\Models\System\ClientModel;
+use App\Models\User\EmployeeModel;
 use PDO;
 
 class ProjectReferenceResolver
 {
+    private ClientModel $clientModel;
+    private EmployeeModel $employeeModel;
+
     public function __construct(
         private readonly PDO $pdo
     ) {
+        $this->clientModel = new ClientModel($pdo);
+        $this->employeeModel = new EmployeeModel($pdo);
     }
 
     public function resolveClientIdByName(string $clientName): ?string
@@ -19,21 +26,7 @@ class ProjectReferenceResolver
             return null;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM system_clients
-            WHERE client_name = :client_name
-              AND deleted_at IS NULL
-            LIMIT 1
-        ");
-
-        $stmt->execute([
-            'client_name' => $clientName,
-        ]);
-
-        $id = $stmt->fetchColumn();
-
-        return $id !== false ? (string) $id : null;
+        return $this->clientModel->findIdByClientName($clientName);
     }
 
     public function resolveEmployeeIdByName(string $employeeName): ?string
@@ -44,21 +37,6 @@ class ProjectReferenceResolver
             return null;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT p.id
-            FROM user_employees p
-            LEFT JOIN auth_users u ON p.user_id = u.id
-            WHERE p.employee_name = :employee_name
-              AND COALESCE(u.is_active, 1) = 1
-            LIMIT 1
-        ");
-
-        $stmt->execute([
-            'employee_name' => $employeeName,
-        ]);
-
-        $id = $stmt->fetchColumn();
-
-        return $id !== false ? (string) $id : null;
+        return $this->employeeModel->findActiveIdByEmployeeName($employeeName);
     }
 }

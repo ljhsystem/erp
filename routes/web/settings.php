@@ -2,6 +2,14 @@
 
 global $router;
 
+$router->get('/dashboard/settings/standard/statutory-standards', 'StatutoryStandardController@index', [
+    'key' => 'web.settings.statutory_standards.manage', 'page' => '법정 세율·요율·계산기준관리',
+    'page_description' => 'ERP 공통 법정기준 SSOT 관리', 'permission_name' => '법정기준관리 조회',
+    'permission_description' => '법정기준관리 화면 조회', 'name' => '법정기준관리',
+    'description' => '설정 > 기준관리 > 법정기준관리', 'category' => '설정 > 기준관리',
+    'auth' => true, 'permissions' => ['view'], 'log' => true,
+]);
+
 $router->get('/dashboard/settings/base-info/company', 'DashboardController@settingsBaseInfoCompany', [
     'key' => 'web.settings.base-info.company',
     'page' => '회사정보',
@@ -51,29 +59,15 @@ $router->get('/dashboard/settings/base-info/cover', 'DashboardController@setting
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/codes', 'DashboardController@settingsBaseInfoCodes', [
+$router->get('/dashboard/settings/standard/code', 'DashboardController@settingsStandardCode', [
     'key' => 'code.view',
-    'page' => '기준정보',
-    'page_description' => '기준정보 설정 화면',
-    'permission_name' => '기준정보 조회',
-    'permission_description' => '기준정보 설정 화면 조회 권한',
-    'name' => '기준정보',
-    'description' => '설정 > 시스템설정 > 기준정보',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->get('/dashboard/settings/base-info/code', 'DashboardController@settingsBaseInfoCodes', [
-    'key' => 'code.view',
-    'page' => '기준정보',
-    'page_description' => '기준정보 설정 화면',
-    'permission_name' => '기준정보 조회',
-    'permission_description' => '기준정보 설정 화면 조회 권한',
-    'name' => '기준정보',
-    'description' => '설정 > 시스템설정 > 기준정보',
-    'category' => '설정 > 시스템설정',
+    'page' => '코드관리',
+    'page_description' => '공통 코드 관리 화면',
+    'permission_name' => '코드관리 조회',
+    'permission_description' => '코드관리 화면 조회 권한',
+    'name' => '코드관리',
+    'description' => '설정 > 기준관리 > 코드관리',
+    'category' => '설정 > 기준관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => true,

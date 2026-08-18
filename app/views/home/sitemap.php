@@ -49,12 +49,11 @@ $sitemap = [
             ['기성검토요청', '/approval/write_progress_review'],
         ],
         '결재 2' => [
-            ['휴가요청서', '/approval/write_leave_request'],
             ['출장보고서', '/approval/write_trip_report'],
             ['업무보고서', '/approval/write_work_report'],
             ['외화송금결재', '/approval/write_foreign_remit'],
             ['자유양식기안문', '/approval/write_free_draft'],
-            ['결재현황', '/approval/status'],
+            ['결재함', '/approval/status'],
         ],
     ],
     '기타' => [

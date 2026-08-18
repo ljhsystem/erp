@@ -4,16 +4,26 @@ namespace App\Services\Auth;
 use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
 use App\Models\System\PageRegistryModel;
+use App\Repositories\Auth\UserPermissionRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\Helpers\PermissionSourceHelper;
+use Core\LoggerFactory;
 use PDO;
 
 class RolePermissionService
 {
+    private const PROTECTED_ROLE_KEY = 'super_admin';
+    private const REQUIRED_MANAGEMENT_PERMISSION_KEYS = [
+        'web.settings.organization.role_permissions',
+        'api.settings.rolepermission.list',
+        'api.settings.rolepermission.assign',
+    ];
     private readonly PDO $pdo;
     private RolePermissionModel $model;
     private PermissionModel $permissionModel;
     private PageRegistryModel $pageRegistryModel;
+    private UserPermissionRepository $userPermissionRepository;
 
     public function __construct(PDO $pdo)
     {
@@ -21,6 +31,7 @@ class RolePermissionService
         $this->model = new RolePermissionModel($pdo);
         $this->permissionModel = new PermissionModel($pdo);
         $this->pageRegistryModel = new PageRegistryModel($pdo);
+        $this->userPermissionRepository = new UserPermissionRepository($pdo);
     }
 
     public function getPermissionsForRole(string $roleId): array
@@ -28,13 +39,13 @@ class RolePermissionService
         return $this->model->getPermissionsForRole($roleId);
     }
 
-    public function getPermissionTreeForRole(string $roleId): array
+    public function getPermissionTreeForRole(string $roleId = ''): array
     {
         $permissionRows = array_values(array_filter(
             $this->permissionModel->getAll(),
             static fn(array $row): bool => (int) ($row['is_active'] ?? 1) === 1
         ));
-        $assignedRows = $this->model->getPermissionsForRole($roleId);
+        $assignedRows = $roleId === '' ? [] : $this->model->getPermissionsForRole($roleId);
 
         $assignedMap = [];
         foreach ($assignedRows as $row) {
@@ -95,7 +106,7 @@ class RolePermissionService
                 'role_permission_created_at' => $assignedRow['created_at'] ?? '',
                 'role_permission_created_by' => $assignedRow['created_by'] ?? '',
                 'permission_key' => $permissionKey,
-                'permission_source' => $this->resolvePermissionSource($row),
+                'permission_source' => PermissionSourceHelper::resolve($row),
                 'page_key' => $pageKey,
                 'page' => $pageMeta['page'],
                 'category' => $pageMeta['category'],
@@ -151,30 +162,102 @@ class RolePermissionService
         return $tree;
     }
 
+    public function getPermissionSelectionForRole(string $roleId): array
+    {
+        $roleId = trim($roleId);
+        if ($roleId === '') {
+            throw new \InvalidArgumentException('역할 ID가 필요합니다.');
+        }
+
+        return [
+            'role_id' => $roleId,
+            'mappings' => $this->model->getPermissionSelectionForRole($roleId),
+        ];
+    }
+
     public function getRolesForPermission(string $permissionId): array
     {
         return $this->model->getRolesForPermission($permissionId);
     }
 
-    public function assign(string $roleId, string $permissionId): bool
+    public function saveRolePermissions(string $roleId, array $selectedPermissionIds): array
     {
-        if ($this->model->exists($roleId, $permissionId)) {
-            return true;
+        $roleId = trim($roleId);
+        $selectedPermissionIds = array_values(array_unique(array_filter(array_map(
+            static fn($id): string => trim((string) $id),
+            $selectedPermissionIds
+        ))));
+        $role = $roleId === '' ? null : $this->model->getActiveRole($roleId);
+        if ($role === null) {
+            throw new \InvalidArgumentException('저장할 활성 역할을 확인해 주세요.');
+        }
+        $validPermissionIds = $this->model->activePermissionIds($selectedPermissionIds);
+        if (count($validPermissionIds) !== count($selectedPermissionIds)) {
+            throw new \InvalidArgumentException('저장할 권한 목록에 유효하지 않은 권한이 있습니다.');
         }
 
-        $data = [
-            'id' => UuidHelper::generate(),
-            'role_id' => $roleId,
-            'permission_id' => $permissionId,
-            'created_by' => ActorHelper::user(),
-        ];
+        $outer = $this->pdo->inTransaction();
+        if (!$outer) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $this->model->lockAdministratorPermissionScope($roleId);
+            $requiredPermissionMap = $this->model->permissionIdsByKeys(self::REQUIRED_MANAGEMENT_PERMISSION_KEYS);
+            if (count($requiredPermissionMap) !== count(self::REQUIRED_MANAGEMENT_PERMISSION_KEYS)) {
+                throw new \RuntimeException('핵심 권한 정보를 확인할 수 없습니다.');
+            }
+            $requiredPermissionIds = array_values($requiredPermissionMap);
+            if (($role['role_key'] ?? '') === self::PROTECTED_ROLE_KEY
+                && array_diff($requiredPermissionIds, $validPermissionIds) !== []) {
+                throw new \InvalidArgumentException('최고관리자의 핵심 관리 권한은 해제할 수 없습니다.');
+            }
+            if ($this->userPermissionRepository->countRecoveryAdministrators(
+                $requiredPermissionIds,
+                $roleId,
+                $validPermissionIds
+            ) < 1) {
+                throw new \InvalidArgumentException('권한을 복구할 수 있는 활성 관리자가 최소 1명 이상 필요합니다.');
+            }
 
-        return $this->model->insertMapping($data);
-    }
-
-    public function remove(string $roleId, string $permissionId): bool
-    {
-        return $this->model->remove($roleId, $permissionId);
+            $assignedPermissionIds = $this->model->assignedPermissionIds($roleId);
+            $toAdd = array_values(array_diff($validPermissionIds, $assignedPermissionIds));
+            $toRemove = array_values(array_diff($assignedPermissionIds, $validPermissionIds));
+            $removedCount = $this->model->removePermissions($roleId, $toRemove);
+            $actor = ActorHelper::user();
+            $addedCount = $this->model->insertMappings(array_map(
+                static fn(string $permissionId): array => [
+                    'id' => UuidHelper::generate(),
+                    'role_id' => $roleId,
+                    'permission_id' => $permissionId,
+                    'created_by' => $actor,
+                ],
+                $toAdd
+            ));
+            if (!$outer) {
+                $this->pdo->commit();
+            }
+            try {
+                LoggerFactory::getLogger('security')->info('Role permission set changed', [
+                    'role_id' => $roleId,
+                    'role_key' => $role['role_key'] ?? '',
+                    'before_permission_ids' => $assignedPermissionIds,
+                    'after_permission_ids' => $validPermissionIds,
+                    'actor' => $actor,
+                ]);
+            } catch (\Throwable $auditException) {
+                error_log('Role permission audit logging failed: ' . $auditException->getMessage());
+            }
+            return [
+                'selected_count' => count($validPermissionIds),
+                'added_count' => $addedCount,
+                'removed_count' => $removedCount,
+            ];
+        } catch (\Throwable $exception) {
+            if (!$outer && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function reorderPermissions(array $changes): void
@@ -314,17 +397,6 @@ class RolePermissionService
             'page' => $page,
             'category' => $fallbackCategory,
         ];
-    }
-
-    private function resolvePermissionSource(array $row): string
-    {
-        $source = strtolower(trim((string) ($row['permission_source'] ?? '')));
-        if ($source === 'web' || $source === 'api') {
-            return $source;
-        }
-
-        $permissionKey = trim((string) ($row['permission_key'] ?? ''));
-        return str_starts_with($permissionKey, 'web.') ? 'web' : 'api';
     }
 
     private function inferPageKeyFromPermissionKey(string $permissionKey): string

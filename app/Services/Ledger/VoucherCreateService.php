@@ -2,20 +2,27 @@
 
 namespace App\Services\Ledger;
 
-use App\Models\Ledger\TransactionLinkModel;
+use App\Models\Ledger\EvidenceLinkModel;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\VoucherModel;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\UuidHelper;
 use PDO;
 
 class VoucherCreateService
 {
-    public function __construct(private PDO $pdo, private array $callbacks = []) {}
+    private EvidenceLinkModel $evidenceLinkModel;
+    private EvidenceSchemaModel $evidenceSchemaModel;
+    private VoucherModel $voucherModel;
 
-    public function createVoucherFromBankPayload(string $evidenceId, array $row, string $transactionId, bool $linkExistingVoucher = false): ?string
+    public function __construct(private PDO $pdo, private array $callbacks = [])
     {
-        if ($this->call('normalizeDataType', (string) ($row['import_type'] ?? $row['source_type'] ?? 'BANK_TRANSACTION')) !== 'BANK_TRANSACTION') {
-            return null;
-        }
+        $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
+        $this->evidenceSchemaModel = new EvidenceSchemaModel($pdo);
+        $this->voucherModel = new VoucherModel($pdo);
+    }
+
+    public function createVoucherFromBankPayload(string $evidenceId, array $row, bool $linkExistingVoucher = false): ?string
+    {
         if (!$this->call('hasVoucherLinesPayload', $row)) {
             return null;
         }
@@ -26,22 +33,15 @@ class VoucherCreateService
             if ($existingVoucher) {
                 $voucherId = (string) ($existingVoucher['id'] ?? '');
                 if ($voucherId !== '' && $linkExistingVoucher) {
-                    $this->tagCreatedVoucher($voucherId, $evidenceId, $transactionId, $actor);
-                    $this->linkVoucherToEvidence($evidenceId, $voucherId, $transactionId, $actor);
-                    if ($transactionId !== '') {
-                        $this->linkVoucherToTransaction($voucherId, $transactionId, null, 'AUTO', $actor);
-                    }
-                    $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
+                    $this->linkVoucherToEvidence($evidenceId, $voucherId, $actor, (string) ($row['import_type'] ?? $row['source_type'] ?? ''));
                     return $voucherId;
                 }
 
-                $this->updateEvidenceVoucherStatus($evidenceId, 'ERROR', $actor, '이미 생성된 전표가 있어 자동으로 새 전표를 만들지 않았습니다.');
                 return null;
             }
 
             $lines = $this->bankVoucherLinesForSave($row['_voucher_lines'] ?? []);
             if ($lines === []) {
-                $this->updateEvidenceVoucherStatus($evidenceId, 'ERROR', $actor, '전표 라인 정보가 없어 전표를 생성할 수 없습니다.');
                 return null;
             }
 
@@ -49,28 +49,24 @@ class VoucherCreateService
             $result = $this->call('saveVoucher', [
                 'voucher_date' => $this->call('dateValue', $row['voucher_date'] ?? $row['transaction_date'] ?? date('Y-m-d')),
                 'summary' => trim((string) ($row['voucher_summary_text'] ?? $row['summary'] ?? $row['summary_text'] ?? $row['description'] ?? '')),
-                'source_type' => 'BANK',
+                'source_type' => $this->call('normalizeDataType', (string) ($row['import_type'] ?? $row['source_type'] ?? '')),
                 'lines' => $lines,
+                'linked_evidences' => [[
+                    'import_type' => $this->call('normalizeDataType', (string) ($row['import_type'] ?? $row['source_type'] ?? '')),
+                    'evidence_id' => $evidenceId,
+                ]],
             ]);
 
             $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
             if ($voucherId !== '') {
-                $this->tagCreatedVoucher($voucherId, $evidenceId, $transactionId, $actor);
-                $this->linkVoucherToEvidence($evidenceId, $voucherId, $transactionId, $actor);
-                $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
-                if ($transactionId !== '') {
-                    $this->call('recordBankVoucherLearning', $transactionId, $voucherId, $row, $lines, $actor);
-                }
             }
 
             if ($voucherId === '') {
-                $this->updateEvidenceVoucherStatus($evidenceId, 'ERROR', $actor, (string) ($result['message'] ?? '전표 생성 결과에서 전표 ID를 확인할 수 없습니다.'));
                 return null;
             }
 
             return $voucherId;
         } catch (\Throwable $e) {
-            $this->updateEvidenceVoucherStatus($evidenceId, 'ERROR', $actor, $e->getMessage());
             return null;
         }
     }
@@ -202,41 +198,19 @@ class VoucherCreateService
         return [null, null];
     }
 
-    public function tagCreatedVoucher(string $voucherId, string $evidenceId, string $transactionId, string $actor): void
+    public function existingVoucherForEvidenceId(string $evidenceId, string $importType = ''): ?array
     {
-        return;
-    }
-
-    public function existingVoucherForEvidenceId(string $evidenceId): ?array
-    {
-        if ($evidenceId === '' || !$this->call('tableExists', 'ledger_evidence_links') || !$this->call('tableExists', 'ledger_vouchers')) {
+        if ($evidenceId === '') {
             return null;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT
-                v.id,
-                v.voucher_no,
-                v.voucher_date,
-                v.summary
-            FROM ledger_evidence_links l
-            INNER JOIN ledger_vouchers v
-                ON v.id = l.target_id
-               AND v.deleted_at IS NULL
-            WHERE l.evidence_id = :evidence_id
-              AND l.target_type = 'VOUCHER'
-              AND l.deleted_at IS NULL
-            ORDER BY v.created_at DESC, v.sort_no DESC
-            LIMIT 1
-        ");
-        $stmt->execute([':evidence_id' => $evidenceId]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $importType = $this->call('normalizeDataType', $importType);
+        return $importType === '' ? null : $this->evidenceLinkModel->findLinkedVoucherInfo($importType, $evidenceId);
     }
 
     public function existingVoucherForBankPayload(string $evidenceId, array $row): ?array
     {
-        $existing = $this->existingVoucherForEvidenceId($evidenceId);
+        $existing = $this->existingVoucherForEvidenceId($evidenceId, (string) ($row['import_type'] ?? $row['source_type'] ?? ''));
         if ($existing) {
             return $existing;
         }
@@ -246,10 +220,6 @@ class VoucherCreateService
 
     public function existingBankVoucherForPayloadFingerprint(array $row): ?array
     {
-        if (!$this->call('tableExists', 'ledger_vouchers') || !$this->call('tableExists', 'ledger_voucher_lines')) {
-            return null;
-        }
-
         $dataType = $this->call('normalizeDataType', (string) ($row['import_type'] ?? $row['source_type'] ?? 'BANK_TRANSACTION'));
         if ($dataType !== 'BANK_TRANSACTION') {
             return null;
@@ -262,140 +232,29 @@ class VoucherCreateService
             return null;
         }
 
-        $lineDeletedFilter = $this->call('tableColumnExists', 'ledger_voucher_lines', 'deleted_at') ? 'AND l.deleted_at IS NULL' : '';
-        $groupBy = ['v.id', 'v.voucher_no', 'v.voucher_date', 'v.summary', 'v.created_at', 'v.sort_no'];
-
-        $stmt = $this->pdo->prepare("
-            SELECT
-                v.id,
-                v.voucher_no,
-                v.voucher_date,
-                COALESCE(v.summary, '') AS summary,
-                COALESCE(SUM(l.debit), 0) AS debit_total,
-                COALESCE(SUM(l.credit), 0) AS credit_total
-            FROM ledger_vouchers v
-            INNER JOIN ledger_voucher_lines l
-                ON l.voucher_id = v.id
-                {$lineDeletedFilter}
-            WHERE v.deleted_at IS NULL
-              AND v.voucher_date = :voucher_date
-            GROUP BY " . implode(', ', $groupBy) . "
-            HAVING ABS(GREATEST(debit_total, credit_total) - :amount) < 0.01
-            ORDER BY v.created_at DESC, v.sort_no DESC
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':voucher_date' => $voucherDate,
-            ':amount' => abs((float) $amount),
-        ]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        return $this->voucherModel->findActiveByDateAndAmount(
+            $voucherDate,
+            (float) $amount,
+            $this->evidenceSchemaModel->columnExists('ledger_voucher_lines', 'deleted_at')
+        );
     }
 
     public function evidenceRowsForExistingVoucherCheck(array $evidenceIds): array
     {
-        $evidenceIds = array_values(array_filter(array_unique(array_map('strval', $evidenceIds))));
-        if ($evidenceIds === []) {
-            return [];
-        }
-
-        [$inSql, $params] = $this->call('placeholdersForIds', $evidenceIds, 'existing_voucher_check_evidence');
-        $transactionSelect = $this->call('evidenceHasTransactionIdColumn') ? ', e.transaction_id AS transaction_id' : ", NULL AS transaction_id";
-        $stmt = $this->pdo->prepare("
-            SELECT e.id, e.source_type, e.evidence_date,
-                   e.client_id, e.project_id, e.employee_id, e.bank_account_id, e.card_id,
-                   e.client_name, e.project_name, e.employee_name, e.bank_account_name, e.card_name,
-                   e.mapped_payload_json
-                   {$transactionSelect}
-            FROM ledger_data_evidences e
-            WHERE e.id IN ({$inSql})
-              AND e.deleted_at IS NULL
-        ");
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return [];
     }
 
-    public function linkVoucherToTransaction(string $voucherId, string $transactionId, mixed $matchAmount, string $linkType, string $actor): void
+    public function linkVoucherToEvidence(string $evidenceId, string $voucherId, string $actor, string $importType = ''): void
     {
-        if ($voucherId === '' || $transactionId === '') {
+        if ($evidenceId === '' || $voucherId === '') {
             return;
         }
 
-        (new TransactionLinkModel($this->pdo))->insertOrRestore($transactionId, $voucherId, $matchAmount, $linkType, $actor);
-    }
-
-    public function linkVoucherToEvidence(string $evidenceId, string $voucherId, string $transactionId, string $actor): void
-    {
-        if ($evidenceId === '' || $voucherId === '' || !$this->call('tableExists', 'ledger_evidence_links')) {
-            return;
+        $importType = $this->call('normalizeDataType', $importType);
+        if ($importType === '') {
+            throw new \RuntimeException('증빙 자료유형이 없어 전표를 연결할 수 없습니다.');
         }
-
-        $existing = $this->pdo->prepare("
-            SELECT id, deleted_at
-            FROM ledger_evidence_links
-            WHERE evidence_id = :evidence_id
-              AND target_type = 'VOUCHER'
-              AND target_id = :voucher_id
-              AND link_type = 'AUTO'
-            ORDER BY deleted_at IS NULL DESC, updated_at DESC, created_at DESC
-            LIMIT 1
-        ");
-        $existing->execute([
-            ':evidence_id' => $evidenceId,
-            ':voucher_id' => $voucherId,
-        ]);
-        $row = $existing->fetch(PDO::FETCH_ASSOC) ?: null;
-        if ($row) {
-            $this->pdo->prepare("
-                UPDATE ledger_evidence_links
-                SET amount = 0,
-                    deleted_at = NULL,
-                    updated_at = NOW()
-                WHERE id = :id
-            ")->execute([
-                ':id' => (string) $row['id'],
-            ]);
-            return;
-        }
-
-        $this->pdo->prepare("
-            INSERT INTO ledger_evidence_links
-                (id, evidence_type, evidence_id, target_type, target_id, link_type, amount, created_at, updated_at)
-            SELECT
-                :id, e.source_type, e.id, 'VOUCHER', :voucher_id, 'AUTO', 0, NOW(), NOW()
-            FROM ledger_data_evidences e
-            WHERE e.id = :evidence_id
-              AND e.deleted_at IS NULL
-            LIMIT 1
-        ")->execute([
-            ':id' => UuidHelper::generate(),
-            ':evidence_id' => $evidenceId,
-            ':voucher_id' => $voucherId,
-        ]);
-    }
-
-    public function updateEvidenceVoucherStatus(string $evidenceId, string $voucherStatus, string $actor, ?string $errorMessage = null): void
-    {
-        if ($evidenceId === '') {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_data_evidences
-            SET voucher_status = :voucher_status,
-                error_message = :error_message,
-                updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE id = :id
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([
-            ':id' => $evidenceId,
-            ':voucher_status' => $voucherStatus,
-            ':error_message' => $errorMessage,
-            ':updated_by' => $actor,
-        ]);
+        $this->evidenceLinkModel->upsertAutoVoucherEvidence($importType, $evidenceId, $voucherId);
     }
 
     private function call(string $name, mixed ...$args): mixed

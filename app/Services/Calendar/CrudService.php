@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/calendar/CrudService.php'
 declare(strict_types=1);
 
 namespace App\Services\Calendar;
@@ -20,14 +19,6 @@ use App\Services\Calendar\Time;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 
-
-/**
- * =========================================================
- * CalendarCrudService
- * - is_connected 값은 진입조건 ❌
- * - 실제 사용 결과로 상태 갱신 ⭕
- * =========================================================
- */
 class CrudService
 {
     private readonly PDO $pdo;
@@ -69,16 +60,7 @@ class CrudService
 
         return $this->caldavClient;
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-    /* =========================================================
-     * 🔌 CalDAV Client 생성
-     * ========================================================= */
     private function createCalDavClient(): CalDavClient
     {
         [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
@@ -86,7 +68,6 @@ class CrudService
             throw new \RuntimeException('Invalid user session');
         }
 
-        // 시스템 설정
         $host = rtrim((string)$this->systemConfig->get('synology_host'), '/');
         $path = trim((string)$this->systemConfig->get('synology_caldav_path'), '/');
 
@@ -96,7 +77,6 @@ class CrudService
 
         $baseUrl = $host . '/' . $path;
 
-        // 사용자 계정
         $account = $this->externalAccount->getByUserAndService($userId, 'synology');
 
         if (
@@ -117,22 +97,7 @@ class CrudService
             'password' => $account['external_password'],
         ]);
     }
-    
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /* =========================================================
-     * 📅 Calendar List
-     * ========================================================= */
 
-    /**
-     * ⚠️ INTERNAL USE ONLY
-     * Synology Calendar List Fetch
-     * - Sync 전용
-     * - UI/API 호출 금지
-     */
     public function fetchRemoteCalendars(): array
     {
         try {
@@ -143,7 +108,6 @@ class CrudService
                 throw new \RuntimeException('calendar-home-set not found');
             }
 
-            // 🔥 home 포함 전체 수집
             $data = $caldav->listCalendarsFromHome($home);
             $data = is_array($data) ? $data : [];
 
@@ -155,10 +119,6 @@ class CrudService
                 $c['id'] = $id;
                 $c['calendar_id'] = $id;
 
-                // 🔥 type 판별은 여기서 하지 말고 SyncService에서
-                // (calendar / task)
-
-                // 색상은 그대로
                 $color = $c['calendar_color'] ?? null;
                 if (is_string($color) && preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
                     $c['calendar_color'] = strtoupper($color);
@@ -178,22 +138,7 @@ class CrudService
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
-    
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /* =========================================================
-     * 📌 Events
-     * ========================================================= */
-    /**
-     * ⚠️ INTERNAL USE ONLY
-     * Synology VEVENT Fetch
-     * - SyncService / Write-back 전용
-     * - ❌ Controller / API / UI 호출 금지
-     */
     public function getEvents(string $collectionHref, ?string $from, ?string $to): array
     {
         try {
@@ -227,11 +172,6 @@ class CrudService
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public function getAllTasks(?string $from, ?string $to): array
     {
@@ -277,21 +217,6 @@ class CrudService
         return $tasks;
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /* =========================================================
-     * ☑️ Tasks
-     * ========================================================= */
-    /**
-     * ⚠️ INTERNAL USE ONLY
-     * Synology VTODO Fetch
-     * - SyncService / Write-back 전용
-     * - ❌ Controller / API / UI 호출 금지
-     */
     public function getTasks(string $collectionHref, ?string $from, ?string $to): array
     {
         try {
@@ -329,16 +254,6 @@ class CrudService
         }
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /* =========================================================
-     * ✍ Create / Update / Delete
-     * ========================================================= */
     private function runAndTrack(callable $fn, string $logTag): array
     {
         try {
@@ -353,17 +268,6 @@ class CrudService
     }
 
 
-
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /* =========================================================
-     * ✍ ATTENDEE 라인 만들기 유틸
-     * ========================================================= */
     private function buildAttendeeLines(array $guests): array
     {
         $lines = [];
@@ -384,20 +288,6 @@ class CrudService
         return $lines;
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-    /* =========================================================
-    * 🗑️ Calendar / Task Collection Delete
-    * ========================================================= */
     public function deleteCollection(string $collectionHref): array
     {
         return $this->runAndTrack(function () use ($collectionHref) {
@@ -408,35 +298,18 @@ class CrudService
         }, '[deleteCollection]');
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-    /* =========================================================
-    * ✍ Event CRUD (stub)
-    * ========================================================= */
     public function createEvent(array $payload): array
     {
         return $this->runAndTrack(function () use ($payload) {
 
             $caldav = $this->caldav();
 
-            /* -------------------------------------------------
-            * 1️⃣ Calendar 정보 (DB 단일 진실)
-            * ------------------------------------------------- */
-
             $collectionHref = $payload['collection_href']
                 ?? throw new \RuntimeException('collection_href required');
 
             $collectionHref = $this->normalizeCollectionHref($collectionHref);
 
-            // 🔥 DB에서 존재 여부만 체크 (개인/공유 구분 없이)
+
             $calendarId = $this->hrefToId($collectionHref);
 
             $this->assertCalendarWritePermission($calendarId);
@@ -458,7 +331,6 @@ class CrudService
                 throw new \RuntimeException('calendar not registered or inactive');
             }
 
-            // 🔥 이제 여기서 calendar_id 계산
             $calendarId = $this->hrefToId($collectionHref);
 
             $this->assertCalendarWritePermission($calendarId);
@@ -479,28 +351,15 @@ class CrudService
                 throw new \RuntimeException('calendar not registered or inactive');
             }
 
-
-
-            // createEvent() 초반
             if (!empty($payload['id'])) {
                 throw new \RuntimeException('createEvent called with id');
             }
 
-
-
-            /* -------------------------------------------------
-            * 2️⃣ id / href 생성
-            * ------------------------------------------------- */
             $id = gmdate('Ymd\THis')
                 . '-' . bin2hex(random_bytes(6))
                 . '@cal.synology.com';
 
             $href = $collectionHref . rawurlencode($id) . '.ics';
-
-
-            /* -------------------------------------------------
-            * 3️⃣ ICS 생성 (FIXED)
-            * ------------------------------------------------- */
 
             $startRaw = (string)($payload['start'] ?? '');
             $endRaw   = (string)($payload['end']   ?? '');
@@ -520,35 +379,28 @@ class CrudService
 
             $rawLines = [];
 
-            // LOCATION
             if (!empty($payload['location'])) {
                 $rawLines[] = 'LOCATION:' . $this->ics->escape($payload['location']);
             }
 
-            // DESCRIPTION
             if (array_key_exists('description', $payload)) {
                 $rawLines[] = 'DESCRIPTION:' . $this->ics->escape($payload['description']);
             }
 
-            // ATTENDEE
             $rawLines = array_merge($rawLines, $attendeeLines);
             $tzid = (string)($this->systemConfig->get('timezone') ?: 'Asia/Seoul');
 
-            // STATUS
             if (!empty($payload['status'])) {
                 $rawLines[] = 'STATUS:' . strtoupper($payload['status']);
             }
 
-            // PRIORITY
             if (!empty($payload['priority'])) {
                 $rawLines[] = 'PRIORITY:' . (int)$payload['priority'];
             }
 
-            // TRANSP
             $transp = strtoupper($payload['transp'] ?? 'OPAQUE');
             $rawLines[] = 'TRANSP:' . $transp;
 
-            // AllDAY
             if ($isAllDay) {
 
                 if (empty($payload['start'])) {
@@ -560,13 +412,11 @@ class CrudService
                     ? substr((string)$payload['end'], 0, 10)
                     : $baseStart;
 
-                // DTSTART
                 $dtstartYmd = str_replace('-', '', $baseStart);
                 $rawLines[] = 'DTSTART;VALUE=DATE:' . $dtstartYmd;
 
-                // 🔥 RRULE 여부와 상관없이 항상 DTEND 생성
                 $dtendYmd = Time::parseLocal($baseEnd)
-                    ->modify('+1 day')   // exclusive
+                    ->modify('+1 day')
                     ->format('Ymd');
 
                 $rawLines[] = 'DTEND;VALUE=DATE:' . $dtendYmd;
@@ -576,7 +426,6 @@ class CrudService
                     throw new \RuntimeException('start required');
                 }
 
-                // 🔥 start/end 반드시 서울시간 기준 정규화
                 $startLocal = Time::parseLocal($startRaw);
 
                 $endLocal = $endRaw
@@ -590,7 +439,6 @@ class CrudService
                     $endLocal->format('Ymd\THis');
             }
 
-            // RRULE (공통)
             if (!empty($payload['rrule'])) {
 
                 $rr = preg_replace('/^RRULE:/', '', (string)$payload['rrule']);
@@ -603,22 +451,18 @@ class CrudService
 
                     $day = (int)substr($payload['start'], 8, 2);
 
-                    // 기존 BYMONTHDAY 제거
                     $rr = preg_replace('/;?BYMONTHDAY=\d+/', '', $rr);
 
                     $rr .= ';BYMONTHDAY=' . $day;
                 }
 
-                $rawLines[] = 'RRULE:' . $rr;   // 🔥 반드시 rawLines에 추가
+                $rawLines[] = 'RRULE:' . $rr;
             }
 
-            // 🔔 VALARM (CREATE 시 필수)
             if (!empty($payload['alarms']) && is_array($payload['alarms'])) {
                 foreach ($payload['alarms'] as $a) {
 
-                    // 🔥 알람 값 정규화 (array → string)
                     if (is_array($a)) {
-                        // value / trigger / minutes 등 대응
                         $a =
                             $a['value']
                             ?? $a['trigger']
@@ -639,30 +483,16 @@ class CrudService
                 }
             }
 
-
-
-            // ✅ buildIcs는 여기서 딱 1번
             $ics = $this->ics->buildIcs('VEVENT', [
                 'id'       => $id,
                 'title'     => $payload['title'] ?? '',
                 'raw_lines' => $rawLines,
             ]);
 
-
-
-            /* -------------------------------------------------
-            * 4️⃣ Synology CalDAV PUT (ETag는 선택)
-            * ------------------------------------------------- */
             $caldav->createObject($href, $ics);
 
-            /**
-             * 🔥 Synology CalDAV 특성
-             * - PUT 성공 = 생성 성공
-             * - ETag는 즉시 안 내려올 수 있음 (정상)
-             */
             $etag = null;
 
-            // 있으면 가져온다 (옵션)
             $get = $caldav->request('GET', $href);
             $originIcs =
                 is_array($get) && array_key_exists('body', $get)
@@ -691,14 +521,12 @@ class CrudService
                     ? substr($payload['end'], 0, 10)
                     : $baseStart;
 
-                // 🔥 payload end를 그대로 믿지 말고
-                // DTSTART 기준으로 DTEND를 계산
                 $dtstart = str_replace('-', '', $baseStart);
                 $dtend = Time::parseLocal($baseEnd)
                     ->modify('+1 day')
                     ->format('Ymd');
             } else {
-                // ✅ DB에는 local time 그대로 저장 (Asia/Seoul 기준)
+
                 $dtstart = $payload['start'];
                 $dtend   = $payload['end'] ?? $payload['start'];
             }
@@ -716,12 +544,9 @@ class CrudService
 
 
             $rawForStore = $payload;
-            unset($rawForStore['collection_href']); // ❌ 제거
-            $rawForStore['collection_href'] = $collectionHref; // ✅ 실제 collection
+            unset($rawForStore['collection_href']);
+            $rawForStore['collection_href'] = $collectionHref;
 
-
-
-            // 🔥 Sync 호출
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             if (!$userId) {
@@ -763,18 +588,6 @@ class CrudService
         }, '[createEvent]');
     }
 
-
-
-
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private function rebuildEvent(array $row, array $payload): array
     {
         $caldav = $this->caldav();
@@ -787,17 +600,11 @@ class CrudService
             throw new \RuntimeException('rebuildEvent: href missing');
         }
 
-        /* -------------------------------------------------
-        * 1️⃣ 기존 값 보강
-        * ------------------------------------------------- */
         $title       = $payload['title']       ?? $row['title'];
         $description = $payload['description'] ?? $row['description'];
         $location    = $payload['location']    ?? $row['location'];
         $rrule       = $payload['rrule']       ?? null;
 
-        /* -------------------------------------------------
-        * 2️⃣ 날짜 계산
-        * ------------------------------------------------- */
         $isAllDay =
             array_key_exists('allDay', $payload)
             ? (bool)$payload['allDay']
@@ -840,7 +647,6 @@ class CrudService
                 throw new \RuntimeException('DTSTART/DTEND missing');
             }
 
-            // 🔥 반드시 서울시간으로 정규화
             $startLocal = Time::parseLocal($startRaw);
             $endLocal   = Time::parseLocal($endRaw);
 
@@ -858,34 +664,24 @@ class CrudService
             $rawLines[] = $rrule;
         }
 
-        /* -------------------------------------------------
-        * 3️⃣ ICS 생성 (🔥 id 유지)
-        * ------------------------------------------------- */
         $ics = $this->ics->buildIcs('VEVENT', [
             'id'       => $id,      // 🔥 기존 id 유지
             'title'     => $title,
             'raw_lines' => $rawLines,
         ]);
 
-        /* -------------------------------------------------
-        * 4️⃣ DELETE ❌ → PUT overwrite ⭕
-        * ------------------------------------------------- */
         $caldav->updateObject($href, $ics, $etag);
 
-        /* -------------------------------------------------
-        * 5️⃣ Sync
-        * ------------------------------------------------- */
         [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
         if (!$userId) {
             throw new \RuntimeException('Invalid session');
         }
 
-        // 🔥 Sync 호출 (정식 4인자)
         $syncResult = $this->sync()->syncOneEventByUid(
             $id,
-            $synologyLoginId,   // 2️⃣ synology_login_id
-            $userId,            // 3️⃣ actor (ERP user id)
+            $synologyLoginId,
+            $userId,
             [
                 'calendar_id'       => $row['calendar_id'],
                 'admin_event_color' => $payload['admin_event_color'] ?? null
@@ -894,12 +690,11 @@ class CrudService
 
         $eventRow = $syncResult['event'] ?? null;
 
-        // ✅ etag 다중 경로 추출
         $etagForReturn =
             (is_array($eventRow) ? ($eventRow['etag'] ?? null) : null)
             ?? (is_array($eventRow) ? ($eventRow['extendedProps']['etag'] ?? null) : null)
             ?? (is_array($eventRow) ? ($eventRow['extendedProps']['raw']['_etag'] ?? null) : null)
-            ?? ($syncResult['etag'] ?? null) // 혹시 syncResult 최상단에 있을 수도
+            ?? ($syncResult['etag'] ?? null)
             ?? ($etag ?? null);
 
         if (is_string($etagForReturn)) {
@@ -918,18 +713,10 @@ class CrudService
         ];
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
     public function updateEvent(array $payload): array
     {
         return $this->runAndTrack(function () use ($payload) {
 
-            // 🔥 payload 중첩 방어 (프론트 실수 대비)
             if (isset($payload['id']) && is_array($payload['id']) && isset($payload['id']['id'])) {
                 $payload = $payload['id'];
             }
@@ -939,24 +726,16 @@ class CrudService
             $scope = $payload['scope'] ?? 'all';
             $recurrenceId = $payload['recurrence_id'] ?? null;
 
-            /* -------------------------------------------------
-            * 1️⃣ 필수값
-            * ------------------------------------------------- */
-            // 1️⃣ ERP 사용자 ID
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
             if (!$userId) {
                 throw new \RuntimeException('Invalid session');
             }
 
-            // 3️⃣ id 확보 (🔥 이게 빠져있었다)
             $id = $payload['id'] ?? null;
             if (!$id) {
                 throw new \RuntimeException('id required');
             }
-            /* -------------------------------------------------
-            * 2️⃣ DB에서 기존 이벤트 조회
-            * ------------------------------------------------- */
-            // 🔥 1. id OR href 기준으로 먼저 찾는다
+
             $stmt = $this->pdo->prepare("
                 SELECT *
                 FROM dashboard_calendar_events
@@ -972,26 +751,20 @@ class CrudService
             if (!$row) {
                 throw new \RuntimeException('event not found');
             }
-            // 🔐 Synology 로그인 일치 여부 확인
+
             if ($row['synology_login_id'] !== $synologyLoginId) {
                 throw new \RuntimeException('Synology account mismatch');
             }
             $this->assertCalendarWritePermission($row['calendar_id']);
 
-
-
-            /* =========================================================
-            * 🔁 반복 이벤트 "단건 수정" 처리 (EXDATE + RECURRENCE-ID)
-            * ========================================================= */
-            $scope = $payload['scope'] ?? null;                 // 'single' | 'all'
-            $recurrenceId = $payload['recurrence_id'] ?? null;  // 'YYYYMMDD' 기대
+            $scope = $payload['scope'] ?? null;
+            $recurrenceId = $payload['recurrence_id'] ?? null;
 
             if ($scope === 'single') {
                 if (!$recurrenceId) {
                     throw new \RuntimeException('recurrence_id required for scope=single');
                 }
 
-                // ✅ 1) 원본 ICS GET
                 $caldav = $this->caldav();
                 $res = $caldav->request('GET', $row['href']);
                 $originIcs = is_array($res) && array_key_exists('body', $res) ? $res['body'] : null;
@@ -999,31 +772,21 @@ class CrudService
                     throw new \RuntimeException('ICS not found on CalDAV');
                 }
 
-                // ✅ 2) 원본에 EXDATE 추가 (해당 인스턴스 제외)
-                // - 종일: EXDATE;VALUE=DATE:YYYYMMDD
-                // - 시간형: EXDATE;TZID=...:YYYYMMDDTHHMMSS (지금은 종일 위주로 시작)
                 $exdateLine = 'EXDATE;VALUE=DATE:' . preg_replace('/[^0-9]/', '', $recurrenceId);
                 if (strpos($originIcs, 'EXDATE') === false) {
-                    // RRULE 다음에 끼워넣기 (없으면 DTSTART 다음)
                     if (preg_match('/\r\nRRULE:.*\r\n/', $originIcs)) {
                         $originIcs = preg_replace('/(\r\nRRULE:.*\r\n)/', "$1{$exdateLine}\r\n", $originIcs, 1);
                     } else {
                         $originIcs = preg_replace('/(\r\nDTSTART[^\r\n]*\r\n)/', "$1{$exdateLine}\r\n", $originIcs, 1);
                     }
                 } else {
-                    // 기존 EXDATE 라인이 있으면 뒤에 추가(간단 구현)
                     $originIcs = preg_replace('/(\r\nEXDATE[^\r\n]*:\s*)([0-9,]+)/', '$1$2,' . preg_replace('/[^0-9]/', '', $recurrenceId), $originIcs, 1);
                 }
 
-                // ✅ 3) override 인스턴스 VEVENT 생성 (RECURRENCE-ID 포함)
-                // - 같은 id 사용
-                // - DTSTART/DTEND는 payload 기준으로 생성
                 $id = $row['id'];
 
-                // SEQUENCE 증가
                 $seq = (int)($this->ics->extractSequence($originIcs) ?? 0) + 1;
 
-                // DTSTART/DTEND 라인 생성 (종일 기준)
                 $isAllDay = !empty($payload['allDay']) || ((int)$row['all_day'] === 1);
                 if (!$isAllDay) {
                     throw new \RuntimeException('scope=single currently supports all-day first (extend later)');
@@ -1041,7 +804,6 @@ class CrudService
                     ->modify('+1 day')
                     ->format('Ymd');
 
-                // override VEVENT만 뽑기 위해 buildIcs로 만들고 VEVENT 블록만 추출
                 $overrideIcs = $this->ics->buildIcs('VEVENT', [
                     'id'   => $id,
                     'title' => $payload['title'] ?? ($row['title'] ?? ''),
@@ -1060,15 +822,12 @@ class CrudService
                 }
                 $overrideVeventBlock = $m[0];
 
-                // ✅ 4) 원본 VCALENDAR에 override VEVENT를 추가
                 if (strpos($originIcs, $overrideVeventBlock) === false) {
                     $originIcs = preg_replace('/END:VCALENDAR\r\n?/i', $overrideVeventBlock . "END:VCALENDAR\r\n", $originIcs, 1);
                 }
 
-                // ✅ 5) PUT with If-Match (원본 href에 overwrite)
                 $caldav->updateObject($row['href'], $originIcs, $row['etag'] ?? null);
 
-                // ✅ 6) Sync
                 [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
                 if (!$userId) {
@@ -1077,8 +836,8 @@ class CrudService
 
                 return $this->sync()->syncOneEventByUid(
                     $id,
-                    $synologyLoginId,   // 2️⃣ synology_login_id
-                    $userId,            // 3️⃣ actor (ERP user id)
+                    $synologyLoginId,
+                    $userId,
                     [
                         'calendar_id' => $row['calendar_id'],
                         'admin_event_color' => $payload['admin_event_color'] ?? null
@@ -1088,13 +847,8 @@ class CrudService
             } elseif ($scope === 'all') {
             }
 
-
-
-
-            // 🔥 2️⃣ 이제 row 사용
             $wasAllDay = (int)$row['all_day'] === 1;
 
-            // payload 값
             $start = (string)($payload['start'] ?? '');
             $end   = (string)($payload['end']   ?? '');
 
@@ -1103,15 +857,10 @@ class CrudService
                 ? (bool)$payload['allDay']
                 : $wasAllDay;
 
-            // 🔥 3️⃣ 종일 ↔ 시간 변경이면 rebuild
             if ($wasAllDay !== $payloadIsAllDay) {
                 return $this->rebuildEvent($row, $payload);
             }
 
-
-
-
-            // 🔥 object href 최종 확정 (collection 절대 금지)
             $href = $row['href'] ?? null;
 
             if (!$href && !empty($payload['href'])) {
@@ -1122,7 +871,6 @@ class CrudService
                 throw new \RuntimeException('updateEvent resolved href missing');
             }
 
-            // 🔥 payload 기본값 정규화 (JSON 깨짐 방지)
             $payload = array_merge([
                 'allDay' => null,
                 'etag'   => null,
@@ -1130,7 +878,6 @@ class CrudService
                 'alarms' => [],
             ], $payload);
 
-            // 🔥 href 결정 로직 (DB 우선, payload 보정)
             $href = $row['href'] ?: ($payload['href'] ?? null);
             $etag = $row['etag'] ?? null;
 
@@ -1138,7 +885,6 @@ class CrudService
                 throw new \RuntimeException('updateEvent resolved href missing');
             }
 
-            // 🔥 DB에 href가 없던 경우 → 즉시 보정 저장
             if (empty($row['href']) && !empty($payload['href'])) {
                 $this->logger->warning('[UPDATE] fixing missing href in DB', [
                     'id'  => $id,
@@ -1157,11 +903,6 @@ class CrudService
                 ]);
             }
 
-
-
-            /* -------------------------------------------------
-            * 3️⃣ 기존 ICS 조회
-            * ------------------------------------------------- */
             $caldav = $this->caldav();
             $res = $caldav->request('GET', $href);
             $originIcs = is_array($res) && array_key_exists('body', $res)
@@ -1173,17 +914,12 @@ class CrudService
                 throw new \RuntimeException('ICS not found on CalDAV');
             }
 
-            // 🔥 payload 표준화
             if (isset($payload['allday']) && !isset($payload['allDay'])) {
                 $payload['allDay'] = $payload['allday'];
             }
 
-            // 🔥 TZID 감지
             $tzid = $this->ics->extractTzid($originIcs);
 
-
-
-            // 🔒 start / end 정규화 (프론트 방어)
             if (!isset($payload['start'])) {
                 if (!empty($payload['start_date'])) {
                     if (!empty($payload['allDay'])) {
@@ -1206,25 +942,14 @@ class CrudService
                 }
             }
 
-
-
-
-
-            /* =========================================================
-        * 🔁 RRULE / RDATE / EXDATE 단일 파이프라인
-        * ========================================================= */
-
-            // 1️⃣ 기존 반복 상태 추출 (딱 1번만)
             $rruleFromDb  = $this->ics->extractProperty($originIcs, 'RRULE');
             $rdateFromDb  = $this->ics->extractProperty($originIcs, 'RDATE');
             $exdateFromDb = $this->ics->extractProperty($originIcs, 'EXDATE');
 
-            // 작업용 변수
             $rrule  = $rruleFromDb;
             $rdate  = $rdateFromDb;
             $exdate = $exdateFromDb;
 
-            // 2️⃣ 반복 있음 → 반복 없음
             if (
                 $rruleFromDb !== null &&
                 array_key_exists('rrule', $payload) &&
@@ -1237,7 +962,6 @@ class CrudService
                 $exdate = null;
             }
 
-            // 3️⃣ 반복 수정 (🔥 MONTHLY 보정 포함)
             if (!empty($payload['rrule'])) {
 
                 $rr = preg_replace('/^RRULE:/', '', (string)$payload['rrule']);
@@ -1250,7 +974,6 @@ class CrudService
 
                     $day = (int)substr($payload['start'], 8, 2);
 
-                    // 기존 BYMONTHDAY 제거
                     $rr = preg_replace('/;?BYMONTHDAY=\d+/', '', $rr);
 
                     $rr .= ';BYMONTHDAY=' . $day;
@@ -1259,13 +982,10 @@ class CrudService
                 $rrule = 'RRULE:' . $rr;
             }
 
-
-            // 🔥 allDay 여부 먼저 선언 (반드시 위에!)
             $isAllDay =
                 !empty($payload['allDay']) ||
                 !empty($payload['allday']);
 
-            // 🔥 allDay + RRULE 일 때 UNTIL 형식 보정
             if ($isAllDay && $rrule) {
                 $rrule = preg_replace(
                     '/UNTIL=(\d{4})-(\d{2})-(\d{2})/',
@@ -1290,7 +1010,6 @@ class CrudService
 
                 $dtstartYmd = str_replace('-', '', $baseStart);
 
-                // 🔥 반드시 CalendarTime 사용 (서버 TZ 차단)
                 $dtendYmd = Time::parseLocal($baseEnd)
                     ->modify('+1 day')
                     ->format('Ymd');
@@ -1308,7 +1027,6 @@ class CrudService
                     throw new \RuntimeException('DTSTART/DTEND missing for timed event');
                 }
 
-                // 🔥 서울시간 기준 정규화 (핵심)
                 $startLocal = Time::parseLocal($startRaw);
                 $endLocal   = Time::parseLocal($endRaw);
 
@@ -1319,18 +1037,8 @@ class CrudService
                     $endLocal->format('Ymd\THis');
             }
 
-
-
-
-
-
-
-            /* -------------------------------------------------
-            * 4️⃣ ICS 패치
-            * ------------------------------------------------- */
             $seq = (int)($this->ics->extractSequence($originIcs) ?? 0);
 
-            // 🔥 여기서 먼저 초기화
             $setLines = [];
 
             $setLines[] = 'SUMMARY:' . $this->ics->escape($payload['title'] ?? $row['title']);
@@ -1350,7 +1058,6 @@ class CrudService
 
                 $dtstartYmd = str_replace('-', '', $baseStart);
 
-                // 🔥 서버 TZ 영향 완전 차단
                 $dtendYmd = Time::parseLocal($baseEnd)
                     ->modify('+1 day')
                     ->format('Ymd');
@@ -1368,7 +1075,6 @@ class CrudService
                     throw new \RuntimeException('DTSTART/DTEND missing for timed event');
                 }
 
-                // 🔥 반드시 서울시간 기준 정규화
                 $startLocal = Time::parseLocal($startRaw);
                 $endLocal   = Time::parseLocal($endRaw);
 
@@ -1405,21 +1111,14 @@ class CrudService
                 }
             }
 
-
-
-
-
-
-            // ❌ RRULE 제거만으로는 rebuild 금지
             $rruleRemoved =
                 $rruleFromDb !== null &&
                 array_key_exists('rrule', $payload) &&
                 empty($payload['rrule']);
 
-            // 날짜 변경 + RRULE 제거 아닌 경우만 rebuild
             $isUiAction = ($payload['__source'] ?? null) === 'ui';
 
-            // ❌ UI edit에서는 rebuild 절대 금지
+
             $explicitDateChange =
                 array_key_exists('start', $payload) ||
                 array_key_exists('end', $payload);
@@ -1428,7 +1127,7 @@ class CrudService
                 !$isUiAction &&
                 $explicitDateChange &&
                 !$rruleRemoved &&
-                !$payloadIsAllDay && // 🔥 종일 이벤트는 rebuild 금지
+                !$payloadIsAllDay &&
                 (
                     substr($payload['start'] ?? '', 0, 10) !== substr($row['dtstart'], 0, 10) ||
                     substr($payload['end']   ?? '', 0, 10) !== substr($row['dtend'],   0, 10)
@@ -1466,14 +1165,12 @@ class CrudService
                 ]
             );
 
-            // 🔥 기존 VALARM 제거
             $patchedIcs = preg_replace(
                 '/BEGIN:VALARM[\s\S]*?END:VALARM\s*/i',
                 '',
                 $patchedIcs
             );
 
-            // 🔥 새 알람 삽입
             if (!empty($payload['alarms'])) {
 
                 $alarmBlock = '';
@@ -1506,13 +1203,8 @@ class CrudService
 
             $this->logger->debug('[PATCHED ICS]', ['ics' => $patchedIcs]);
 
-            /* -------------------------------------------------
-            * 5️⃣ CalDAV PUT (If-Match)
-            * ------------------------------------------------- */
-            // PUT 완료
             $res = $caldav->updateObject($href, $patchedIcs, $etag);
 
-            // 🔥 서버 기준 ICS 다시 가져오기
             $get = $caldav->request('GET', $href);
 
             $serverIcs = $get['body'] ?? null;
@@ -1520,14 +1212,6 @@ class CrudService
                 throw new \RuntimeException('failed to fetch ICS after update');
             }
 
-
-
-            // ✅ PUT 성공 + GET 성공이면 업데이트 성공으로 본다
-            // Synology CalDAV는 PUT 성공이 곧 진실이다
-
-
-
-            // 🔥 Synology는 ETag를 안 줄 수 있음 → HEAD로 보완
             $newEtag = $res['etag'] ?? null;
 
             if (!$newEtag) {
@@ -1544,16 +1228,9 @@ class CrudService
                 }
             }
 
-            // 그래도 없으면 기존 etag 유지
             if (!$newEtag) {
                 $newEtag = $etag;
             }
-
-
-            /* -------------------------------------------------
-            * 6️⃣ 
-            * ------------------------------------------------- */
-
 
             $calendarId = $row['calendar_id'] ?? null;
 
@@ -1572,8 +1249,8 @@ class CrudService
 
             $syncResult = $this->sync()->syncOneEventByUid(
                 $id,
-                $synologyLoginId,   // 2️⃣ synology_login_id
-                $userId,            // 3️⃣ actor (ERP user id)
+                $synologyLoginId,
+                $userId,
                 [
                     'calendar_id'       => $calendarId,
                     'admin_event_color' => $payload['admin_event_color'] ?? null
@@ -1606,13 +1283,6 @@ class CrudService
         }, '[updateEvent]');
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
     public function deleteComponent(array $payload): array
     {
         if (isset($payload['id']) && is_array($payload['id'])) {
@@ -1621,17 +1291,11 @@ class CrudService
 
         return $this->runAndTrack(function () use ($payload) {
 
-            /* -------------------------------------------------
-            * 1️⃣ id 확인
-            * ------------------------------------------------- */
             $id = $payload['id']
                 ?? throw new \RuntimeException('id required');
 
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
-            /* -------------------------------------------------
-            * 2️⃣ DB 조회
-            * ------------------------------------------------- */
             $stmt = $this->pdo->prepare("
                 SELECT *
                 FROM dashboard_calendar_events
@@ -1651,14 +1315,8 @@ class CrudService
                 throw new \RuntimeException('event not found');
             }
 
-            /* -------------------------------------------------
-            * 3️⃣ 권한 검사
-            * ------------------------------------------------- */
             $this->assertCalendarWritePermission($row['calendar_id']);
 
-            /* -------------------------------------------------
-            * 4️⃣ 이미 휴지통이면 성공 처리
-            * ------------------------------------------------- */
             if ((int)$row['is_active'] === 0) {
                 return [
                     'success' => true,
@@ -1669,9 +1327,6 @@ class CrudService
                 ];
             }
 
-            /* -------------------------------------------------
-            * 5️⃣ scope 처리
-            * ------------------------------------------------- */
             $scope = $payload['scope'] ?? 'all';
             $recurrenceId = $payload['recurrence_id'] ?? null;
 
@@ -1713,9 +1368,6 @@ class CrudService
                 );
             }
 
-            /* -------------------------------------------------
-            * 6️⃣ Soft Delete
-            * ------------------------------------------------- */
             $stmt = $this->pdo->prepare("
                 UPDATE dashboard_calendar_events
                 SET is_active = 0,
@@ -1741,12 +1393,6 @@ class CrudService
         }, '[deleteComponent]');
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     public function createTask(array $payload): array
     {
         return $this->runAndTrack(function () use ($payload) {
@@ -1754,7 +1400,6 @@ class CrudService
 
             $caldav = $this->caldav();
 
-            // 필수값 확인
             $calendarId = $payload['calendar_id']
                 ?? throw new \RuntimeException('calendar_id required');
 
@@ -1782,7 +1427,6 @@ class CrudService
             $calendarId = $this->hrefToId($collectionHref);
             $this->logger->debug('[CREATE TASK] Calendar ID: ' . $calendarId);
 
-            // DB에서 캘린더 확인
             $stmt = $this->pdo->prepare("SELECT id FROM dashboard_calendar_list WHERE id = :id AND type = 'task' AND is_active = 1 LIMIT 1");
             $stmt->execute([':id' => $calendarId]);
             if (!$stmt->fetch()) {
@@ -1791,29 +1435,23 @@ class CrudService
 
             $this->logger->debug('[CREATE TASK] Task calendar is active');
 
-            // id 및 href 생성
             $id  = bin2hex(random_bytes(16));
             $href = $collectionHref . $id . '.ics';
             $this->logger->debug('[CREATE TASK] Generated id: ' . $id);
             $this->logger->debug('[CREATE TASK] Generated href: ' . $href);
 
-            // `etag` 초기화 (null로 설정)
             $etag = null;
 
-            // ICS 생성
             $rawLines = [];
             if (!empty($payload['description'])) {
                 $rawLines[] = 'DESCRIPTION:' . $this->ics->escape($payload['description']);
                 $this->logger->debug('[CREATE TASK] Added DESCRIPTION');
             }
 
-            // DUE 처리 (시간 포함 여부 확인) - 서울시간 -> UTC 변환
             if (!empty($payload['due'])) {
                 $this->logger->debug('[CREATE TASK] Processing DUE');
                 $dueRaw = (string)$payload['due'];
 
-                // Determine if the event is all-day
-                // 🔥 날짜 형식이면 자동으로 종일 처리
                 $dueRaw = (string)$payload['due'];
 
                 $dueIsDateOnly =
@@ -1824,55 +1462,45 @@ class CrudService
                     $dueIsDateOnly ||
                     !empty($payload['allDay']);
 
-                // Pass both arguments to the processDueTime method
                 $dueData = $this->processDueTime($dueRaw, $isAllDay);
 
-                // Continue with the rest of your code...
                 $rawLines = array_merge($rawLines, $dueData['rawLines'] ?? []);
                 $payloadForDb = $dueData['payloadForDb'];
                 $this->logger->debug('[CREATE TASK] Processed DUE: ' . json_encode($dueData));
             }
 
-            // STATUS
             $status = strtoupper($payload['status'] ?? 'NEEDS-ACTION');
             $rawLines[] = 'STATUS:' . $status;
 
-            // PERCENT
             $percent = isset($payload['percent'])
                 ? max(0, min(100, (int)$payload['percent']))
                 : ($status === 'COMPLETED' ? 100 : 0);
 
             $rawLines[] = 'PERCENT-COMPLETE:' . $percent;
 
-            // PRIORITY
             if (isset($payload['priority']) && $payload['priority'] !== '') {
                 $rawLines[] = 'PRIORITY:' . (int)$payload['priority'];
             }
 
             $this->logger->debug('[CREATE TASK] Added status, percent, and priority');
 
-            // 알람 처리 (단순히 ICS 내용에 알람을 추가하는 방식)
             if (!empty($payload['alarms'])) {
                 $alarmBlock = '';
 
-                // 알람 데이터를 VTODO ICS 형식에 맞게 추가
                 foreach ($payload['alarms'] as $a) {
                     $trigger = $a['trigger'] ?? null;
                     if (!$trigger) continue;
 
-                    // 알람 내용 추가
                     $alarmBlock .= "BEGIN:VALARM\r\n" . "ACTION:DISPLAY\r\n" . "DESCRIPTION:Reminder\r\n" . "TRIGGER:" . $trigger . "\r\n" . "END:VALARM\r\n";
                 }
 
-                // 기존 ICS 내용에 알람을 추가
                 $ics = $this->ics->buildIcs('VTODO', [
                     'id'       => $id,
                     'title'     => $payload['title'] ?? '',
-                    'raw_lines' => array_merge($rawLines, [$alarmBlock]),  // 알람 블록 추가
+                    'raw_lines' => array_merge($rawLines, [$alarmBlock]),
                 ]);
                 $this->logger->debug('[CREATE TASK] Generated ICS content with alarms');
             } else {
-                // 알람이 없으면 기존 생성 로직으로 진행
                 $ics = $this->ics->buildIcs('VTODO', [
                     'id'       => $id,
                     'title'     => $payload['title'] ?? '',
@@ -1881,7 +1509,6 @@ class CrudService
                 $this->logger->debug('[CREATE TASK] Generated ICS content without alarms');
             }
 
-            // CalDAV PUT 요청
             try {
                 $res = $caldav->createObject($href, $ics);
                 $etag = $res['etag'] ?? null;
@@ -1891,9 +1518,6 @@ class CrudService
                 throw new \RuntimeException('CalDAV task PUT failed');
             }
 
-
-
-            // 동기화
             $get = $caldav->request('GET', $href);
             $originIcs = $get['body'] ?? null;
 
@@ -1901,7 +1525,6 @@ class CrudService
                 throw new \RuntimeException('ICS not returned after create');
             }
 
-            // 🔥 Sync
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             if (!$userId) {
@@ -1910,8 +1533,8 @@ class CrudService
 
             $this->sync()->syncOneTaskByUid(
                 $id,
-                $synologyLoginId,   // 2️⃣ synology_login_id
-                $userId,            // 3️⃣ actor (ERP user id)
+                $synologyLoginId,
+                $userId,
                 [
                     'calendar_id'     => $calendarId,
                     'collection_href' => $collectionHref,
@@ -1919,7 +1542,6 @@ class CrudService
                 ]
             );
 
-            // 🔥 최신 전체 Task 다시 조회 (패널용)
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $tasks = (new QueryService($this->pdo))
@@ -1934,23 +1556,14 @@ class CrudService
             ];
         }, '[createTask]');
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     public function updateTask(array $payload): array
     {
         return $this->runAndTrack(function () use ($payload) {
-            /* -------------------------------------------------
-            * 1️⃣ id 필수
-            * ------------------------------------------------- */
+
             $id = $payload['id'] ?? throw new \RuntimeException('id required');
             $this->logger->debug('[UPDATE TASK] Received id: ' . $id);
 
-            /* -------------------------------------------------
-            * 2️⃣ 기존 Task 조회
-            * ------------------------------------------------- */
             $calendarId = $payload['calendar_id'] ?? null;
 
             if (!$calendarId) {
@@ -2019,11 +1632,6 @@ class CrudService
                 ? $this->normalizeCollectionHref((string)$collectionHref)
                 : null;
 
-            /* =========================================================
-            * 🔥 href 최종 보정
-            * - DB href가 정상 .ics 이면 그대로 사용
-            * - 없거나 비정상이면 그때만 collection에서 id 검색
-            * ========================================================= */
             if (!$href || !str_ends_with($href, '.ics')) {
 
                 if (!$collectionHref) {
@@ -2057,19 +1665,9 @@ class CrudService
             $this->logger->debug('[UPDATE TASK] Task href: ' . $href);
             $this->logger->debug('[UPDATE TASK] Task etag: ' . $etag);
 
-            /* -------------------------------------------------
-            * 3️⃣ 기존 ICS 로드
-            * ------------------------------------------------- */
-            /* -------------------------------------------------
-            * 3️⃣ 기존 ICS 로드 (GET 필수)
-            * ------------------------------------------------- */
             $res = $caldav->request('GET', $href);
             $originIcs = $res['body'] ?? null;
 
-            /**
-             * ✅ href가 stale이면 Synology에서 GET이 실패할 수 있음
-             * → Sync로 DB href/etag 갱신 후 1회 재시도
-             */
             if (!$originIcs) {
 
                 $this->logger->warning('[UPDATE TASK] ICS not found, trying sync refresh', [
@@ -2088,15 +1686,14 @@ class CrudService
 
                 $sync->syncOneTaskByUid(
                     $id,
-                    $synologyLoginId,   // 2️⃣ synology_login_id
-                    $userId,            // 3️⃣ actor (ERP user id)
+                    $synologyLoginId,
+                    $userId,
                     [
                         'calendar_id' => $calendarId,
                         'collection_href' => $collectionHref ?? (dirname($href) . '/')
                     ]
                 );
 
-                // 최신 href/etag 다시 읽기
                 $stmt2 = $this->pdo->prepare("
                     SELECT * FROM dashboard_calendar_tasks
                     WHERE id = :id
@@ -2116,7 +1713,6 @@ class CrudService
                     $etag = $row2['etag'] ?? $etag;
                 }
 
-                // 다시 GET
                 $res = $caldav->request('GET', $href);
                 $originIcs = $res['body'] ?? null;
 
@@ -2131,62 +1727,43 @@ class CrudService
 
             $this->logger->debug('[UPDATE TASK] Loaded ICS content');
 
-            // 최신 etag로 덮어쓰기 (DB용: 따옴표 제거)
             $latestEtag = null;
             $headers = $res['headers'] ?? [];
             foreach (['ETag', 'etag'] as $k) {
                 if (!empty($headers[$k][0])) {
                     $latestEtag = trim((string)$headers[$k][0]);
-                    $latestEtag = trim($latestEtag, '"'); // DB에는 따옴표 없는 형태로 저장
+                    $latestEtag = trim($latestEtag, '"');
                     break;
                 }
             }
 
             if ($latestEtag) {
-                $etag = $latestEtag; // 이후 로직 전체는 "따옴표 없는 etag"가 기준
+                $etag = $latestEtag;
             }
 
             $this->logger->debug('[UPDATE TASK] ETag updated: ' . $etag);
 
-            /* -------------------------------------------------
-            * 4️⃣ 상태, 퍼센트, 타이틀, 설명, due 업데이트 (🔥 실제 ICS PATCH)
-            * ------------------------------------------------- */
-
-            // SEQUENCE 증가
             $seq = (int)($this->ics->extractSequence($originIcs) ?? 0);
 
-            // patch에 넣을 라인들
             $setLines = [
                 'SEQUENCE:' . ($seq + 1),
-                // Synology 안정화용(권장)
+
                 'DTSTAMP:' . gmdate('Ymd\THis\Z'),
             ];
 
-            // TITLE
             if (array_key_exists('title', $payload)) {
                 $setLines[] = 'SUMMARY:' . $this->ics->escape((string)$payload['title']);
             }
 
-            // DESCRIPTION
             if (array_key_exists('description', $payload)) {
                 $setLines[] = 'DESCRIPTION:' . $this->ics->escape((string)$payload['description']);
             }
 
-            /**
-             * ✅ DUE
-             * - payload가 YYYYMMDD(8자리)면 무조건 VALUE=DATE로 저장
-             * - 그렇지 않으면 기존 정책(allDay/row 기반) 적용
-             */
-            $payloadForDb = []; // (DB용 파생값 필요시 대비)
-
+            $payloadForDb = [];
             if (!empty($payload['due'])) {
                 $dueRaw = (string)$payload['due'];
 
-                // 🔥 핵심: YYYYMMDD면 무조건 날짜-only로 강제
                 $dueIsDateOnly = (bool)preg_match('/^\d{8}$/', $dueRaw);
-
-                // 🔥 기존 DB all_day는 절대 신뢰하지 말 것
-                // 수정 시에는 payload 기준으로만 판단
 
                 $isAllDay =
                     $dueIsDateOnly ||
@@ -2195,7 +1772,6 @@ class CrudService
                 $dueData = $this->processDueTime($dueRaw, $isAllDay);
                 $payloadForDb = $dueData['payloadForDb'] ?? [];
 
-                // processDueTime()이 만든 DUE 라인만 setLines에 삽입
                 $dueLine = null;
                 foreach (($dueData['rawLines'] ?? []) as $line) {
                     if (is_string($line) && str_starts_with($line, 'DUE')) {
@@ -2208,7 +1784,6 @@ class CrudService
                 }
             }
 
-            // STATUS / PERCENT (단순 정책)
             if (array_key_exists('status', $payload)) {
                 $status = strtoupper((string)$payload['status']);
                 if ($status === 'COMPLETED') {
@@ -2218,23 +1793,20 @@ class CrudService
                 } else {
                     $setLines[] = 'STATUS:NEEDS-ACTION';
                     $setLines[] = 'PERCENT-COMPLETE:0';
-                    // COMPLETED 제거
+
                     $setLines[] = 'COMPLETED:';
                 }
             }
 
-            // percent 직접 지정 케이스(있으면 우선 반영)
             if (array_key_exists('percent', $payload)) {
                 $p = max(0, min(100, (int)$payload['percent']));
                 $setLines[] = 'PERCENT-COMPLETE:' . $p;
             }
 
-            // PRIORITY
             if (array_key_exists('priority', $payload) && $payload['priority'] !== null && $payload['priority'] !== '') {
                 $setLines[] = 'PRIORITY:' . (int)$payload['priority'];
             }
 
-            // ✅ 여기서 진짜로 ICS를 patch 해야 한다
             $patchedIcs = $this->ics->patchComponent(
                 $originIcs,
                 'VTODO',
@@ -2252,17 +1824,14 @@ class CrudService
                 ]
             );
 
-            // 🔔 알람 처리 (UPDATE) — alarms 키가 오면 “기존 알람 제거 후 재삽입”
             if (array_key_exists('alarms', $payload)) {
 
-                // 기존 알람 제거
                 $patchedIcs = preg_replace(
                     '/BEGIN:VALARM[\s\S]*?END:VALARM\r?\n?/i',
                     '',
                     $patchedIcs
                 );
 
-                // 새 알람 있으면 추가
                 if (!empty($payload['alarms']) && is_array($payload['alarms'])) {
 
                     $alarmBlock = '';
@@ -2290,16 +1859,11 @@ class CrudService
                 }
             }
 
-            /* -------------------------------------------------
-            * 5️⃣ CalDAV PUT
-            * ------------------------------------------------- */
-            // If-Match 전송용(따옴표 포함) ETag 구성
             $ifMatch = $etag ? ('"' . trim($etag, '"') . '"') : null;
 
             $put = $caldav->updateObject($href, $patchedIcs, $ifMatch);
             $this->logger->debug('[UPDATE TASK] PUT request sent to CalDAV');
 
-            // PUT 응답 확인
             if (isset($put['status']) && $put['status'] === 412) {
                 $this->logger->debug('[UPDATE TASK] ETag mismatch, re-fetching...');
                 $head = $caldav->request('HEAD', $href);
@@ -2323,13 +1887,11 @@ class CrudService
 
             $this->logger->debug('[UPDATE TASK] PUT response: ' . json_encode($put));
 
-            // 최종 실패 처리
             if (!is_array($put) || (isset($put['success']) && $put['success'] === false)) {
                 $this->logger->error('[TASK PUT FAILED]', ['id' => $id, 'href' => $href, 'etag_used' => $etag, 'response' => $put]);
                 throw new \RuntimeException('CalDAV PUT failed');
             }
 
-            // 새 ETag 확보
             $newEtag = $etag;
             if (is_array($put)) {
                 $headers = $put['headers'] ?? [];
@@ -2342,14 +1904,12 @@ class CrudService
                 }
             }
 
-            // DB에 ETag 갱신
             if ($newEtag && $newEtag !== $etag) {
                 $fix = $this->pdo->prepare("UPDATE dashboard_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
                 $fix->execute([':etag' => $newEtag, ':id' => $id, ':calendar_id' => $calendarId]);
                 $this->logger->debug('[UPDATE TASK] ETag updated in DB');
             }
 
-            // Sync
             $collectionHref = dirname($href) . '/';
 
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
@@ -2360,8 +1920,8 @@ class CrudService
 
             $syncResult = $this->sync()->syncOneTaskByUid(
                 $id,
-                $synologyLoginId,   // 2️⃣ synology_login_id
-                $userId,            // 3️⃣ actor (ERP user id)
+                $synologyLoginId,
+                $userId,
                 [
                     'calendar_id'    => $calendarId,
                     'collection_href' => $collectionHref
@@ -2370,7 +1930,6 @@ class CrudService
 
             $taskRow = $syncResult['task'] ?? null;
 
-            // 🔥 최신 전체 Task 다시 조회 (패널용)
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $tasks = (new QueryService($this->pdo))
@@ -2386,22 +1945,12 @@ class CrudService
             ];
         }, '[updateTask]');
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     public function updateTaskComplete(string $id, string $calendarId, bool $completed): array
     {
         return $this->runAndTrack(function () use ($id, $calendarId, $completed) {
-            /* -------------------------------------------------
-            * 1️⃣ id 필수
-            * ------------------------------------------------- */
+
             $this->logger->debug('[UPDATE TASK COMPLETE] Received id: ' . $id);
 
-            /* -------------------------------------------------
-            * 2️⃣ 기존 Task 조회
-            * ------------------------------------------------- */
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $stmt = $this->pdo->prepare("
@@ -2436,14 +1985,10 @@ class CrudService
             $this->logger->debug('[UPDATE TASK COMPLETE] Task href: ' . $href);
             $this->logger->debug('[UPDATE TASK COMPLETE] Task etag: ' . $etag);
 
-            /* -------------------------------------------------
-            * 3️⃣ 기존 ICS 로드
-            * ------------------------------------------------- */
             $caldav = $this->caldav();
             $res = $caldav->request('GET', $href);
             $originIcs = $res['body'] ?? null;
 
-            // ✅ href가 stale이면 Synology에서 못 찾는다 → Sync로 href/etag 갱신 후 재시도
             if (!$originIcs) {
 
                 $this->logger->warning('[UPDATE TASK] ICS not found, trying sync refresh', [
@@ -2452,7 +1997,6 @@ class CrudService
                     'calendar_id' => $calendarId,
                 ]);
 
-                // 1) Sync로 DB 캐시(href/etag) 갱신
                 $sync = new SyncService($this->pdo);
 
                 [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
@@ -2463,18 +2007,17 @@ class CrudService
 
                 $sync->syncOneTaskByUid(
                     $id,
-                    $synologyLoginId,   // 2️⃣ synology_login_id
-                    $userId,            // 3️⃣ actor (ERP user id)
+                    $synologyLoginId,
+                    $userId,
                     [
                         'calendar_id'     => $calendarId,
                         'collection_href' => (dirname($href) . '/')
                     ]
                 );
 
-                // 2) DB에서 최신 href/etag 다시 읽기
                 $stmt2 = $this->pdo->prepare("
                     SELECT * FROM dashboard_calendar_tasks
-                    WHERE id = :id 
+                    WHERE id = :id
                     AND is_active = 1
                     LIMIT 1
                 ");
@@ -2486,7 +2029,6 @@ class CrudService
                     $etag = $row2['etag'] ?? $etag;
                 }
 
-                // 3) 다시 GET
                 $res = $caldav->request('GET', $href);
                 $originIcs = $res['body'] ?? null;
 
@@ -2501,66 +2043,53 @@ class CrudService
 
             $this->logger->debug('[UPDATE TASK COMPLETE] Loaded ICS content');
 
-            // 최신 etag로 덮어쓰기 (DB용: 따옴표 제거)
             $latestEtag = null;
             $headers = $res['headers'] ?? [];
             foreach (['ETag', 'etag'] as $k) {
                 if (!empty($headers[$k][0])) {
                     $latestEtag = trim((string)$headers[$k][0]);
-                    $latestEtag = trim($latestEtag, '"'); // DB에는 따옴표 없는 형태로 저장
+                    $latestEtag = trim($latestEtag, '"');
                     break;
                 }
             }
 
             if ($latestEtag) {
-                $etag = $latestEtag; // 이후 로직 전체는 "따옴표 없는 etag"가 기준
+                $etag = $latestEtag;
             }
 
             $this->logger->debug('[UPDATE TASK COMPLETE] ETag updated: ' . $etag);
 
-            /* -------------------------------------------------
-            * 4️⃣ 상태 업데이트 (양방향)
-            * ------------------------------------------------- */
             $setLines = [];
 
-            // SEQUENCE 증가
             $seq = (int)($this->ics->extractSequence($originIcs) ?? 0);
             $setLines[] = 'SEQUENCE:' . ($seq + 1);
             $this->logger->debug('[UPDATE TASK COMPLETE] Sequence incremented to: ' . ($seq + 1));
 
-            // 상태에 따른 PERCENT 설정
             if ($completed) {
-                // `NEEDS-ACTION` -> `COMPLETED`로 변경
-                $setLines[] = 'PERCENT-COMPLETE:100'; // 완료 상태로 100%
+
+                $setLines[] = 'PERCENT-COMPLETE:100';
                 $setLines[] = 'STATUS:COMPLETED';
                 $setLines[] = 'COMPLETED:' . gmdate('Ymd\THis\Z');
                 $this->logger->debug('[UPDATE TASK COMPLETE] Task marked as COMPLETED');
             } else {
-                // `COMPLETED` -> `NEEDS-ACTION`으로 변경
-                $setLines[] = 'PERCENT-COMPLETE:0'; // 다시 0으로 설정
+
+                $setLines[] = 'PERCENT-COMPLETE:0';
                 $setLines[] = 'STATUS:NEEDS-ACTION';
-                $setLines[] = 'COMPLETED:'; // COMPLETED 제거
+                $setLines[] = 'COMPLETED:';
                 $this->logger->debug('[UPDATE TASK COMPLETE] Task marked as NEEDS-ACTION');
             }
 
-            // Synology 완료 반영 필수
             $setLines[] = 'DTSTAMP:' . gmdate('Ymd\THis\Z');
             $this->logger->debug('[UPDATE TASK COMPLETE] DTSTAMP updated');
 
-            // ICS 업데이트
             $updatedIcs = $this->ics->patchComponent($originIcs, 'VTODO', $setLines, ['STATUS', 'PERCENT-COMPLETE', 'DTSTAMP', 'COMPLETED']);
             $this->logger->debug('[UPDATE TASK COMPLETE] ICS patched with updated status');
 
-            /* -------------------------------------------------
-            * 5️⃣ CalDAV PUT 요청
-            * ------------------------------------------------- */
-            // If-Match 전송용(따옴표 포함) ETag 구성
             $ifMatch = $etag ? ('"' . trim($etag, '"') . '"') : null;
 
             $put = $caldav->updateObject($href, $updatedIcs, $ifMatch);
             $this->logger->debug('[UPDATE TASK COMPLETE] PUT request sent to CalDAV');
 
-            // PUT 응답 확인
             if (isset($put['status']) && $put['status'] === 412) {
                 $this->logger->debug('[UPDATE TASK COMPLETE] ETag mismatch, re-fetching...');
                 $head = $caldav->request('HEAD', $href);
@@ -2584,13 +2113,11 @@ class CrudService
 
             $this->logger->debug('[UPDATE TASK COMPLETE] PUT response: ' . json_encode($put));
 
-            // 최종 실패 처리
             if (!is_array($put) || (isset($put['success']) && $put['success'] === false)) {
                 $this->logger->error('[TASK PUT FAILED]', ['id' => $id, 'href' => $href, 'etag_used' => $etag, 'response' => $put]);
                 throw new \RuntimeException('CalDAV PUT failed');
             }
 
-            // 새 ETag 확보
             $newEtag = $etag;
             if (is_array($put)) {
                 $headers = $put['headers'] ?? [];
@@ -2603,14 +2130,12 @@ class CrudService
                 }
             }
 
-            // DB에 ETag 갱신
             if ($newEtag && $newEtag !== $etag) {
                 $fix = $this->pdo->prepare("UPDATE dashboard_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
                 $fix->execute([':etag' => $newEtag, ':id' => $id, ':calendar_id' => $calendarId]);
                 $this->logger->debug('[UPDATE TASK COMPLETE] ETag updated in DB');
             }
 
-            // Sync
             $collectionHref = dirname($href) . '/';
 
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
@@ -2621,8 +2146,8 @@ class CrudService
 
             return $this->sync()->syncOneTaskByUid(
                 $id,
-                $synologyLoginId,   // 2️⃣ synology_login_id
-                $userId,            // 3️⃣ actor (ERP user id)
+                $synologyLoginId,
+                $userId,
                 [
                     'calendar_id'    => $calendarId,
                     'collection_href' => $collectionHref
@@ -2630,17 +2155,11 @@ class CrudService
             );
         }, '[updateTaskComplete]');
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public function toggleTaskComplete(string $id, string $calendarId, bool $completed)
     {
         $id = preg_replace('/^task_/', '', $id);
 
-        // 상태 값을 'COMPLETED' 또는 'NEEDS-ACTION'으로 처리
         if ($completed) {
             $status = 'COMPLETED';
             $percent = 100;
@@ -2649,7 +2168,6 @@ class CrudService
             $percent = 0;
         }
 
-        // 이제 updateTaskComplete를 호출하여 COMPLETED 상태만 처리
         try {
             return $this->updateTaskComplete($id, $calendarId, $completed);
         } catch (\RuntimeException $e) {
@@ -2657,30 +2175,19 @@ class CrudService
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public function deleteTask(array $payload): array
     {
-        // 🔥 id 중첩 방어
+
         if (isset($payload['id']) && is_array($payload['id'])) {
             $payload = $payload['id'];
         }
 
         return $this->runAndTrack(function () use ($payload) {
 
-            /* -------------------------------------------------
-            * 1️⃣ id 확인
-            * ------------------------------------------------- */
             $id = $payload['id']
                 ?? throw new \RuntimeException('id required');
 
-            /* -------------------------------------------------
-            * 2️⃣ DB에서 Task 조회
-            * ------------------------------------------------- */
             $stmt = $this->pdo->prepare("
                     SELECT * FROM dashboard_calendar_tasks
                     WHERE id = :id
@@ -2701,9 +2208,6 @@ class CrudService
 
             $this->assertCalendarWritePermission($row['calendar_id']);
 
-            /* -------------------------------------------------
-            * 3️⃣ Soft Delete (DB only)
-            * ------------------------------------------------- */
             $stmt = $this->pdo->prepare("
                 UPDATE dashboard_calendar_tasks
                 SET is_active = 0,
@@ -2718,9 +2222,6 @@ class CrudService
                 ':user' => $userId
             ]);
 
-            /* -------------------------------------------------
-            * 4️⃣ 최신 전체 Task 다시 조회 (패널용)
-            * ------------------------------------------------- */
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $tasks = (new QueryService($this->pdo))
@@ -2736,13 +2237,6 @@ class CrudService
             ];
         }, '[deleteTask]');
     }
-
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public function hardDeleteTask(array $payload): array
     {
@@ -2761,9 +2255,6 @@ class CrudService
                 throw new \RuntimeException('id empty');
             }
 
-            /* =====================================================
-            * 0️⃣ 진입 로그
-            * ===================================================== */
             $this->logger->info('[hardDeleteTask] START', [
                 'payload' => $payload
             ]);
@@ -2777,9 +2268,6 @@ class CrudService
                 'id' => $id
             ]);
 
-            /* =====================================================
-            * 1️⃣ DB 조회
-            * ===================================================== */
             $stmt = $this->pdo->prepare("
                     SELECT * FROM dashboard_calendar_tasks
                     WHERE id = :id
@@ -2811,9 +2299,6 @@ class CrudService
 
             $this->assertCalendarWritePermission($row['calendar_id']);
 
-            /* =====================================================
-            * 2️⃣ CalDAV 삭제
-            * ===================================================== */
             if (!empty($row['href'])) {
 
                 $this->logger->info('[hardDeleteTask] CalDAV delete attempt', [
@@ -2855,9 +2340,6 @@ class CrudService
                 ]);
             }
 
-            /* =====================================================
-            * 3️⃣ DB 완전 삭제
-            * ===================================================== */
             $stmt = $this->pdo->prepare("
                 DELETE FROM dashboard_calendar_tasks
                 WHERE id = :id
@@ -2872,17 +2354,12 @@ class CrudService
                 'affected_rows' => $affected
             ]);
 
-            /* =====================================================
-            * 4️⃣ 완료
-            * ===================================================== */
             $this->logger->info('[hardDeleteTask] SUCCESS', [
                 'id' => $id
             ]);
 
-            // 🔥 현재 ERP 사용자 + 현재 Synology 로그인 계정 식별
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
-            // 🔥 해당 Synology 계정 기준으로만 Task 재조회
             $tasks = (new QueryService($this->pdo))
                 ->getAllTasksMapped($userId, $synologyLoginId);
 
@@ -2897,16 +2374,6 @@ class CrudService
         }, '[hardDeleteTask]');
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /* =========================================================
-    * 🔧 Helpers: href normalize + id
-    * ========================================================= */
     private function normalizeCollectionHref(string $href): string
     {
         $href = trim($href);
@@ -2916,37 +2383,17 @@ class CrudService
     private function normalizeObjectHref(string $href): string
     {
         return trim($href); // 절대 '/' 붙이지 말 것
-    }   
+    }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Collection href → calendar_id 생성
-     * ⚠️ object(.ics) 절대 전달 금지
-     */
     private function hrefToId(string $collectionHref): string
     {
         $n = $this->normalizeCollectionHref($collectionHref);
         return md5($n);
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
     public function hardDeleteEvent(array $payload): array
     {
-        // 🔥 id 중첩 방어
+
         if (isset($payload['id']) && is_array($payload['id'])) {
             $payload = $payload['id'];
         }
@@ -2958,7 +2405,7 @@ class CrudService
 
             $id = preg_replace('/^(event_)/', '', $id);
             $id = trim($id);
-            // 1️⃣ DB에서 이벤트 조회
+
             $stmt = $this->pdo->prepare("
                     SELECT * FROM dashboard_calendar_events
                     WHERE id = :id
@@ -2981,11 +2428,9 @@ class CrudService
                 throw new \RuntimeException('Synology account mismatch');
             }
 
-            // 2️⃣ Synology CalDAV 완전 삭제
             $caldav = $this->caldav();
             $caldav->deleteObject($row['href'], $row['etag']);
 
-            // 3️⃣ ERP DB 완전 삭제
             $stmt = $this->pdo->prepare("
                     DELETE FROM dashboard_calendar_events
                     WHERE id = :id
@@ -3009,14 +2454,6 @@ class CrudService
     }
 
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
     public function getEventByUid(string $id): array
     {
         try {
@@ -3027,7 +2464,6 @@ class CrudService
                 return ['success' => false, 'message' => 'event not found'];
             }
 
-            // 🔥 collection href에서 calendar_id 복원
             $collectionHref =
                 $data['__meta']['collection_href']
                 ?? $data['collection_href']
@@ -3059,15 +2495,6 @@ class CrudService
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
     public function getTaskByUid(
         string $id,
         ?string $collectionHref = null,
@@ -3077,12 +2504,10 @@ class CrudService
 
             $href = null;
 
-            // 1️⃣ force_href 최우선
             if (!empty($extra['force_href'])) {
                 $href = (string)$extra['force_href'];
             }
 
-            // 2️⃣ DB href 조회
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $stmt = $this->pdo->prepare("
@@ -3106,7 +2531,6 @@ class CrudService
 
             $caldav = $this->caldav();
 
-            // 3️⃣ 마지막 fallback: collection 에서 UID로 실제 href 찾기
             if (!$href) {
 
                 if (!$collectionHref) {
@@ -3145,16 +2569,14 @@ class CrudService
                 ]);
             }
 
-            // 3) href로 단건 GET
             $data = $caldav->getTaskByHref($href);
 
-            // ✅ 단건 GET 파서가 VALARM을 놓칠 수 있음 → alarms 비면 컬렉션(getTodos)로 보정
             if (is_array($data)) {
                 $alarms = $data['alarms'] ?? null;
                 $hasAlarmArray = is_array($alarms) && count($alarms) > 0;
 
                 if (!$hasAlarmArray) {
-                    // collectionHref 없으면 href 기준으로 복원
+
                     $fallbackCollection = $collectionHref
                         ? $this->normalizeCollectionHref($collectionHref)
                         : $this->normalizeCollectionHref(dirname($href));
@@ -3170,10 +2592,9 @@ class CrudService
                                     ($t['id'] ?? null);
 
                                 if ((string)$tUid === (string)$id) {
-                                    // list 결과가 alarms까지 포함한 “완전한 task”
+
                                     $data = $t;
 
-                                    // href/etag/meta는 단건 href 기준으로 확정
                                     $data['_href'] = $href;
                                     if (!isset($data['__meta']) || !is_array($data['__meta'])) {
                                         $data['__meta'] = [];
@@ -3184,7 +2605,7 @@ class CrudService
                             }
                         }
                     } catch (\Throwable $e) {
-                        // fallback 실패해도 원래 data는 유지
+
                         $this->logger->warning('[getTaskByUid] alarm fallback failed', [
                             'id' => $id,
                             'href' => $href,
@@ -3218,11 +2639,6 @@ class CrudService
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     private function processDueTime(string $dueRaw, bool $isAllDay): array
     {
         $rawLines = [];
@@ -3252,12 +2668,6 @@ class CrudService
         ];
     }
 
-
-
-
-
-
-    // ✅ UID로 "진짜 object href(.ics)" 찾기 (Synology 원본 href 보정용)
     public  function resolveTaskObjectHrefByUid(CalDavClient $caldav, string $collectionHref, string $id): ?string
     {
         $collectionHref = $this->normalizeCollectionHref($collectionHref);
@@ -3310,7 +2720,6 @@ class CrudService
             throw new \RuntimeException('Calendar not found');
         }
 
-        // 개인 캘린더
         if ((int)$calendar['is_personal'] === 1) {
 
             if ($calendar['owner_user_id'] !== $userId) {
@@ -3320,7 +2729,6 @@ class CrudService
             return;
         }
 
-        // 부서/공유 캘린더는 현재 전체 쓰기 허용
         return;
     }
 

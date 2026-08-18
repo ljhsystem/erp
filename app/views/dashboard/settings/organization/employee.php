@@ -19,7 +19,6 @@
     <option value="last_login">마지막 로그인</option>
     <option value="real_hire_date">입사일</option>
     <option value="real_retire_date">퇴사일</option>
-    <option value="deleted_at">비활성화일</option>
     ';
 
     $searchFieldOptions = '
@@ -51,6 +50,7 @@
 
 <?php include __DIR__ . '/partials/employee_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 
 <div class="picker-root">
   <div id="mini-picker" class="picker is-hidden"></div>

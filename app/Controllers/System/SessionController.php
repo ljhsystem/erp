@@ -4,17 +4,25 @@ namespace App\Controllers\System;
 
 use App\Services\Auth\AuthSessionService;
 use App\Services\System\SessionConfigService;
-use Core\Database;
 use Core\Session;
+use PDO;
 
 class SessionController
 {
+    private AuthSessionService $authSession;
+    private SessionConfigService $configService;
+
+    public function __construct(PDO $pdo)
+    {
+        $this->authSession = new AuthSessionService();
+        $this->configService = new SessionConfigService($pdo);
+    }
+
     public function apiKeepalive()
     {
         header('Content-Type: application/json; charset=UTF-8');
 
-        $authSession = new AuthSessionService();
-        if (!$authSession->isAuthenticated()) {
+        if (!$this->authSession->isAuthenticated()) {
             echo json_encode([
                 'success' => false,
                 'message' => 'Session expired'
@@ -22,9 +30,8 @@ class SessionController
             exit;
         }
 
-        $configService = new SessionConfigService(Database::getInstance()->getConnection());
-        $expireTime = Session::extend($configService->getTimeoutMinutes());
-        $username = (string)($authSession->getCurrentUser()['username'] ?? '');
+        $expireTime = Session::extend($this->configService->getTimeoutMinutes());
+        $username = (string)($this->authSession->getCurrentUser()['username'] ?? '');
 
         echo json_encode([
             'success' => true,
@@ -36,9 +43,8 @@ class SessionController
 
     public function webExtendView()
     {
-        $configService = new SessionConfigService(Database::getInstance()->getConnection());
-        $alertSound = $configService->getAlertSound();
-        $alertTime = $configService->getAlertTimeMinutes();
+        $alertSound = $this->configService->getAlertSound();
+        $alertTime = $this->configService->getAlertTimeMinutes();
 
         require PROJECT_ROOT . '/app/views/auth/session_extend.php';
     }

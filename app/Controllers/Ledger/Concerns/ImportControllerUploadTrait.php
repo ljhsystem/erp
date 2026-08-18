@@ -2,10 +2,16 @@
 
 namespace App\Controllers\Ledger\Concerns;
 
-use PDO;
+use App\Services\Ledger\EvidenceImportBatchService;
 
 trait ImportControllerUploadTrait
 {
+    private ?EvidenceImportBatchService $evidenceImportBatch = null;
+
+    private function evidenceImportBatchService(): EvidenceImportBatchService
+    {
+        return $this->evidenceImportBatch ??= new EvidenceImportBatchService();
+    }
     private function normalizeTransactionDirection(string $direction): string
     {
         $direction = strtoupper(trim($direction));
@@ -20,21 +26,7 @@ trait ImportControllerUploadTrait
 
     private function deletableSeedRowIdsByImportDate(string $batchId): array
     {
-        $batchId = trim($batchId);
-        if ($batchId === '') {
-            return [];
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM ledger_data_evidences
-            WHERE DATE(latest_imported_at) = :batch_id
-              AND transaction_status IN ('NONE', 'ERROR', 'DUPLICATED')
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([':batch_id' => $batchId]);
-
-        return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+        return $this->evidenceImportBatchService()->deletableRowIdsByImportDate($batchId);
     }
 
     private function uploadBatch(string $batchId): ?array

@@ -8,6 +8,7 @@ require __DIR__ . '/api/settings.php';
 require __DIR__ . '/api/materials.php';
 require __DIR__ . '/api/ledger.php';
 require __DIR__ . '/api/approval.php';
+require __DIR__ . '/api/institution.php';
 require __DIR__ . '/api/system.php';
 require __DIR__ . '/api/user-settings.php';
 require __DIR__ . '/api/shop.php';

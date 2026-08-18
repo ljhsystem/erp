@@ -1,5 +1,4 @@
 <?php
-// Path: PROJECT_ROOT . '/app/Models/Auth/PermissionModel.php'
 namespace App\Models\Auth;
 
 use Core\Database;
@@ -206,6 +205,13 @@ class PermissionModel
         }
     }
 
+    public function getByKey(string $permissionKey): ?array
+    {
+        $statement = $this->db->prepare('SELECT id, permission_key, permission_name, is_active FROM auth_permissions WHERE permission_key = ? LIMIT 1');
+        $statement->execute([$permissionKey]);
+        return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function existsKey(string $key, ?string $excludeId = null): bool
     {
         try {
@@ -359,6 +365,85 @@ class PermissionModel
             return $stmt->execute([$sortNo, $id]);
         } catch (\Throwable $e) {
             return false;
+        }
+    }
+
+    public function supportsPageKey(): bool
+    {
+        $stmt = $this->db->query("SHOW COLUMNS FROM auth_permissions LIKE 'page_key'");
+        return (bool) ($stmt->fetch(PDO::FETCH_ASSOC) ?: false);
+    }
+
+    public function getRegistrySyncRows(bool $withPageKey): array
+    {
+        $columns = 'id, permission_key, permission_name, description, category, created_by, updated_by';
+        if ($withPageKey) {
+            $columns .= ', page_key';
+        }
+        $stmt = $this->db->query("SELECT {$columns} FROM auth_permissions");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function insertRegistryPermission(array $data, bool $withPageKey): bool
+    {
+        $columns = ['id', 'sort_no', 'permission_key', 'permission_name', 'description', 'category'];
+        if ($withPageKey) {
+            $columns[] = 'page_key';
+        }
+        array_push($columns, 'is_active', 'created_by', 'updated_by');
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $stmt = $this->db->prepare('INSERT INTO auth_permissions (' . implode(', ', $columns) . ") VALUES ({$placeholders})");
+        return $stmt->execute(array_map(static fn(string $column): mixed => $data[$column] ?? null, $columns));
+    }
+
+    public function updateRegistryPermission(string $id, array $changes): bool
+    {
+        if ($changes === []) {
+            return false;
+        }
+        $fields = [];
+        $params = [];
+        foreach ($changes as $column => $value) {
+            if ($column === 'updated_at') {
+                $fields[] = 'updated_at = NOW()';
+                continue;
+            }
+            $fields[] = "{$column} = ?";
+            $params[] = $value;
+        }
+        $params[] = $id;
+        $stmt = $this->db->prepare('UPDATE auth_permissions SET ' . implode(', ', $fields) . ' WHERE id = ?');
+        return $stmt->execute($params);
+    }
+
+    public function getRegistrySortRows(): array
+    {
+        $stmt = $this->db->query('SELECT id, permission_key, sort_no FROM auth_permissions ORDER BY sort_no ASC, permission_key ASC');
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function offsetSortNumbers(array $ids, int $offset, string $actor): void
+    {
+        if ($ids === []) return;
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("UPDATE auth_permissions SET sort_no = sort_no + {$offset}, updated_at = NOW(), updated_by = ? WHERE id IN ({$placeholders})");
+        $stmt->execute(array_merge([$actor], $ids));
+    }
+
+    public function applySortNumbers(array $changes, string $actor): void
+    {
+        foreach (array_chunk($changes, 200) as $chunk) {
+            $ids = array_column($chunk, 'id');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $caseParts = [];
+            $params = [];
+            foreach ($chunk as $row) {
+                $caseParts[] = 'WHEN ? THEN ?';
+                $params[] = $row['id'];
+                $params[] = $row['sort_no'];
+            }
+            $stmt = $this->db->prepare('UPDATE auth_permissions SET sort_no = CASE id ' . implode(' ', $caseParts) . " END, updated_at = NOW(), updated_by = ? WHERE id IN ({$placeholders})");
+            $stmt->execute(array_merge($params, [$actor], $ids));
         }
     }
 }

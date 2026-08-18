@@ -3,6 +3,8 @@
 namespace App\Services\System;
 
 use App\Models\System\ProjectModel;
+use App\Models\System\ClientModel;
+use App\Models\User\EmployeeModel;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
 use Core\Helpers\ColumnPolicyRequestHelper;
@@ -17,12 +19,13 @@ use PDO;
 
 class ProjectExcelService
 {
+    private ClientModel $clientModel;
+    private EmployeeModel $employeeModel;
     private const COLUMN_DEFINITIONS = [
         ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true],
         ['key' => 'project_name', 'label' => '프로젝트명', 'required' => true, 'template_default' => true, 'download_default' => true],
         ['key' => 'construction_name', 'label' => '공사명', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'employee_name', 'label' => '담당직원', 'required' => false, 'template_default' => false, 'download_default' => true],
-        ['key' => 'contractor_name', 'label' => '담당직원', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'client_name', 'label' => '발주처명', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'client_type', 'label' => '발주처분류', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'bid_type', 'label' => '입찰방법', 'required' => false, 'template_default' => false, 'download_default' => false],
@@ -32,7 +35,6 @@ class ProjectExcelService
         ['key' => 'contract_method', 'label' => '계약방식', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'director', 'label' => '감리관/부서', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'manager', 'label' => '팀장', 'required' => false, 'template_default' => false, 'download_default' => false],
-        ['key' => 'contract_work_type', 'label' => '계약종류(기존)', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'housing_type', 'label' => '공사유형', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'work_type', 'label' => '공종', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'work_subtype', 'label' => '공종 세부분류', 'required' => false, 'template_default' => false, 'download_default' => false],
@@ -46,7 +48,6 @@ class ProjectExcelService
         ['key' => 'contract_date', 'label' => '계약일자', 'required' => false, 'template_default' => true, 'download_default' => false],
         ['key' => 'start_date', 'label' => '착공일자', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'completion_date', 'label' => '준공일자', 'required' => false, 'template_default' => false, 'download_default' => false],
-        ['key' => 'end_date', 'label' => '준공일자', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'bid_notice_date', 'label' => '입찰공고일', 'required' => false, 'template_default' => false, 'download_default' => false],
         ['key' => 'initial_contract_amount', 'label' => '최초계약금액', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'permit_agency', 'label' => '허가기관', 'required' => false, 'template_default' => false, 'download_default' => false],
@@ -66,7 +67,6 @@ class ProjectExcelService
         'project_name' => '샘플 프로젝트',
         'construction_name' => '샘플 공사',
         'employee_name' => '홍길동',
-        'contractor_name' => '홍길동',
         'client_name' => '샘플 발주처',
         'client_type' => '공공',
         'bid_type' => '제한경쟁',
@@ -76,7 +76,6 @@ class ProjectExcelService
         'contract_method' => '수의계약',
         'director' => '건축부',
         'manager' => '관리팀',
-        'contract_work_type' => '신축',
         'housing_type' => '공동주택',
         'work_type' => '건축',
         'work_subtype' => '철근콘크리트',
@@ -90,7 +89,6 @@ class ProjectExcelService
         'contract_date' => '2026-01-10',
         'start_date' => '2026-02-01',
         'completion_date' => '2027-01-31',
-        'end_date' => '2027-01-31',
         'bid_notice_date' => '2025-12-20',
         'initial_contract_amount' => '1500000000',
         'permit_agency' => '서울시청',
@@ -104,6 +102,8 @@ class ProjectExcelService
         private readonly PDO $pdo,
         private readonly ProjectModel $model
     ) {
+        $this->clientModel = new ClientModel($pdo);
+        $this->employeeModel = new EmployeeModel($pdo);
     }
 
     public function downloadTemplate(?string $columnsCsv = null): void
@@ -335,6 +335,9 @@ class ProjectExcelService
                 $requirementPolicyMap,
                 !empty($column['required']) ? 'required' : 'none'
             );
+            if (($column['key'] ?? '') === 'project_name') {
+                $policy = 'required';
+            }
             $header = ($labelCounts[$label] ?? 0) > 1
                 ? sprintf('%s [%s]', $label, $column['key'])
                 : $label;
@@ -540,7 +543,7 @@ class ProjectExcelService
 
     private function normalizeUploadValue(string $key, mixed $value): mixed
     {
-        if (in_array($key, ['contract_date', 'start_date', 'completion_date', 'end_date', 'permit_date', 'bid_notice_date'], true)) {
+        if (in_array($key, ['contract_date', 'start_date', 'completion_date', 'permit_date', 'bid_notice_date'], true)) {
             return $this->normalizeProjectExcelDate($value);
         }
 
@@ -664,47 +667,10 @@ class ProjectExcelService
 
     private function tableColumnDropdownOptions(string $table, string $column): array
     {
-        $tableSql = '`' . str_replace('`', '``', $table) . '`';
-        $columnSql = '`' . str_replace('`', '``', $column) . '`';
-        $where = [];
-
-        if ($this->tableColumnExists($table, 'deleted_at')) {
-            $where[] = 'deleted_at IS NULL';
-        }
-        if ($this->tableColumnExists($table, 'is_active')) {
-            $where[] = 'COALESCE(is_active, 1) = 1';
-        }
-
-        try {
-            $stmt = $this->pdo->query(
-                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY {$columnSql} ASC"
-            );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (\Throwable) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($rows as $row) {
-            $value = trim((string) ($row['dropdown_value'] ?? ''));
-            if ($value !== '') {
-                $options[] = $value;
-            }
-        }
-
-        return array_values(array_unique($options));
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
-            $stmt->execute([':column' => $column]);
-            return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (\Throwable) {
-            return false;
-        }
+        return match ($table) {
+            'system_clients' => $this->clientModel->getActiveDropdownValues($column),
+            'user_employees' => $this->employeeModel->getActiveDropdownValues($column),
+            default => [],
+        };
     }
 }

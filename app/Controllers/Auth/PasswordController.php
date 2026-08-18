@@ -2,9 +2,7 @@
 
 namespace App\Controllers\Auth;
 
-use App\Models\Auth\UserModel;
 use App\Services\Auth\AuthService;
-use App\Services\Auth\AuthSessionService;
 use Core\DbPdo;
 use PDO;
 
@@ -24,6 +22,10 @@ class PasswordController
 
     public function webFindIdResult()
     {
+        $result = $this->authService->findUsername($_POST);
+        $found = (bool) ($result['found'] ?? false);
+        $username = (string) ($result['username'] ?? '');
+
         include PROJECT_ROOT . '/app/views/auth/find_id_result.php';
     }
 
@@ -76,11 +78,7 @@ class PasswordController
     {
         $result = $this->authService->changePasswordLater();
         if (($result['status'] ?? null) === 400) {
-            $sessionService = new AuthSessionService();
-            $userId = $sessionService->getCurrentUserId();
-            $user = $userId ? (new UserModel(DbPdo::conn()))->getById($userId) : null;
-            if ($user) {
-                $sessionService->createLoginSession($user);
+            if ($this->authService->refreshCurrentUserSession()) {
                 $result = [
                     'success' => true,
                     'message' => '다음에 변경하도록 처리했습니다.',

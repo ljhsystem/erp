@@ -14,6 +14,4 @@ export const CodeColumnRegistry = defineDomainRegistry('code', [
     { key: 'created_by_name', label: '생성자', tableVisible: false, tableDefault: false, searchable: false, width: 120, type: 'text' },
     { key: 'updated_at', label: '수정일시', tableVisible: false, tableDefault: false, searchable: false, width: 160, type: 'datetime' },
     { key: 'updated_by_name', label: '수정자', tableVisible: false, tableDefault: false, searchable: false, width: 120, type: 'text' },
-    { key: 'deleted_at', label: '삭제일시', tableVisible: false, tableDefault: false, searchable: false, width: 160, type: 'datetime' },
-    { key: 'deleted_by_name', label: '삭제자', tableVisible: false, tableDefault: false, searchable: false, width: 120, type: 'text' },
 ]);

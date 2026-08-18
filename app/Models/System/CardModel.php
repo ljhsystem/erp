@@ -21,10 +21,7 @@ class CardModel
             SELECT
                 c.*,
                 cl.client_name,
-                b.account_name,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                b.account_name
             FROM system_cards c
             LEFT JOIN system_clients cl ON c.client_id = cl.id
             LEFT JOIN system_bank_accounts b ON c.account_id = b.id
@@ -152,7 +149,7 @@ class CardModel
             $sql .= ")";
         }
 
-        $sql .= " ORDER BY c.sort_no DESC";
+        $sql .= " ORDER BY c.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -160,9 +157,9 @@ class CardModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -172,10 +169,7 @@ class CardModel
             SELECT
                 c.*,
                 cl.client_name,
-                b.account_name,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                b.account_name
 
             FROM system_cards c
 
@@ -194,9 +188,9 @@ class CardModel
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -393,10 +387,7 @@ class CardModel
             SELECT
                 c.*,
                 cl.client_name,
-                b.account_name,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                b.account_name
 
             FROM system_cards c
 
@@ -412,9 +403,9 @@ class CardModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -440,31 +431,13 @@ class CardModel
 
     public function hardDeleteById(string $id): bool
     {
-
-        $stmt = $this->db->prepare("
-            SELECT card_file
-            FROM system_cards
-            WHERE id = :id
-        ");
-        $stmt->execute([':id' => $id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
         $stmt = $this->db->prepare("
             DELETE FROM system_cards
-            WHERE id = :id
+            WHERE id = :id AND deleted_at IS NOT NULL
         ");
         $stmt->execute([':id' => $id]);
 
-        if ($row && !empty($row['card_file'])) {
-
-            $filePath = PROJECT_ROOT . '/public/uploads/' . str_replace('public://', '', $row['card_file']);
-
-            if (file_exists($filePath)) {
-                @unlink($filePath);
-            }
-        }
-
-        return true;
+        return $stmt->rowCount() > 0;
     }
 
     public function updateSortNo(string $id, string $newSortNo): bool

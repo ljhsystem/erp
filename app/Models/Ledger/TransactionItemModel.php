@@ -9,6 +9,18 @@ class TransactionItemModel
 {
     protected string $table = 'ledger_transaction_items';
 
+    public function countByTransactionIds(array $transactionIds): int
+    {
+        $transactionIds = array_values(array_filter(array_map('strval', $transactionIds)));
+        if ($transactionIds === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM {$this->table} WHERE transaction_id IN ({$placeholders})");
+        $stmt->execute($transactionIds);
+        return (int) $stmt->fetchColumn();
+    }
+
     private PDO $db;
 
     public function __construct(?PDO $pdo = null)
@@ -33,11 +45,6 @@ class TransactionItemModel
         if (!empty($filters['transaction_id'])) {
             $sql .= " AND transaction_id = :transaction_id";
             $params[':transaction_id'] = $filters['transaction_id'];
-        }
-
-        if (!empty($filters['item_tax_type'])) {
-            $sql .= " AND item_tax_type = :item_tax_type";
-            $params[':item_tax_type'] = $filters['item_tax_type'];
         }
 
         $sql .= " ORDER BY transaction_id ASC, sort_no ASC";
@@ -85,7 +92,6 @@ class TransactionItemModel
             'id',
             'sort_no',
             'transaction_id',
-            'transaction_line_type',
             'item_date',
             'item_name',
             'item_specification',
@@ -95,7 +101,6 @@ class TransactionItemModel
             'item_foreign_unit_price',
             'item_foreign_amount',
             'item_supply_amount',
-            'item_tax_type',
             'item_description',
             'created_at',
             'created_by',
@@ -131,7 +136,6 @@ class TransactionItemModel
         $allowed = [
             'transaction_id',
             'sort_no',
-            'transaction_line_type',
             'item_date',
             'item_name',
             'item_specification',
@@ -141,7 +145,6 @@ class TransactionItemModel
             'item_foreign_unit_price',
             'item_foreign_amount',
             'item_supply_amount',
-            'item_tax_type',
             'item_description',
             'updated_at',
             'updated_by',
@@ -214,6 +217,13 @@ class TransactionItemModel
         ");
 
         return $stmt->execute([':id' => $id]);
+    }
+
+    public function hardDeleteByTransactionId(string $transactionId): int
+    {
+        $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE transaction_id = :transaction_id");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        return $stmt->rowCount();
     }
 
     private function filterData(array $data, array $allowed): array

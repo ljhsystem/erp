@@ -127,6 +127,13 @@ class ExternalAccountModel
         ]);
     }
 
+    public function deleteByUserAndService(string $userId, string $serviceKey): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM user_external_accounts WHERE user_id = ? AND service_key = ?");
+
+        return $stmt->execute([$userId, $serviceKey]);
+    }
+
     public function getAllByUser(string $userId): array
     {
         $sql = "

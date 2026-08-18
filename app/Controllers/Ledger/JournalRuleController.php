@@ -3,25 +3,19 @@
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
-use App\Services\Ledger\JournalRuleExcelService;
 use App\Services\Ledger\JournalRuleService;
 use Core\DbPdo;
-use Core\Helpers\ExcelTemplateFilenameHelper;
 use PDO;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class JournalRuleController
 {
     private JournalRuleService $service;
-    private JournalRuleExcelService $excelService;
     private LayoutController $layout;
 
     public function __construct(?PDO $pdo = null)
     {
         $pdo = $pdo ?? DbPdo::conn();
         $this->service = new JournalRuleService($pdo);
-        $this->excelService = new JournalRuleExcelService($pdo, $this->service);
         $this->layout = new LayoutController($pdo);
     }
 
@@ -61,8 +55,10 @@ class JournalRuleController
     {
         try {
             $this->json($this->service->save($_POST));
-        } catch (\Throwable $e) {
+        } catch (\InvalidArgumentException $e) {
             $this->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'message' => '분개규칙 처리 중 오류가 발생했습니다.'], 500);
         }
     }
 
@@ -173,36 +169,6 @@ class JournalRuleController
         $this->json($this->service->hardDeleteAll());
     }
 
-    public function apiTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
-            'journal_rules_template.xlsx'
-        );
-    }
-
-    public function apiDownloadExcel(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
-            'journal_rules.xlsx'
-        );
-    }
-
-    public function apiExcelUpload(): void
-    {
-        try {
-            if (empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-                $this->json(['success' => false, 'message' => '업로드할 엑셀 파일을 선택해 주세요.'], 400);
-                return;
-            }
-
-            $this->json($this->excelService->importFromExcelFile($_FILES['file']['tmp_name']));
-        } catch (\Throwable $e) {
-            $this->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-    }
-
     private function filters(): array
     {
         $filters = json_decode((string) ($_GET['filters'] ?? '[]'), true);
@@ -223,16 +189,6 @@ class JournalRuleController
             'strval',
             is_array($payload['ids'] ?? null) ? $payload['ids'] : []
         )));
-    }
-
-    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
-    {
-        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'journal_rules');
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-        (new Xlsx($spreadsheet))->save('php://output');
-        exit;
     }
 
     private function renderPage(string $viewPath, array $params = []): void

@@ -1,7 +1,9 @@
 export function createBankAccountFormModule({
     AdminPicker,
     initCodeSelectControls,
+    getCodeOptions,
     NumberFormat,
+    confirmDialog,
 }) {
     const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
     const { formatAccountNumber, loadBankAccountFormatRegistry } = NumberFormat;
@@ -15,9 +17,7 @@ export function createBankAccountFormModule({
             window.AppCore.notify(type, message);
             return;
         }
-        if (type === 'error') {
-            alert(message);
-        }
+        window.AppCore?.notify?.(type, message);
     };
 
     function escapeHtml(value) {
@@ -37,8 +37,13 @@ export function createBankAccountFormModule({
         if (!btnRemoveBankBook || btnRemoveBankBook.dataset.bound === '1') return;
 
         btnRemoveBankBook.dataset.bound = '1';
-        btnRemoveBankBook.addEventListener('click', () => {
-            if (!confirm('통장사본 파일을 삭제하시겠습니까?')) return;
+        btnRemoveBankBook.addEventListener('click', async () => {
+            if (!await confirmDialog({
+                title: '통장사본 삭제',
+                message: '통장사본 파일을 삭제하시겠습니까?',
+                confirmText: '삭제',
+                confirmClass: 'btn-danger',
+            })) return;
             markBankBookDeleted();
         });
     }
@@ -69,7 +74,7 @@ export function createBankAccountFormModule({
         if (event.target.name !== 'bank_name') return;
         const form = event.target.closest('form');
         const input = form?.querySelector('[name="account_number"][data-format="account_number"]');
-        formatAccountNumberInput(input, { forceReload: true });
+        formatAccountNumberInput(input);
     }
 
     function getAccountModalBankName(form = document.getElementById('accountForm')) {
@@ -80,17 +85,12 @@ export function createBankAccountFormModule({
         return [bankSelect.value, selectedText].filter(Boolean).join(' ');
     }
 
-    function formatAccountNumberInput(input, options = {}) {
+    function formatAccountNumberInput(input) {
         if (!input) return;
 
         const form = input.closest('form') || document.getElementById('accountForm');
         const bankName = getAccountModalBankName(form);
         input.value = formatAccountNumber(input.value, bankName);
-
-        void loadBankAccountFormatRegistry?.({ force: options.forceReload === true }).then(() => {
-            const latestBankName = getAccountModalBankName(form);
-            input.value = formatAccountNumber(input.value, latestBankName);
-        });
     }
 
     function bindAccountBankFormatting(modalEl = document.getElementById('accountModal')) {
@@ -99,7 +99,7 @@ export function createBankAccountFormModule({
         if (!bankSelect || !accountInput) return;
 
         const reformatAccountNumber = () => {
-            formatAccountNumberInput(accountInput, { forceReload: true });
+            formatAccountNumberInput(accountInput);
             window.requestAnimationFrame?.(() => {
                 formatAccountNumberInput(accountInput);
             });
@@ -253,8 +253,13 @@ export function createBankAccountFormModule({
     }
 
     async function prepareAccountModalControls() {
-        await loadBankAccountFormatRegistry?.();
         await initCodeSelectControls(document.getElementById('accountModal'));
+        const bankRows = await getCodeOptions?.('BANK');
+        if (Array.isArray(bankRows)) {
+            NumberFormat.setBankAccountFormatRegistry?.(bankRows);
+        } else {
+            await loadBankAccountFormatRegistry?.();
+        }
         bindAccountBankFormatting();
     }
 
@@ -386,9 +391,14 @@ export function createBankAccountFormModule({
 
             if (btnDelete) {
                 btnDelete.classList.remove('disabled');
-                btnDelete.onclick = (event) => {
+                btnDelete.onclick = async (event) => {
                     event.stopPropagation();
-                    if (!confirm('통장사본 파일을 삭제하시겠습니까?')) return;
+                    if (!await confirmDialog({
+                        title: '통장사본 삭제',
+                        message: '통장사본 파일을 삭제하시겠습니까?',
+                        confirmText: '삭제',
+                        confirmClass: 'btn-danger',
+                    })) return;
                     markBankBookDeleted();
                 };
             }

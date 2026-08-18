@@ -15,10 +15,10 @@ $evidencePageMeta = [
     'log' => false,
 ];
 
-$registerEvidencePage = static function (string $path, string $key, bool $skipPermission = true) use ($router, $evidencePageMeta): void {
+$registerEvidencePage = static function (string $path, string $key) use ($router, $evidencePageMeta): void {
     $router->get($path, 'EvidenceController@webTypePage', array_merge($evidencePageMeta, [
         'key' => $key,
-        'skip_permission' => $skipPermission,
+        'permission_key' => 'web.ledger.data.index',
     ]));
 };
 
@@ -46,4 +46,5 @@ $registerEvidencePage('/ledger/data/business-data', 'web.ledger.data.business-da
 $registerEvidencePage('/ledger/data/payroll', 'web.ledger.data.payroll');
 $registerEvidencePage('/ledger/data/business-income', 'web.ledger.data.business-income');
 $registerEvidencePage('/ledger/data/employee-expenses', 'web.ledger.data.employee-expenses');
+$registerEvidencePage('/ledger/data/employee-personal-expenses', 'web.ledger.data.employee-personal-expenses');
 $registerEvidencePage('/ledger/data/construction', 'web.ledger.data.construction');

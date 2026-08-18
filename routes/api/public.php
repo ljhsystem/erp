@@ -49,7 +49,7 @@ $router->get('/api/external/ping', 'ExternalApiController@ping', [
     'middleware' => ['ApiAccessMiddleware'],
 ]);
 
-$router->get('/api/external/employees/list', 'ExternalEmployeeController@list', [
+$router->get('/api/external/employees/list', 'ExternalApiController@employees', [
     'key' => 'api.external.employee.list',
     'page' => '직원연동',
     'page_description' => '직원연동 관리',

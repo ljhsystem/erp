@@ -2,11 +2,16 @@
 
 namespace App\Controllers\Ledger\Concerns;
 
-use App\Models\System\CompanyModel;
-use Core\Helpers\ActorHelper;
+use App\Services\Ledger\EvidenceImportBusinessService;
 
 trait ImportControllerBusinessInfoTrait
 {
+    private ?EvidenceImportBusinessService $evidenceImportBusiness = null;
+
+    private function evidenceImportBusinessService(): EvidenceImportBusinessService
+    {
+        return $this->evidenceImportBusiness ??= new EvidenceImportBusinessService();
+    }
     private function ensureEvidenceBusinessInfoColumns(): void
     {
         return;
@@ -15,7 +20,21 @@ trait ImportControllerBusinessInfoTrait
     private function mergeEvidenceBusinessInfoIntoPayload(array $evidenceRow, array &$payload): void
     {
         $payload = $this->evidenceBusinessRefService()->normalizeBusinessRefPayload($payload);
-        foreach (['client_id', 'project_id', 'employee_id', 'bank_account_id', 'card_id', 'client_name', 'project_name', 'employee_name', 'bank_account_name', 'card_name'] as $key) {
+        foreach ([
+            'business_unit',
+            'transaction_direction',
+            'operation_type',
+            'client_id',
+            'project_id',
+            'employee_id',
+            'bank_account_id',
+            'card_id',
+            'client_name',
+            'project_name',
+            'employee_name',
+            'bank_account_name',
+            'card_name',
+        ] as $key) {
             $rowValue = trim((string) ($evidenceRow[$key] ?? ''));
             if ($rowValue === '' || $this->evidenceBusinessRefService()->isEmptySelectionLabel($rowValue)) {
                 continue;
@@ -90,65 +109,19 @@ trait ImportControllerBusinessInfoTrait
             return $this->ownCompanyProfile;
         }
 
-        $company = (new CompanyModel($this->pdo))->getOne() ?? [];
-        $businessNumbers = [];
-        foreach (['biz_number', 'business_no', 'business_number'] as $key) {
-            $value = $this->normalizeBusinessNumber((string) ($company[$key] ?? ''));
-            if ($value !== '') {
-                $businessNumbers[] = $value;
-            }
-        }
-
-        $companyNames = [];
-        foreach (['company_name_ko', 'company_name_en', 'company_name'] as $key) {
-            $value = $this->normalizeCompanyNameForCompare((string) ($company[$key] ?? ''));
-            if ($value !== '') {
-                $companyNames[] = $value;
-            }
-        }
-
-        $this->ownCompanyProfile = [
-            'business_numbers' => array_values(array_unique($businessNumbers)),
-            'company_names' => array_values(array_unique($companyNames)),
-        ];
+        $this->ownCompanyProfile = $this->evidenceImportBusinessService()->ownCompanyProfile();
 
         return $this->ownCompanyProfile;
     }
 
     private function clientExistsByBusinessNumber(string $businessNumber): bool
     {
-        $businessNumber = $this->normalizeBusinessNumber($businessNumber);
-        if ($businessNumber === '') {
-            return false;
-        }
-
-        $stmt = $this->pdo->prepare('
-            SELECT 1
-            FROM system_clients
-            WHERE business_number = :business_number
-              AND deleted_at IS NULL
-            LIMIT 1
-        ');
-        $stmt->execute([':business_number' => $businessNumber]);
-        return (bool) $stmt->fetchColumn();
+        return $this->evidenceImportBusinessService()->clientExistsByBusinessNumber($businessNumber);
     }
 
     private function updateClientCompanyName(string $clientId, string $companyName): void
     {
-        $stmt = $this->pdo->prepare('
-            UPDATE system_clients
-            SET client_name = :client_name,
-                company_name = :company_name,
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE id = :id
-        ');
-        $stmt->execute([
-            ':id' => $clientId,
-            ':client_name' => $companyName,
-            ':company_name' => $companyName,
-            ':actor' => ActorHelper::user(),
-        ]);
+        $this->evidenceImportBusinessService()->updateClientCompanyName($clientId, $companyName);
     }
 
     private function normalizeBusinessNumber(string $businessNumber): string
@@ -156,12 +129,4 @@ trait ImportControllerBusinessInfoTrait
         return preg_replace('/[^0-9]/', '', $businessNumber) ?? '';
     }
 
-    private function cleanCompanyName(string $companyName): string
-    {
-        $companyName = trim($companyName);
-        $companyName = preg_replace('/\s+/u', ' ', $companyName) ?? $companyName;
-        $companyName = preg_replace('/^\s*(?:\(\s*주\s*\)|㈜)\s*/u', '', $companyName) ?? $companyName;
-        $companyName = preg_replace('/\s*(?:\(\s*주\s*\)|㈜)\s*$/u', '', $companyName) ?? $companyName;
-        return trim($companyName);
-    }
 }

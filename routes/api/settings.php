@@ -2,6 +2,39 @@
 
 global $router;
 
+$statutoryStandardRoutes = [
+    ['GET', 'list', 'apiList', 'view', 'view'],
+    ['GET', 'detail', 'apiDetail', 'detail', 'detail'],
+    ['GET', 'options', 'apiOptions', 'view', 'options'],
+    ['POST', 'save', 'apiSave', 'save', 'save'],
+    ['POST', 'delete', 'apiDelete', 'delete', 'delete'],
+    ['POST', 'reorder', 'apiReorder', 'save', 'reorder'],
+    ['GET', 'resolve', 'apiResolve', 'resolve', 'resolve'],
+    ['GET', 'source-file', 'apiSourceFile', 'detail', 'source_file'],
+];
+foreach ($statutoryStandardRoutes as [$method, $suffix, $action, $permission, $routeKey]) {
+    $router->{strtolower($method)}(
+        '/api/settings/statutory-standards/' . $suffix,
+        'StatutoryStandardController@' . $action,
+        [
+            'key' => 'api.settings.statutory_standards.' . $routeKey,
+            'permission_key' => $routeKey === 'reorder'
+                ? 'api.settings.statutory_standards.save'
+                : null,
+            'page' => '법정기준관리',
+            'page_description' => '법정 세율·요율·계산기준관리',
+            'permission_name' => $permission,
+            'permission_description' => '법정기준 ' . $permission,
+            'name' => '법정기준 ' . $permission,
+            'description' => '설정 > 기준관리 > 법정기준관리 > ' . $permission,
+            'category' => '설정 > 기준관리',
+            'auth' => true,
+            'permissions' => [$permission],
+            'log' => $method !== 'GET',
+        ]
+    );
+}
+
 $router->get('/api/settings/base-info/company/detail', 'CompanyController@apiDetail', [
     'key' => 'api.settings.base-info.company.view',
     'page' => '회사정보',
@@ -111,230 +144,6 @@ $router->post('/api/settings/base-info/brand/updatestatus', 'BrandController@api
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['update'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/base-info/code/list', 'CodeController@apiList', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '목록조회',
-    'permission_description' => '코드 목록 조회',
-    'name' => '코드 목록조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 목록조회',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/base-info/code/detail', 'CodeController@apiDetail', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '상세조회',
-    'permission_description' => '코드 상세 조회',
-    'name' => '코드 상세조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 상세조회',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/base-info/code/groups', 'CodeController@apiGroups', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '그룹조회',
-    'permission_description' => '코드 그룹 조회',
-    'name' => '코드 그룹조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 그룹조회',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/settings/base-info/code/save', 'CodeController@apiSave', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '저장',
-    'permission_description' => '코드 저장',
-    'name' => '코드 저장',
-    'description' => '설정 > 시스템설정 > 코드관리 > 저장',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/delete', 'CodeController@apiDelete', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '삭제',
-    'permission_description' => '코드 삭제',
-    'name' => '코드 삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/base-info/code/trash', 'CodeController@apiTrashList', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '휴지통조회',
-    'permission_description' => '코드 휴지통 조회',
-    'name' => '코드 휴지통조회',
-    'description' => '설정 > 시스템설정 > 코드관리 > 휴지통조회',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/restore', 'CodeController@apiRestore', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '복구',
-    'permission_description' => '코드 복구',
-    'name' => '코드 복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/restore-bulk', 'CodeController@apiRestoreBulk', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '일괄복구',
-    'permission_description' => '코드 일괄 복구',
-    'name' => '코드 일괄복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 일괄복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/restore-all', 'CodeController@apiRestoreAll', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '전체복구',
-    'permission_description' => '코드 전체 복구',
-    'name' => '코드 전체복구',
-    'description' => '설정 > 시스템설정 > 코드관리 > 전체복구',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/purge', 'CodeController@apiPurge', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '영구삭제',
-    'permission_description' => '코드 영구 삭제',
-    'name' => '코드 영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 영구삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/purge-bulk', 'CodeController@apiPurgeBulk', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '일괄영구삭제',
-    'permission_description' => '코드 일괄 영구 삭제',
-    'name' => '코드 일괄영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 일괄영구삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/purge-all', 'CodeController@apiPurgeAll', [
-    'key' => 'code.delete',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '전체영구삭제',
-    'permission_description' => '코드 전체 영구 삭제',
-    'name' => '코드 전체영구삭제',
-    'description' => '설정 > 시스템설정 > 코드관리 > 전체영구삭제',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/reorder', 'CodeController@apiReorder', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '정렬저장',
-    'permission_description' => '코드 정렬 저장',
-    'name' => '코드 정렬저장',
-    'description' => '설정 > 시스템설정 > 코드관리 > 정렬저장',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->get('/api/settings/base-info/code/template', 'CodeController@apiDownloadTemplate', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '양식다운로드',
-    'permission_description' => '코드 양식 다운로드',
-    'name' => '코드 양식다운로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 양식다운로드',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/settings/base-info/code/excel', 'CodeController@apiDownloadExcel', [
-    'key' => 'code.view',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '코드 엑셀 다운로드',
-    'name' => '코드 엑셀다운로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 엑셀다운로드',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/settings/base-info/code/excel-upload', 'CodeController@apiExcelUpload', [
-    'key' => 'code.save',
-    'page' => '코드관리',
-    'page_description' => '코드 관리',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '코드 엑셀 업로드',
-    'name' => '코드 엑셀업로드',
-    'description' => '설정 > 시스템설정 > 코드관리 > 엑셀업로드',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['save'],
     'log' => true,
 ]);
 
@@ -1447,12 +1256,12 @@ $router->get('/api/settings/base-info/card/download', 'CardController@apiDownloa
 
 $router->get('/api/settings/base-info/work-team/list', 'WorkTeamController@apiList', [
     'key' => 'work_team.view',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '목록조회',
     'permission_description' => '팀 목록 조회',
     'name' => '팀 목록조회',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 목록조회',
+    'description' => '설정 > 기준정보관리 > 팀 > 목록조회',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1461,12 +1270,12 @@ $router->get('/api/settings/base-info/work-team/list', 'WorkTeamController@apiLi
 
 $router->get('/api/settings/base-info/work-team/detail', 'WorkTeamController@apiDetail', [
     'key' => 'work_team.view',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '상세조회',
     'permission_description' => '팀 상세 조회',
     'name' => '팀 상세조회',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 상세조회',
+    'description' => '설정 > 기준정보관리 > 팀 > 상세조회',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1475,12 +1284,12 @@ $router->get('/api/settings/base-info/work-team/detail', 'WorkTeamController@api
 
 $router->post('/api/settings/base-info/work-team/save', 'WorkTeamController@apiSave', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '저장',
     'permission_description' => '팀 저장',
     'name' => '팀 저장',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 저장',
+    'description' => '설정 > 기준정보관리 > 팀 > 저장',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1489,12 +1298,12 @@ $router->post('/api/settings/base-info/work-team/save', 'WorkTeamController@apiS
 
 $router->post('/api/settings/base-info/work-team/delete', 'WorkTeamController@apiDelete', [
     'key' => 'work_team.delete',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '삭제',
     'permission_description' => '팀 삭제',
     'name' => '팀 삭제',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 삭제',
+    'description' => '설정 > 기준정보관리 > 팀 > 삭제',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['delete'],
@@ -1503,12 +1312,12 @@ $router->post('/api/settings/base-info/work-team/delete', 'WorkTeamController@ap
 
 $router->get('/api/settings/base-info/work-team/trash', 'WorkTeamController@apiTrashList', [
     'key' => 'work_team.view',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '휴지통조회',
     'permission_description' => '팀 휴지통 조회',
     'name' => '팀 휴지통조회',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 휴지통조회',
+    'description' => '설정 > 기준정보관리 > 팀 > 휴지통조회',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1517,12 +1326,12 @@ $router->get('/api/settings/base-info/work-team/trash', 'WorkTeamController@apiT
 
 $router->post('/api/settings/base-info/work-team/restore', 'WorkTeamController@apiRestore', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '복구',
     'permission_description' => '팀 복구',
     'name' => '팀 복구',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 복구',
+    'description' => '설정 > 기준정보관리 > 팀 > 복구',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1531,12 +1340,12 @@ $router->post('/api/settings/base-info/work-team/restore', 'WorkTeamController@a
 
 $router->post('/api/settings/base-info/work-team/restore-bulk', 'WorkTeamController@apiRestoreBulk', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '일괄복구',
     'permission_description' => '팀 일괄 복구',
     'name' => '팀 일괄복구',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 일괄복구',
+    'description' => '설정 > 기준정보관리 > 팀 > 일괄복구',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1545,12 +1354,12 @@ $router->post('/api/settings/base-info/work-team/restore-bulk', 'WorkTeamControl
 
 $router->post('/api/settings/base-info/work-team/restore-all', 'WorkTeamController@apiRestoreAll', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '전체복구',
     'permission_description' => '팀 전체 복구',
     'name' => '팀 전체복구',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 전체복구',
+    'description' => '설정 > 기준정보관리 > 팀 > 전체복구',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1559,12 +1368,12 @@ $router->post('/api/settings/base-info/work-team/restore-all', 'WorkTeamControll
 
 $router->post('/api/settings/base-info/work-team/purge', 'WorkTeamController@apiPurge', [
     'key' => 'work_team.delete',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '영구삭제',
     'permission_description' => '팀 영구 삭제',
     'name' => '팀 영구삭제',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 영구삭제',
+    'description' => '설정 > 기준정보관리 > 팀 > 영구삭제',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['delete'],
@@ -1573,12 +1382,12 @@ $router->post('/api/settings/base-info/work-team/purge', 'WorkTeamController@api
 
 $router->post('/api/settings/base-info/work-team/purge-bulk', 'WorkTeamController@apiPurgeBulk', [
     'key' => 'work_team.delete',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '일괄영구삭제',
     'permission_description' => '팀 일괄 영구 삭제',
     'name' => '팀 일괄영구삭제',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 일괄영구삭제',
+    'description' => '설정 > 기준정보관리 > 팀 > 일괄영구삭제',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['delete'],
@@ -1587,12 +1396,12 @@ $router->post('/api/settings/base-info/work-team/purge-bulk', 'WorkTeamControlle
 
 $router->post('/api/settings/base-info/work-team/purge-all', 'WorkTeamController@apiPurgeAll', [
     'key' => 'work_team.delete',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '전체영구삭제',
     'permission_description' => '팀 전체 영구 삭제',
     'name' => '팀 전체영구삭제',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 전체영구삭제',
+    'description' => '설정 > 기준정보관리 > 팀 > 전체영구삭제',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['delete'],
@@ -1601,12 +1410,12 @@ $router->post('/api/settings/base-info/work-team/purge-all', 'WorkTeamController
 
 $router->post('/api/settings/base-info/work-team/reorder', 'WorkTeamController@apiReorder', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '정렬저장',
     'permission_description' => '팀 정렬 저장',
     'name' => '팀 정렬저장',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 정렬저장',
+    'description' => '설정 > 기준정보관리 > 팀 > 정렬저장',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1615,12 +1424,12 @@ $router->post('/api/settings/base-info/work-team/reorder', 'WorkTeamController@a
 
 $router->get('/api/settings/base-info/work-team/template', 'WorkTeamController@apiDownloadTemplate', [
     'key' => 'work_team.view',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '양식다운로드',
     'permission_description' => '팀 양식 다운로드',
     'name' => '팀 양식다운로드',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 양식다운로드',
+    'description' => '설정 > 기준정보관리 > 팀 > 양식다운로드',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1629,12 +1438,12 @@ $router->get('/api/settings/base-info/work-team/template', 'WorkTeamController@a
 
 $router->get('/api/settings/base-info/work-team/excel', 'WorkTeamController@apiDownloadExcel', [
     'key' => 'work_team.view',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '엑셀다운로드',
     'permission_description' => '팀 엑셀 다운로드',
     'name' => '팀 엑셀다운로드',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 엑셀다운로드',
+    'description' => '설정 > 기준정보관리 > 팀 > 엑셀다운로드',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1643,12 +1452,12 @@ $router->get('/api/settings/base-info/work-team/excel', 'WorkTeamController@apiD
 
 $router->post('/api/settings/base-info/work-team/excel-upload', 'WorkTeamController@apiExcelUpload', [
     'key' => 'work_team.save',
-    'page' => '팀관리',
+    'page' => '팀',
     'page_description' => '팀 정보관리',
     'permission_name' => '엑셀업로드',
     'permission_description' => '팀 엑셀 업로드',
     'name' => '팀 엑셀업로드',
-    'description' => '설정 > 기준정보관리 > 팀관리 > 엑셀업로드',
+    'description' => '설정 > 기준정보관리 > 팀 > 엑셀업로드',
     'category' => '설정 > 기준정보관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1907,20 +1716,6 @@ $router->get('/api/settings/organization/approval/template/list', 'ApprovalTempl
     'log' => false,
 ]);
 
-$router->post('/api/settings/organization/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
-    'key' => 'api.settings.approval.template.list',
-    'page' => '결재템플릿',
-    'page_description' => '결재템플릿 관리',
-    'permission_name' => '목록조회',
-    'permission_description' => '결재템플릿 목록 조회',
-    'name' => '결재템플릿 목록조회',
-    'description' => '설정 > 조직관리 > 결재템플릿 > 목록조회',
-    'category' => '설정 > 조직관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->post('/api/settings/organization/approval/template/save', 'ApprovalTemplateController@apiTemplateSave', [
     'key' => 'api.settings.approval.template.save',
     'page' => '결재템플릿',
@@ -1950,7 +1745,7 @@ $router->post('/api/settings/organization/approval/template/delete', 'ApprovalTe
 ]);
 
 $router->post('/api/settings/organization/approval/template/reorder', 'ApprovalTemplateController@apiTemplateReorder', [
-    'key' => 'api.settings.approval.template.save',
+    'key' => 'api.settings.approval.template.reorder',
     'page' => '결재템플릿',
     'page_description' => '결재템플릿 관리',
     'permission_name' => '정렬저장',
@@ -1964,20 +1759,6 @@ $router->post('/api/settings/organization/approval/template/reorder', 'ApprovalT
 ]);
 
 $router->get('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [
-    'key' => 'api.settings.approval.step.list',
-    'page' => '결재템플릿',
-    'page_description' => '결재템플릿 관리',
-    'permission_name' => '결재단계목록조회',
-    'permission_description' => '결재단계 목록 조회',
-    'name' => '결재단계 목록조회',
-    'description' => '설정 > 조직관리 > 결재템플릿 > 결재단계 목록조회',
-    'category' => '설정 > 조직관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [
     'key' => 'api.settings.approval.step.list',
     'page' => '결재템플릿',
     'page_description' => '결재템플릿 관리',
@@ -2005,6 +1786,20 @@ $router->post('/api/settings/organization/approval/step/save', 'ApprovalTemplate
     'log' => true,
 ]);
 
+$router->post('/api/settings/organization/approval/step/reorder', 'ApprovalTemplateController@apiStepReorder', [
+    'key' => 'api.settings.approval.step.reorder',
+    'page' => '결재템플릿',
+    'page_description' => '결재템플릿 관리',
+    'permission_name' => '결재단계정렬저장',
+    'permission_description' => '결재단계 정렬 저장',
+    'name' => '결재단계 정렬저장',
+    'description' => '설정 > 조직관리 > 결재템플릿 > 결재단계 정렬저장',
+    'category' => '설정 > 조직관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
 $router->post('/api/settings/organization/approval/step/delete', 'ApprovalTemplateController@apiStepDelete', [
     'key' => 'api.settings.approval.step.delete',
     'page' => '결재템플릿',
@@ -2018,4 +1813,3 @@ $router->post('/api/settings/organization/approval/step/delete', 'ApprovalTempla
     'permissions' => ['delete'],
     'log' => true,
 ]);
-

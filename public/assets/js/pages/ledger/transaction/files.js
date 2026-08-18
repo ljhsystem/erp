@@ -120,7 +120,7 @@ export function registerFiles(ctx) {
                         data-order-key="${ctx.escapeHtml(file.orderKey || '')}">
 
                         <span class="transaction-file-drag"
-                            aria-label="??嶺?筌???⑤슢堉???>
+                            aria-label="첨부파일 순서 변경">
                             <i class="bi bi-list"></i>
                         </span>
 
@@ -331,110 +331,6 @@ export function registerFiles(ctx) {
         renderFiles(ctx.currentFiles);
     }
 
-    function formatVoucherStatus(value) {
-        const status = String(value || 'DRAFT').trim().toUpperCase();
-
-        return {
-            DRAFT: '\uC784\uC2DC\uC800\uC7A5',
-            REVIEW_REQUESTED: '\uAC80\uD1A0\uC694\uCCAD',
-            REVIEWED: '\uAC80\uD1A0\uC644\uB8CC',
-            POSTED: '\uC804\uD45C\uC2B9\uC778',
-            CLOSED: '\uB9C8\uAC10',
-            DELETED: '\uC0AD\uC81C',
-        }[status] || status;
-    }
-
-    function clearVoucherSelection() {
-        ctx.selectedVoucherId = '';
-        ctx.selectedVoucherLabel = '';
-    }
-
-    function handleVoucherSelected(voucher) {
-        ctx.selectedVoucherId = String(voucher?.id || '');
-        ctx.selectedVoucherLabel = [voucher?.voucher_no, voucher?.client_name, voucher?.summary]
-            .filter(Boolean)
-            .join(' / ');
-        if (ctx.voucherSummaryEl && ctx.selectedVoucherId) {
-            ctx.voucherSummaryEl.innerHTML = `
-                <div class="transaction-voucher-item">
-                    <strong>????ｋ???/strong>
-                    <span>${ctx.escapeHtml(voucher?.voucher_no || ctx.selectedVoucherId)}</span>
-                    <span>${ctx.escapeHtml(voucher?.voucher_date || '')}</span>
-                    <span>${ctx.escapeHtml(voucher?.summary || '')}</span>
-                </div>
-            `;
-        }
-    }
-    
-    function renderVoucherState(transaction = {}) {
-        const links = Array.isArray(transaction.linked_vouchers)
-            ? transaction.linked_vouchers
-            : [];
-
-        const savedId = String(
-            transaction.id || document.getElementById('transaction_id')?.value || ''
-        ).trim();
-
-        const status = String(
-            transaction.match_status ||
-            document.getElementById('transaction_match_status')?.value ||
-            'none'
-        );
-
-        const isLinked = links.length > 0 || status === 'matched';
-
-        if (ctx.voucherStatusEl) {
-            ctx.voucherStatusEl.className =
-                `transaction-status ${isLinked ? 'matched' : 'none'}`;
-
-            ctx.voucherStatusEl.textContent =
-                isLinked
-                    ? '전표 연결됨'
-                    : '전표 미연결';
-        }
-
-        if (!ctx.voucherSummaryEl) {
-            return;
-        }
-
-        if (!savedId) {
-            ctx.voucherSummaryEl.textContent =
-                '생성된 전표가 없거나 기존 전표 연결 정보가 없습니다.';
-            return;
-        }
-
-        if (!links.length) {
-            ctx.voucherSummaryEl.textContent =
-                '연결된 전표가 없습니다.';
-            return;
-        }
-
-        ctx.voucherSummaryEl.innerHTML = links.map((voucher) => {
-            const voucherId = ctx.escapeHtml(voucher.id || '');
-            const label = ctx.escapeHtml(
-                voucher.voucher_no || voucher.sort_no || voucherId
-            );
-            const date = ctx.escapeHtml(voucher.voucher_date || '');
-            const voucherStatus = ctx.escapeHtml(formatVoucherStatus(voucher.status));
-            const summary = ctx.escapeHtml(
-                voucher.summary || '요약 정보 없음'
-            );
-
-            return `
-                <div class="transaction-voucher-item">
-                    <strong>${label}</strong>
-                    <span>${date}</span>
-                    <span>${voucherStatus}</span>
-                    <span>${summary}</span>
-                    <input
-                        type="hidden"
-                        class="linked-voucher-id"
-                        value="${voucherId}">
-                </div>
-            `;
-        }).join('');
-    }
-
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.transaction = function (row = {}) {
         const id = ctx.escapeHtml(row.id || '');
@@ -443,17 +339,16 @@ export function registerFiles(ctx) {
             <td>${ctx.escapeHtml(row.client_name || '-')}</td>
             <td>${ctx.escapeHtml(row.description || '')}</td>
             <td class="text-end">${ctx.escapeHtml(ctx.formatAmount(row.final_amount || row.transaction_final_amount || 0))}</td>
-            <td>${ctx.renderMatchStatus(row.match_status)}</td>
             <td>${ctx.escapeHtml(row.deleted_at || '')}</td>
             <td>${ctx.escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
             <td>
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${id}">??⑤슢?뽫뵓??/button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${id}">????/button>
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${id}">복구</button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${id}">삭제</button>
             </td>
         `;
     };
 
 
-    Object.assign(ctx, { renderFiles, syncFileInputFromPending, assignPendingFiles, appendPendingFiles, reorderFilesByDom, removePendingFile, bindFileReorderEvents, markFileDeleted, formatVoucherStatus, clearVoucherSelection, handleVoucherSelected, renderVoucherState, loadTransactionFilePolicy, initModalControls });
+    Object.assign(ctx, { renderFiles, syncFileInputFromPending, assignPendingFiles, appendPendingFiles, reorderFilesByDom, removePendingFile, bindFileReorderEvents, markFileDeleted, loadTransactionFilePolicy, initModalControls });
     return ctx;
 }

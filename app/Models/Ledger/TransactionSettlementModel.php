@@ -9,6 +9,18 @@ class TransactionSettlementModel
 {
     protected string $table = 'ledger_transaction_settlements';
 
+    public function countByTransactionIds(array $transactionIds): int
+    {
+        $transactionIds = array_values(array_filter(array_map('strval', $transactionIds)));
+        if ($transactionIds === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM {$this->table} WHERE transaction_id IN ({$placeholders})");
+        $stmt->execute($transactionIds);
+        return (int) $stmt->fetchColumn();
+    }
+
     private PDO $db;
 
     public function __construct(?PDO $pdo = null)
@@ -109,6 +121,13 @@ class TransactionSettlementModel
         ");
 
         return $stmt->execute([':id' => $id]);
+    }
+
+    public function hardDeleteByTransactionId(string $transactionId): int
+    {
+        $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE transaction_id = :transaction_id");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        return $stmt->rowCount();
     }
 
     private function filterData(array $data, array $allowed): array

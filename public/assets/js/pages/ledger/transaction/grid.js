@@ -420,9 +420,6 @@ export function registerGrid(ctx) {
                         return;
                     }
                 }
-                if (field === 'tax_type') {
-                    ctx.setLineCellValue(row, 'tax_type', ctx.normalizeTaxTypeCellValue(event.newValue));
-                }
                 ctx.calculateTotals();
             },
             onCellKeyDown(event) {

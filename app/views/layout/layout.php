@@ -122,7 +122,9 @@ class="
 <?= AssetHelper::js('/assets/js/pages/layout/layout.js') ?>
 <?= AssetHelper::js('/assets/js/components/navbar.js') ?>
 <?= AssetHelper::js('/assets/js/pages/layout/sidebar.js') ?>
-<?= AssetHelper::js('/assets/js/common/datatables.error.js') ?>
+<?php if (($pageAssetProfile ?? 'default') !== 'form-detail-light'): ?>
+    <?= AssetHelper::js('/assets/js/common/datatables.error.js') ?>
+<?php endif; ?>
 <?= !empty($pageScripts) ? $pageScripts : '' ?>
 
 </body>

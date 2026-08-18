@@ -1,4 +1,3 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/calendar/sidebar.left.create.js'
 (() => {
   'use strict';
 
@@ -15,7 +14,6 @@
       return false;
     }
 
-    // 중복 바인딩 방지
     if (wrap.dataset.bound === '1') return true;
     wrap.dataset.bound = '1';
 
@@ -62,7 +60,7 @@
       if (wrap.contains(e.target) || menu.contains(e.target)) return;
       close();
     });
-    
+
 
     console.log('[sidebar.left.create-split] bind OK');
     return true;
@@ -73,10 +71,8 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     bindCreateSplit();
-  });  
+  });
 
-  
-  // ✅ 핵심: sidebar.list가 DOM 만든 후 쏘는 이벤트
   document.addEventListener('calendar:list:loaded', () => {
     bindCreateSplit();
   });

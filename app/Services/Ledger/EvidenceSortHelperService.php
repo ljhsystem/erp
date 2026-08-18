@@ -6,9 +6,7 @@ class EvidenceSortHelperService
 {
     public function evidencePayloadSortNo(array $row, string $key): int
     {
-        $column = $key === 'evidence_sort_no'
-            ? 'evidence_sort_no'
-            : ($key === 'sort_no' ? 'sort_no' : '');
+        $column = $key === 'sort_no' ? 'sort_no' : '';
         if ($column !== '' && array_key_exists($column, $row) && is_numeric($row[$column])) {
             return max(0, (int) $row[$column]);
         }

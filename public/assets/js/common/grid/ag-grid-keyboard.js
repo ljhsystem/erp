@@ -25,4 +25,17 @@ export function handleAgGridKeyboard(event, adapter, config = {}) {
         return;
     }
 
+    if (keyboardMode === 'excel-selection' && key === 'Enter') {
+        event.event?.preventDefault?.();
+        if (adapter.isEditing()) adapter.stopEditing(false);
+        config.moveToAdjacentEditableCell?.(event, adapter, false);
+        return;
+    }
+
+    if (!adapter.isEditing() && (key === 'Delete' || key === 'Backspace')) {
+        const field = event.column?.getColId?.();
+        if (!field || event.colDef?.editable !== true) return;
+        event.event?.preventDefault?.();
+        event.node?.setDataValue?.(field, '');
+    }
 }

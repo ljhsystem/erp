@@ -3,6 +3,9 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 export function createProjectModalModule({
     AdminPicker,
@@ -60,17 +63,19 @@ export function createProjectModalModule({
         }) || {};
     }
 
-    function projectFieldLabel(key, _fallback = '') {
+    function projectFieldLabel(key, fallback = '') {
         const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnDisplayName(
+        const resolved = resolveDataTableColumnDisplayName(
             { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
             currentProjectPolicyState(),
-            normalizedKey
+            fallback
         );
+        return resolved && resolved !== normalizedKey ? resolved : (fallback || normalizedKey);
     }
 
     function projectFieldRequirement(key) {
         const normalizedKey = String(key || '').trim();
+        if (normalizedKey === 'project_name') return 'required';
         return resolveDataTableColumnRequirementPolicy(
             { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
             currentProjectPolicyState()
@@ -197,13 +202,16 @@ export function createProjectModalModule({
         if (excelModalEl) state.excelModal = new bootstrap.Modal(excelModalEl);
 
         bindProjectPolicySync();
+        bindModalCardCollapses(modalEl, { resetOnShow: true });
         applyProjectModalPolicyLabels(document);
+        renderProjectSystemInfo();
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             document.getElementById('project-edit-form')?.reset();
             resetProjectModalSelect2();
             const amountInput = document.getElementById('modal_initial_contract_amount');
             if (amountInput) amountInput.value = '';
+            renderProjectSystemInfo();
             applyProjectModalPolicyLabels(document);
         });
 
@@ -429,6 +437,7 @@ export function createProjectModalModule({
         if (titleEl) titleEl.textContent = '프로젝트 신규 등록';
         const amountInput = document.getElementById('modal_initial_contract_amount');
         if (amountInput) amountInput.value = '';
+        renderProjectSystemInfo();
         applyProjectModalPolicyLabels(document);
         state.projectModal?.show();
         void formModule.prepareProjectModalControls().catch((error) => {
@@ -438,8 +447,7 @@ export function createProjectModalModule({
     }
 
     async function fetchProjectDetail(id) {
-        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
-        const json = await res.json();
+        const json = await window.AppAjax.fetchJson(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
         if (!json.success || !json.data) throw new Error(json.message || '프로젝트 상세 조회에 실패했습니다.');
         return json.data;
     }
@@ -458,6 +466,7 @@ export function createProjectModalModule({
             const [data] = await Promise.all([fetchProjectDetail(projectId), formModule.prepareProjectModalControls()]);
             window.jQuery('#modal_project_id').val(data.id ?? '');
             fillModal(data);
+            renderProjectSystemInfo(data);
         } catch (error) {
             console.error(error);
             formModule.notify('error', error.message || '프로젝트 상세 조회 중 오류가 발생했습니다.');
@@ -466,7 +475,7 @@ export function createProjectModalModule({
 
     function bindModalEvents($, getTable) {
         $(document).off('submit', '#project-edit-form');
-        $(document).on('submit', '#project-edit-form', function (event) {
+        $(document).on('submit', '#project-edit-form', async function (event) {
             event.preventDefault();
             this.querySelectorAll('.admin-date').forEach((input) => {
                 input.value = formModule.normalizeDateInputValue(input.value);
@@ -483,13 +492,11 @@ export function createProjectModalModule({
             const validationMessage = formModule.validateProjectForm(formData);
             if (validationMessage) return formModule.notify('warning', validationMessage);
             if (submitButton) submitButton.disabled = true;
-            $.ajax({
-                url: API.SAVE,
+            try {
+                const res = await window.AppAjax.fetchJson(API.SAVE, {
                 method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-            }).done((res) => {
+                body: formData,
+                });
                 if (res.success) {
                     state.projectModal?.hide();
                     getTable()?.ajax.reload(null, false);
@@ -497,27 +504,53 @@ export function createProjectModalModule({
                 } else {
                     formModule.notify('error', res.message || '저장에 실패했습니다.');
                 }
-            }).fail((error) => {
+            } catch (error) {
                 console.error(error);
-                formModule.notify('error', '서버 오류가 발생했습니다.');
-            }).always(() => {
+                formModule.notify('error', error.message || '저장 중 오류가 발생했습니다.');
+            } finally {
                 if (submitButton) submitButton.disabled = false;
-            });
+            }
         });
 
-        $('#btnDeleteProject').off('click').on('click', function () {
+        $('#btnDeleteProject').off('click').on('click', async function () {
             const id = $('#modal_project_id').val();
-            if (!id || !confirm('삭제하시겠습니까?')) return;
-            $.post(API.DELETE, { id }).done((res) => {
-                if (res.success) {
+            if (!id || !await confirmDialog({ title: '프로젝트 삭제', message: '프로젝트를 휴지통으로 이동하시겠습니까?', confirmText: '삭제', confirmClass: 'btn-danger' })) return;
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '프로젝트를 휴지통으로 이동 중' }, async () => {
+                    const res = await window.AppAjax.postForm(API.DELETE, { id });
+                    if (!res.success) throw new Error(res.message || '삭제에 실패했습니다.');
                     formModule.notify('success', '삭제가 완료되었습니다.');
-                    getTable()?.ajax.reload(null, false);
+                    await new Promise(resolve => getTable()?.ajax.reload(() => resolve(), false));
                     state.projectModal?.hide();
-                } else {
-                    formModule.notify('error', res.message || '삭제에 실패했습니다.');
-                }
-            });
+                });
+            } catch (error) {
+                console.error(error);
+                formModule.notify('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
+    }
+
+    function renderProjectSystemInfo(data = {}) {
+        const container = document.getElementById('projectSystemInfoFields');
+        if (!container) return;
+        const fields = [
+            ['id', 'ID'], ['sort_no', '순번'], ['created_at', '생성일시', 'datetime'],
+            ['created_by_name', '생성자'], ['updated_at', '수정일시', 'datetime'],
+            ['updated_by_name', '수정자'], ['deleted_at', '삭제일시', 'datetime'], ['deleted_by_name', '삭제자'],
+        ];
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'project-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'project-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'project-system-info-value';
+            const raw = type === 'datetime' ? formatDateDisplay(data[key]) : data[key];
+            value.textContent = raw === null || raw === undefined || raw === '' ? '-' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
     }
 
     return {

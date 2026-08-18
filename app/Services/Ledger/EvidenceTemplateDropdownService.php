@@ -2,6 +2,8 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceDropdownModel;
+use App\Models\System\CodeModel;
 use PDO;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -11,12 +13,17 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class EvidenceTemplateDropdownService
 {
     private array $systemFieldOptionsByDataType = [];
+    private EvidenceDropdownModel $dropdownModel;
+    private CodeModel $codeModel;
 
     public function __construct(
         private PDO $pdo,
         private array $bankVoucherLineFields,
         private array $callbacks = []
-    ) {}
+    ) {
+        $this->dropdownModel = new EvidenceDropdownModel($pdo);
+        $this->codeModel = new CodeModel($pdo);
+    }
 
     public function applyBankTemplateDropdowns(Spreadsheet $spreadsheet, array $sheetSpecs): void
     {
@@ -589,23 +596,11 @@ class EvidenceTemplateDropdownService
             return [];
         }
 
-        $tableSql = '`' . str_replace('`', '``', $table) . '`';
-        $columnSql = '`' . str_replace('`', '``', $column) . '`';
-        $where = [];
-        if ($this->call('tableColumnExists', $table, 'deleted_at')) {
-            $where[] = 'deleted_at IS NULL';
-        }
-        if ($this->call('tableColumnExists', $table, 'is_active')) {
-            $where[] = 'COALESCE(is_active, 1) = 1';
-        }
+        $hasDeletedAt = $this->call('tableColumnExists', $table, 'deleted_at');
+        $hasIsActive = $this->call('tableColumnExists', $table, 'is_active');
 
         try {
-            $stmt = $this->pdo->query(
-                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                    . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                    . " ORDER BY {$columnSql} ASC"
-            );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rows = $this->dropdownModel->distinctValues($table, $column, $hasDeletedAt, $hasIsActive);
         } catch (\Throwable) {
             return [];
         }
@@ -663,16 +658,7 @@ class EvidenceTemplateDropdownService
         }
 
         try {
-            $stmt = $this->pdo->prepare("
-                SELECT code, code_name
-                FROM system_codes
-                WHERE code_group = :code_group
-                  AND COALESCE(is_active, 1) = 1
-                  AND deleted_at IS NULL
-                ORDER BY sort_no ASC, code ASC
-            ");
-            $stmt->execute([':code_group' => $codeGroup]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rows = $this->codeModel->getActiveCodesByGroup($codeGroup);
         } catch (\Throwable) {
             return $fallback;
         }
@@ -713,23 +699,11 @@ class EvidenceTemplateDropdownService
     public function accountDropdownOptions(): array
     {
         try {
-            $where = 'deleted_at IS NULL';
-            if ($this->call('tableColumnExists', 'ledger_accounts', 'status')) {
-                $where .= " AND COALESCE(status, 'active') <> 'deleted'";
-            }
-            if ($this->call('tableColumnExists', 'ledger_accounts', 'is_postable')) {
-                $where .= " AND COALESCE(is_postable, 'Y') = 'Y'";
-            } elseif ($this->call('tableColumnExists', 'ledger_accounts', 'is_posting')) {
-                $where .= " AND COALESCE(is_posting, 1) = 1";
-            }
-
-            $stmt = $this->pdo->query("
-                SELECT account_code, account_name
-                FROM ledger_accounts
-                WHERE {$where}
-                ORDER BY account_code ASC, account_name ASC
-            ");
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rows = $this->dropdownModel->accountRows(
+                $this->call('tableColumnExists', 'ledger_accounts', 'status'),
+                $this->call('tableColumnExists', 'ledger_accounts', 'is_postable'),
+                $this->call('tableColumnExists', 'ledger_accounts', 'is_posting')
+            );
         } catch (\Throwable) {
             return [];
         }
@@ -755,7 +729,7 @@ class EvidenceTemplateDropdownService
             'EMPLOYEE' => ['user_employees', ['employee_name', 'name'], ['employee_name', 'name']],
             'ACCOUNT' => ['system_bank_accounts', ['account_name'], ['account_name']],
             'CARD' => ['system_cards', ['card_name'], ['card_name']],
-            'TEAM' => ['system_work_teams', ['team_name', 'team_code'], ['team_name', 'team_code']],
+            'TEAM' => ['system_work_teams', ['team_name'], ['team_name']],
             default => null,
         };
         if ($config === null) {
@@ -777,23 +751,21 @@ class EvidenceTemplateDropdownService
             return [];
         }
 
-        $orderBy = [];
+        $availableColumns = $selects;
         foreach ($orderColumns as $column) {
             if ($this->call('tableColumnExists', $table, $column)) {
-                $orderBy[] = $column . ' ASC';
+                $availableColumns[] = $column;
             }
         }
 
-        $where = $this->call('tableColumnExists', $table, 'deleted_at') ? 'WHERE deleted_at IS NULL' : '';
-
         try {
-            $stmt = $this->pdo->query(
-                'SELECT ' . implode(', ', $selects)
-                    . ' FROM ' . $table . ' '
-                    . $where
-                    . ($orderBy !== [] ? ' ORDER BY ' . implode(', ', $orderBy) : '')
+            $result = $this->dropdownModel->businessReferenceRows(
+                $this->call('normalizeVoucherRefType', $refType),
+                array_values(array_unique($availableColumns)),
+                $this->call('tableColumnExists', $table, 'deleted_at')
             );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $selects = $result['columns'] ?? [];
+            $rows = $result['rows'] ?? [];
         } catch (\Throwable) {
             return [];
         }

@@ -30,7 +30,7 @@ function normalizeDateParts(value) {
     }
 
     const normalized = text.replaceAll('.', '-').replaceAll('/', '-');
-    const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T].*)?$/);
     if (!match) {
         return null;
     }
@@ -44,6 +44,17 @@ function normalizeDateParts(value) {
 
 export function formatText(value) {
     return value == null ? '' : String(value);
+}
+
+export function formatOption(value, options = {}) {
+    const normalizedValue = value == null ? '' : String(value);
+    const matched = (Array.isArray(options.options) ? options.options : []).find(option => (
+        String(option && typeof option === 'object' ? (option.value ?? '') : option) === normalizedValue
+    ));
+    if (matched && typeof matched === 'object') {
+        return String(matched.label ?? matched.text ?? matched.value ?? normalizedValue);
+    }
+    return normalizedValue;
 }
 
 export function formatNumber(value, options = {}) {
@@ -159,6 +170,7 @@ export function createFormatterRegistry(initialFormatters = {}) {
 
     Object.entries({
         text: formatText,
+        option: formatOption,
         number: formatNumber,
         currency: formatCurrency,
         date: formatDate,

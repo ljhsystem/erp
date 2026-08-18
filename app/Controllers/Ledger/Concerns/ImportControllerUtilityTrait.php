@@ -3,9 +3,16 @@
 namespace App\Controllers\Ledger\Concerns;
 
 use App\Services\Ledger\EvidenceTypePolicyService;
+use App\Services\Ledger\EvidenceSchemaService;
 
 trait ImportControllerUtilityTrait
 {
+    private ?EvidenceSchemaService $evidenceSchema = null;
+
+    private function evidenceSchemaService(): EvidenceSchemaService
+    {
+        return $this->evidenceSchema ??= new EvidenceSchemaService();
+    }
     private static function clearOutputBuffers(): void
     {
         if (ob_get_length()) {
@@ -21,55 +28,12 @@ trait ImportControllerUtilityTrait
 
     private function tableColumnExists(string $tableName, string $columnName): bool
     {
-        static $cache = [];
-        $key = $tableName . '.' . $columnName;
-        if (array_key_exists($key, $cache)) {
-            return $cache[$key];
-        }
-
-        try {
-            $stmt = $this->pdo->prepare("
-                SELECT 1
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                  AND COLUMN_NAME = :column_name
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':table_name' => $tableName,
-                ':column_name' => $columnName,
-            ]);
-            $cache[$key] = (bool) $stmt->fetchColumn();
-        } catch (\Throwable) {
-            $cache[$key] = false;
-        }
-
-        return $cache[$key];
+        return $this->evidenceSchemaService()->columnExists($tableName, $columnName);
     }
 
     private function tableExists(string $tableName): bool
     {
-        static $cache = [];
-        if (array_key_exists($tableName, $cache)) {
-            return $cache[$tableName];
-        }
-
-        try {
-            $stmt = $this->pdo->prepare("
-                SELECT 1
-                FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                LIMIT 1
-            ");
-            $stmt->execute([':table_name' => $tableName]);
-            $cache[$tableName] = (bool) $stmt->fetchColumn();
-        } catch (\Throwable) {
-            $cache[$tableName] = false;
-        }
-
-        return $cache[$tableName];
+        return $this->evidenceSchemaService()->tableExists($tableName);
     }
 
     private function normalizeCompanyNameForCompare(string $companyName): string
@@ -77,6 +41,15 @@ trait ImportControllerUtilityTrait
         $companyName = $this->cleanCompanyName($companyName);
         $companyName = preg_replace('/\s+/u', '', $companyName) ?? $companyName;
         return function_exists('mb_strtolower') ? mb_strtolower($companyName, 'UTF-8') : strtolower($companyName);
+    }
+
+    private function cleanCompanyName(string $companyName): string
+    {
+        $companyName = trim($companyName);
+        $companyName = preg_replace('/\s+/u', ' ', $companyName) ?? $companyName;
+        $companyName = preg_replace('/^\s*(?:\(\s*주\s*\)|㈜)\s*/u', '', $companyName) ?? $companyName;
+        $companyName = preg_replace('/\s*(?:\(\s*주\s*\)|㈜)\s*$/u', '', $companyName) ?? $companyName;
+        return trim($companyName);
     }
 
     private static function normalizeDataType(string $type): string

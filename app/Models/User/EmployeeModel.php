@@ -7,6 +7,133 @@ use Core\Helpers\ActorHelper;
 
 class EmployeeModel
 {
+    public function findEmployeeNameByUserId(string $userId): ?string
+    {
+        $stmt = $this->db->prepare("
+            SELECT employee_name FROM user_employees WHERE user_id = :user_id LIMIT 1
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $name = $stmt->fetchColumn();
+
+        return $name === false ? null : (string) $name;
+    }
+
+    public function findByUserId(string $userId, bool $forUpdate = false): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM user_employees WHERE user_id = :user_id LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : ''));
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function hasEligibleUserForRole(string $roleId): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM auth_users u
+            INNER JOIN user_employees e ON e.user_id = u.id
+            INNER JOIN auth_roles r ON r.id = u.role_id
+            WHERE u.role_id = :role_id
+              AND u.approved = 1
+              AND u.is_active = 1
+              AND r.is_active = 1
+              AND (e.doc_retire_date IS NULL OR e.doc_retire_date > CURRENT_DATE())
+              AND (e.real_retire_date IS NULL OR e.real_retire_date > CURRENT_DATE())
+            LIMIT 1");
+        $stmt->execute([':role_id' => $roleId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function userIsEligibleForRole(string $userId, string $roleId): bool
+    {
+        return $this->userEligibilityForRole($userId, $roleId)['eligible'];
+    }
+
+    public function userEligibilityForRole(string $userId, string $roleId): array
+    {
+        $stmt = $this->db->prepare("SELECT
+                u.id user_id, u.role_id, u.approved, u.is_active,
+                e.employee_name, e.doc_retire_date, e.real_retire_date,
+                assigned_role.role_name assigned_role_name,
+                selected_role.id selected_role_id, selected_role.role_name selected_role_name,
+                selected_role.is_active selected_role_active
+            FROM auth_users u
+            LEFT JOIN user_employees e ON e.user_id = u.id
+            LEFT JOIN auth_roles assigned_role ON assigned_role.id = u.role_id
+            LEFT JOIN auth_roles selected_role ON selected_role.id = :role_id
+            WHERE u.id = :user_id
+            LIMIT 1");
+        $stmt->execute([':user_id' => $userId, ':role_id' => $roleId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return ['eligible' => false, 'message' => '선택한 특정 결재자의 사용자 계정을 찾을 수 없습니다.'];
+        }
+
+        $name = trim((string) ($row['employee_name'] ?? '')) ?: '선택한 사용자';
+        if (trim((string) ($row['selected_role_id'] ?? '')) === '') {
+            return ['eligible' => false, 'message' => '선택한 결재자 역할을 찾을 수 없습니다.'];
+        }
+        if ((string) ($row['role_id'] ?? '') !== $roleId) {
+            $assignedRoleName = trim((string) ($row['assigned_role_name'] ?? '')) ?: '역할 없음';
+            $selectedRoleName = trim((string) ($row['selected_role_name'] ?? '')) ?: $roleId;
+            return [
+                'eligible' => false,
+                'message' => "{$name} 사용자의 현재 역할은 {$assignedRoleName}이며, 선택한 {$selectedRoleName} 역할과 일치하지 않습니다.",
+            ];
+        }
+        if ((int) ($row['approved'] ?? 0) !== 1) {
+            return [
+                'eligible' => false,
+                'message' => "{$name} 사용자는 사용자 승인이 완료되지 않아 특정 결재자로 지정할 수 없습니다. 사용자 승인 후 다시 시도해 주세요.",
+            ];
+        }
+        if ((int) ($row['is_active'] ?? 0) !== 1) {
+            return ['eligible' => false, 'message' => "{$name} 사용자는 비활성 계정이어서 특정 결재자로 지정할 수 없습니다."];
+        }
+        if ((int) ($row['selected_role_active'] ?? 0) !== 1) {
+            return ['eligible' => false, 'message' => '선택한 결재자 역할이 비활성 상태입니다.'];
+        }
+        if (trim((string) ($row['employee_name'] ?? '')) === '') {
+            return ['eligible' => false, 'message' => '선택한 특정 결재자와 연결된 직원 정보를 찾을 수 없습니다.'];
+        }
+        if (
+            ($row['doc_retire_date'] !== null && (string) $row['doc_retire_date'] <= date('Y-m-d'))
+            || ($row['real_retire_date'] !== null && (string) $row['real_retire_date'] <= date('Y-m-d'))
+        ) {
+            return ['eligible' => false, 'message' => "{$name} 사용자는 퇴사 처리되어 특정 결재자로 지정할 수 없습니다."];
+        }
+
+        return ['eligible' => true, 'message' => ''];
+    }
+
+    public function userEligibility(string $userId): array
+    {
+        $stmt = $this->db->prepare("SELECT u.id, u.approved, u.is_active,
+                e.employee_name, e.doc_retire_date, e.real_retire_date
+            FROM auth_users u
+            LEFT JOIN user_employees e ON e.user_id = u.id
+            WHERE u.id = :user_id
+            LIMIT 1");
+        $stmt->execute([':user_id' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return ['eligible' => false, 'message' => '선택한 특정 결재자의 사용자 계정을 찾을 수 없습니다.'];
+        }
+        $name = trim((string) ($row['employee_name'] ?? '')) ?: '선택한 사용자';
+        if ((int) ($row['approved'] ?? 0) !== 1) {
+            return ['eligible' => false, 'message' => "{$name} 사용자는 사용자 승인이 완료되지 않아 특정 결재자로 지정할 수 없습니다."];
+        }
+        if ((int) ($row['is_active'] ?? 0) !== 1) {
+            return ['eligible' => false, 'message' => "{$name} 사용자는 비활성 계정이어서 특정 결재자로 지정할 수 없습니다."];
+        }
+        if (trim((string) ($row['employee_name'] ?? '')) === '') {
+            return ['eligible' => false, 'message' => '선택한 특정 결재자와 연결된 직원 정보를 찾을 수 없습니다.'];
+        }
+        if (($row['doc_retire_date'] !== null && (string) $row['doc_retire_date'] <= date('Y-m-d'))
+            || ($row['real_retire_date'] !== null && (string) $row['real_retire_date'] <= date('Y-m-d'))) {
+            return ['eligible' => false, 'message' => "{$name} 사용자는 퇴사 처리되어 특정 결재자로 지정할 수 없습니다."];
+        }
+        return ['eligible' => true, 'message' => ''];
+    }
     private PDO $db;
 
     public function __construct(?PDO $pdo = null)
@@ -21,13 +148,14 @@ class EmployeeModel
                 p.id,
                 p.sort_no,
                 p.user_id,
-                p.client_id,
                 p.employee_name,
                 p.phone,
                 p.address,
                 p.address_detail,
                 p.department_id,
                 p.position_id,
+                p.employment_status,
+                p.job_id,
                 p.doc_hire_date,
                 p.real_hire_date,
                 p.doc_retire_date,
@@ -36,8 +164,7 @@ class EmployeeModel
                 p.rrn_image,
                 p.emergency_phone,
                 p.profile_image,
-                p.certificate_name,
-                p.certificate_file,
+                p.representative_qualification_id,
                 p.bank_name,
                 p.account_number,
                 p.account_holder,
@@ -47,7 +174,11 @@ class EmployeeModel
 
                 d.dept_name AS department_name,
                 s.position_name,
-                c.client_name AS client_name,
+                rq.qualification_name AS representative_qualification_name,
+                rq.attachment_path AS representative_qualification_file,
+                rq.attachment_name AS representative_qualification_file_name,
+                (SELECT COUNT(*) FROM institution_qualifications_employee_records qc WHERE qc.employee_id = p.id AND qc.deleted_at IS NULL) AS qualification_count,
+                (SELECT COUNT(*) FROM institution_educations_employee_records ec WHERE ec.employee_id = p.id AND ec.deleted_at IS NULL) AS education_count,
 
                 u.id AS auth_user_id,
                 u.username,
@@ -71,16 +202,13 @@ class EmployeeModel
                 u.created_by AS user_created_by,
                 u.updated_at AS user_updated_at,
                 u.updated_by AS user_updated_by,
-                u.deleted_at,
-                u.deleted_by,
 
                 r.role_name,
 
                 u.created_by AS user_created_by_name,
                 u.updated_by AS user_updated_by_name,
                 u.password_updated_by AS password_updated_by_name,
-                u.approved_by AS approved_by_name,
-                u.deleted_by AS deleted_by_name
+                u.approved_by AS approved_by_name
 
             FROM user_employees p
 
@@ -96,8 +224,10 @@ class EmployeeModel
             LEFT JOIN user_positions s
                 ON p.position_id = s.id
 
-            LEFT JOIN system_clients c
-                ON p.client_id = c.id
+            LEFT JOIN institution_qualifications_employee_records rq
+                ON p.representative_qualification_id = rq.id
+                AND rq.employee_id = p.id
+                AND rq.deleted_at IS NULL
 
             WHERE 1=1
         ";
@@ -110,8 +240,6 @@ class EmployeeModel
 
                 'sort_no'              => ['expr' => 'p.sort_no', 'type' => 'exact'],
                 'employee_name'     => ['expr' => 'p.employee_name', 'type' => 'like'],
-                'client_id'         => ['expr' => 'p.client_id', 'type' => 'exact'],
-                'client_name'       => ['expr' => 'c.client_name', 'type' => 'like'],
 
                 'username'          => ['expr' => 'u.username', 'type' => 'like'],
                 'email'             => ['expr' => 'u.email', 'type' => 'like'],
@@ -124,7 +252,6 @@ class EmployeeModel
                 'emergency_phone'   => ['expr' => 'p.emergency_phone', 'type' => 'like'],
                 'address'           => ['expr' => 'p.address', 'type' => 'like'],
                 'address_detail'    => ['expr' => 'p.address_detail', 'type' => 'like'],
-                'certificate_name'  => ['expr' => 'p.certificate_name', 'type' => 'like'],
                 'bank_name'         => ['expr' => 'p.bank_name', 'type' => 'like'],
                 'account_number'    => ['expr' => 'p.account_number', 'type' => 'like'],
                 'account_holder'    => ['expr' => 'p.account_holder', 'type' => 'like'],
@@ -148,7 +275,6 @@ class EmployeeModel
                 'password_updated_at' => ['expr' => 'u.password_updated_at', 'type' => 'datetime'],
                 'user_created_at'     => ['expr' => 'u.created_at', 'type' => 'datetime'],
                 'user_updated_at'     => ['expr' => 'u.updated_at', 'type' => 'datetime'],
-                'deleted_at'          => ['expr' => 'u.deleted_at', 'type' => 'datetime'],
             ];
 
             $globalSearchValues = [];
@@ -239,7 +365,6 @@ class EmployeeModel
 
                 $searchableColumns = [
                     'p.employee_name',
-                    'c.client_name',
                     'u.username',
                     'u.email',
                     'd.dept_name',
@@ -248,7 +373,6 @@ class EmployeeModel
                     'p.emergency_phone',
                     'p.address',
                     'p.address_detail',
-                    'p.certificate_name',
                     'p.bank_name',
                     'p.account_number',
                     'p.account_holder',
@@ -260,8 +384,7 @@ class EmployeeModel
                     'u.approved_by',
                     'u.created_by',
                     'u.updated_by',
-                    'u.password_updated_by',
-                    'u.deleted_by'
+                    'u.password_updated_by'
                 ];
 
                 $sql .= " AND (";
@@ -312,7 +435,6 @@ class EmployeeModel
                 'user_updated_by_name' => 'user_updated_by',
                 'password_updated_by_name' => 'password_updated_by',
                 'approved_by_name' => 'approved_by',
-                'deleted_by_name' => 'deleted_by',
             ]
         );
     }
@@ -324,13 +446,14 @@ class EmployeeModel
                 p.id,
                 p.sort_no,
                 p.user_id,
-                p.client_id,
                 p.employee_name,
                 p.phone,
                 p.address,
                 p.address_detail,
                 p.department_id,
                 p.position_id,
+                p.employment_status,
+                p.job_id,
                 p.doc_hire_date,
                 p.real_hire_date,
                 p.doc_retire_date,
@@ -339,8 +462,7 @@ class EmployeeModel
                 p.rrn_image,
                 p.emergency_phone,
                 p.profile_image,
-                p.certificate_name,
-                p.certificate_file,
+                p.representative_qualification_id,
                 p.bank_name,
                 p.account_number,
                 p.account_holder,
@@ -350,7 +472,9 @@ class EmployeeModel
 
                 d.dept_name AS department_name,
                 s.position_name,
-                c.client_name AS client_name,
+                rq.qualification_name AS representative_qualification_name,
+                rq.attachment_path AS representative_qualification_file,
+                rq.attachment_name AS representative_qualification_file_name,
 
                 u.id AS auth_user_id,
                 u.username,
@@ -374,16 +498,13 @@ class EmployeeModel
                 u.created_by AS user_created_by,
                 u.updated_at AS user_updated_at,
                 u.updated_by AS user_updated_by,
-                u.deleted_at,
-                u.deleted_by,
 
                 r.role_name,
 
                 u.created_by AS user_created_by_name,
                 u.updated_by AS user_updated_by_name,
                 u.password_updated_by AS password_updated_by_name,
-                u.approved_by AS approved_by_name,
-                u.deleted_by AS deleted_by_name
+                u.approved_by AS approved_by_name
 
             FROM user_employees p
             LEFT JOIN auth_users u
@@ -395,8 +516,10 @@ class EmployeeModel
             LEFT JOIN user_positions s
                 ON p.position_id = s.id
 
-            LEFT JOIN system_clients c
-                ON p.client_id = c.id
+            LEFT JOIN institution_qualifications_employee_records rq
+                ON p.representative_qualification_id = rq.id
+                AND rq.employee_id = p.id
+                AND rq.deleted_at IS NULL
 
             WHERE p.id = :id
             LIMIT 1
@@ -416,7 +539,6 @@ class EmployeeModel
                 'user_updated_by_name' => 'user_updated_by',
                 'password_updated_by_name' => 'password_updated_by',
                 'approved_by_name' => 'approved_by',
-                'deleted_by_name' => 'deleted_by',
             ]
         );
     }
@@ -443,6 +565,32 @@ class EmployeeModel
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row ?: null;
+    }
+
+    public function findActiveIdByEmployeeName(string $employeeName): ?string
+    {
+        $stmt = $this->db->prepare('SELECT p.id FROM user_employees p LEFT JOIN auth_users u ON p.user_id = u.id WHERE p.employee_name = :employee_name AND COALESCE(u.is_active, 1) = 1 LIMIT 1');
+        $stmt->execute([':employee_name' => $employeeName]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (string) $id;
+    }
+
+    public function getActiveDropdownValues(string $field): array
+    {
+        if ($field !== 'employee_name') return [];
+        $stmt = $this->db->query("
+            SELECT DISTINCT p.employee_name AS dropdown_value
+            FROM user_employees p
+            LEFT JOIN auth_users u ON p.user_id = u.id
+            WHERE COALESCE(u.is_active, 1) = 1
+              AND p.employee_name IS NOT NULL
+              AND TRIM(p.employee_name) <> ''
+            ORDER BY p.employee_name ASC
+        ");
+        return array_values(array_unique(array_map(
+            static fn(array $row): string => trim((string) ($row['dropdown_value'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        )));
     }
 
     public function getByEmail(string $email): ?array
@@ -529,28 +677,28 @@ class EmployeeModel
     {
         $sql = "
             INSERT INTO user_employees (
-                id, sort_no, user_id, client_id, employee_name,
+                id, sort_no, user_id, employee_name,
                 phone, address, address_detail,
-                department_id, position_id,
+                department_id, position_id, job_id, employment_status,
                 doc_hire_date, real_hire_date,
                 doc_retire_date, real_retire_date,
                 rrn, rrn_image,
                 emergency_phone,
-                profile_image, certificate_name, certificate_file,
+                profile_image,
                 bank_name,
                 account_number,
                 account_holder,
                 bank_file,
                 note, memo
             ) VALUES (
-                :id, :sort_no, :user_id, :client_id, :employee_name,
+                :id, :sort_no, :user_id, :employee_name,
                 :phone, :address, :address_detail,
-                :department_id, :position_id,
+                :department_id, :position_id, :job_id, :employment_status,
                 :doc_hire_date, :real_hire_date,
                 :doc_retire_date, :real_retire_date,
                 :rrn, :rrn_image,
                 :emergency_phone,
-                :profile_image, :certificate_name, :certificate_file,
+                :profile_image,
                 :bank_name,
                 :account_number,
                 :account_holder,
@@ -566,7 +714,6 @@ class EmployeeModel
             'id'               => $data['id'],
             'sort_no'             => $data['sort_no'] ?? null,
             'user_id'          => $data['user_id'],
-            'client_id'        => $data['client_id'] ?? null,
             'employee_name'    => $data['employee_name'],
 
             'phone'            => $data['phone'] ?? null,
@@ -575,6 +722,8 @@ class EmployeeModel
 
             'department_id'    => $data['department_id'] ?? null,
             'position_id'      => $data['position_id'] ?? null,
+            'job_id'           => $data['job_id'] ?? null,
+            'employment_status'=> $data['employment_status'] ?? 'ACTIVE',
 
             'doc_hire_date'    => $data['doc_hire_date'] ?? null,
             'real_hire_date'   => $data['real_hire_date'] ?? null,
@@ -587,8 +736,6 @@ class EmployeeModel
             'emergency_phone'  => $data['emergency_phone'] ?? null,
 
             'profile_image'    => $data['profile_image'] ?? null,
-            'certificate_name' => $data['certificate_name'] ?? null,
-            'certificate_file' => $data['certificate_file'] ?? null,
 
             'bank_name'        => $data['bank_name'] ?? null,
             'account_number'   => $data['account_number'] ?? null,
@@ -609,23 +756,12 @@ class EmployeeModel
                 address = :address,
                 address_detail = :address_detail,
 
-                department_id = :department_id,
-                position_id = :position_id,
-                client_id = :client_id,
-
-                doc_hire_date = :doc_hire_date,
-                real_hire_date = :real_hire_date,
-                doc_retire_date = :doc_retire_date,
-                real_retire_date = :real_retire_date,
-
                 rrn = :rrn,
                 rrn_image = :rrn_image,
 
                 emergency_phone = :emergency_phone,
 
                 profile_image = :profile_image,
-                certificate_name = :certificate_name,
-                certificate_file = :certificate_file,
 
                 bank_name = :bank_name,
                 account_number = :account_number,
@@ -647,23 +783,12 @@ class EmployeeModel
             'address'          => $data['address'] ?? null,
             'address_detail'   => $data['address_detail'] ?? null,
 
-            'department_id'    => $data['department_id'] ?? null,
-            'position_id'      => $data['position_id'] ?? null,
-            'client_id'        => $data['client_id'] ?? null,
-
-            'doc_hire_date'    => $data['doc_hire_date'] ?? null,
-            'real_hire_date'   => $data['real_hire_date'] ?? null,
-            'doc_retire_date'  => $data['doc_retire_date'] ?? null,
-            'real_retire_date' => $data['real_retire_date'] ?? null,
-
             'rrn'              => $data['rrn'] ?? null,
             'rrn_image'        => $data['rrn_image'] ?? null,
 
             'emergency_phone'  => $data['emergency_phone'] ?? null,
 
             'profile_image'    => $data['profile_image'] ?? null,
-            'certificate_name' => $data['certificate_name'] ?? null,
-            'certificate_file' => $data['certificate_file'] ?? null,
 
             'bank_name'        => $data['bank_name'] ?? null,
             'account_number'   => $data['account_number'] ?? null,
@@ -677,13 +802,18 @@ class EmployeeModel
         return $stmt->execute($params);
     }
 
+    public function updateRepresentativeQualificationId(string $id, ?string $qualificationId): bool
+    {
+        $stmt = $this->db->prepare('UPDATE user_employees SET representative_qualification_id = :qualification_id WHERE id = :id');
+        return $stmt->execute([':id' => $id, ':qualification_id' => $qualificationId]);
+    }
+
     public function updateStatus(string $userId, array $data): bool
     {
         $sql = "
             UPDATE auth_users SET
                 is_active  = :is_active,
-                deleted_at = :deleted_at,
-                deleted_by = :deleted_by,
+                updated_at = NOW(),
                 updated_by = :updated_by
             WHERE id = :id
         ";
@@ -692,8 +822,6 @@ class EmployeeModel
 
         return $stmt->execute([
             'is_active'  => $data['is_active'],
-            'deleted_at' => $data['deleted_at'] ?? null,
-            'deleted_by' => $data['deleted_by'] ?? null,
             'updated_by' => $data['updated_by'],
             'id'         => $userId
         ]);

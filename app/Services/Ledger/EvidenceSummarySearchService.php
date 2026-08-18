@@ -2,12 +2,16 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceImportModel;
 use PDO;
 
 class EvidenceSummarySearchService
 {
-    public function __construct(private PDO $pdo)
+    private EvidenceImportModel $evidenceModel;
+
+    public function __construct(PDO $pdo)
     {
+        $this->evidenceModel = new EvidenceImportModel($pdo);
     }
 
     public function searchVoucherSummaryTexts(string $keyword, int $limit = 10): array
@@ -18,20 +22,8 @@ class EvidenceSummarySearchService
         }
 
         $limit = max(1, min($limit, 20));
-        $stmt = $this->pdo->prepare("
-            SELECT mapped_payload_json, updated_at, created_at
-            FROM ledger_data_evidences
-            WHERE deleted_at IS NULL
-              AND mapped_payload_json LIKE :keyword
-            ORDER BY updated_at DESC, created_at DESC
-            LIMIT 1000
-        ");
-        $stmt->execute([
-            ':keyword' => '%' . $keyword . '%',
-        ]);
-
         $summaries = [];
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach ($this->evidenceModel->findSummaryPayloadRows($keyword) as $row) {
             $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
             if (!is_array($payload)) {
                 continue;

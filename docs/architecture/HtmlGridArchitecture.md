@@ -166,6 +166,7 @@ State, Renderer, Command, Validator, Footer, Serializer를 직접 수정하지 �
 
 - `select2`
 - `datepicker`
+- `time-picker`
 - `number`
 - `currency`
 - `code-picker`
@@ -231,7 +232,9 @@ Core 1.0 공개 API:
 - `render()`
 - `refresh()`
 - `validate()`
-- `serialize()`
+- `serialize()` (호출 전에 활성 editor 값을 공용 editor의 `getValue()`로 state에 커밋)
+- `commitEditors()` (화면별 DOM 순회 없이 editor 값을 state SSOT에 반영)
+- `focusFirstError()` (validation 결과의 첫 오류 셀로 이동)
 - `destroy()`
 - `on()`
 - `off()`
@@ -268,3 +271,14 @@ Core는 다음 값만 외부로 전달한다.
 4. 신규 plugin이 필요하면 `plugin-registry`에 등록한다.
 5. 저장 포맷이 다르면 `serializer hooks`로 변환한다.
 6. 검증 규칙이 다르면 `validator hooks`로 확장한다.
+
+## 16. 공용 스타일과 근로계약 적용
+
+- 공용 입력형 표의 높이, padding, box-sizing, 단일행 헤더, ellipsis/tooltip, 필수표시, 오류표시는 `public/assets/css/components/html-grid.css`를 기준으로 한다.
+- 화면 schema의 `width`가 컬럼 폭 SSOT이며 화면 CSS에서 컬럼별 고정폭을 중복 선언하지 않는다.
+- 근로계약 지급조건은 전표입력 분개라인의 editor lifecycle과 행 상태 규칙을 재사용한다. 업무별 마스터 스냅샷과 근로수당 조건부 입력 변환은 근로계약 adapter에만 둔다.
+- `validate()`와 `serialize()`는 편집기 표시값을 state에 먼저 커밋하므로 화면별 DOM 직접 직렬화를 두지 않는다.
+
+## 조건부 필수표시
+
+DB NULL 여부에 따른 기본 필수조건은 column.required, 행 상태에 따른 조건부 필수조건은 column.meta.requiredIndicator로 표시한다. 실제 값 검증은 화면 hook과 서버 Validation이 동일 정책을 적용하며, 표시 전용 meta가 값을 강제하지는 않는다.

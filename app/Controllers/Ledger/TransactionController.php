@@ -4,32 +4,24 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use App\Services\Ledger\TransactionCrudService;
-use App\Services\Ledger\TransactionExcelService;
-use App\Services\Ledger\TransactionVoucherService;
-use App\Models\Ledger\EvidenceDataModel;
+use App\Services\Ledger\TransactionEvidenceReferenceService;
 use Core\DbPdo;
-use Core\Helpers\ExcelTemplateFilenameHelper;
+use Core\Session;
 use PDO;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TransactionController
 {
     private PDO $pdo;
     private TransactionCrudService $service;
-    private TransactionExcelService $excelService;
-    private TransactionVoucherService $transactionVoucherService;
     private LayoutController $layout;
-    private EvidenceDataModel $evidenceDataModel;
+    private TransactionEvidenceReferenceService $evidenceReferenceService;
 
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo = $pdo ?? DbPdo::conn();
         $this->service = new TransactionCrudService($this->pdo);
-        $this->excelService = new TransactionExcelService($this->pdo, $this->service);
-        $this->transactionVoucherService = new TransactionVoucherService($this->pdo);
         $this->layout = new LayoutController($this->pdo);
-        $this->evidenceDataModel = new EvidenceDataModel($this->pdo);
+        $this->evidenceReferenceService = new TransactionEvidenceReferenceService($this->pdo);
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -48,6 +40,7 @@ class TransactionController
             'layoutOptions' => $layoutOptions ?? [],
             'pageStyles' => $pageStyles ?? '',
             'pageScripts' => $pageScripts ?? '',
+            'pageAssetProfile' => $pageAssetProfile ?? 'default',
         ]);
     }
 
@@ -65,7 +58,8 @@ class TransactionController
     {
         $this->renderTransactionCreatePage([
             'pageTitle' => '거래입력',
-            'pageSubtitle' => '거래 입력, 목록, 전표 연결을 한 화면에서 관리합니다.',
+            'pageSubtitle' => '거래 입력, 목록, 자료증빙 연결을 한 화면에서 관리합니다.',
+            'evidenceTypePolicies' => [],
         ]);
     }
 
@@ -87,6 +81,7 @@ class TransactionController
 
     public function apiList(): void
     {
+        Session::write();
         $this->json(function (): array {
             $filters = [];
 
@@ -103,37 +98,56 @@ class TransactionController
                 $filters['status'] = strtolower(trim((string) $filters['status']));
             }
 
+            $filters['_start'] = max(0, (int) ($_GET['start'] ?? 0));
+            $filters['_length'] = max(10, min(100, (int) ($_GET['length'] ?? 100)));
+            $sortField = trim((string) ($_GET['sort_field'] ?? ''));
+            $sortDirection = trim((string) ($_GET['sort_direction'] ?? ''));
+            if ($sortField === '') {
+                $order = is_array($_GET['order'] ?? null) ? ($_GET['order'][0] ?? []) : [];
+                $columns = is_array($_GET['columns'] ?? null) ? $_GET['columns'] : [];
+                $orderColumnIndex = filter_var($order['column'] ?? null, FILTER_VALIDATE_INT);
+                if ($orderColumnIndex !== false && isset($columns[$orderColumnIndex])) {
+                    $orderColumn = is_array($columns[$orderColumnIndex]) ? $columns[$orderColumnIndex] : [];
+                    $sortField = trim((string) ($orderColumn['data'] ?? ''));
+                    $sortDirection = trim((string) ($order['dir'] ?? ''));
+                }
+            }
+            if ($sortField !== '') {
+                $filters['_order_field'] = $sortField;
+                $filters['_order_direction'] = strtolower($sortDirection) === 'asc' ? 'asc' : 'desc';
+            }
+            $page = $this->service->getPage($filters);
+
             return [
                 'success' => true,
-                'data' => $this->service->getList($filters),
+                'draw' => (int) ($_GET['draw'] ?? 0),
+                'recordsTotal' => $page['records_total'],
+                'recordsFiltered' => $page['records_filtered'],
+                'data' => $page['rows'],
             ];
         });
     }
 
     public function apiReorder(): void
     {
+        Session::write();
         $this->json(function (): array {
-            $input = json_decode(file_get_contents('php://input'), true) ?: [];
-            $changes = $input['changes'] ?? [];
-
-            if ($changes === []) {
-                return [
-                    'success' => false,
-                    'message' => '정렬 데이터가 없습니다.',
-                ];
-            }
-
+            $input = json_decode((string) file_get_contents('php://input'), true);
+            $changes = is_array($input) && is_array($input['changes'] ?? null)
+                ? $input['changes']
+                : [];
             $this->service->reorder($changes);
 
             return [
                 'success' => true,
-                'message' => '정렬 저장 완료',
+                'message' => '정렬이 저장되었습니다.',
             ];
         });
     }
 
     public function apiDetail(): void
     {
+        Session::write();
         $this->json(function (): array {
             $id = trim((string) ($_GET['id'] ?? ''));
             if ($id === '') {
@@ -151,32 +165,46 @@ class TransactionController
 
             return [
                 'success' => true,
-                'data' => $this->withLinkedVouchers($row),
+                'data' => $row,
             ];
         });
     }
 
     public function apiEvidenceSearch(): void
     {
+        Session::write();
         $this->json(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));
-            $rows = $this->evidenceDataModel->searchForPicker($query, ['DATA', 'BOTH']);
+            $excludeEvidences = json_decode((string) ($_GET['exclude_evidences'] ?? '[]'), true);
+            if (!is_array($excludeEvidences)) {
+                $excludeEvidences = [];
+            }
+            $sortField = trim((string) ($_GET['sort_field'] ?? 'evidence_date'));
+            $orderField = match ($sortField) {
+                'display_amount' => 'display_amount',
+                'import_type', 'display_type' => 'import_type',
+                'client_name' => 'client_search_name',
+                'display_summary' => 'description',
+                default => 'standard_date',
+            };
+            $result = $this->evidenceReferenceService->searchPage([
+                'keyword' => $query,
+                'start' => max(0, (int) ($_GET['start'] ?? 0)),
+                'length' => max(10, min(100, (int) ($_GET['length'] ?? 20))),
+                'order_field' => $orderField,
+                'order_direction' => strtolower(trim((string) ($_GET['sort_direction'] ?? 'desc'))) === 'asc' ? 'asc' : 'desc',
+                'exclude_evidences' => $excludeEvidences,
+            ]);
 
             return [
                 'success' => true,
-                'data' => array_map(static function (array $row): array {
-                    $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
-                    $payload = is_array($payload) ? $payload : [];
-                    return [
-                        'id' => (string) ($row['id'] ?? ''),
-                        'source_type' => (string) ($row['source_type'] ?? ''),
-                        'source_key' => (string) ($row['source_key'] ?? ''),
-                        'evidence_date' => (string) ($row['evidence_date'] ?? ''),
-                        'client_name' => (string) ($row['client_name'] ?? $payload['client_name'] ?? ''),
-                        'total_amount' => (float) ($row['total_amount'] ?? $payload['total_amount'] ?? 0),
-                        'description' => (string) ($payload['description'] ?? $payload['memo'] ?? ''),
-                    ];
-                }, $rows),
+                'data' => [
+                    'items' => $result['items'],
+                    'pagination' => [
+                        'total' => $result['records_filtered'],
+                        'records_total' => $result['records_total'],
+                    ],
+                ],
             ];
         });
     }
@@ -186,13 +214,13 @@ class TransactionController
         $id = trim((string) ($_GET['id'] ?? ''));
         if ($id === '') {
             http_response_code(400);
-            exit('Missing file id');
+            exit('파일을 처리할 수 없습니다.');
         }
 
         $download = $this->service->getFileDownloadPayload($id);
         if (!$download) {
             http_response_code(404);
-            exit('File not found');
+            exit('파일을 처리할 수 없습니다.');
         }
 
         header('Content-Type: ' . $download['mime']);
@@ -204,138 +232,6 @@ class TransactionController
         );
         readfile((string) $download['absolute_path']);
         exit;
-    }
-
-    public function apiTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
-            'transactions_template.xlsx'
-        );
-    }
-
-    public function apiItemTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createItemTemplateSpreadsheet($_GET['columns'] ?? null),
-            'transaction_items_template.xlsx'
-        );
-    }
-
-    public function apiSettlementTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createSettlementTemplateSpreadsheet($_GET['columns'] ?? null),
-            'transaction_settlements_template.xlsx'
-        );
-    }
-
-    public function apiDownloadExcel(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
-            'transactions.xlsx'
-        );
-    }
-
-    public function apiDownloadItemExcel(): void
-    {
-        $payload = $this->requestPayload();
-        $rows = $this->decodeRequestRows($payload['rows'] ?? null);
-
-        $this->downloadSpreadsheet(
-            $this->excelService->createItemExportSpreadsheet($rows, $payload['columns'] ?? $_GET['columns'] ?? null),
-            'transaction_items.xlsx'
-        );
-    }
-
-    public function apiDownloadSettlementExcel(): void
-    {
-        $payload = $this->requestPayload();
-        $rows = $this->decodeRequestRows($payload['rows'] ?? null);
-
-        $this->downloadSpreadsheet(
-            $this->excelService->createSettlementExportSpreadsheet($rows, $payload['columns'] ?? $_GET['columns'] ?? null),
-            'transaction_settlements.xlsx'
-        );
-    }
-
-    public function apiExcelUpload(): void
-    {
-        try {
-            $uploadedFile = $this->uploadedExcelFile();
-            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
-                ], JSON_UNESCAPED_UNICODE);
-                return;
-            }
-
-            echo json_encode(
-                $this->excelService->importFromExcelFile((string) $uploadedFile['tmp_name']),
-                JSON_UNESCAPED_UNICODE
-            );
-        } catch (\Throwable $e) {
-            http_response_code(422);
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
-    }
-
-    public function apiItemExcelUpload(): void
-    {
-        try {
-            $uploadedFile = $this->uploadedExcelFile();
-            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
-                ], JSON_UNESCAPED_UNICODE);
-                return;
-            }
-
-            echo json_encode(
-                $this->excelService->importItemsFromExcelFile((string) $uploadedFile['tmp_name']),
-                JSON_UNESCAPED_UNICODE
-            );
-        } catch (\Throwable $e) {
-            http_response_code(422);
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
-    }
-
-    public function apiSettlementExcelUpload(): void
-    {
-        try {
-            $uploadedFile = $this->uploadedExcelFile();
-            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
-                ], JSON_UNESCAPED_UNICODE);
-                return;
-            }
-
-            echo json_encode(
-                $this->excelService->importSettlementsFromExcelFile((string) $uploadedFile['tmp_name']),
-                JSON_UNESCAPED_UNICODE
-            );
-        } catch (\Throwable $e) {
-            http_response_code(422);
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
     }
 
     public function apiSave(): void
@@ -351,52 +247,13 @@ class TransactionController
                 }
             }
 
+            // 사용자 CRUD에서는 상태를 임의 전환하지 않는다. 승인 원천 업무는 Service를 직접 호출한다.
+            $payload['status'] = 'draft';
+
             return $this->service->save($payload, $_FILES);
         });
     }
 
-    public function apiCreateVoucher(): void
-    {
-        $this->json(function (): array {
-            $payload = $this->requestPayload();
-            $transactionId = trim((string) ($payload['transaction_id'] ?? ''));
-            if ($transactionId === '') {
-                throw new \InvalidArgumentException('거래 ID가 필요합니다.');
-            }
-
-            return $this->transactionVoucherService->createDraftVoucher($transactionId, $payload);
-        });
-    }
-
-    public function apiRecommendVoucher(): void
-    {
-        $this->json(function (): array {
-            $transactionId = trim((string) ($_GET['transaction_id'] ?? $_POST['transaction_id'] ?? ''));
-            if ($transactionId === '') {
-                throw new \InvalidArgumentException('거래 ID가 필요합니다.');
-            }
-
-            return $this->transactionVoucherService->recommendVoucherDraft($transactionId);
-        });
-    }
-    public function apiLinkVoucher(): void
-    {
-        $this->json(function (): array {
-            return $this->transactionVoucherService->linkVoucher(
-                trim((string) ($_POST['transaction_id'] ?? '')),
-                trim((string) ($_POST['voucher_id'] ?? ''))
-            );
-        });
-    }
-    public function apiUnlinkVoucher(): void
-    {
-        $this->json(function (): array {
-            return $this->transactionVoucherService->unlinkVoucher(
-                trim((string) ($_POST['transaction_id'] ?? '')),
-                trim((string) ($_POST['voucher_id'] ?? ''))
-            );
-        });
-    }
     public function apiDelete(): void
     {
         $this->json(function (): array {
@@ -527,7 +384,9 @@ class TransactionController
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof \InvalidArgumentException || $e instanceof \RuntimeException
+                    ? $e->getMessage()
+                    : '요청 처리 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
     }
@@ -544,61 +403,4 @@ class TransactionController
         }, $payload['ids'])));
     }
 
-    private function requestPayload(): array
-    {
-        $payload = $_POST;
-        $raw = file_get_contents('php://input');
-        if ($raw !== false && trim($raw) !== '') {
-            $decoded = json_decode($raw, true);
-            if (is_array($decoded)) {
-                $payload = array_replace_recursive($payload, $decoded);
-            }
-        }
-
-        return is_array($payload) ? $payload : [];
-    }
-
-    private function decodeRequestRows(mixed $rows): array
-    {
-        if (is_array($rows)) {
-            return $rows;
-        }
-
-        if (is_string($rows) && trim($rows) !== '') {
-            $decoded = json_decode($rows, true);
-            return is_array($decoded) ? $decoded : [];
-        }
-
-        return [];
-    }
-
-    private function withLinkedVouchers(array $transaction): array
-    {
-        return $this->transactionVoucherService->appendLinkedVouchers($transaction);
-    }
-
-    private function uploadedExcelFile(): ?array
-    {
-        foreach ($_FILES as $file) {
-            if (!is_array($file)) {
-                continue;
-            }
-
-            if (!empty($file['tmp_name']) && is_string($file['tmp_name'])) {
-                return $file;
-            }
-        }
-
-        return null;
-    }
-
-    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
-    {
-        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'transactions');
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-        (new Xlsx($spreadsheet))->save('php://output');
-        exit;
-    }
 }

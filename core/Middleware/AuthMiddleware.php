@@ -4,7 +4,6 @@ namespace Core\Middleware;
 
 use App\Services\Auth\AuthSessionService;
 use App\Services\Auth\PermissionService;
-use Core\Database;
 
 class AuthMiddleware
 {
@@ -101,7 +100,7 @@ class AuthMiddleware
         }
 
         try {
-            $permissionService = new PermissionService(Database::getInstance()->getConnection());
+            $permissionService = new PermissionService();
 
             if ($permissionService->hasPermission((string) $userId, 'web.dashboard.main')) {
                 return '/dashboard';

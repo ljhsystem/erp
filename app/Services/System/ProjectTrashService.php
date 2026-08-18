@@ -4,15 +4,19 @@ namespace App\Services\System;
 
 use PDO;
 use App\Models\System\ProjectModel;
+use App\Repositories\System\ProjectDependencyRepository;
 use Core\Helpers\ActorHelper;
 
 class ProjectTrashService
 {
+    private readonly ProjectDependencyRepository $dependencyRepository;
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly ProjectModel $model,
         private readonly mixed $logger
     ) {
+        $this->dependencyRepository = new ProjectDependencyRepository($pdo);
     }
 
     public function delete(string $id, string $actorType = 'USER'): array
@@ -64,7 +68,7 @@ class ProjectTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -136,7 +140,7 @@ class ProjectTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -182,7 +186,7 @@ class ProjectTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -218,175 +222,69 @@ class ProjectTrashService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ];
         }
     }
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purge() called', [
-            'id' => $id,
-            'actorType' => $actorType,
-            'actor' => $actor,
-        ]);
-
-        try {
-            $this->pdo->beginTransaction();
-
-            $project = $this->model->getById($id);
-
-            if (!$project) {
-                $this->pdo->rollBack();
-
-                return [
-                    'success' => false,
-                    'message' => '영구삭제할 프로젝트를 찾을 수 없습니다.',
-                ];
-            }
-
-            $ok = $this->model->hardDeleteById($id);
-
-            if (!$ok) {
-                throw new \Exception('영구삭제 중 오류가 발생했습니다.');
-            }
-
-            $this->pdo->commit();
-
-            $this->logger->info('purge() success', [
-                'id' => $id,
-            ]);
-
-            return [
-                'success' => true,
-            ];
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            $this->logger->error('purge() failed', [
-                'id' => $id,
-                'actor' => $actor,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
+        $result = $this->purgeProjects([$id]);
+        return ($result['deleted_count'] ?? 0) > 0 ? $result : [...$result, 'success' => false];
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purgeBulk() called', [
-            'ids' => $ids,
-            'actorType' => $actorType,
-            'actor' => $actor,
-        ]);
-
-        if (empty($ids)) {
-            $this->logger->warning('purgeBulk() empty ids');
-
-            return [
-                'success' => false,
-                'message' => '영구삭제할 프로젝트 ID가 없습니다.',
-            ];
-        }
-
-        try {
-            $this->pdo->beginTransaction();
-            $success = 0;
-
-            foreach ($ids as $id) {
-                if ($this->model->hardDeleteById($id)) {
-                    $success++;
-                }
-            }
-
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "선택 영구삭제가 완료되었습니다. ({$success}건)",
-            ];
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            $this->logger->error('purgeBulk() failed', [
-                'ids' => $ids,
-                'actor' => $actor,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
+        return $this->purgeProjects($ids);
     }
 
     public function purgeAll(string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
+        return $this->purgeProjects(array_column($this->model->getDeleted(), 'id'));
+    }
 
-        $this->logger->info('purgeAll() called', [
-            'actorType' => $actorType,
-            'actor' => $actor,
-        ]);
+    private function purgeProjects(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn($id): string => trim((string) $id), $ids))));
+        $deletedCount = 0;
+        $blocked = [];
+        if ($ids === []) return $this->purgeResult(0, 0, []);
 
+        $this->pdo->beginTransaction();
         try {
-            $this->pdo->beginTransaction();
-
-            $rows = $this->model->getDeleted();
-            $count = count($rows);
-
-            if ($count === 0) {
-                $this->pdo->rollBack();
-
-                return [
-                    'success' => false,
-                    'message' => '영구삭제할 프로젝트가 없습니다.',
-                ];
-            }
-
-            $rows = $this->model->getDeleted();
-            $success = 0;
-
-            foreach ($rows as $row) {
-                if ($this->model->hardDeleteById($row['id'])) {
-                    $success++;
+            foreach ($ids as $id) {
+                $project = $this->model->getById($id);
+                if (!$project || empty($project['deleted_at'])) {
+                    $blocked[] = ['id' => $id, 'references' => ['휴지통에 없는 프로젝트']];
+                    continue;
                 }
+                $references = $this->dependencyRepository->findReferences($id);
+                if ($references !== []) {
+                    $blocked[] = ['id' => $id, 'references' => array_column($references, 'label')];
+                    continue;
+                }
+                if (!$this->model->hardDeleteById($id)) throw new \RuntimeException('프로젝트 영구삭제 DB 처리 실패');
+                $deletedCount++;
             }
-
             $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "전체 영구삭제가 완료되었습니다. ({$success}건)",
-            ];
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            $this->logger->error('purgeAll() failed', [
-                'actor' => $actor,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->logger->error('purgeProjects() failed', ['exception' => $e->getMessage(), 'ids' => $ids]);
+            return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.', 'deleted_count' => 0, 'skipped_count' => count($ids), 'data' => ['deleted_count' => 0, 'skipped_count' => count($ids)]];
         }
+        return $this->purgeResult($deletedCount, count($blocked), $blocked);
+    }
+
+    private function purgeResult(int $deletedCount, int $skippedCount, array $blocked): array
+    {
+        if ($deletedCount === 0 && $skippedCount > 0) {
+            $labels = array_values(array_unique(array_merge(...array_column($blocked, 'references'))));
+            $message = '다른 업무에서 사용 중인 프로젝트이므로 영구삭제할 수 없습니다.' . ($labels === [] ? '' : ' 참조 업무: ' . implode(', ', $labels) . '.');
+        } elseif ($skippedCount > 0) $message = "프로젝트 {$deletedCount}건을 영구삭제했고, 사용 중인 {$skippedCount}건은 유지했습니다.";
+        elseif ($deletedCount > 0) $message = "프로젝트 {$deletedCount}건을 영구삭제했습니다.";
+        else $message = '영구삭제할 프로젝트가 없습니다.';
+        $data = ['deleted_count' => $deletedCount, 'skipped_count' => $skippedCount, 'blocked' => $blocked];
+        return ['success' => true, 'message' => $message, ...$data, 'data' => $data];
     }
 
     public function reorder(array $changes): bool
@@ -408,7 +306,7 @@ class ProjectTrashService
 
             foreach ($changes as $row) {
                 if (empty($row['id']) || !isset($row['newSortNo'])) {
-                    throw new \Exception('reorder payload is invalid.');
+                    throw new \Exception('순서 변경 데이터가 올바르지 않습니다.');
                 }
             }
 

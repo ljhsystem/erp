@@ -9,6 +9,7 @@ use App\Services\System\DatabaseReplicationStatusService;
 use App\Services\System\DataTableColumnMetaService;
 use App\Services\System\SettingService;
 use Core\DbPdo;
+use Core\Session;
 
 class SystemController
 {
@@ -221,6 +222,7 @@ class SystemController
     public function apiDataTableColumns(): void
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         try {
             $domain = trim((string) ($_GET['domain'] ?? ''));

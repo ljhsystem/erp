@@ -175,20 +175,6 @@ $router->get('/dashboard/settings/system/security', 'DashboardController@setting
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/codes', 'DashboardController@settingsSystemCodes', [
-    'key' => 'code.view',
-    'page' => '기준정보',
-    'page_description' => '기준정보 설정 화면',
-    'permission_name' => '기준정보 조회',
-    'permission_description' => '기준정보 설정 화면 조회 권한',
-    'name' => '기준정보',
-    'description' => '설정 > 시스템설정 > 기준정보',
-    'category' => '설정 > 시스템설정',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
 $router->get('/dashboard/settings/system/api', 'DashboardController@settingsSystemApi', [
     'key' => 'web.settings.system.api',
     'page' => 'API',

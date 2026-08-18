@@ -3,15 +3,14 @@
 namespace App\Controllers\Api;
 
 use App\Services\System\EmployeeService;
-use Core\Database;
+use PDO;
 
 class ExternalApiController
 {
     private EmployeeService $employeeService;
 
-    public function __construct()
+    public function __construct(PDO $pdo)
     {
-        $pdo = Database::getInstance()->getConnection();
         $this->employeeService = new EmployeeService($pdo);
     }
 

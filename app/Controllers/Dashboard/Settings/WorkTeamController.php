@@ -35,7 +35,6 @@ class WorkTeamController
             echo json_encode([
                 'success' => false,
                 'message' => '작업팀 목록 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -74,11 +73,6 @@ class WorkTeamController
             'memo' => $_POST['memo'] ?? null,
             'is_active' => isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1,
         ];
-
-        if ($payload['team_name'] === '') {
-            echo json_encode(['success' => false, 'message' => '팀명은 필수입니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
 
         $result = $this->service->save($payload, 'USER');
 
@@ -197,7 +191,7 @@ class WorkTeamController
             $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
             echo json_encode($this->service->saveFromExcelFile($_FILES['excel']['tmp_name'], $columnsCsv), JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'message' => '엑셀 업로드에 실패했습니다.', 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success' => false, 'message' => '엑셀 업로드 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
         }
 
         exit;

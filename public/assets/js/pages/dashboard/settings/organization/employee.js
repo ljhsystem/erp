@@ -6,45 +6,31 @@ import {
 } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
-import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { getCodeOptions, initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { bindLazyAddress } from '/public/assets/js/common/address-lazy.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
-import {
-    readDataTableSettingsState,
-    resolveDataTableColumnDisplayName,
-    resolveDataTableColumnRequirementPolicy
-} from '/public/assets/js/common/datatable/dataTableSettings.js';
-import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
-import {
-    bindFilePreviewAndDeleteEvents,
-    resolveFileSrc,
-    getCertPreview,
-    escapeHtml
-} from './employee/form.js';
+import { bindEmployeePolicySync, applyEmployeeModalPolicyLabels, collectEmployeeDetailValues, validateEmployeeRequiredPolicies, bindFilePreviewAndDeleteEvents, resolveFileSrc, renderRepresentativeQualification, escapeHtml } from './employee/form.js';
+import { renderEmployeeSystemInfo } from './employee/system-info.js';
 
 window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
     const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
-    const { formatMobile, formatPhone, formatCorpNumber, formatAccountNumber, unformatAccountNumber, loadBankAccountFormatRegistry } = NumberFormat;
-
-    console.log('[employees.js v2] loaded');
-
+    const { formatMobile, formatPhone, formatCorpNumber, formatAccountNumber, unformatAccountNumber, setBankAccountFormatRegistry } = NumberFormat;
     const API = {
         LIST: '/api/settings/organization/employee/list',
         DETAIL: '/api/settings/organization/employee/detail',
         SEARCH_PICKER: '/api/settings/organization/employee/search-picker',
-
         SAVE: '/api/settings/organization/employee/save',
         UPDATE_STATUS: '/api/settings/organization/employee/update-status',
         DELETE: '/api/settings/organization/employee/delete',
         REORDER: '/api/settings/organization/employee/reorder',
-        CLIENT_SEARCH: '/api/settings/base-info/client/search-picker',
 
         DEPARTMENT_LIST: '/api/settings/organization/department/list',
         POSITION_LIST: '/api/settings/organization/position/list',
-        ROLE_LIST: '/api/settings/organization/role/list'
+        ROLE_LIST: '/api/settings/organization/role/list',
+        PERSONNEL_OPTIONS: '/api/institution/human-resources/personnel-action/options'
     };
 
     const EMPLOYEE_COLUMN_MAP = {
@@ -53,7 +39,6 @@ window.AdminPicker = AdminPicker;
         profile_image:            { label: '\uC0AC\uC9C4', visible: true },
         username:                 { label: '\uC544\uC774\uB514', visible: true },
         employee_name:            { label: '\uC9C1\uC6D0\uBA85', visible: true },
-        client_id:                { label: '\uAC70\uB798\uCC98(\uD68C\uACC4\uC6A9)', visible: true },
         role_id:                  { label: '\uC5ED\uD560', visible: true },
 
         department_id:            { label: '\uBD80\uC11C', visible: true },
@@ -91,8 +76,6 @@ window.AdminPicker = AdminPicker;
         password_updated_at:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC77C', visible: false },
         password_updated_by:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false, type: 'actor' },
 
-        certificate_name:         { label: '\uC790\uACA9\uC99D\uBA85', visible: false },
-        certificate_file:         { label: '\uC790\uACA9\uC99D\uD30C\uC77C', visible: false },
         bank_name:                { label: '\uC740\uD589\uBA85', visible: false },
         account_number:           { label: '\uACC4\uC88C\uBC88\uD638', visible: false },
         account_holder:           { label: '\uC608\uAE08\uC8FC', visible: false },
@@ -106,9 +89,6 @@ window.AdminPicker = AdminPicker;
         user_updated_at:          { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
         user_updated_by:          { label: '\uC218\uC815\uC790', visible: false, type: 'actor' },
 
-        deleted_at:               { label: '\uBE44\uD65C\uC131\uD654\uC77C\uC2DC', visible: false },
-        deleted_by:               { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false, type: 'actor' },
-
         is_active:                { label: '\uC0C1\uD0DC', visible: true, noVis: true }
     };
 
@@ -116,49 +96,8 @@ window.AdminPicker = AdminPicker;
         { value: 'user_created_at', label: '\uB4F1\uB85D\uC77C\uC790' },
         { value: 'last_login', label: '\uB9C8\uC9C0\uB9C9 \uB85C\uADF8\uC778' },
         { value: 'real_hire_date', label: '\uC785\uC0AC\uC77C' },
-        { value: 'real_retire_date', label: '\uD1F4\uC0AC\uC77C' },
-        { value: 'deleted_at', label: '\uBE44\uD65C\uC131\uD654\uC77C' }
+        { value: 'real_retire_date', label: '\uD1F4\uC0AC\uC77C' }
     ];
-
-    const EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1';
-    const EMPLOYEE_DEPRECATED_SETTINGS_KEYS = Object.freeze([
-        'client_name',
-        'department_name',
-        'position_name',
-        'role_name',
-        '__legacy_employee_status'
-    ]);
-    const EMPLOYEE_MODAL_FIELD_POLICIES = Object.freeze([
-        { selector: '#edit_employee_username', key: 'username', fallback: '아이디' },
-        { selector: '#edit_employee_name', key: 'employee_name', fallback: '직원명' },
-        { selector: '#edit_employee_phone', key: 'phone', fallback: '연락처' },
-        { selector: '#edit_employee_emergency_phone', key: 'emergency_phone', fallback: '비상연락처' },
-        { selector: '#edit_employee_email', key: 'email', fallback: '이메일' },
-        { selector: '#edit_employee_rrn', key: 'rrn', fallback: '주민등록번호' },
-        { selector: '#edit_employee_address', key: 'address', fallback: '주소' },
-        { selector: '#edit_employee_address_detail', key: 'address_detail', fallback: '상세주소' },
-        { selector: '#edit_department_select', key: 'department_id', fallback: '부서' },
-        { selector: '#edit_position_select', key: 'position_id', fallback: '직책' },
-        { selector: '#edit_role_select', key: 'role_id', fallback: '역할' },
-        { selector: '#edit_employee_client_select', key: 'client_id', fallback: '거래처(회계용)' },
-        { selector: '#edit_doc_hire_date', key: 'doc_hire_date', fallback: '서류입사일' },
-        { selector: '#edit_real_hire_date', key: 'real_hire_date', fallback: '실입사일' },
-        { selector: '#edit_doc_retire_date', key: 'doc_retire_date', fallback: '서류퇴사일' },
-        { selector: '#edit_real_retire_date', key: 'real_retire_date', fallback: '실퇴사일' },
-        { selector: '#edit_profile_image', key: 'profile_image', fallback: '프로필사진' },
-        { selector: '#edit_rrn_image', key: 'rrn_image', fallback: '신분증파일' },
-        { selector: '#edit_certificate_file', key: 'certificate_file', fallback: '자격증파일' },
-        { selector: '#edit_certificate_name', key: 'certificate_name', fallback: '자격증명' },
-        { selector: '#edit_bank_name', key: 'bank_name', fallback: '은행명' },
-        { selector: '#edit_account_number', key: 'account_number', fallback: '계좌번호' },
-        { selector: '#edit_account_holder', key: 'account_holder', fallback: '예금주' },
-        { selector: '#edit_bank_file', key: 'bank_file', fallback: '통장사본' },
-        { selector: '#edit_two_factor', key: 'two_factor_enabled', fallback: '2차인증' },
-        { selector: '#edit_email_notify', key: 'email_notify', fallback: '이메일알림' },
-        { selector: '#edit_sms_notify', key: 'sms_notify', fallback: 'SMS알림' },
-        { selector: '#edit_employee_note', key: 'note', fallback: '노트' },
-        { selector: '#edit_employee_memo', key: 'memo', fallback: '메모' }
-    ]);
 
     let employeeTable = null;
     let employeeEditModal = null;
@@ -166,10 +105,8 @@ window.AdminPicker = AdminPicker;
     let todayPicker = null;
     let rrnVisible = false;
     let globalBound = false;
-    let employeeClientSelect2Inited = false;
     const employeeSelectOptionsCache = new Map();
     let employeeBankControlsPromise = null;
-    let employeePolicyBound = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -181,15 +118,14 @@ window.AdminPicker = AdminPicker;
         initEmployeePage($);
     });
 
-    function initEmployeePage($) {
-        sanitizeEmployeeTableSettingsState();
+    async function initEmployeePage($) {
+        await initDataTable($);
+
         initEmployeeModules();
         initModals();
         initAdminDatePicker();
         bindAdminDateInputs();
         bindDateIconPicker();
-
-        initDataTable($);
         bindRowReorder(employeeTable, {
             api: API.REORDER,
             onSuccess() {
@@ -214,57 +150,18 @@ window.AdminPicker = AdminPicker;
         bindGlobalEvents();
     }
 
-    function sanitizeEmployeeTableSettingsState() {
-        try {
-            const parsed = readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, {
-                userSettingPageKey: 'employee',
-            });
-            if (!parsed || typeof parsed !== 'object') return;
-
-            const deprecated = new Set(EMPLOYEE_DEPRECATED_SETTINGS_KEYS);
-            const nextState = { ...parsed };
-            let changed = false;
-
-            ['visibleColumns', 'columnOrder'].forEach((key) => {
-                if (!Array.isArray(nextState[key])) return;
-                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
-                if (filtered.length !== nextState[key].length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
-                if (!nextState[key] || typeof nextState[key] !== 'object') return;
-                const filtered = Object.fromEntries(
-                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
-                );
-                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                writeSystemUserSettingsStorage(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
-                    userSettingPageKey: 'employee',
-                    settingType: 'TABLE',
-                });
-            }
-        } catch (error) {
-            console.warn('[employee] table settings sanitize failed:', error);
-        }
-    }
-
     function initEmployeeModules() {
         try {
             window.EmployeeUtils?.hideAlertMessages?.();
             window.EmployeePreview?.initCreate?.();
             window.EmployeePreview?.initEdit?.();
-            window.KakaoAddress?.bind?.();
+            bindLazyAddress({
+                root: document.getElementById('employeeEditModal'),
+                detail: '#edit_employee_address_detail',
+                notify: (type, message) => AppCore.notify(type, message),
+            });
             window.EmployeeManagerSelect?.initCreate?.();
             window.EmployeeManagerSelect?.initEdit?.();
-            void prepareEmployeeBankControls();
         } catch (e) {
             console.error('[employees.js] initEmployeeModules failed:', e);
         }
@@ -278,6 +175,7 @@ window.AdminPicker = AdminPicker;
             employeeEditModal = new bootstrap.Modal(editEl, { focus: false });
             bindEmployeePolicySync();
             applyEmployeeModalPolicyLabels(document);
+            renderEmployeeSystemInfo();
 
             editEl.addEventListener('shown.bs.modal', () => {
                 bindAdminDateInputs();
@@ -288,201 +186,6 @@ window.AdminPicker = AdminPicker;
         if (imageEl) {
             originalImageModal = new bootstrap.Modal(imageEl, { focus: false });
         }
-    }
-
-    function currentEmployeePolicyState() {
-        return readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, {
-            userSettingPageKey: 'employee',
-        }) || {};
-    }
-
-    function employeeFieldLabel(key, _fallback = '') {
-        const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnDisplayName(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentEmployeePolicyState(),
-            normalizedKey
-        );
-    }
-
-    function employeeFieldRequirement(key) {
-        const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnRequirementPolicy(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentEmployeePolicyState()
-        );
-    }
-
-    function employeeFieldStarMarkup(key) {
-        const policy = employeeFieldRequirement(key);
-        if (policy === 'required') {
-            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
-        }
-        if (policy === 'optional') {
-            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
-        }
-        return '';
-    }
-
-    function findEmployeeModalLabel(fieldSelector, root = document) {
-        const field = root.querySelector(fieldSelector);
-        if (!field) return null;
-
-        if (field.id) {
-            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
-            if (labelByFor) return labelByFor;
-        }
-
-        const column = field.closest('div[class*="col-"]');
-        if (column) {
-            const label = column.querySelector('label.form-label');
-            if (label) return label;
-        }
-
-        const group = field.closest('.col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-12, .mb-3');
-        if (group) {
-            const label = group.querySelector('label.form-label');
-            if (label) return label;
-        }
-
-        return field.closest('label.form-label') || null;
-    }
-
-    function applyEmployeeModalPolicyLabels(root = document) {
-        EMPLOYEE_MODAL_FIELD_POLICIES.forEach((field) => {
-            const labelEl = findEmployeeModalLabel(field.selector, root);
-            if (!labelEl) return;
-
-            const displayName = employeeFieldLabel(field.key, field.fallback);
-            const starMarkup = employeeFieldStarMarkup(field.key);
-            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
-        });
-    }
-
-    function isEmployeeFilePolicyKey(key) {
-        return ['profile_image', 'rrn_image', 'certificate_file', 'bank_file'].includes(String(key || '').trim());
-    }
-
-    function isEmployeeFieldVisible(field) {
-        if (!field) return false;
-        if (field.type === 'hidden') return false;
-        if (field.disabled) return false;
-        const style = window.getComputedStyle(field);
-        if (style.display === 'none' || style.visibility === 'hidden') return false;
-        return true;
-    }
-
-    function shouldValidateEmployeePolicyField(field) {
-        const selector = String(field?.selector || '').trim();
-        if (!selector) return false;
-        const input = document.querySelector(selector);
-        return isEmployeeFieldVisible(input);
-    }
-
-    function hasEmployeeFileValue(key) {
-        const normalizedKey = String(key || '').trim();
-
-        if (normalizedKey === 'profile_image') {
-            const input = document.getElementById('edit_profile_image');
-            const deleteFlag = document.getElementById('edit_profile_image_delete');
-            const preview = document.getElementById('edit_profile_preview');
-            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
-            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
-        }
-
-        if (normalizedKey === 'rrn_image') {
-            const input = document.getElementById('edit_rrn_image');
-            const deleteFlag = document.getElementById('edit_rrn_image_delete');
-            const preview = document.getElementById('edit_id_preview');
-            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
-            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
-        }
-
-        if (normalizedKey === 'certificate_file') {
-            const input = document.getElementById('edit_certificate_file');
-            const deleteFlag = document.getElementById('edit_certificate_file_delete');
-            const preview = document.getElementById('edit_cert_preview_img');
-            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
-            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
-        }
-
-        if (normalizedKey === 'bank_file') {
-            const input = document.getElementById('edit_bank_file');
-            const deleteFlag = document.getElementById('edit_bank_file_delete');
-            const preview = document.getElementById('edit_bank_preview');
-            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
-            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
-        }
-
-        return false;
-    }
-
-    function collectEmployeeDetailValues(form, formData) {
-        const values = {};
-
-        EMPLOYEE_MODAL_FIELD_POLICIES.forEach((field) => {
-            const key = String(field?.key || '').trim();
-            const selector = String(field?.selector || '').trim();
-            if (!key || !selector || isEmployeeFilePolicyKey(key)) return;
-
-            const input = form?.querySelector(selector) || document.querySelector(selector);
-            if (!input) return;
-
-            const fieldName = String(input.name || key).trim();
-            if (input.type === 'checkbox') {
-                values[key] = input.checked ? '1' : '';
-                return;
-            }
-
-            values[key] = formData.get(fieldName) ?? input.value ?? '';
-        });
-
-        return values;
-    }
-
-    function validateEmployeeRequiredPolicies(fields = [], values = {}) {
-        for (const field of fields) {
-            const key = String(field?.key || '').trim();
-            if (!key || employeeFieldRequirement(key) !== 'required') {
-                continue;
-            }
-            if (!shouldValidateEmployeePolicyField(field)) {
-                continue;
-            }
-
-            const label = employeeFieldLabel(key, field?.fallback || key);
-            if (isEmployeeFilePolicyKey(key)) {
-                if (!hasEmployeeFileValue(key)) {
-                    return `${label} 항목은 필수입니다.`;
-                }
-                continue;
-            }
-
-            const value = values[key];
-            if (Array.isArray(value)) {
-                if (value.length === 0) {
-                    return `${label} 항목은 필수입니다.`;
-                }
-                continue;
-            }
-
-            if (String(value ?? '').trim() === '') {
-                return `${label} 항목은 필수입니다.`;
-            }
-        }
-
-        return '';
-    }
-
-    function bindEmployeePolicySync() {
-        if (employeePolicyBound) return;
-        employeePolicyBound = true;
-
-        document.addEventListener('datatable-settings:updated', (event) => {
-            const storageKey = String(event?.detail?.storageKey || '').trim();
-            if (storageKey && storageKey !== EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY) return;
-            applyEmployeeModalPolicyLabels(document);
-        });
     }
 
     function initAdminDatePicker() {
@@ -627,10 +330,10 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    function initDataTable($) {
+    async function initDataTable($) {
         const columns = buildEmployeeColumns();
 
-        employeeTable = createDataTable({
+        employeeTable = await createDataTable({
             tableSelector: '#employee-table',
             api: API.LIST,
             columns,
@@ -648,10 +351,11 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             selectable: true,
-            deleteButton: false,
+            deleteButton: true,
+            deleteApi: API.DELETE,
             buttons: [
                 {
-                    text: '\uC0C8 \uC9C1\uC6D0',
+                    text: '신규등록',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         $(document).trigger('employee:create-open');
@@ -711,11 +415,6 @@ window.AdminPicker = AdminPicker;
                     }
 
                     if (data == null) {
-                        if (field === 'client_id') {
-                            return type === 'display'
-                                ? '<span class="text-danger fw-semibold">\uBBF8\uC5F0\uACB0</span>'
-                                : '';
-                        }
                         return '';
                     }
 
@@ -749,13 +448,6 @@ window.AdminPicker = AdminPicker;
                         field === 'sms_notify'
                     ) {
                         return String(data) === '1' ? 'ON' : 'OFF';
-                    }
-
-                    if (field === 'client_id') {
-                        const clientName = String(row?.client_name || '').trim();
-                        return clientName
-                            ? escapeHtml(clientName)
-                            : '<span class="text-danger fw-semibold">\uBBF8\uC5F0\uACB0</span>';
                     }
 
                     if (field === 'department_id') {
@@ -815,7 +507,11 @@ window.AdminPicker = AdminPicker;
 
         columns.push({
             data: null,
+            settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
+            width: '90px',
+            widthResizable: true,
             className: 'text-center no-colvis',
             headerClassName: 'text-center no-colvis',
             orderable: false,
@@ -935,10 +631,7 @@ window.AdminPicker = AdminPicker;
         if (!form) return;
 
         const formData = new FormData(form);
-        const requiredMessage = validateEmployeeRequiredPolicies(
-            EMPLOYEE_MODAL_FIELD_POLICIES,
-            collectEmployeeDetailValues(form, formData)
-        );
+        const requiredMessage = validateEmployeeRequiredPolicies(collectEmployeeDetailValues(form, formData));
         if (requiredMessage) {
             AppCore.notify('warning', requiredMessage);
             return;
@@ -950,16 +643,6 @@ window.AdminPicker = AdminPicker;
 
         if (!username || !name) {
             AppCore.notify('warning', '아이디와 이름을 입력하세요.');
-            return;
-        }
-
-        const certName = String($('#edit_certificate_name').val() || '').trim();
-        const certFile = document.getElementById('edit_certificate_file')?.files?.[0];
-        const hasExistingCert = !!$('#edit_cert_preview_img').data('file-path');
-        const certDeleted = $('#edit_certificate_file_delete').val() === '1';
-
-        if ((certName && !certFile && !hasExistingCert) || (!certName && (certFile || hasExistingCert) && !certDeleted)) {
-            AppCore.notify('warning', '자격증 이름과 파일은 함께 입력해야 합니다.');
             return;
         }
 
@@ -1118,15 +801,17 @@ window.AdminPicker = AdminPicker;
         setEmployeeBankSelectValue('');
         $('#edit_account_number').val('');
         $('#edit_account_holder').val('');
+        renderEmployeeSystemInfo(); renderRepresentativeQualification();
 
         await Promise.all([
             loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, ''),
             loadSelectOptions('#edit_position_select', API.POSITION_LIST, ''),
-            loadSelectOptions('#edit_role_select', API.ROLE_LIST, '')
+            loadEmployeeJobOptions(''),
+            loadSelectOptions('#edit_role_select', API.ROLE_LIST, ''),
+            initCodeSelectControls(document.getElementById('employeeEditModal'))
         ]);
-
-        initEmployeeClientSelect2();
-        setEmployeeClientSelect2({});
+        setEmployeeHrFieldMode(true);
+        $('#edit_employment_status').val('ACTIVE').trigger('change');
 
         $('#edit_profile_preview').attr('src', '/public/assets/img/default-avatar.png').attr('data-file-path', '');
         $('#edit_profile_delete_btn').hide();
@@ -1137,12 +822,6 @@ window.AdminPicker = AdminPicker;
         $('#edit_id_delete_btn').hide();
         $('#edit_rrn_image_delete').val('0');
         $('#id_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
-
-        $('#edit_cert_preview_img').attr('src', '/public/assets/img/placeholder-cert.png').data('file-path', '');
-        $('#edit_cert_delete_btn').hide();
-        $('#edit_certificate_file_delete').val('0');
-        $('#edit_certificate_name').val('');
-        $('#cert_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
 
         $('#edit_bank_preview').attr('src', '/public/assets/img/placeholder-bank.png').data('file-path', '');
         $('#edit_bank_delete_btn').hide();
@@ -1171,14 +850,14 @@ window.AdminPicker = AdminPicker;
 
         $('#edit_profile_image').val('');
         $('#edit_rrn_image').val('');
-        $('#edit_certificate_file').val('');
         $('#edit_bank_file').val('');
         $('#edit_profile_image_delete').val('0');
         $('#edit_rrn_image_delete').val('0');
-        $('#edit_certificate_file_delete').val('0');
         $('#edit_bank_file_delete').val('0');
 
         $('#edit_employee_id').val(row.id || '');
+        $('#edit_qualification_education_link').attr('href', '/institution/human-resources/qualification-education?employee_id=' + encodeURIComponent(row.id || ''));
+        renderRepresentativeQualification(row);
         $('#edit_employee_username').val(row.username || '');
         $('#edit_employee_name').val(row.employee_name || '');
         $('#edit_employee_phone').val(formatMobile(row.phone || ''));
@@ -1195,7 +874,6 @@ window.AdminPicker = AdminPicker;
         $('#edit_account_number').val(row.account_number || '');
         formatEmployeeAccountNumberInput();
         $('#edit_account_holder').val(row.account_holder || '');
-        $('#edit_certificate_name').val(row.certificate_name || '');
         $('#edit_employee_note').val(row.note || '');
         $('#edit_employee_memo').val(row.memo || '');
 
@@ -1206,11 +884,12 @@ window.AdminPicker = AdminPicker;
         await Promise.all([
             loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, row.department_id || ''),
             loadSelectOptions('#edit_position_select', API.POSITION_LIST, row.position_id || ''),
-            loadSelectOptions('#edit_role_select', API.ROLE_LIST, row.role_id || '')
+            loadEmployeeJobOptions(row.job_id || ''),
+            loadSelectOptions('#edit_role_select', API.ROLE_LIST, row.role_id || ''),
+            initCodeSelectControls(document.getElementById('employeeEditModal'))
         ]);
-
-        initEmployeeClientSelect2();
-        setEmployeeClientSelect2(row);
+        $('#edit_employment_status').val(row.employment_status || '').trigger('change');
+        setEmployeeHrFieldMode(false);
 
         const profileSrc = resolveFileSrc(row.profile_image, '/public/assets/img/default-avatar.png');
         $('#edit_profile_preview').attr('src', profileSrc).attr('data-file-path', row.profile_image || '');
@@ -1222,10 +901,6 @@ window.AdminPicker = AdminPicker;
         $('#edit_id_delete_btn').toggle(!!row.rrn_image);
         $('#id_box').attr('data-label', row.rrn_image ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
-        $('#edit_cert_preview_img').attr('src', getCertPreview(row.certificate_file)).data('file-path', row.certificate_file || '');
-        $('#edit_cert_delete_btn').toggle(!!row.certificate_file);
-        $('#cert_box').attr('data-label', row.certificate_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
-
         $('#edit_bank_preview').attr('src', getBankPreview(row.bank_file)).data('file-path', row.bank_file || '');
         $('#edit_bank_delete_btn').toggle(!!row.bank_file);
         $('#bank_box').attr('data-label', row.bank_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
@@ -1234,8 +909,6 @@ window.AdminPicker = AdminPicker;
         $('#edit_created_by').text(actorDisplay(row, 'user_created_by'));
         $('#edit_updated_at').text(row.user_updated_at || '-');
         $('#edit_updated_by').text(actorDisplay(row, 'user_updated_by'));
-        $('#edit_deleted_at').text(row.deleted_at || '-');
-        $('#edit_deleted_by').text(actorDisplay(row, 'deleted_by'));
         $('#edit_approved').text(String(row.approved) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778');
         $('#edit_approved_at').text(row.approved_at || '-');
         $('#edit_approved_by').text(actorDisplay(row, 'approved_by'));
@@ -1246,6 +919,7 @@ window.AdminPicker = AdminPicker;
         $('#edit_last_login_device').text(row.last_login_device || '-');
         $('#edit_password_updated_at').text(row.password_updated_at || '-');
         $('#edit_password_updated_by').text(actorDisplay(row, 'password_updated_by'));
+        renderEmployeeSystemInfo(row);
 
         $('#edit_is_active').html(
             String(row.is_active) === '1'
@@ -1271,92 +945,10 @@ window.AdminPicker = AdminPicker;
         applyEmployeeModalPolicyLabels(document);
     }
 
-    function initEmployeeClientSelect2() {
-        const el = document.getElementById('edit_employee_client_select');
-        if (!el || employeeClientSelect2Inited) return;
-
-        const $el = window.jQuery(el);
-
-        if ($el.hasClass('select2-hidden-accessible')) {
-            $el.select2('destroy');
-        }
-
-        AdminPicker.select2Ajax(el, {
-            url: API.CLIENT_SEARCH,
-            placeholder: '\uC120\uD0DD(\uC5C6\uC74C)',
-            includeCommonAdd: true,
-            minimumInputLength: 0,
-            dropdownParent: window.jQuery('#employeeEditModal'),
-            width: '100%',
-            dataBuilder(params) {
-                return {
-                    q: params.term || '',
-                    limit: 20
-                };
-            },
-            processResults(json) {
-                const rows = json?.results ?? json?.data ?? [];
-
-                return {
-                    results: rows.map(row => ({
-                        id: String(row.id ?? ''),
-                        text: row.text ?? row.client_name ?? '',
-                        raw: row
-                    })).filter(item => item.id !== '')
-                };
-            }
-        });
-
-        $el.off('.employeeClient');
-        $el.on('select2:selecting.employeeClient', function (e) {
-            const item = e.params?.args?.data;
-            if (!handleEmployeeClientSelectOption(this, item)) return;
-
-            e.preventDefault();
-        });
-
-        $el.on('select2:select.employeeClient', function (e) {
-            handleEmployeeClientSelectOption(this, e.params?.data);
-        });
-
-        el.removeEventListener?.('picker:add', el.__employeeClientPickerAdd);
-        el.__employeeClientPickerAdd = () => {
-            window.jQuery(el).val(null).trigger('change.select2');
-            window.jQuery(el).select2('close');
-            openEmployeeClientQuickCreate('');
-        };
-        el.addEventListener('picker:add', el.__employeeClientPickerAdd);
-
-        employeeClientSelect2Inited = true;
-    }
-
-    function handleEmployeeClientSelectOption(selectEl, item) {
-        if (!item) return false;
-
-        window.jQuery(selectEl).val(String(item.id)).trigger('change');
-        return false;
-    }
-
-    function setEmployeeClientSelect2(data) {
-        const clientId = String(data.client_id ?? '').trim();
-        const $el = $('#edit_employee_client_select');
-
-        if (!clientId) {
-            $el.val(null).trigger('change');
-            return;
-        }
-
-        const clientText = data.client_name ?? clientId;
-
-        $el.find(`option[value="${clientId}"]`).remove();
-        $el.append(new Option(clientText, clientId, true, true));
-        $el.val(clientId).trigger('change');
-    }
-
     function prepareEmployeeBankControls() {
         if (!employeeBankControlsPromise) {
             employeeBankControlsPromise = Promise.all([
-                loadBankAccountFormatRegistry?.(),
+                getCodeOptions('BANK').then((rows) => setBankAccountFormatRegistry?.(rows)),
                 initCodeSelectControls(document.getElementById('employeeEditModal'))
             ])
                 .then(() => {
@@ -1385,7 +977,7 @@ window.AdminPicker = AdminPicker;
 
         input.value = formatAccountNumber?.(input.value, getEmployeeBankName()) || input.value;
 
-        void loadBankAccountFormatRegistry?.({ force: options.forceReload === true }).then(() => {
+        void prepareEmployeeBankControls().then(() => {
             input.value = formatAccountNumber?.(input.value, getEmployeeBankName()) || input.value;
         });
     }
@@ -1434,21 +1026,6 @@ window.AdminPicker = AdminPicker;
         if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
             window.jQuery(select).trigger('change.select2');
         }
-    }
-
-    function openEmployeeClientQuickCreate(defaultName = '') {
-        openClientQuickCreate({
-            select: document.getElementById('edit_employee_client_select'),
-            initialValues: {
-                client_name: defaultName
-            },
-            onSuccess() {
-                AppCore?.notify?.('success', '\uAC70\uB798\uCC98\uAC00 \uB4F1\uB85D\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
-            },
-            getOptionText(values) {
-                return values.client_name || '';
-            }
-        });
     }
 
     function getBankPreview(filePath) {
@@ -1500,7 +1077,7 @@ window.AdminPicker = AdminPicker;
                 const text = row.name ?? row.dept_name ?? row.department_name ?? row.position_name ?? row.role_name ?? row.label ?? Object.values(row)[1] ?? '';
 
                 if (id !== undefined && id !== null && String(id) !== '') {
-                    items.push({ id: String(id), text: String(text ?? '') });
+                    items.push({ id: String(id), text: String(text ?? ''), is_active: row.is_active });
                 }
             });
 
@@ -1514,11 +1091,35 @@ window.AdminPicker = AdminPicker;
         return promise;
     }
 
+    function setEmployeeHrFieldMode(isCreate) {
+        const selectors = [
+            '#edit_department_select', '#edit_position_select', '#edit_job_select', '#edit_employment_status',
+            '#edit_doc_hire_date', '#edit_real_hire_date', '#edit_doc_retire_date', '#edit_real_retire_date'
+        ];
+        selectors.forEach((selector) => $(selector).prop('disabled', !isCreate));
+        $('.employee-hr-edit-notice').toggleClass('d-none', isCreate);
+    }
+
+    async function loadEmployeeJobOptions(selectedValue = '') {
+        const response = await fetch(API.PERSONNEL_OPTIONS, { headers: { Accept: 'application/json' } });
+        const json = await response.json();
+        if (!response.ok || json.success === false) throw new Error(json.message || '직무 목록을 불러오지 못했습니다.');
+        const jobs = Array.isArray(json?.data?.jobs) ? json.data.jobs : [];
+        const items = jobs.map((row) => ({ id: row.id, text: row.label || row.job_name || row.text || row.id }));
+        AdminPicker.destroySelect2('#edit_job_select');
+        AdminPicker.reloadSelect2('#edit_job_select', items, 'id', 'text', null);
+        AdminPicker.select2('#edit_job_select', { allowClear: true, width: '100%', dropdownParent: $('#employeeEditModal') });
+        $('#edit_job_select').val(String(selectedValue || '')).trigger('change');
+    }
+
     async function loadSelectOptions(selector, apiUrl, selectedValue = '', method = 'GET') {
         selectedValue = selectedValue != null ? String(selectedValue) : '';
 
         try {
-            const items = await getEmployeeSelectItems(apiUrl, method);
+            const loadedItems = await getEmployeeSelectItems(apiUrl, method);
+            const items = apiUrl === API.ROLE_LIST
+                ? loadedItems.filter((item) => String(item.is_active) === '1' || String(item.id) === selectedValue)
+                : loadedItems;
 
             AdminPicker.destroySelect2(selector);
             AdminPicker.reloadSelect2(selector, items, 'id', 'text', null);
@@ -1553,7 +1154,6 @@ window.AdminPicker = AdminPicker;
             if (window.AppCore?.notify) {
                 AppCore.notify('info', message);
             } else {
-                console.log(message);
             }
         }
 

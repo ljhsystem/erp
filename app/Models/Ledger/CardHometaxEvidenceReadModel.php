@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class CardHometaxEvidenceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -42,7 +42,6 @@ class CardHometaxEvidenceReadModel
         }
 
         $cardSortNoExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['sort_no'], '0');
-        $cardEvidenceSortNoExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
         $cardSourceKeyExpr = $this->schemaService->coalesceExistingColumnExpr($cardTable, 'body', ['external_key', 'source_key', 'approval_number', 'approval_no', 'raw_approval_no', 'raw_approval_number'], "''");
         $cardEvidenceDateExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['approval_date', 'billing_date', 'evidence_date', 'purchase_datetime', 'approved_at', 'created_at'], 'NULL');
         $cardPurchaseDateTimeExpr = $this->schemaService->firstExistingColumnExpr($cardTable, 'body', ['purchase_datetime', 'approval_datetime', 'approved_at', 'approval_date', 'approved_date', 'transaction_datetime', 'evidence_date', 'created_at'], 'NULL');
@@ -67,7 +66,6 @@ class CardHometaxEvidenceReadModel
                 '' AS source_type_name,
                 '' AS import_type_name,
                 {$cardSortNoExpr} AS sort_no,
-                {$cardEvidenceSortNoExpr} AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect($cardTable) . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect($cardTable) . " AS raw_json,

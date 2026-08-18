@@ -1,6 +1,4 @@
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
-import { WORK_TEAM_API } from '/public/assets/js/pages/dashboard/settings/base/work-team/api.js';
-import { createWorkTeamModalModule } from '/public/assets/js/pages/dashboard/settings/base/work-team/modal.js';
 
 export function createEvidenceModalModule({
     state,
@@ -12,6 +10,7 @@ export function createEvidenceModalModule({
     selectedTypeLabel,
     evidenceTypeDisplayName,
     normalizedStatus,
+    businessEvidenceStatusText,
     escapeHtml,
     valueText,
     mapped,
@@ -19,7 +18,6 @@ export function createEvidenceModalModule({
     renderFieldBadge,
     requirementStar,
     compareFieldDisplayOrder,
-    isDeprecatedFormatColumn,
     infoColumnTone,
     editFieldKey,
     editInputType,
@@ -55,6 +53,7 @@ export function createEvidenceModalModule({
     defaultEvidenceTypeCode,
     evidenceMetaDomain,
 }) {
+    let isSavingEditingRow = false;
     const COMMON_BUSINESS_MODAL_FIELDS = Object.freeze([
         { key: 'business_unit', label: '\uC0AC\uC5C5\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
         { key: 'transaction_direction', label: '\uAC70\uB798\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
@@ -147,17 +146,16 @@ export function createEvidenceModalModule({
     const CANONICAL_MODAL_SYSTEM_FIELD_LABELS = Object.freeze({
         id: '\uACE0\uC720 ID(UUID)',
         sort_no: '\uC21C\uBC88',
-        evidence_sort_no: '\uC99D\uBE59 \uC21C\uBC88',
         external_key: '\uC678\uBD80\uC6D0\uBCF8\uC2DD\uBCC4\uAC12',
         source_type: '\uC790\uB8CC\uCD9C\uCC98',
         import_type: '\uC790\uB8CC\uC720\uD615',
         evidence_status: '\uC99D\uBE59 \uC0C1\uD0DC',
         created_at: '\uC0DD\uC131\uC77C\uC2DC',
-        created_by: '\uC0DD\uC131\uC790ID',
+        created_by: '\uC0DD\uC131\uC790',
         updated_at: '\uC218\uC815\uC77C\uC2DC',
-        updated_by: '\uC218\uC815\uC790ID',
+        updated_by: '\uC218\uC815\uC790',
         deleted_at: '\uC0AD\uC81C\uC77C\uC2DC',
-        deleted_by: '\uC0AD\uC81C\uC790ID',
+        deleted_by: '\uC0AD\uC81C\uC790',
     });
     const MODAL_REQUIRED_VALIDATION_EXCLUDED_KEYS = new Set([
         'external_key',
@@ -169,7 +167,6 @@ export function createEvidenceModalModule({
     const MODAL_PAYLOAD_SYSTEM_KEYS = Object.freeze([
         'id',
         'sort_no',
-        'evidence_sort_no',
         'external_key',
         'source_key',
         'source_type',
@@ -185,7 +182,6 @@ export function createEvidenceModalModule({
     const MODAL_DISPLAY_SYSTEM_KEYS = Object.freeze([
         'id',
         'sort_no',
-        'evidence_sort_no',
         'external_key',
         'source_type',
         'import_type',
@@ -199,7 +195,11 @@ export function createEvidenceModalModule({
     ]);
     const MODAL_PAYLOAD_SYSTEM_KEY_SET = new Set(MODAL_PAYLOAD_SYSTEM_KEYS);
     const MODAL_DISPLAY_SYSTEM_KEY_SET = new Set(MODAL_DISPLAY_SYSTEM_KEYS);
-    let workTeamModalBridge = null;
+    const MODAL_ACTOR_NAME_FIELDS = Object.freeze({
+        created_by: 'created_by_name',
+        updated_by: 'updated_by_name',
+        deleted_by: 'deleted_by_name',
+    });
 
     function specialModalCandidateKeys(column = {}) {
         return [
@@ -250,6 +250,18 @@ export function createEvidenceModalModule({
         return '';
     }
 
+    function modalFieldDisplayValue(row = {}, column = {}) {
+        const key = canonicalSystemModalFieldKey(column) || resolveEditFieldKey(column, row);
+        const actorNameField = MODAL_ACTOR_NAME_FIELDS[key];
+        if (actorNameField) {
+            const actorName = String(row?.[actorNameField] ?? '').trim();
+            if (actorName !== '') {
+                return actorName;
+            }
+        }
+        return editFieldValue(row, column);
+    }
+
     function inferSystemModalFieldDataType(key = '', value = '') {
         const target = String(key || '').trim();
         if (/_at$/i.test(target)) return 'datetime';
@@ -259,78 +271,6 @@ export function createEvidenceModalModule({
         if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?::\d{2})?)?$/u.test(text)) return 'datetime';
         if (/^-?\d+(?:\.\d+)?$/u.test(text)) return 'decimal';
         return 'varchar';
-    }
-
-    function buildSystemFallbackColumns(existingColumns = [], policy = {}) {
-        const row = state.editingRow || {};
-        const existingKeys = new Set(
-            existingColumns
-                .map((column) => String(editFieldKey(column) || column.system_field_name || column.original_column_key || '').trim())
-                .filter(Boolean)
-        );
-
-        return MODAL_DISPLAY_SYSTEM_KEYS
-            .filter((key) => Object.prototype.hasOwnProperty.call(row, key))
-            .filter((key) => !existingKeys.has(key))
-            .map((key) => decorateBankModalColumnPolicy({
-                ...fallbackSpecialModalColumn({
-                    key,
-                    label: CANONICAL_MODAL_SYSTEM_FIELD_LABELS[key] || key,
-                    group: 'system',
-                    data_type: inferSystemModalFieldDataType(key, row[key]),
-                }, {
-                    group: 'system',
-                    sourceDomain: policy.metaDomain,
-                }),
-                display_order: 0,
-                editable: 0,
-            }));
-    }
-
-    function ensureWorkTeamModalBridge() {
-        if (workTeamModalBridge) {
-            return workTeamModalBridge;
-        }
-
-        workTeamModalBridge = createWorkTeamModalModule({
-            AdminPicker,
-            api: WORK_TEAM_API,
-            notify,
-            openClientQuickCreate(defaultName = '') {
-                openClientQuickCreate({
-                    select: document.getElementById('modal-work-team-team-leader-client-id'),
-                    initialValues: { client_name: defaultName },
-                    getOptionText(values) {
-                        return values.client_name || '';
-                    },
-                });
-            },
-            reloadTable() {},
-        });
-        workTeamModalBridge.initModal();
-        workTeamModalBridge.bindModalEvents();
-        workTeamModalBridge.preloadModalControls();
-        workTeamModalBridge.bindAdminDateInputs();
-        workTeamModalBridge.bindDateIconPicker();
-
-        return workTeamModalBridge;
-    }
-
-    function setSelect2Option(select, id, text) {
-        if (!select) return;
-        const value = String(id || '').trim();
-        const label = String(text || value).trim();
-        if (value === '' || label === '') return;
-
-        if (window.jQuery?.fn?.select2) {
-            const $select = window.jQuery(select);
-            $select.find(`option[value="${value.replace(/"/g, '\\"')}"]`).remove();
-            $select.append(new Option(label, value, true, true));
-            $select.val(value).trigger('change');
-            return;
-        }
-
-        select.value = value;
     }
 
     function openQuickAddForRef(select, config) {
@@ -346,13 +286,6 @@ export function createEvidenceModalModule({
             return;
         }
 
-        if (config.picker === 'team') {
-            ensureWorkTeamModalBridge().openCreateModal({
-                onSaved(result, values) {
-                    setSelect2Option(select, result?.id, values?.team_name || '');
-                },
-            });
-        }
     }
 
     function bindRefQuickAdd(select, config) {
@@ -402,13 +335,10 @@ export function createEvidenceModalModule({
 
     function resolvePolicyDisplayName(column = {}, fallback = '') {
         const key = String(column.system_field_name || column.original_column_key || editFieldKey(column) || column.key || '').trim();
-        if (Object.prototype.hasOwnProperty.call(CANONICAL_MODAL_SYSTEM_FIELD_LABELS, key)) {
-            return CANONICAL_MODAL_SYSTEM_FIELD_LABELS[key];
-        }
         return resolveDataTableColumnDisplayName(
             { key, system_field_name: key, original_column_key: key },
             currentPolicyState(state.currentType),
-            fallback || column.excel_column_name || column.label || key
+            CANONICAL_MODAL_SYSTEM_FIELD_LABELS[key] || fallback || column.excel_column_name || column.label || key
         );
     }
 
@@ -438,9 +368,6 @@ export function createEvidenceModalModule({
             { key, system_field_name: key, original_column_key: key },
             policyState
         );
-        if (isModalRequiredValidationExcluded({ ...column, key, system_field_name: key, original_column_key: key })) {
-            return 0;
-        }
         if (!hasExplicitPolicy && Object.prototype.hasOwnProperty.call(CANONICAL_MODAL_SYSTEM_FIELD_LABELS, key)) {
             return 0;
         }
@@ -543,22 +470,25 @@ export function createEvidenceModalModule({
         return editFieldKey(a).localeCompare(editFieldKey(b), 'ko-KR', { numeric: true, sensitivity: 'base' });
     }
 
+    function policyColumnOrderIndex(column = {}) {
+        const policyState = currentPolicyState(state.currentType);
+        const columnOrder = Array.isArray(policyState.columnOrder) ? policyState.columnOrder : [];
+        const candidates = specialModalCandidateKeys(column);
+        for (const candidate of candidates) {
+            const index = columnOrder.indexOf(candidate);
+            if (index >= 0) return index;
+        }
+        return Number.MAX_SAFE_INTEGER;
+    }
+
+    function compareColumnPolicyOrder(a = {}, b = {}) {
+        const orderA = policyColumnOrderIndex(a);
+        const orderB = policyColumnOrderIndex(b);
+        if (orderA !== orderB) return orderA - orderB;
+        return compareColumnDatabaseOrder(a, b);
+    }
+
     function compareSystemProcessingColumnOrder(a = {}, b = {}) {
-        const keyA = canonicalSystemModalFieldKey(a);
-        const keyB = canonicalSystemModalFieldKey(b);
-        const orderA = keyA ? MODAL_DISPLAY_SYSTEM_KEYS.indexOf(keyA) : -1;
-        const orderB = keyB ? MODAL_DISPLAY_SYSTEM_KEYS.indexOf(keyB) : -1;
-
-        if (orderA >= 0 && orderB >= 0 && orderA !== orderB) {
-            return orderA - orderB;
-        }
-        if (orderA >= 0 && orderB < 0) {
-            return -1;
-        }
-        if (orderA < 0 && orderB >= 0) {
-            return 1;
-        }
-
         return compareColumnDatabaseOrder(a, b);
     }
 
@@ -593,28 +523,20 @@ export function createEvidenceModalModule({
     function bankModalColumns() {
         const columns = Array.isArray(state.activeFormat?.columns) ? state.activeFormat.columns : [];
         const visibleColumns = columns
-            .filter((column) => !isDeprecatedFormatColumn(column))
             .filter((column) => editFieldKey(column) !== '');
-        const policy = currentModalPolicy();
         const byKey = new Map(visibleColumns.map((column) => [canonicalBusinessModalFieldKey(column) || editFieldKey(column), column]));
         const remainingColumns = visibleColumns.filter((column) => !canonicalBusinessModalFieldKey(column));
-        const businessColumns = COMMON_BUSINESS_MODAL_FIELDS.map((field, index) => {
-            const matched = byKey.get(field.key);
-            if (matched) {
-                return decorateMatchedBusinessModalColumn(field, matched, index + 1);
-            }
-            return decorateBankModalColumnPolicy({
-                ...fallbackSpecialModalColumn(field, {
-                    group: 'business',
-                    sourceDomain: policy.metaDomain,
-                }),
-                display_order: index + 1,
-            });
-        });
+        const businessColumns = COMMON_BUSINESS_MODAL_FIELDS
+            .map((field, index) => {
+                const matched = byKey.get(field.key);
+                return matched ? decorateMatchedBusinessModalColumn(field, matched, index + 1) : null;
+            })
+            .filter(Boolean)
+            .sort(compareColumnPolicyOrder);
         const rawColumns = remainingColumns
             .filter((column) => !canonicalSystemModalFieldKey(column))
             .filter((column) => isRawModalColumn(column))
-            .sort(compareColumnDatabaseOrder)
+            .sort(compareColumnPolicyOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + index + 1,
@@ -627,7 +549,7 @@ export function createEvidenceModalModule({
                 display_order: businessColumns.length + rawColumns.length + index + 1,
                 editable: 0,
             }));
-        const orderedSystemColumns = [...systemColumns, ...buildSystemFallbackColumns(systemColumns, policy)]
+        const orderedSystemColumns = [...systemColumns]
             .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => ({
                 ...column,
@@ -676,28 +598,20 @@ export function createEvidenceModalModule({
     function taxInvoiceModalColumns() {
         const columns = Array.isArray(state.activeFormat?.columns) ? state.activeFormat.columns : [];
         const visibleColumns = columns
-            .filter((column) => !isDeprecatedFormatColumn(column))
             .filter((column) => editFieldKey(column) !== '');
-        const policy = currentModalPolicy();
         const byKey = new Map(visibleColumns.map((column) => [canonicalBusinessModalFieldKey(column) || editFieldKey(column), column]));
         const remainingColumns = visibleColumns.filter((column) => !canonicalBusinessModalFieldKey(column));
-        const businessColumns = BUSINESS_ONLY_MODAL_FIELDS.map((field, index) => {
-            const matched = byKey.get(field.key);
-            if (matched) {
-                return decorateMatchedBusinessModalColumn(field, matched, index + 1);
-            }
-            return decorateBankModalColumnPolicy({
-                ...fallbackSpecialModalColumn(field, {
-                    group: field.group || 'business',
-                    sourceDomain: policy.metaDomain,
-                }),
-                display_order: index + 1,
-            });
-        });
+        const businessColumns = BUSINESS_ONLY_MODAL_FIELDS
+            .map((field, index) => {
+                const matched = byKey.get(field.key);
+                return matched ? decorateMatchedBusinessModalColumn(field, matched, index + 1) : null;
+            })
+            .filter(Boolean)
+            .sort(compareColumnPolicyOrder);
         const rawColumns = remainingColumns
             .filter((column) => !canonicalSystemModalFieldKey(column))
             .filter((column) => isRawModalColumn(column))
-            .sort(compareColumnDatabaseOrder)
+            .sort(compareColumnPolicyOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + index + 1,
@@ -710,7 +624,7 @@ export function createEvidenceModalModule({
                 display_order: businessColumns.length + rawColumns.length + index + 1,
                 editable: 0,
             }));
-        const orderedSystemColumns = [...systemColumns, ...buildSystemFallbackColumns(systemColumns, policy)]
+        const orderedSystemColumns = [...systemColumns]
             .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => ({
                 ...column,
@@ -807,7 +721,7 @@ export function createEvidenceModalModule({
                 data-ref-allow-text="${config.allowText ? '1' : '0'}"
                 data-ref-current-text="${escapeHtml(selectedText)}"
                 data-ref-current-text-only="${textOnly ? '1' : '0'}">
-                <option value=""></option>
+                <option value="" selected>선택(없음)</option>
                 ${option}
             </select>
         `;
@@ -823,8 +737,9 @@ export function createEvidenceModalModule({
             <select class="form-select form-select-sm evidence-edit-input evidence-edit-code"
                 data-key="${escapeHtml(key)}"
                 data-code-group="${escapeHtml(config.codeGroup)}"
-                data-empty-label="${escapeHtml(config.emptyLabel)}"
+                data-empty-label="선택(없음)"
                 data-code-searchable="true">
+                <option value="" selected>선택(없음)</option>
                 ${selectedValue !== '' ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedText || selectedValue)}</option>` : ''}
             </select>
         `;
@@ -883,7 +798,7 @@ export function createEvidenceModalModule({
     function renderSpecialModalGroup(group = {}, columns = [], row = {}, options = {}) {
         if (!columns.length) return '';
         const fieldsHtml = columns
-            .map((column) => renderEditField(column, editFieldValue(row, column), {
+            .map((column) => renderEditField(column, modalFieldDisplayValue(row, column), {
                 readOnly: specialModalReadOnly(column, options.readOnlyResolver),
                 hideSystemKey: true,
             }, row))
@@ -993,7 +908,7 @@ export function createEvidenceModalModule({
             const key = resolveEditFieldKey(column, state.editingRow);
             const title = String(column.excel_column_name || key);
             const systemField = String(column.system_field_name || '').trim();
-            const value = editFieldValue(row, column);
+            const value = modalFieldDisplayValue(row, column);
             const cleanTitle = title.replace(/\s*\*$/u, '');
             const displayStar = requirementStar(column);
             const infoTone = infoColumnTone(column);
@@ -1021,9 +936,9 @@ export function createEvidenceModalModule({
         const columns = Array.isArray(state.activeFormat?.columns) ? state.activeFormat.columns : [];
         return columns
             .slice()
-            .sort(compareFieldDisplayOrder)
-            .filter((column) => !isDeprecatedFormatColumn(column))
-            .filter((column) => editFieldKey(column) !== '');
+            .filter((column) => editFieldKey(column) !== '')
+            .map((column) => decorateBankModalColumnPolicy(column))
+            .sort(compareColumnPolicyOrder);
     }
 
     function editableColumnsForRow(row = {}) {
@@ -1055,7 +970,6 @@ export function createEvidenceModalModule({
         return columns
             .slice()
             .sort(compareFieldDisplayOrder)
-            .filter((column) => !isDeprecatedFormatColumn(column))
             .filter((column) => editFieldKey(column) !== '')
             .filter((column) => ['basic', 'normalized', 'code', 'raw'].includes(infoColumnTone(column)));
     }
@@ -1078,7 +992,7 @@ export function createEvidenceModalModule({
                     data-ref-name-key="${escapeHtml(config.nameKey)}"
                     data-ref-allow-text="${config.allowText ? '1' : '0'}"
                     disabled>
-                    <option value=""></option>
+                    <option value="" selected>선택(없음)</option>
                 </select>
             `;
         }
@@ -1089,7 +1003,7 @@ export function createEvidenceModalModule({
                 <select class="form-select form-select-sm evidence-bulk-input evidence-bulk-code"
                     data-key="${safeKey}"
                     data-code-group="${escapeHtml(config?.codeGroup || '')}"
-                    data-empty-label="${escapeHtml(config?.emptyLabel || '선택하세요')}"
+                    data-empty-label="${escapeHtml('선택(없음)')}"
                     data-code-searchable="true"
                     disabled></select>
             `;
@@ -1197,7 +1111,6 @@ export function createEvidenceModalModule({
                     : (data?.results ?? data?.data ?? []);
                 return {
                     results: [
-                        { id: '', text: '선택하세요' },
                         ...rows.map((row) => {
                             const text = typeof config.listText === 'function' ? config.listText(row) : config.label(row);
                             const refText = typeof config.saveText === 'function' ? config.saveText(row) : text;
@@ -1209,7 +1122,6 @@ export function createEvidenceModalModule({
                                 ...(typeof config.result === 'function' ? config.result(row) : {}),
                             };
                         }).filter((item) => item.id !== '' && item.text !== ''),
-                        ...(config.quickAddEnabled === true ? [{ id: '__add__', text: '+추가' }] : []),
                     ],
                 };
             },
@@ -1791,19 +1703,16 @@ export function createEvidenceModalModule({
     function requiredEditColumns() {
         if (isModalPreset(null, 'bank_like')) {
             return bankModalColumns().filter((column) => resolvePolicyRequirementMode(column) === 1
-                && editFieldKey(column) !== 'raw_balance_amount'
                 && !isModalRequiredValidationExcluded(column)
                 && !specialModalReadOnly(column, bankModalIsReadOnly));
         }
         if (isModalPreset(null, 'business_only')) {
             return taxInvoiceModalColumns().filter((column) => resolvePolicyRequirementMode(column) === 1
-                && editFieldKey(column) !== 'raw_balance_amount'
                 && !isModalRequiredValidationExcluded(column)
                 && !specialModalReadOnly(column));
         }
         const columns = Array.isArray(state.activeFormat?.columns) ? state.activeFormat.columns : [];
         return columns.filter((column) => resolvePolicyRequirementMode(column) === 1
-            && editFieldKey(column) !== 'raw_balance_amount'
             && !isModalRequiredValidationExcluded(column));
     }
 
@@ -1843,38 +1752,53 @@ export function createEvidenceModalModule({
     }
 
     async function saveEditingRow() {
-        if (!state.editingRow) return;
+        if (!state.editingRow || isSavingEditingRow) return;
         if (!validateRequiredEditFields()) return;
         const payload = collectEditPayload();
         const policyPayload = currentColumnPolicyPayload();
         if (!validateBusinessProjectRule(payload)) return;
         const isNew = state.editingRow.__isNew === true;
-        const json = await fetch(isNew ? API.createEvidence : API.saveSeedRow, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: state.editingRow.id || '',
-                import_type: state.currentType,
-                parsed_json: payload,
-                column_display_name: policyPayload.column_display_name,
-                column_requirement_policy: policyPayload.column_requirement_policy,
-            }),
-        }).then(async (response) => {
-            const body = await response.json().catch(() => ({}));
-            if (!response.ok || body.success === false) {
-                throw new Error(body.message || '저장 중 오류가 발생했습니다.');
-            }
-            return body;
-        });
-        notify('success', json.message || (isNew ? '새 증빙이 저장되었습니다.' : '증빙이 수정되었습니다.'));
-        state.editModal?.hide();
-        state.editingRow = null;
-        state.table?.ajax.reload(() => updateSummary(state.lastRows), false);
-        void refreshEvidenceTypeCounts().catch(() => {});
+        const saveButton = state.refs.editSaveBtn;
+        isSavingEditingRow = true;
+        if (saveButton) saveButton.disabled = true;
+        try {
+            const json = await fetch(isNew ? API.createEvidence : API.saveSeedRow, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: state.editingRow.id || '',
+                    import_type: state.currentType,
+                    parsed_json: payload,
+                    column_display_name: policyPayload.column_display_name,
+                    column_requirement_policy: policyPayload.column_requirement_policy,
+                }),
+            }).then(async (response) => {
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok || body.success === false) {
+                    throw new Error(body.message || '저장 중 오류가 발생했습니다.');
+                }
+                return body;
+            });
+            notify('success', json.message || (isNew ? '새 증빙이 저장되었습니다.' : '증빙이 수정되었습니다.'));
+            document.dispatchEvent(new CustomEvent('evidence:updated', {
+                detail: {
+                    import_type: state.currentType,
+                    evidence_id: json.data?.id || state.editingRow?.id || '',
+                },
+            }));
+            state.editModal?.hide();
+            state.editingRow = null;
+            state.table?.ajax.reload(() => updateSummary(state.lastRows), false);
+            void refreshEvidenceTypeCounts().catch(() => {});
+        } finally {
+            isSavingEditingRow = false;
+            if (saveButton) saveButton.disabled = false;
+        }
     }
 
     async function openEvidenceEditModalLatest(row = {}) {
         if (!row?.id || !state.refs.editModal) return;
+
         await ensureActiveFormat(row.import_type || row.source_type || state.currentType);
         if (!state.activeFormat || !Array.isArray(state.activeFormat.columns) || state.activeFormat.columns.length === 0) {
             notify('warning', '자료유형에 대한 형식 정보를 불러오지 못했습니다. 다시 시도해 주세요.');
@@ -1887,15 +1811,17 @@ export function createEvidenceModalModule({
             state.refs.editTitle.textContent = `${typeLabel} 증빙 수정`;
         }
         if (state.refs.editSubtitle) {
+            const statusLabel = businessEvidenceStatusText(row.evidence_status || normalizedStatus(row)) || '-';
             state.refs.editSubtitle.textContent = [
                 `순번 ${row.sort_no || '-'}`,
                 typeLabel,
-                normalizedStatus(row) || '-',
+                statusLabel,
             ].join(' / ');
         }
         renderEditFieldsByType(row);
         bindEditFieldBehaviors();
-        const isEditable = normalizedStatus(row) !== 'PROCESSED' && normalizedStatus(row) !== 'DELETED';
+        const isEditable = !evidenceTypePolicy(row.import_type || state.currentType)?.readOnly
+            && normalizedStatus(row) !== 'PROCESSED' && normalizedStatus(row) !== 'DELETED';
         state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
             input.disabled = !isEditable;
             if (input.classList.contains('evidence-edit-ref') && window.jQuery?.fn?.select2) {
@@ -1913,6 +1839,10 @@ export function createEvidenceModalModule({
 
     async function openEvidenceNewModalLatest() {
         if (!state.refs.editModal) return;
+        if (evidenceTypePolicy(state.currentType)?.readOnly) {
+            notify('warning', '이 자료유형은 최종 승인 시 자동 생성됩니다.');
+            return;
+        }
         await ensureActiveFormat(state.currentType);
         if (!state.activeFormat || !Array.isArray(state.activeFormat.columns) || state.activeFormat.columns.length === 0) {
             notify('warning', '자료유형에 대한 형식 정보를 불러오지 못했습니다. 다시 시도해 주세요.');
@@ -1921,7 +1851,7 @@ export function createEvidenceModalModule({
 
         state.editingRow = {
             __isNew: true,
-            id: '',
+            id: window.crypto.randomUUID(),
             import_type: state.currentType,
             source_type: state.currentType,
             import_type_name: selectedTypeLabel() || state.currentType,

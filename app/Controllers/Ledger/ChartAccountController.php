@@ -3,24 +3,19 @@
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
-use App\Services\Ledger\ChartAccountExcelService;
 use App\Services\Ledger\ChartAccountService;
-use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\DbPdo;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Core\Session;
 
 class ChartAccountController
 {
     private ChartAccountService $service;
-    private ChartAccountExcelService $excelService;
     private LayoutController $layout;
 
     public function __construct()
     {
         $pdo = DbPdo::conn();
         $this->service = new ChartAccountService($pdo);
-        $this->excelService = new ChartAccountExcelService($this->service);
         $this->layout = new LayoutController($pdo);
     }
 
@@ -33,6 +28,7 @@ class ChartAccountController
 
     public function apiList(): void
     {
+        Session::write();
         try {
             $filters = $this->decodeFilters($_GET['filters'] ?? '[]');
             $this->json([
@@ -40,7 +36,7 @@ class ChartAccountController
                 'data' => $this->service->getList($filters),
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -52,7 +48,7 @@ class ChartAccountController
                 'data' => $this->service->getTreeStructured(),
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -83,7 +79,7 @@ class ChartAccountController
                 'data' => $row,
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError('계정과목 상세 조회 중 오류가 발생했습니다.', 500, $e->getMessage());
+            $this->jsonError('계정과목 상세 조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -110,10 +106,6 @@ class ChartAccountController
                 'new_parent_name' => $_POST['new_parent_name'] ?? null,
             ];
 
-            if (array_key_exists('sub_policies', $_POST)) {
-                $payload['sub_policies'] = json_decode($_POST['sub_policies'] ?? '[]', true) ?? [];
-            }
-
             if (array_key_exists('sub_accounts', $_POST)) {
                 $payload['sub_accounts'] = json_decode($_POST['sub_accounts'] ?? '[]', true) ?? [];
             }
@@ -130,7 +122,7 @@ class ChartAccountController
 
             $this->json($result);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage(), 500);
+            $this->jsonError('저장 중 오류가 발생했습니다.', 500);
         }
     }
 
@@ -147,7 +139,7 @@ class ChartAccountController
 
             $this->json($this->service->updateStatus($id, $isActive === 1 ? 1 : 0));
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('수정 중 오류가 발생했습니다.');
         }
     }
 
@@ -162,13 +154,8 @@ class ChartAccountController
 
             $this->json($this->service->softDelete($id));
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('삭제 중 오류가 발생했습니다.');
         }
-    }
-
-    public function apiSoftDelete(): void
-    {
-        $this->apiDelete();
     }
 
     public function apiTrashList(): void
@@ -179,43 +166,7 @@ class ChartAccountController
                 'data' => $this->service->getTrashList(),
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
-        }
-    }
-
-    public function apiTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
-            'account_template.xlsx'
-        );
-    }
-
-    public function apiExcel(): void
-    {
-        $filename = 'accounts_' . date('Ymd_His') . '.xlsx';
-        $this->downloadSpreadsheet(
-            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
-            $filename
-        );
-    }
-
-    public function apiDownloadAllExcel(): void
-    {
-        $this->apiExcel();
-    }
-
-    public function apiExcelUpload(): void
-    {
-        try {
-            if (empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-                $this->jsonError('업로드할 엑셀 파일을 선택해 주세요.', 400);
-                return;
-            }
-
-            $this->json($this->service->saveFromExcelFile($_FILES['file']['tmp_name']));
-        } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage(), 500);
+            $this->jsonError('조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -233,7 +184,7 @@ class ChartAccountController
             $this->service->reorder($changes);
             $this->json(['success' => true]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('정렬 저장 중 오류가 발생했습니다.');
         }
     }
 
@@ -248,7 +199,7 @@ class ChartAccountController
 
             $this->json($this->service->restore($id));
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('복구 중 오류가 발생했습니다.');
         }
     }
 
@@ -264,7 +215,7 @@ class ChartAccountController
             $this->service->restoreBulk($ids);
             $this->json(['success' => true]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('복구 중 오류가 발생했습니다.');
         }
     }
 
@@ -274,7 +225,7 @@ class ChartAccountController
             $this->service->restoreAll();
             $this->json(['success' => true]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('복구 중 오류가 발생했습니다.');
         }
     }
 
@@ -289,13 +240,8 @@ class ChartAccountController
 
             $this->json($this->service->hardDelete($id));
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('영구삭제 중 오류가 발생했습니다.');
         }
-    }
-
-    public function apiHardDelete(): void
-    {
-        $this->apiPurge();
     }
 
     public function apiPurgeBulk(): void
@@ -307,34 +253,19 @@ class ChartAccountController
                 return;
             }
 
-            foreach ($ids as $id) {
-                $this->service->hardDelete($id);
-            }
-
-            $this->json(['success' => true]);
+            $this->json($this->service->hardDeleteMany($ids));
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('영구삭제 중 오류가 발생했습니다.');
         }
-    }
-
-    public function apiHardDeleteBulk(): void
-    {
-        $this->apiPurgeBulk();
     }
 
     public function apiPurgeAll(): void
     {
         try {
-            $this->service->hardDeleteAll();
-            $this->json(['success' => true]);
+            $this->json($this->service->hardDeleteAll());
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('영구삭제 중 오류가 발생했습니다.');
         }
-    }
-
-    public function apiHardDeleteAll(): void
-    {
-        $this->apiPurgeAll();
     }
 
     public function apiSearch(): void
@@ -365,7 +296,7 @@ class ChartAccountController
                 'filters' => $filters,
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -382,7 +313,7 @@ class ChartAccountController
                 'data' => $rows,
             ]);
         } catch (\Throwable $e) {
-            $this->jsonError($e->getMessage());
+            $this->jsonError('조회 중 오류가 발생했습니다.');
         }
     }
 
@@ -403,16 +334,6 @@ class ChartAccountController
             'pageStyles' => $pageStyles ?? '',
             'pageScripts' => $pageScripts ?? '',
         ]);
-    }
-
-    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
-    {
-        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'account');
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-        (new Xlsx($spreadsheet))->save('php://output');
-        exit;
     }
 
     private function decodeFilters(mixed $filters): array

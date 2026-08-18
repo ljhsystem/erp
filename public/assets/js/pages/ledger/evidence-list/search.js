@@ -8,7 +8,6 @@ export function createEvidenceSearchModule({
     evidenceTypePolicy,
     defaultEvidenceTypeCode,
     escapeHtml,
-    initCodeSelectControls,
 }) {
     const DEFAULT_READY_TYPE_PRIORITY = [
         'BANK_TRANSACTION',
@@ -180,14 +179,17 @@ export function createEvidenceSearchModule({
             const active = option.value === state.currentType ? ' active' : '';
             const label = option.label || evidenceTypeLabel(option.value);
             const pageReady = evidenceTypePolicy(option.value)?.pageReady !== false;
+            const statusLabel = pageReady ? `${count.toLocaleString('ko-KR')}건` : '개발예정';
             return `
-                <button type="button"
+                <a href="${escapeHtml(evidenceTypeRoute(option.value))}"
                     class="evidence-type-tab${active}"
                     data-evidence-type="${escapeHtml(option.value)}"
-                    aria-pressed="${option.value === state.currentType ? 'true' : 'false'}">
+                    ${option.value === state.currentType ? 'aria-current="page"' : ''}
+                    aria-label="${escapeHtml(`${label}, ${statusLabel}`)}"
+                    >
                     <span>${escapeHtml(label)}</span>
                     <span class="evidence-type-tab-count">${pageReady ? count.toLocaleString('ko-KR') : '준비중'}</span>
-                </button>
+                </a>
             `;
         }).join('');
 
@@ -195,13 +197,15 @@ export function createEvidenceSearchModule({
             const fallbackOptions = fallbackEvidenceTypeOptions();
             if (fallbackOptions.length > 0) {
                 state.refs.typeTabs.innerHTML = fallbackOptions.map((option) => `
-                    <button type="button"
+                    <a href="${escapeHtml(evidenceTypeRoute(option.value))}"
                         class="evidence-type-tab${option.value === state.currentType ? ' active' : ''}"
                         data-evidence-type="${escapeHtml(option.value)}"
-                        aria-pressed="${option.value === state.currentType ? 'true' : 'false'}">
+                        ${option.value === state.currentType ? 'aria-current="page"' : ''}
+                        aria-label="${escapeHtml(`${option.label || option.value}, 0건`)}"
+                        >
                         <span>${escapeHtml(option.label || option.value)}</span>
                         <span class="evidence-type-tab-count">0</span>
-                    </button>
+                    </a>
                 `).join('');
             }
         }
@@ -221,6 +225,7 @@ export function createEvidenceSearchModule({
             countEl.classList.add('evidence-type-tab-count-planned');
             countEl.textContent = '준비중';
         });
+
     }
 
     async function refreshEvidenceTypeCounts() {
@@ -228,7 +233,7 @@ export function createEvidenceSearchModule({
             const response = await fetch(`${API.seedRows}?type_counts=1`, { cache: 'no-store' });
             const json = await response.json().catch(() => ({}));
             if (!response.ok || json.success === false) {
-                throw new Error(json.message || '?먮즺?좏삎蹂?嫄댁닔瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+                throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
             }
 
             let fixedCount = 0;
@@ -362,7 +367,7 @@ export function createEvidenceSearchModule({
         if (state.fixedType) {
             state.currentType = state.fixedType;
             if (state.refs.typeSelect) {
-                await initCodeSelectControls(document.getElementById('ledgerDataStatusPage') || document);
+                populateTypeSelectFromPolicy();
                 filterEvidenceTypeSelect();
                 state.refs.typeSelect.value = state.fixedType;
                 if (window.jQuery?.fn?.select2 && window.jQuery(state.refs.typeSelect).hasClass('select2-hidden-accessible')) {
@@ -377,7 +382,7 @@ export function createEvidenceSearchModule({
             return;
         }
 
-        await initCodeSelectControls(document.getElementById('ledgerDataStatusPage') || document);
+        populateTypeSelectFromPolicy();
         filterEvidenceTypeSelect();
         state.currentType = firstAvailableType();
         if (state.refs.typeSelect.value !== state.currentType) {
@@ -386,6 +391,16 @@ export function createEvidenceSearchModule({
                 window.jQuery(state.refs.typeSelect).val(state.currentType).trigger('change.select2');
             }
         }
+    }
+
+    function populateTypeSelectFromPolicy() {
+        if (!state.refs.typeSelect || state.refs.typeSelect.options.length > 0) return;
+        SERVER_TYPE_POLICIES.forEach((policy) => {
+            const option = document.createElement('option');
+            option.value = policy.code;
+            option.textContent = policy.label || policy.code;
+            state.refs.typeSelect.appendChild(option);
+        });
     }
 
     return {

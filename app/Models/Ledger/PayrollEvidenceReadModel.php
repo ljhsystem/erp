@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class PayrollEvidenceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -23,15 +23,15 @@ class PayrollEvidenceReadModel
         }
 
         $normalizedType = strtoupper(trim($importType));
-        $tableName = 'ledger_evidence_payroll';
+        $tableName = $normalizedType === 'PAYROLL' ? 'ledger_evidence_salary_report' : 'ledger_evidence_payroll';
+        $linkEvidenceType = $normalizedType === 'PAYROLL' ? 'PAYROLL_REPORT' : $normalizedType;
         $sourceTypeExpr = $this->schemaService->columnExists($tableName, 'source_type')
             ? "COALESCE(NULLIF(TRIM(body.source_type), ''), 'MANUAL')"
             : "'MANUAL'";
         $sortNoExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['sort_no'], '0');
-        $evidenceSortNoExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['evidence_sort_no', 'sort_no'], '0');
         $sourceKeyExpr = $this->schemaService->coalesceExistingColumnExpr($tableName, 'body', ['external_key', 'source_key', 'approval_number', 'reference_no'], "''");
-        $evidenceDateExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['evidence_date', 'transaction_date', 'issue_date', 'write_date', 'created_at'], 'NULL');
-        $transactionDateExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['transaction_date', 'evidence_date', 'issue_date', 'write_date', 'created_at'], 'NULL');
+        $evidenceDateExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['raw_payment_date', 'evidence_date', 'transaction_date', 'issue_date', 'write_date', 'created_at'], 'NULL');
+        $transactionDateExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['raw_payment_date', 'transaction_date', 'evidence_date', 'issue_date', 'write_date', 'created_at'], 'NULL');
         $clientIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['client_id'], "''");
         $projectIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['project_id'], "''");
         $employeeIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['employee_id'], "''");
@@ -53,8 +53,8 @@ class PayrollEvidenceReadModel
         $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
         $params = [];
 
-        if ($this->schemaService->columnExists($tableName, 'source_type')) {
-            $where[] = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), '')) = " . $this->pdo->quote($normalizedType);
+        if ($this->schemaService->columnExists($tableName, 'import_type')) {
+            $where[] = "UPPER(COALESCE(NULLIF(TRIM(body.import_type), ''), '')) = " . $this->pdo->quote($linkEvidenceType);
         }
 
         if ($requestedId !== '') {
@@ -81,7 +81,6 @@ class PayrollEvidenceReadModel
                 '' AS source_type_name,
                 '' AS import_type_name,
                 {$sortNoExpr} AS sort_no,
-                {$evidenceSortNoExpr} AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect($tableName) . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect($tableName) . " AS raw_json,
@@ -127,14 +126,14 @@ class PayrollEvidenceReadModel
                 '' AS file_name,
                 '' AS format_name
             FROM {$tableName} body
-            " . $this->processingPolicyService->joinForBody('body', "'" . $normalizedType . "'") . "
+            " . $this->processingPolicyService->joinForBody('body', "'" . $linkEvidenceType . "'") . "
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_general_ci = '{$normalizedType}' COLLATE utf8mb4_general_ci
+                ON tx.evidence_type COLLATE utf8mb4_general_ci = '{$linkEvidenceType}' COLLATE utf8mb4_general_ci
                AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_general_ci = '{$normalizedType}' COLLATE utf8mb4_general_ci
+                ON vx.evidence_type COLLATE utf8mb4_general_ci = '{$linkEvidenceType}' COLLATE utf8mb4_general_ci
                AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
                AND vx.target_type = 'VOUCHER'
                AND vx.deleted_at IS NULL
@@ -160,12 +159,13 @@ class PayrollEvidenceReadModel
         }
 
         $normalizedType = strtoupper(trim($importType));
-        $tableName = 'ledger_evidence_payroll';
+        $tableName = $normalizedType === 'PAYROLL' ? 'ledger_evidence_salary_report' : 'ledger_evidence_payroll';
+        $linkEvidenceType = $normalizedType === 'PAYROLL' ? 'PAYROLL_REPORT' : $normalizedType;
         $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
         $params = [];
 
-        if ($this->schemaService->columnExists($tableName, 'source_type')) {
-            $where[] = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), '')) = " . $this->pdo->quote($normalizedType);
+        if ($this->schemaService->columnExists($tableName, 'import_type')) {
+            $where[] = "UPPER(COALESCE(NULLIF(TRIM(body.import_type), ''), '')) = " . $this->pdo->quote($linkEvidenceType);
         }
 
         if ($requestedId !== '') {
@@ -186,7 +186,7 @@ class PayrollEvidenceReadModel
         $stmt = $this->pdo->prepare("
             SELECT COUNT(*)
             FROM {$tableName} body
-            " . $this->processingPolicyService->joinForBody('body', "'" . $normalizedType . "'") . "
+            " . $this->processingPolicyService->joinForBody('body', "'" . $linkEvidenceType . "'") . "
             WHERE " . implode(' AND ', $where) . "
         ");
         $stmt->execute($params);

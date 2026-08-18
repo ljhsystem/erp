@@ -6,7 +6,6 @@ use App\Controllers\Ledger\Concerns\ImportControllerBusinessInfoTrait;
 use App\Controllers\Ledger\Concerns\ImportControllerUploadTrait;
 use App\Controllers\Ledger\Concerns\ImportControllerUtilityTrait;
 use App\Services\Ledger\EvidenceBankHelperService;
-use App\Services\Ledger\EvidenceBatchSaveService;
 use App\Services\Ledger\EvidenceBusinessRefService;
 use App\Services\Ledger\EvidenceClientSyncService;
 use App\Services\Ledger\EvidenceGenerationSaveService;
@@ -22,10 +21,8 @@ use App\Services\Ledger\EvidenceTypePolicyService;
 use App\Services\Ledger\EvidenceUploadParserService;
 use App\Services\Ledger\EvidenceUploadService;
 use App\Services\Ledger\EvidenceUploadValidationService;
-use App\Services\Ledger\JournalLearningService;
 use App\Services\Ledger\SystemFieldService;
 use App\Services\Ledger\VoucherCreateService;
-use App\Services\Ledger\VoucherLearningService;
 use App\Services\Ledger\VoucherPolicyService;
 use App\Services\Ledger\VoucherService;
 use Core\DbPdo;
@@ -54,7 +51,6 @@ class EvidenceSaveController
     private ?EvidenceUploadService $evidenceUploadService = null;
     private ?EvidenceUploadParserService $evidenceUploadParserService = null;
     private ?EvidenceUploadValidationService $evidenceUploadValidationService = null;
-    private ?EvidenceBatchSaveService $evidenceBatchSaveService = null;
     private ?EvidenceSortHelperService $evidenceSortHelperService = null;
     private ?EvidencePayloadHelperService $evidencePayloadHelperService = null;
     private ?EvidenceTemplateDropdownService $evidenceTemplateDropdownService = null;
@@ -67,8 +63,6 @@ class EvidenceSaveController
     private ?VoucherPolicyService $voucherPolicyService = null;
     private ?VoucherCreateService $voucherCreateService = null;
     private ?VoucherService $voucherService = null;
-    private ?JournalLearningService $journalLearningService = null;
-    private ?VoucherLearningService $voucherLearningService = null;
     private ?EvidenceStatusHelperService $evidenceStatusHelperService = null;
     private ?EvidenceRuleEngineService $evidenceRuleEngineService = null;
     private ?EvidenceTransactionContextService $evidenceTransactionContextService = null;
@@ -109,7 +103,6 @@ class EvidenceSaveController
                 'normalizeUploadAmountFields' => function (array &$row): void {
                     $this->evidenceUploadValidationService()->normalizeUploadAmountFields($row);
                 },
-                'nextEvidenceJsonSortNo' => fn(string $key, string $sourceType = ''): int => $this->evidenceBatchSaveService()->nextEvidenceJsonSortNo($key, $sourceType),
                 'uploadVoucherStatus' => fn(string $dataType, array $payload, string $processStatus): string => $this->evidenceStatusHelperService()->uploadVoucherStatus($dataType, $payload, $processStatus),
                 'bankVoucherValidationMessage' => fn(array $payload): ?string => $this->evidenceBankHelperService()->bankVoucherValidationMessage($payload),
                 'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
@@ -249,37 +242,6 @@ class EvidenceSaveController
         }
 
         return $this->evidenceSortHelperService;
-    }
-
-    private function evidenceBatchSaveService(): EvidenceBatchSaveService
-    {
-        if ($this->evidenceBatchSaveService === null) {
-            $this->evidenceBatchSaveService = new EvidenceBatchSaveService($this->pdo, [
-                'mappedPayloadForStorage' => fn(array $row): array => $this->evidencePayloadNormalizeService()->mappedPayloadForStorage($row),
-                'normalizeBankTransactionPayload' => fn(array $payload): array => $this->evidenceBankHelperService()->normalizeBankTransactionPayload($payload),
-                'uploadVoucherStatus' => fn(string $dataType, array $payload, string $processStatus): string => $this->evidenceStatusHelperService()->uploadVoucherStatus($dataType, $payload, $processStatus),
-                'bankVoucherValidationMessage' => fn(array $payload): ?string => $this->evidenceBankHelperService()->bankVoucherValidationMessage($payload),
-                'seedSourceKey' => fn(array $payload, string $dataType): ?string => $this->evidenceUploadService()->seedSourceKey($payload, $dataType),
-                'jsonEncodeForStorage' => fn(array $payload): string => $this->evidencePayloadHelperService()->jsonEncodeForStorage($payload),
-                'findExistingSeedRow' => fn(string $dataType, string $sourceKey): ?array => $this->evidenceUploadService()->findExistingSeedRow($dataType, $sourceKey),
-                'usesFingerprintSourceKey' => fn(string $dataType): bool => $this->evidenceUploadService()->usesFingerprintSourceKey($dataType),
-                'findExistingSeedRowByFingerprint' => fn(string $dataType, array $payload): ?array => $this->evidenceUploadService()->findExistingSeedRowByFingerprint($dataType, $payload),
-                'isUploadProtectedExistingSeed' => fn(array $existingSeed): bool => $this->evidenceUploadService()->isUploadProtectedExistingSeed($existingSeed),
-                'existingSeedHasCreatedTransaction' => fn(array $existingSeed): bool => $this->evidenceUploadService()->existingSeedHasCreatedTransaction($existingSeed),
-                'existingSeedHasCreatedVoucher' => fn(array $existingSeed): bool => $this->evidenceUploadService()->existingSeedHasCreatedVoucher($existingSeed),
-                'dateValue' => fn(mixed $value): string => $this->dateValue($value),
-                'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
-                'businessRefNameForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefNameForStorage($refType, $payload),
-                'number' => fn(mixed $value): float => $this->number($value),
-                'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
-                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
-                'applyReadinessToEvidenceRow' => function (array &$row): void {
-                    $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
-                },
-            ]);
-        }
-
-        return $this->evidenceBatchSaveService;
     }
 
     private function evidenceTemplateDropdownService(): EvidenceTemplateDropdownService
@@ -448,9 +410,6 @@ class EvidenceSaveController
                 'resolveVoucherRefId' => fn(string $refType, string $value): ?string => $this->evidenceReferenceResolverService()->resolveVoucherRefId($refType, $value),
                 'resolveBankAccountId' => fn(string $value): ?string => $this->evidenceReferenceResolverService()->resolveBankAccountId($value),
                 'saveVoucher' => fn(array $payload): array => $this->voucherService()->save($payload),
-                'recordBankVoucherLearning' => function (string $transactionId, string $voucherId, array $evidence, array $lines, string $actor): void {
-                    $this->voucherLearningService()->recordBankVoucherLearning($transactionId, $voucherId, $evidence, $lines, $actor);
-                },
                 'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
                 'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
                 'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
@@ -468,34 +427,6 @@ class EvidenceSaveController
         }
 
         return $this->voucherService;
-    }
-
-    private function journalLearningService(): JournalLearningService
-    {
-        if ($this->journalLearningService === null) {
-            $this->journalLearningService = new JournalLearningService($this->pdo);
-        }
-
-        return $this->journalLearningService;
-    }
-
-    private function voucherLearningService(): VoucherLearningService
-    {
-        if ($this->voucherLearningService === null) {
-            $this->voucherLearningService = new VoucherLearningService(
-                $this->journalLearningService(),
-                $this->voucherPolicyService(),
-                $this->evidenceBusinessRefService(),
-                [
-                    'bankVoucherPaymentDirectionAndAmount' => fn(array $evidence): array => $this->voucherCreateService()->bankVoucherPaymentDirectionAndAmount($evidence),
-                    'businessUnitForUpload' => fn(array $row, string $dataType): string => $this->evidenceTypePolicyService()->businessUnitForUpload($row, $dataType),
-                    'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                    'transactionDirectionForStorage' => fn(string $direction, array $payload, string $dataType): string => $this->evidenceTypePolicyService()->transactionDirectionForStorage($direction, $payload, $dataType),
-                ]
-            );
-        }
-
-        return $this->voucherLearningService;
     }
 
     private function evidenceStatusHelperService(): EvidenceStatusHelperService

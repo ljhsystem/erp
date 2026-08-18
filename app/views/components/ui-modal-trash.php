@@ -14,6 +14,8 @@ $btnDeleteAll = $btnDeleteAll ?? "btnDeleteAll_{$type}";
 
 $tableHead    = $tableHead    ?? '';
 $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요.';
+$purgeConfirm = $purgeConfirm ?? '영구삭제하시겠습니까?';
+$enableDeleteAll = $enableDeleteAll ?? true;
 ?>
 
 <div class="modal fade"
@@ -24,7 +26,9 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요.';
      data-list-url="<?= $listUrl ?? '' ?>"
      data-restore-url="<?= $restoreUrl ?? '' ?>"
      data-delete-url="<?= $deleteUrl ?? '' ?>"
-     data-delete-all-url="<?= $deleteAllUrl ?? '' ?>">
+     data-delete-all-url="<?= $deleteAllUrl ?? '' ?>"
+     data-enable-delete-all="<?= $enableDeleteAll ? '1' : '0' ?>"
+     data-purge-confirm="<?= htmlspecialchars($purgeConfirm, ENT_QUOTES, 'UTF-8') ?>">
 
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -43,7 +47,9 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요.';
                             <button type="button" class="btn btn-success btn-sm btn-restore-selected" id="<?= $btnRestoreId ?>">선택복원</button>
                             <button type="button" class="btn btn-danger btn-sm btn-delete-selected" id="<?= $btnDeleteId ?>">선택영구삭제</button>
                             <button type="button" class="btn btn-outline-success btn-sm btn-restore-all" id="btnRestoreAll_<?= $type ?>">전체복원</button>
-                            <button type="button" class="btn btn-outline-danger btn-sm btn-delete-all" id="<?= $btnDeleteAll ?>">전체영구삭제</button>
+                            <?php if ($enableDeleteAll): ?>
+                                <button type="button" class="btn btn-outline-danger btn-sm btn-delete-all" id="<?= $btnDeleteAll ?>">전체영구삭제</button>
+                            <?php endif; ?>
                         </div>
 
                         <div class="trash-table">

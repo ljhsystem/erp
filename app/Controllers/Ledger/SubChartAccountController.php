@@ -3,32 +3,23 @@
 namespace App\Controllers\Ledger;
 
 use App\Services\Ledger\CustomSubAccountService;
-use App\Services\Ledger\ChartAccountService;
-use App\Services\Ledger\SubChartAccountExcelService;
-use App\Models\Ledger\SubChartAccountModel;
 use Core\DbPdo;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Core\Session;
 
 class SubChartAccountController
 {
     private CustomSubAccountService $service;
-    private SubChartAccountExcelService $excelService;
 
     public function __construct()
     {
         $pdo = DbPdo::conn();
         $this->service = new CustomSubAccountService($pdo);
-        $this->excelService = new SubChartAccountExcelService(
-            $this->service,
-            new ChartAccountService($pdo),
-            new SubChartAccountModel($pdo)
-        );
     }
 
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $accountId = $_GET['account_id'] ?? null;
@@ -42,8 +33,6 @@ class SubChartAccountController
             }
 
             $rows = $this->service->getByAccountId($accountId);
-            error_log('[SubChartAccountController] apiList data count=' . count($rows) . ' account_id=' . $accountId);
-
             echo json_encode([
                 'success' => true,
                 'data' => $rows,
@@ -51,7 +40,7 @@ class SubChartAccountController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -77,7 +66,7 @@ class SubChartAccountController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '저장 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -90,7 +79,8 @@ class SubChartAccountController
 
         try {
             $id = $_POST['id'] ?? null;
-            if (!$id) {
+            $accountId = trim((string) ($_POST['account_id'] ?? ''));
+            if (!$id || $accountId === '') {
                 echo json_encode([
                     'success' => false,
                     'message' => 'id가 없습니다.',
@@ -105,13 +95,13 @@ class SubChartAccountController
             ];
 
             echo json_encode(
-                $this->service->update($id, $payload),
+                $this->service->update($accountId, $id, $payload),
                 JSON_UNESCAPED_UNICODE
             );
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '수정 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -124,7 +114,8 @@ class SubChartAccountController
 
         try {
             $id = $_POST['id'] ?? null;
-            if (!$id) {
+            $accountId = trim((string) ($_POST['account_id'] ?? ''));
+            if (!$id || $accountId === '') {
                 echo json_encode([
                     'success' => false,
                     'message' => 'id가 없습니다.',
@@ -133,73 +124,17 @@ class SubChartAccountController
             }
 
             echo json_encode(
-                $this->service->delete($id),
+                $this->service->delete($accountId, $id),
                 JSON_UNESCAPED_UNICODE
             );
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
         exit;
     }
 
-    public function apiTemplate(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
-            'sub_account_template.xlsx'
-        );
-    }
-
-    public function apiExcel(): void
-    {
-        $this->downloadSpreadsheet(
-            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
-            'sub_accounts_' . date('Ymd_His') . '.xlsx'
-        );
-    }
-
-    public function apiExcelUpload(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        try {
-            if (empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
-                ], JSON_UNESCAPED_UNICODE);
-                exit;
-            }
-
-            echo json_encode(
-                $this->excelService->saveFromExcelFile($_FILES['file']['tmp_name']),
-                JSON_UNESCAPED_UNICODE
-            );
-        } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
-
-        exit;
-    }
-
-    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
-    {
-        while (ob_get_level() > 0) {
-            ob_end_clean();
-        }
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-
-        (new Xlsx($spreadsheet))->save('php://output');
-        exit;
-    }
 }

@@ -25,16 +25,30 @@ class EvidenceMetadataModel
             }
 
             $key = ':filter_' . $index;
-            if (in_array($field, ['import_type', 'source_table', 'evidence_type', 'process_role'], true)) {
+            if (in_array($field, ['import_type', 'source_table', 'evidence_type'], true)) {
                 $where[] = "m.{$field} LIKE {$key}";
                 $params[$key] = '%' . trim((string) $value) . '%';
             }
         }
 
-        $sql = 'SELECT m.*,
-            (SELECT COUNT(*) FROM ledger_evidence_metadata_columns mc
-             WHERE mc.metadata_id = m.id) AS mapping_count
-            FROM ' . self::TABLE . ' m';
+        $sql = 'SELECT m.*, COALESCE(mc.mapping_count, 0) AS mapping_count,
+                COALESCE(mc.base_date_count, 0) AS base_date_count,
+                COALESCE(mc.description_count, 0) AS description_count,
+                COALESCE(mc.data_amount_count, 0) AS data_amount_count,
+                COALESCE(mc.fund_amount_count, 0) AS fund_amount_count,
+                COALESCE(mc.invalid_adjustment_count, 0) AS invalid_adjustment_count
+            FROM ' . self::TABLE . ' m
+            LEFT JOIN (
+                SELECT metadata_id, COUNT(*) AS mapping_count,
+                    SUM(semantic_key = \'BASE_DATE\') AS base_date_count,
+                    SUM(semantic_key = \'DESCRIPTION\') AS description_count,
+                    SUM(semantic_key IN (\'PRE_TAX_AMOUNT\', \'POST_TAX_AMOUNT\', \'SUPPLY_AMOUNT\', \'VAT_AMOUNT\')) AS data_amount_count,
+                    SUM(semantic_key IN (\'IN_AMOUNT\', \'OUT_AMOUNT\')) AS fund_amount_count,
+                    SUM((semantic_key = \'ADJUST_AMOUNT\' AND adjustment_direction NOT IN (\'ADD\', \'DEDUCT\'))
+                        OR (semantic_key <> \'ADJUST_AMOUNT\' AND adjustment_direction IS NOT NULL)) AS invalid_adjustment_count
+                FROM ledger_evidence_metadata_columns
+                GROUP BY metadata_id
+            ) mc ON mc.metadata_id = m.id';
         if ($where !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
@@ -53,6 +67,31 @@ class EvidenceMetadataModel
         }
         $stmt = $this->pdo->prepare($sql . ' LIMIT 1');
         $stmt->execute([':id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getByIds(array $ids, bool $includeDeleted = false): array
+    {
+        [$placeholders, $params] = $this->idParameters($ids);
+        if ($placeholders === []) {
+            return [];
+        }
+        $sql = 'SELECT * FROM ' . self::TABLE . ' WHERE id IN (' . implode(', ', $placeholders) . ')';
+        if (!$includeDeleted) {
+            $sql .= ' AND deleted_at IS NULL';
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getByImportType(string $importType): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM ' . self::TABLE
+            . ' WHERE import_type = :import_type AND deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute([':import_type' => strtoupper(trim($importType))]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
@@ -162,12 +201,14 @@ class EvidenceMetadataModel
         return $stmt->rowCount();
     }
 
-    public function updateOrder(string $id, int $sortNo): bool
+    public function updateOrder(string $id, int $sortNo, string $actor): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE ' . self::TABLE . ' SET sort_no = :sort_no WHERE id = :id AND deleted_at IS NULL'
+            'UPDATE ' . self::TABLE
+            . ' SET sort_no = :sort_no, updated_at = NOW(), updated_by = :updated_by'
+            . ' WHERE id = :id AND deleted_at IS NULL'
         );
-        return $stmt->execute([':id' => $id, ':sort_no' => $sortNo]);
+        return $stmt->execute([':id' => $id, ':sort_no' => $sortNo, ':updated_by' => $actor]);
     }
 
     private function updateDeletedStateByIds(array $ids, bool $delete, string $actor): int

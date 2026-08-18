@@ -1,9 +1,6 @@
 import { BRAND_API, BRAND_ASSETS } from './api.js';
 import { createBrandTableModule } from './table.js';
 import { createBrandFormModule } from './form.js';
-import { initBrandModalModule } from './modal.js';
-import { initBrandTrashModule } from './trash.js';
-import { initBrandExcelModule } from './excel.js';
 
 const wrapper = window.jQuery('#brand-settings-wrapper');
 
@@ -24,12 +21,7 @@ const formModule = createBrandFormModule({
     tableModule,
 });
 
-initBrandModalModule();
-initBrandTrashModule();
-initBrandExcelModule();
-
 window.jQuery(document).ready(() => {
-    formModule.loadAll();
-    tableModule.loadExistingFiles();
     formModule.bindEvents();
+    tableModule.loadExistingFiles().then(formModule.renderActiveAssets);
 });

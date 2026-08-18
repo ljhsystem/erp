@@ -3,6 +3,14 @@
 use Core\Helpers\AssetHelper;
 
 $pageTitle = $pageTitle ?? '계좌별거래내역';
+$bankAccount = isset($bankAccount) && is_array($bankAccount) ? $bankAccount : [];
+$bankAccountName = trim((string) ($bankAccount['account_name'] ?? ''));
+$bankName = trim((string) ($bankAccount['bank_name'] ?? ''));
+$accountNumber = trim((string) ($bankAccount['account_number'] ?? ''));
+$bankAccountId = trim((string) ($bankAccount['id'] ?? ''));
+$bankAccountQuery = $bankAccountId !== ''
+    ? '?bank_account_id=' . rawurlencode($bankAccountId)
+    : '';
 $layoutOptions = [
     'header' => true,
     'navbar' => true,
@@ -23,12 +31,23 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js')
             <div>
                 <h5 class="mb-0 fw-bold">
                     <i class="bi bi-bank me-2"></i>계좌별거래내역
+                    <?php if ($bankAccountName !== ''): ?>
+                        <span class="text-primary ms-1"><?= htmlspecialchars($bankAccountName, ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
                     <span id="fundsBankTransactionCount" class="text-primary page-count"></span>
                 </h5>
                 <div class="small text-muted mt-1">
-                    통장별 입출금 원본과 전표 연결상태를 함께 조회합니다.
+                    <?php if ($bankAccountId !== ''): ?>
+                        <?= htmlspecialchars(trim($bankName . ' ' . $accountNumber), ENT_QUOTES, 'UTF-8') ?>
+                        계좌의 입출금 원본과 전표 연결상태를 조회합니다.
+                    <?php else: ?>
+                        전체 운영계좌의 입출금(은행) 증빙원본과 전표 연결상태를 조회합니다.
+                    <?php endif; ?>
                 </div>
             </div>
+            <a href="/ledger/funds" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-chevron-left me-1"></i>자금현황
+            </a>
         </div>
 
         <section class="funds-summary-grid mb-3" aria-label="계좌별거래내역 요약">
@@ -58,22 +77,25 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js')
             <?php
             $searchId = 'fundsBankTransactions';
             $dateOptions = '
-                <option value="transaction_datetime">거래일시</option>
-                <option value="uploaded_at">업로드일시</option>
+                <option value="raw_transaction_datetime">거래일시</option>
+                <option value="created_at">업로드일시</option>
             ';
             $searchFieldOptions = '
-                <option value="transaction_datetime">거래일시</option>
-                <option value="description">거래내용/메모</option>
+                <option value="raw_transaction_datetime">거래일시</option>
+                <option value="raw_description">거래내용/메모</option>
+                <option value="bank_account_id">계좌</option>
                 <option value="account_name">계좌명</option>
                 <option value="account_number">계좌번호</option>
-                <option value="direction">입출구분</option>
+                <option value="transaction_direction">입출구분</option>
                 <option value="bank_name">은행명</option>
-                <option value="deposit_amount">입금액</option>
-                <option value="withdraw_amount">출금액</option>
+                <option value="raw_deposit_amount">입금액</option>
+                <option value="raw_withdraw_amount">출금액</option>
                 <option value="client_name">거래처명</option>
-                <option value="counterparty_name">상대계좌예금주명</option>
-                <option value="counterparty_account_number">상대계좌번호</option>
-                <option value="counterparty_bank_name">상대은행</option>
+                <option value="raw_counterparty_name">상대계좌예금주명</option>
+                <option value="raw_counterparty_account_number">상대계좌번호</option>
+                <option value="raw_counterparty_bank_name">상대은행</option>
+                <option value="raw_check_bill_amount">수표어음금액</option>
+                <option value="raw_cms_code">CMS코드</option>
                 <option value="voucher_link_status">전표연결상태</option>
                 <option value="evidence_status">증빙상태</option>
                 <option value="amount_min">금액 최소</option>
@@ -95,7 +117,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js')
 
             <?php
             $tableId = 'fundsBankTransactionsTable';
-            $ajaxUrl = '/api/funds/bank-transactions';
+            $ajaxUrl = '/api/funds/bank-transactions' . $bankAccountQuery;
             $columnsType = 'fundsBankTransactions';
             $enableButtons = true;
             $enableSearch = true;
@@ -141,7 +163,7 @@ $tableHead = '
     <th width="120">관리</th>
 ';
 $emptyMessage = '휴지통의 입출금 원본을 선택하면 상세 정보가 표시됩니다.';
-$listUrl = '/api/funds/bank-transactions/trash';
+$listUrl = '/api/funds/bank-transactions/trash' . $bankAccountQuery;
 $restoreUrl = '/api/funds/bank-transactions/restore';
 $deleteUrl = '';
 $deleteAllUrl = '';

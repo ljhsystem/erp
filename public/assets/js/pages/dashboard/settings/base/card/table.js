@@ -13,10 +13,10 @@ export function createCardTableModule({
     modalModule,
     state,
 }) {
-    function initDataTable() {
+    async function initDataTable() {
         const columns = buildCardColumns();
 
-        state.cardTable = createDataTable({
+        state.cardTable = await createDataTable({
             tableSelector: '#card-table',
             api: API.LIST,
             deleteApi: API.DELETE,
@@ -48,7 +48,7 @@ export function createCardTableModule({
                     action: () => state.excelModal?.show(),
                 },
                 {
-                    text: '새 카드',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action: modalModule.openCreateModal,
                 },
@@ -58,6 +58,7 @@ export function createCardTableModule({
         window.cardTable = state.cardTable;
 
         if (state.cardTable) {
+            updateCardCount(state.cardTable.page.info()?.recordsDisplay ?? 0);
             state.cardTable.on('init.dt draw.dt', () => {
                 updateCardCount(state.cardTable.page.info()?.recordsDisplay ?? 0);
             });
@@ -142,15 +143,7 @@ export function createCardTableModule({
 
             if (toggleEl) toggleEl.disabled = true;
 
-            const res = await fetch(API.SAVE, {
-                method: 'POST',
-                body: formData,
-            });
-            const json = await res.json();
-
-            if (!json.success) {
-                throw new Error(json.message || '상태 변경에 실패했습니다.');
-            }
+            await window.AppAjax.fetchJson(API.SAVE, { method: 'POST', body: formData });
 
             state.cardTable?.ajax.reload(null, false);
             formModule.notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');

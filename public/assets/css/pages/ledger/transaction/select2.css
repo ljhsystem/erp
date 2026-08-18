@@ -216,7 +216,7 @@ body.modal-open .select2-container--open {
     }
 
     #transactionModal .transaction-voucher-layout,
-    #transactionModal .transaction-voucher-actions {
+    #transactionModal .transaction-evidence-actions {
         grid-template-columns: 1fr;
     }
 }

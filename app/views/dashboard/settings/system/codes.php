@@ -36,47 +36,6 @@
 
 <?php include __DIR__ . '/partials/code_modal.php'; ?>
 
-<?php
-$modalId = 'codeTrashModal';
-$type = 'code';
-$modalTitle = '코드관리 휴지통';
-$tableId = 'code-trash-table';
-$checkAllId = 'codeTrashCheckAll';
-$btnRestoreId = 'codeBtnRestoreSelected';
-$btnDeleteId = 'codeBtnDeleteSelected';
-$btnDeleteAll = 'codeBtnDeleteAll';
-$tableHead = '
-    <th>순번</th>
-    <th>코드</th>
-    <th>코드명</th>
-    <th>상태</th>
-    <th>삭제일시</th>
-    <th>삭제자</th>
-    <th>관리</th>
-';
-$emptyMessage = '삭제된 코드관리를 선택하세요.';
-include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
-?>
-
-<?php
-$templateUrl = '/api/settings/system/code/template';
-$downloadUrl = '/api/settings/system/code/excel';
-$uploadUrl = '/api/settings/system/code/excel-upload';
-
-$modalId = 'codeExcelModal';
-$formId = 'codeExcelForm';
-$modalTitle = '코드관리 엑셀관리';
-
-$fileInputId = 'codeExcelFile';
-$spinnerId = 'codeExcelSpinner';
-
-$btnTemplateId = 'codeBtnDownloadTemplate';
-$btnDownloadAll = 'codeBtnDownloadAll';
-$uploadBtnId = 'codeBtnUploadExcel';
-
-include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-?>
-
 <div class="picker-root">
     <div id="today-picker" class="picker is-hidden"></div>
 </div>

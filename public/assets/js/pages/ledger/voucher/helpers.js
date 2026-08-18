@@ -30,11 +30,9 @@ export function registerHelpers(ctx) {
         modalSaveBtn,
         modalRequestReviewBtn,
         modalCancelReviewBtn,
-        linkedEvidenceIdEl,
-        linkedEvidenceSummaryEl,
-        linkedEvidenceOriginEl,
         selectEvidenceBtn,
-        clearEvidenceLinkBtn,
+        clearSelectedEvidenceBtn,
+        recommendEvidenceBtn,
         modal,
         escapeHtml,
         notify,
@@ -788,7 +786,7 @@ function renderJournalStatusState(value) {
         EMPTY: ['분개없음', 'journal-status-empty'],
         UNBALANCED: ['차변/대변 불일치', 'journal-status-unbalanced'],
         READY: ['분개완료', 'journal-status-ready'],
-        POSTED: ['승인완료', 'journal-status-posted'],
+        POSTED: ['전기완료', 'journal-status-posted'],
     };
 
     const [label, className] =
@@ -798,20 +796,11 @@ function renderJournalStatusState(value) {
 }
 
 function evidenceFromVoucher(voucher = {}) {
-    return voucher.linked_evidence
-        || voucher.evidence_link
-        || voucher.seed_source
-        || null;
+    return evidencesFromVoucher(voucher)[0] || null;
 }
 
 function evidencesFromVoucher(voucher = {}) {
-    const rows = Array.isArray(voucher.linked_evidences) ? voucher.linked_evidences : [];
-    if (rows.length > 0) {
-        return rows;
-    }
-
-    const evidence = evidenceFromVoucher(voucher);
-    return evidence ? [evidence] : [];
+    return Array.isArray(voucher.linked_evidences) ? voucher.linked_evidences : [];
 }
 function buildEvidenceSummary(voucher = {}) {
     const evidences = evidencesFromVoucher(voucher);
@@ -887,29 +876,23 @@ function buildEvidenceSummary(voucher = {}) {
 }
 
 function setLinkedEvidence(voucher = {}) {
-    if (!linkedEvidenceIdEl || !linkedEvidenceSummaryEl) {
-        return;
-    }
+    const unique = new Map();
+    evidencesFromVoucher(voucher).forEach((evidence) => {
+        const importType = String(evidence.import_type || evidence.source_type || '').toUpperCase();
+        const evidenceId = String(evidence.evidence_id || evidence.id || '');
+        if (importType && evidenceId) unique.set(`${importType}:${evidenceId}`, {
+            ...evidence,
+            import_type: importType,
+            evidence_id: evidenceId,
+        });
+    });
+    state.linkedEvidences = Array.from(unique.values());
 
-    const evidence = evidenceFromVoucher(voucher);
-    const evidenceId = evidence?.id || voucher.evidence_id || '';
-    linkedEvidenceIdEl.value = evidenceId;
-    linkedEvidenceSummaryEl.textContent = buildEvidenceSummary(voucher);
-    linkedEvidenceSummaryEl.title = evidenceId ? buildEvidenceSummary(voucher) : '';
-    if (clearEvidenceLinkBtn) {
-        const status = normalizeVoucherStatus(voucherStatusEl?.value || 'DRAFT');
-        clearEvidenceLinkBtn.disabled = evidenceId === '' || status !== 'DRAFT';
-    }
-
-    if (linkedEvidenceOriginEl) {
-        const evidences = evidencesFromVoucher(voucher);
-        const originText = Array.from(new Set(evidences.map((item) => sourceTypeBadgeLabel(
-            item.source_type || voucher.import_type || '',
-            item.format_name || ''
-        )).filter(Boolean))).join(', ');
-        linkedEvidenceOriginEl.textContent = originText;
-        linkedEvidenceOriginEl.classList.toggle('d-none', originText === '');
-    }
+    ctx.renderLinkedEvidenceGrid?.();
+    const editable = normalizeVoucherStatus(voucherStatusEl?.value || 'DRAFT') === 'DRAFT';
+    if (selectEvidenceBtn) selectEvidenceBtn.disabled = !editable;
+    if (clearSelectedEvidenceBtn) clearSelectedEvidenceBtn.disabled = !editable || state.linkedEvidences.length === 0;
+    if (recommendEvidenceBtn) recommendEvidenceBtn.disabled = state.linkedEvidences.length === 0;
 }
 
 function setModalTitle(mode = 'create') {
@@ -1020,12 +1003,8 @@ function setModalEditability(status = 'DRAFT') {
 
     ctx.lineGridBridge?.setReadOnly?.(!canEditLines);
 
-    if (selectEvidenceBtn) {
-        selectEvidenceBtn.disabled = !canLinkEvidence;
-    }
-    if (clearEvidenceLinkBtn) {
-        clearEvidenceLinkBtn.disabled = !canClearEvidence || !(linkedEvidenceIdEl?.value || '');
-    }
+    if (selectEvidenceBtn) selectEvidenceBtn.disabled = !canLinkEvidence;
+    if (clearSelectedEvidenceBtn) clearSelectedEvidenceBtn.disabled = !canClearEvidence || state.linkedEvidences.length === 0;
 }
 
 function applyVoucherState(status = 'DRAFT', meta = {}, options = {}) {

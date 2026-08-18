@@ -5,6 +5,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\CardService;
 use Core\DbPdo;
+use Core\Session;
 
 class CardController
 {
@@ -17,6 +18,7 @@ class CardController
 
     public function apiList(): void
     {
+        Session::write();
         $filters = [];
 
         if (!empty($_GET['filters'])) {
@@ -35,7 +37,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 목록 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -57,7 +58,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 상세 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -83,39 +83,18 @@ class CardController
                 'account_id' => $_POST['account_id'] ?? null,
                 'expiry_year' => trim((string) ($_POST['expiry_year'] ?? '')),
                 'expiry_month' => trim((string) ($_POST['expiry_month'] ?? '')),
-                'limit_amount' => isset($_POST['limit_amount']) ? (float) $_POST['limit_amount'] : 0.0,
+                'limit_amount' => $_POST['limit_amount'] ?? 0,
                 'note' => trim((string) ($_POST['note'] ?? '')),
                 'memo' => trim((string) ($_POST['memo'] ?? '')),
                 'is_active' => isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1,
                 'delete_card_file' => $_POST['delete_card_file'] ?? '0',
             ];
 
-            if ($payload['card_name'] === '') {
-                $this->jsonResponse(['success' => false, 'message' => '카드명을 입력하세요.']);
-            }
-
-            if ($payload['card_number'] !== '' && !preg_match('/^[0-9-]+$/', $payload['card_number'])) {
-                $this->jsonResponse(['success' => false, 'message' => '카드번호는 숫자와 하이픈만 입력할 수 있습니다.']);
-            }
-
-            if ($payload['expiry_year'] !== '' && !preg_match('/^\d{4}$/', $payload['expiry_year'])) {
-                $this->jsonResponse(['success' => false, 'message' => '유효기간 년도는 4자리 숫자로 입력하세요.']);
-            }
-
-            if ($payload['expiry_month'] !== '' && !preg_match('/^(0?[1-9]|1[0-2])$/', $payload['expiry_month'])) {
-                $this->jsonResponse(['success' => false, 'message' => '유효기간 월은 1부터 12 사이로 입력하세요.']);
-            }
-
-            if ($payload['limit_amount'] < 0) {
-                $this->jsonResponse(['success' => false, 'message' => '한도금액은 0 이상이어야 합니다.']);
-            }
-
             $this->jsonResponse($this->service->save($payload, 'USER', $_FILES));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 저장 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -174,7 +153,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 복원 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -194,7 +172,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 일괄 복원 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -207,7 +184,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '전체 카드 복원 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -226,7 +202,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 영구삭제 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -246,7 +221,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '카드 일괄 영구삭제 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -259,7 +233,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '전체 카드 영구삭제 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -284,7 +257,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '정렬 저장 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -301,7 +273,7 @@ class CardController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '카드 엑셀 양식 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
+            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }
@@ -332,7 +304,6 @@ class CardController
             $this->jsonResponse([
                 'success' => false,
                 'message' => '엑셀 업로드 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -349,7 +320,7 @@ class CardController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '카드 엑셀 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
+            echo '엑셀 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }

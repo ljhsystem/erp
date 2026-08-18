@@ -23,14 +23,27 @@ class RolePermissionController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $roleId = $_POST['role_id'] ?? '';
+        $roleId = trim((string) ($_POST['role_id'] ?? ''));
+        $mode = trim((string) ($_POST['mode'] ?? 'selection'));
 
-        if (!$roleId) {
+        if ($mode !== 'master' && $roleId === '') {
             echo json_encode(['success' => false, 'message' => '역할 ID가 필요합니다.'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        $rows = $this->service->getPermissionTreeForRole($roleId);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        try {
+            $rows = $mode === 'master'
+                ? $this->service->getPermissionTreeForRole()
+                : $this->service->getPermissionSelectionForRole($roleId);
+        } catch (\InvalidArgumentException $exception) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE);
+            return;
+        }
 
         echo json_encode([
             'success' => true,
@@ -38,38 +51,30 @@ class RolePermissionController
         ], JSON_UNESCAPED_UNICODE);
     }
 
-    public function apiAssign()
+    public function apiSave(): void
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $roleId = $_POST['role_id'] ?? '';
-        $permissionId = $_POST['permission_id'] ?? '';
-
-        if (!$roleId || !$permissionId) {
-            echo json_encode(['success' => false], JSON_UNESCAPED_UNICODE);
-            return;
+        try {
+            $input = json_decode(file_get_contents('php://input') ?: '[]', true);
+            $input = is_array($input) ? $input : [];
+            $roleId = trim((string) ($input['role_id'] ?? ''));
+            $permissionIds = $input['permission_ids'] ?? [];
+            if (!is_array($permissionIds)) {
+                throw new \InvalidArgumentException('저장할 권한 목록이 올바르지 않습니다.');
+            }
+            $result = $this->service->saveRolePermissions($roleId, $permissionIds);
+            echo json_encode([
+                'success' => true,
+                'data' => $result,
+                'message' => '권한이 저장되었습니다.',
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\InvalidArgumentException $exception) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $exception->getMessage()], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $exception) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => '권한 저장 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
         }
-
-        $ok = $this->service->assign($roleId, $permissionId);
-
-        echo json_encode(['success' => (bool) $ok], JSON_UNESCAPED_UNICODE);
-    }
-
-    public function apiRemove()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $roleId = $_POST['role_id'] ?? '';
-        $permissionId = $_POST['permission_id'] ?? '';
-
-        if (!$roleId || !$permissionId) {
-            echo json_encode(['success' => false], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        $ok = $this->service->remove($roleId, $permissionId);
-
-        echo json_encode(['success' => (bool) $ok], JSON_UNESCAPED_UNICODE);
     }
 
     public function apiReorder()

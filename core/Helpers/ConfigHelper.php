@@ -3,7 +3,6 @@
 
 namespace Core\Helpers;
 
-use Core\Database;
 use App\Services\System\SettingService;
 
 class ConfigHelper
@@ -54,8 +53,7 @@ class ConfigHelper
      */
     public static function system(string $key, $default = null)
     {
-        $pdo = Database::getInstance()->getConnection();
-        $service = new SettingService($pdo);
+        $service = new SettingService();
 
         return $service->get($key, $default);
     }

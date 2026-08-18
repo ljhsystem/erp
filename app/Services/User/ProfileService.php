@@ -139,8 +139,7 @@ class ProfileService
                 'address_detail',
                 'note',
                 'memo',
-                'emergency_phone',
-                'certificate_name'
+                'emergency_phone'
             ];
 
             foreach ($fields as $f) {
@@ -157,8 +156,6 @@ class ProfileService
             }
 
             $currentProfile = $employee['profile_image'] ?? null;
-            $currentCert    = $employee['certificate_file'] ?? null;
-            $deleteCertificate = ((string)($data['certificate_file_delete'] ?? '0') === '1');
 
             // 프로필 이미지
             if (!empty($files['profile_image']['name'])) {
@@ -180,34 +177,7 @@ class ProfileService
                 $profileData['profile_image'] = $currentProfile;
             }
 
-            if ($deleteCertificate && empty($files['certificate_file']['name'])) {
-                if (!empty($currentCert)) {
-                    $deleteAfterCommit[] = $currentCert;
-                }
-
-                $profileData['certificate_file'] = null;
-                $profileData['certificate_name'] = null;
-            } elseif (!empty($files['certificate_file']['name'])) {
-                $upload = $this->fileService->uploadCertificate($files['certificate_file']);
-
-                if (empty($upload['success'])) {
-                    return [
-                        'success' => false,
-                        'message' => $upload['message'] ?? '자격증 파일 업로드 실패'
-                    ];
-                }
-
-                $profileData['certificate_file'] = $upload['db_path'];
-
-                if (!empty($currentCert) && $currentCert !== $profileData['certificate_file']) {
-                    $deleteAfterCommit[] = $currentCert;
-                }
-            } else {
-                $profileData['certificate_file'] = $currentCert;
-            }
-
-            $profileData['profile_image']    = $profileData['profile_image']    ?? $currentProfile;
-            $profileData['certificate_file'] = $profileData['certificate_file'] ?? $currentCert;
+            $profileData['profile_image'] = $profileData['profile_image'] ?? $currentProfile;
 
             if (!empty($profileData)) {
                 $profileData['updated_by'] = $actor;
@@ -259,7 +229,6 @@ class ProfileService
                 'success'          => true,
                 'message'          => '저장 완료',
                 'profile_image'    => $profileData['profile_image'] ?? $currentProfile,
-                'certificate_file' => $profileData['certificate_file'] ?? $currentCert,
             ];
 
         } catch (\Throwable $e) {

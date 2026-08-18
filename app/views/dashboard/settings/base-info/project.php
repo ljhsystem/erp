@@ -64,7 +64,7 @@
 ========================================================= */
 
 $templateUrl = '/api/settings/base-info/project/template';
-$downloadUrl = '/api/settings/base-info/project/excel';
+$downloadUrl = '/api/settings/base-info/project/download';
 $uploadUrl   = '/api/settings/base-info/project/excel-upload';
 
 $modalId        = 'projectExcelUploadModal';

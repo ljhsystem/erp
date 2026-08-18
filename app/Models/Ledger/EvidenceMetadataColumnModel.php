@@ -43,7 +43,7 @@ class EvidenceMetadataColumnModel
                 ':semantic_key' => (string) ($mapping['semantic_key'] ?? ''),
                 ':physical_column' => (string) ($mapping['physical_column'] ?? ''),
                 ':adjustment_direction' => $mapping['adjustment_direction'] ?? null,
-                ':is_required' => (string) ($mapping['is_required'] ?? 'N'),
+                ':is_required' => 'N',
                 ':remark' => $mapping['remark'] ?? null,
                 ':created_at' => $timestamp,
                 ':created_by' => $actor,

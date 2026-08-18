@@ -3,6 +3,10 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 export function createBankAccountModalModule({
     API,
@@ -193,6 +197,8 @@ export function createBankAccountModalModule({
 
         bindAccountPolicySync();
         applyAccountModalPolicyLabels(document);
+        bindModalCardCollapses(modalEl, { resetOnShow: true });
+        renderAccountSystemInfo();
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             const form = document.getElementById('accountForm');
@@ -212,6 +218,7 @@ export function createBankAccountModalModule({
             }
 
             formModule.resetBankBookUI();
+            renderAccountSystemInfo();
             applyAccountModalPolicyLabels(document);
         });
 
@@ -224,11 +231,7 @@ export function createBankAccountModalModule({
     }
 
     async function fetchAccountDetail(id) {
-        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
-        const json = await res.json();
-        if (!json.success) {
-            throw new Error(json.message || '계좌 상세 조회에 실패했습니다.');
-        }
+        const json = await window.AppAjax.fetchJson(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
         return json.data;
     }
 
@@ -257,13 +260,14 @@ export function createBankAccountModalModule({
         if (fileInput) fileInput.value = '';
 
         formModule.resetBankBookUI();
+        renderAccountSystemInfo();
         applyAccountModalPolicyLabels(document);
         state.accountModal?.show();
 
         try {
             const [data] = await Promise.all([
                 fetchAccountDetail(accountId),
-                formModule.prepareAccountModalControls(),
+                formModule.preloadAccountModalControls(),
             ]);
 
             const nextIdEl = formModule.getIdEl();
@@ -271,7 +275,7 @@ export function createBankAccountModalModule({
             fillModal(data);
         } catch (error) {
             console.error(error);
-            formModule.notify('error', error.message || '서버 오류');
+            formModule.notify('error', error.message || '계좌 정보를 불러오는 중 오류가 발생했습니다.');
         }
     }
 
@@ -312,7 +316,38 @@ export function createBankAccountModalModule({
         }
 
         formModule.renderBankBook(data);
+        renderAccountSystemInfo(data);
         applyAccountModalPolicyLabels(document);
+    }
+
+    function renderAccountSystemInfo(data = {}) {
+        const container = document.getElementById('accountSystemInfoFields');
+        if (!container) return;
+
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '순번'],
+            ['created_at', '생성일시', 'datetime'],
+            ['created_by_name', '생성자'],
+            ['updated_at', '수정일시', 'datetime'],
+            ['updated_by_name', '수정자'],
+            ['deleted_at', '삭제일시', 'datetime'],
+            ['deleted_by_name', '삭제자'],
+        ];
+
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'account-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'account-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'account-system-info-value';
+            const raw = type === 'datetime' ? formatDateDisplay(data[key]) : data[key];
+            value.textContent = raw === null || raw === undefined ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
     }
 
     function setSelectValueByCodeOrText(select, value) {
@@ -361,48 +396,39 @@ export function createBankAccountModalModule({
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
 
-            $.ajax({
-                url: API.SAVE,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-            })
-                .done((res) => {
-                    if (!res.success) {
-                        formModule.notify('error', res.message || '저장에 실패했습니다.');
-                        return;
-                    }
-
+            void window.AppAjax.fetchJson(API.SAVE, { method: 'POST', body: formData })
+                .then(() => {
                     state.accountModal?.hide();
                     getTable()?.ajax.reload(null, false);
                     formModule.notify('success', '저장되었습니다.');
                 })
-                .fail(() => {
-                    formModule.notify('error', '서버 오류');
+                .catch((error) => {
+                    formModule.notify('error', error.message || '계좌 저장 중 오류가 발생했습니다.');
                 })
-                .always(() => {
+                .finally(() => {
                     if (btn) btn.disabled = false;
                 });
         });
 
-        $('#btnDeleteAccount').off('click').on('click', () => {
+        $('#btnDeleteAccount').off('click').on('click', async () => {
             const id = formModule.getIdEl()?.value || '';
-            if (!id || !confirm('삭제하시겠습니까?')) return;
+            if (!id || !await confirmDialog({
+                title: '계좌 삭제',
+                message: '이 계좌를 휴지통으로 이동하시겠습니까?',
+                confirmText: '삭제',
+                confirmClass: 'btn-danger',
+            })) return;
 
-            $.post(API.DELETE, { id })
-                .done((res) => {
-                    if (res.success) {
-                        formModule.notify('success', '삭제했습니다.');
-                        getTable()?.ajax.reload(null, false);
-                        state.accountModal?.hide();
-                    } else {
-                        formModule.notify('error', res.message || '삭제에 실패했습니다.');
-                    }
-                })
-                .fail(() => {
-                    formModule.notify('error', '서버 오류');
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '계좌를 휴지통으로 이동 중' }, async () => {
+                    await window.AppAjax.postForm(API.DELETE, { id });
+                    formModule.notify('success', '삭제했습니다.');
+                    await new Promise(resolve => getTable()?.ajax.reload(() => resolve(), false));
+                    state.accountModal?.hide();
                 });
+            } catch (error) {
+                formModule.notify('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
     }
 

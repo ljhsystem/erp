@@ -57,13 +57,10 @@
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">설립일</label>
                     <div class="date-input-wrap position-relative">
-                        <input type="text"
-                               class="form-control admin-date"
+                        <input type="date"
+                               class="form-control"
                                name="found_date"
-                               autocomplete="off"
-                               inputmode="numeric"
-                               placeholder="YYYY-MM-DD">
-                        <span class="date-icon"><i class="bi bi-calendar3"></i></span>
+                               autocomplete="off">
                     </div>
                 </div>
 
@@ -191,8 +188,4 @@
         </button>
     </div>
 
-</div>
-
-<div class="picker-root">
-    <div id="today-picker" class="picker is-hidden"></div>
 </div>

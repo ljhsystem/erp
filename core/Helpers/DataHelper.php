@@ -2,67 +2,15 @@
 // 경로: PROJECT_ROOT . '/core/Helpers/DataHelper.php'
 namespace Core\Helpers;
 
+use App\Models\System\CoverModel;
+
 class DataHelper
 {
 
 
     public static function resequenceCoverImageCodes($pdo): void
     {
-        $pdo->beginTransaction();
-
-        try {
-
-            // 1️⃣ 전체 조회 (삭제 포함)
-            $stmt = $pdo->query("
-                SELECT id, deleted_at, sort_no
-                FROM system_coverimage_assets
-            ");
-
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            // 2️⃣ 임시 이동 (충돌 방지)
-            $pdo->exec("
-                UPDATE system_coverimage_assets
-                SET sort_no = sort_no + 100000
-            ");
-
-            // 3️⃣ 정렬 (🔥 핵심: 활성 먼저, 휴지통 뒤)
-            usort($rows, function ($a, $b) {
-
-                $aDeleted = empty($a['deleted_at']) ? 0 : 1;
-                $bDeleted = empty($b['deleted_at']) ? 0 : 1;
-
-                if ($aDeleted !== $bDeleted) {
-                    return $aDeleted <=> $bDeleted;
-                }
-
-                return (int)$a['sort_no'] <=> (int)$b['sort_no'];
-            });
-
-            // 4️⃣ 재부여
-            $seq = 1;
-
-            foreach ($rows as $row) {
-
-                $stmt = $pdo->prepare("
-                    UPDATE system_coverimage_assets
-                    SET sort_no = :sort_no
-                    WHERE id = :id
-                ");
-
-                $stmt->execute([
-                    ':sort_no' => $seq++,
-                    ':id'   => $row['id']
-                ]);
-            }
-
-            $pdo->commit();
-
-        } catch (\Throwable $e) {
-
-            $pdo->rollBack();
-            throw $e;
-        }
+        (new CoverModel($pdo))->resequenceCodes();
     }
 
     public static function normalizeClient(array $data): array

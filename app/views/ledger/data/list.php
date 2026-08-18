@@ -13,7 +13,7 @@ $initialEvidenceType = strtoupper(trim((string) ($initialEvidenceType ?? ($fixed
 $pageReady = (bool) ($pageReady ?? true);
 $pageNotice = trim((string) ($pageNotice ?? ''));
 $currentEvidencePolicy = is_array($currentEvidencePolicy ?? null) ? $currentEvidencePolicy : [];
-
+$pageAssetProfile = 'data-list-light';
 $layoutOptions = [
     'header' => true,
     'navbar' => true,
@@ -82,10 +82,8 @@ $evidenceTypePageMapJson = json_encode(
             </div>
         </div>
 
-        <section class="card mb-3">
-            <div class="card-body py-3">
-                <div id="evidenceTypeTabs" class="evidence-type-tabs" role="tablist" aria-label="&#51613;&#48729;&#50896;&#48376; &#51088;&#47308;&#50976;&#54805;"></div>
-            </div>
+        <section class="evidence-type-navigation mb-3">
+            <nav id="evidenceTypeTabs" class="evidence-type-tabs" aria-label="&#51613;&#48729;&#50896;&#48376; &#51088;&#47308;&#50976;&#54805;"></nav>
         </section>
 
         <div class="content-area">
@@ -118,8 +116,8 @@ $evidenceTypePageMapJson = json_encode(
                 $enableSearch = true;
                 $enablePaging = true;
                 $enableReorder = true;
-                include PROJECT_ROOT . '/app/views/components/ui-table.php';
                 ?>
+                <?php include PROJECT_ROOT . '/app/views/components/ui-table.php'; ?>
             <?php else: ?>
                 <section class="card border-warning-subtle shadow-sm">
                     <div class="card-body py-4">
@@ -161,27 +159,7 @@ $evidenceTypePageMapJson = json_encode(
     </div>
 </div>
 
-<div class="modal fade" id="evidenceSeedRowEditModal" tabindex="-1" aria-labelledby="evidenceSeedRowEditModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content evidence-edit-modal">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title" id="evidenceSeedRowEditModalLabel">&#51613;&#48729;&#50896;&#48376; &#49345;&#49464;/&#49688;&#51221;</h5>
-                    <div class="small text-muted" id="evidenceSeedRowEditSubtitle"></div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="&#45803;&#44592;"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="evidenceSeedRowEditId">
-                <div id="evidenceSeedRowEditFields" class="evidence-edit-fields"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary btn-sm" id="evidenceSeedRowEditSaveBtn">&#51200;&#51109;</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">&#45803;&#44592;</button>
-            </div>
-        </div>
-    </div>
-</div>
+<?php include PROJECT_ROOT . '/app/views/ledger/evidence/partials/evidence_edit_modal.php'; ?>
 
 <div class="modal fade" id="evidenceBulkEditModal" tabindex="-1" aria-labelledby="evidenceBulkEditModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">

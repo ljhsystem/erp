@@ -3,6 +3,7 @@ namespace App\Models\User;
 
 use PDO;
 use Core\Database;
+use Core\Helpers\ActorHelper;
 
 class DepartmentModel
 {
@@ -149,7 +150,10 @@ class DepartmentModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return ActorHelper::enrichActorNames(
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            ['created_by', 'updated_by']
+        );
     }
 
     public function getById(string $id): ?array
@@ -174,7 +178,10 @@ class DepartmentModel
         ");
 
         $stmt->execute([$id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row
+            ? ActorHelper::enrichActorNamesRow($row, ['created_by', 'updated_by'])
+            : null;
     }
 
     public function create(array $data): bool
@@ -221,22 +228,8 @@ class DepartmentModel
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("DELETE FROM user_departments WHERE id = ?");
-        return $stmt->execute([$id]);
-    }
-
-    public function assignManager(string $deptId, ?string $managerId): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE user_departments
-            SET manager_id = :manager_id,
-                updated_at = NOW()
-            WHERE id = :id
-        ");
-
-        return $stmt->execute([
-            ':manager_id' => $managerId,
-            ':id'         => $deptId
-        ]);
+        $stmt->execute([$id]);
+        return $stmt->rowCount() === 1;
     }
 
     public function existsByName(string $deptName, ?string $excludeId = null): bool
@@ -267,5 +260,18 @@ class DepartmentModel
         ");
 
         return $stmt->execute([$sort_no, $id]);
+    }
+
+    public function isSelectableManager(string $userId): bool
+    {
+        $statement = $this->db->prepare(
+            'SELECT COUNT(*)
+             FROM auth_users u
+             INNER JOIN user_employees e ON e.user_id = u.id
+             WHERE u.id = :user_id
+               AND u.is_active = 1'
+        );
+        $statement->execute([':user_id' => $userId]);
+        return (int) $statement->fetchColumn() > 0;
     }
 }

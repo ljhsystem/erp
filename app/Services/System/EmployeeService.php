@@ -4,6 +4,9 @@ namespace App\Services\System;
 use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\User\EmployeeModel;
+use App\Models\Institution\QualificationModel;
+use App\Models\Institution\EducationModel;
+use App\Services\Institution\EmployeeHrBaselineService;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\SequenceHelper;
@@ -16,7 +19,11 @@ class EmployeeService
     private readonly PDO $pdo;
     private UserModel $users;
     private EmployeeModel $model;
+    private QualificationModel $qualifications;
+    private EducationModel $educations;
     private FileService $fileService;
+    private UserSettingService $userSettings;
+    private EmployeeHrBaselineService $hrBaseline;
     private $logger;
 
     public function __construct(PDO $pdo)
@@ -24,7 +31,11 @@ class EmployeeService
         $this->pdo        = $pdo;
         $this->users      = new UserModel($pdo);
         $this->model  = new EmployeeModel($pdo);
+        $this->qualifications = new QualificationModel($pdo);
+        $this->educations = new EducationModel($pdo);
         $this->fileService = new FileService($pdo);
+        $this->userSettings = new UserSettingService($pdo);
+        $this->hrBaseline = new EmployeeHrBaselineService($pdo);
         $this->logger     = LoggerFactory::getLogger('service-system.EmployeeService');
 
         $this->logger->info('EmployeeService initialized');
@@ -110,6 +121,9 @@ class EmployeeService
                 $row['rrn'] = '';
 
             }
+
+            $row['qualification_count'] = $this->qualifications->countByEmployee($id);
+            $row['education_count'] = $this->educations->countByEmployee($id);
 
             return $row;
 
@@ -204,6 +218,7 @@ class EmployeeService
             }
 
             $current = null;
+            $currentRepresentativeQualification = null;
             $userId  = null;
 
             if (!$isCreate) {
@@ -217,6 +232,13 @@ class EmployeeService
                     throw new \Exception('사용자 정보 없음');
                 }
 
+                if (!empty($current['representative_qualification_id'])) {
+                    $currentRepresentativeQualification = $this->qualifications->detail((string)$current['representative_qualification_id']);
+                    if (!$currentRepresentativeQualification || (string)$currentRepresentativeQualification['employee_id'] !== $employeeId) {
+                        throw new \Exception('대표 자격증 연결 정보가 올바르지 않습니다.');
+                    }
+                }
+
                 $userId = $current['user_id'];
 
                 $currentUser = $this->users->getById($userId);
@@ -227,7 +249,19 @@ class EmployeeService
                 if ($username !== '' && $currentUser['username'] !== $username) {
                     // no-op
                 }
+
+                $protectedError = $this->validateProtectedHrFields($data, $current);
+                if ($protectedError !== null) {
+                    return ['success' => false, 'message' => $protectedError, 'status' => 400];
+                }
             }
+
+            $this->validateRequiredFieldPolicies(
+                $data,
+                $files,
+                $current,
+                $currentRepresentativeQualification
+            );
 
             $authData = [];
 
@@ -267,8 +301,8 @@ class EmployeeService
 
             $fields = [
                 'employee_name', 'phone', 'address', 'address_detail',
-                'department_id', 'position_id', 'client_id',
-                'certificate_name', 'note', 'memo',
+                'department_id', 'position_id', 'job_id', 'employment_status',
+                'note', 'memo',
                 'doc_hire_date', 'real_hire_date',
                 'doc_retire_date', 'real_retire_date',
                 'emergency_phone',
@@ -278,6 +312,12 @@ class EmployeeService
             foreach ($fields as $f) {
                 if (array_key_exists($f, $data)) {
                     $employeeData[$f] = ($data[$f] === '') ? null : $data[$f];
+                }
+            }
+
+            if (!$isCreate) {
+                foreach (['department_id', 'position_id', 'job_id', 'employment_status', 'doc_hire_date', 'real_hire_date', 'doc_retire_date', 'real_retire_date'] as $field) {
+                    unset($employeeData[$field]);
                 }
             }
 
@@ -300,21 +340,35 @@ class EmployeeService
 
             $deleteProfile      = ((string)($data['profile_image_delete'] ?? '0') === '1');
             $deleteRrnImage     = ((string)($data['rrn_image_delete'] ?? '0') === '1');
-            $deleteCertificate  = ((string)($data['certificate_file_delete'] ?? '0') === '1');
             $deleteBankFile     = ((string)($data['bank_file_delete'] ?? '0') === '1');
+            $deleteRepresentativeQualification = ((string)($data['representative_qualification_delete'] ?? '0') === '1');
+            $representativeQualificationName = trim((string)($data['representative_qualification_name'] ?? ''));
+            $representativeQualificationFile = $files['representative_qualification_file'] ?? null;
+            $hasRepresentativeQualificationUpload = $representativeQualificationFile && ($representativeQualificationFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+
+            if ($deleteRepresentativeQualification && $hasRepresentativeQualificationUpload) {
+                return ['success' => false, 'message' => '대표 자격증 삭제와 업로드를 동시에 처리할 수 없습니다.'];
+            }
+            if (!$deleteRepresentativeQualification && $representativeQualificationName === '' && ($hasRepresentativeQualificationUpload || $currentRepresentativeQualification)) {
+                return ['success' => false, 'message' => '대표 자격증 이름을 입력해 주세요.'];
+            }
+            if (!$deleteRepresentativeQualification && !$currentRepresentativeQualification && $representativeQualificationName !== '' && !$hasRepresentativeQualificationUpload) {
+                return ['success' => false, 'message' => '대표 자격증 파일을 선택해 주세요.'];
+            }
+            if (!$deleteRepresentativeQualification && !$currentRepresentativeQualification && $representativeQualificationName === '' && $hasRepresentativeQualificationUpload) {
+                return ['success' => false, 'message' => '대표 자격증 이름을 입력해 주세요.'];
+            }
 
             if ($isCreate) {
 
                 $employeeData['profile_image']    = null;
                 $employeeData['rrn_image']        = null;
-                $employeeData['certificate_file'] = null;
                 $employeeData['bank_file']        = null;
 
             } else {
 
                 $employeeData['profile_image']    = $deleteProfile ? null : ($current['profile_image'] ?? null);
                 $employeeData['rrn_image']        = $deleteRrnImage ? null : ($current['rrn_image'] ?? null);
-                $employeeData['certificate_file'] = $deleteCertificate ? null : ($current['certificate_file'] ?? null);
                 $employeeData['bank_file']        = $deleteBankFile ? null : ($current['bank_file'] ?? null);
             }
 
@@ -330,14 +384,6 @@ class EmployeeService
                     $deleteAfterCommit[] = $current['rrn_image'];
                 }
                 $employeeData['rrn_image'] = null;
-            }
-
-            if ($deleteCertificate) {
-                if (!$isCreate && !empty($current['certificate_file'])) {
-                    $deleteAfterCommit[] = $current['certificate_file'];
-                }
-                $employeeData['certificate_file'] = null;
-                $employeeData['certificate_name'] = null;
             }
 
             if ($deleteBankFile && !$isCreate && !empty($current['bank_file'])) {
@@ -383,24 +429,6 @@ class EmployeeService
                 }
             }
 
-            $file = $files['certificate_file'] ?? null;
-
-            if ($file && $file['error'] === UPLOAD_ERR_OK) {
-
-                $upload = $this->fileService->uploadCertificate($file);
-
-                if (empty($upload['success'])) {
-                    return ['success' => false, 'message' => $upload['message'] ?? '자격증 파일 업로드 실패'];
-                }
-
-                $employeeData['certificate_file'] = $upload['db_path'];
-                $uploadedNewFiles[] = $upload['db_path'];
-
-                if (!$isCreate && !empty($current['certificate_file']) && !$deleteCertificate) {
-                    $deleteAfterCommit[] = $current['certificate_file'];
-                }
-            }
-
             $file = $files['bank_file'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -419,7 +447,22 @@ class EmployeeService
                 }
             }
 
-            $this->pdo->beginTransaction();
+            $uploadedRepresentativeQualification = null;
+            if ($hasRepresentativeQualificationUpload) {
+                $uploadedRepresentativeQualification = $this->fileService->uploadCertificate($representativeQualificationFile);
+                if (empty($uploadedRepresentativeQualification['success'])) {
+                    foreach (array_unique($uploadedNewFiles) as $path) {
+                        $this->fileService->delete($path);
+                    }
+                    return ['success' => false, 'message' => $uploadedRepresentativeQualification['message'] ?? '대표 자격증 업로드 실패'];
+                }
+                $uploadedNewFiles[] = $uploadedRepresentativeQualification['db_path'];
+            }
+
+            $ownsTransaction = !$this->pdo->inTransaction();
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
 
             try {
                 if ($isCreate) {
@@ -442,7 +485,22 @@ class EmployeeService
                         throw new \Exception('직원 생성 실패');
                     }
 
-                    $this->pdo->commit();
+                    $this->hrBaseline->create($newEmployeeId, $employeeData, $actor);
+
+                    $this->persistRepresentativeQualification(
+                        $newEmployeeId,
+                        null,
+                        $representativeQualificationName,
+                        $uploadedRepresentativeQualification,
+                        $representativeQualificationFile,
+                        $deleteRepresentativeQualification,
+                        $actor,
+                        $deleteAfterCommit
+                    );
+
+                    if ($ownsTransaction) {
+                        $this->pdo->commit();
+                    }
 
                     foreach (array_unique($deleteAfterCommit) as $path) {
                         $this->fileService->delete($path);
@@ -466,7 +524,20 @@ class EmployeeService
                     throw new \Exception('직원 수정 실패');
                 }
 
-                $this->pdo->commit();
+                $this->persistRepresentativeQualification(
+                    $employeeId,
+                    $currentRepresentativeQualification,
+                    $representativeQualificationName,
+                    $uploadedRepresentativeQualification,
+                    $representativeQualificationFile,
+                    $deleteRepresentativeQualification,
+                    $actor,
+                    $deleteAfterCommit
+                );
+
+                if ($ownsTransaction) {
+                    $this->pdo->commit();
+                }
 
                 foreach (array_unique($deleteAfterCommit) as $path) {
                     $this->fileService->delete($path);
@@ -479,7 +550,9 @@ class EmployeeService
                 ];
 
             } catch (\Throwable $e) {
-                $this->pdo->rollBack();
+                if ($ownsTransaction && $this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
 
                 foreach (array_unique($uploadedNewFiles) as $path) {
                     $this->fileService->delete($path);
@@ -527,8 +600,6 @@ class EmployeeService
 
             $data = [
                 'is_active'  => $isActive ? 1 : 0,
-                'deleted_at' => $isActive ? null : date('Y-m-d H:i:s'),
-                'deleted_by' => $isActive ? null : $actor,
                 'updated_at' => date('Y-m-d H:i:s'),
                 'updated_by' => $actor,
             ];
@@ -594,7 +665,7 @@ class EmployeeService
 
             $deleteAfterCommit = [];
 
-            foreach (['profile_image','rrn_image','certificate_file','bank_file'] as $field) {
+            foreach (['profile_image','rrn_image','bank_file'] as $field) {
                 if (!empty($employee[$field])) {
                     $deleteAfterCommit[] = $employee[$field];
                 }
@@ -718,6 +789,196 @@ class EmployeeService
 
             throw $e;
         }
+    }
+
+    private function validateProtectedHrFields(array $data, array $current): ?string
+    {
+        $labels = [
+            'department_id' => '부서',
+            'position_id' => '직위·직책',
+            'job_id' => '직무',
+            'employment_status' => '재직상태',
+            'doc_hire_date' => '문서상 입사일',
+            'real_hire_date' => '실입사일',
+            'doc_retire_date' => '문서상 퇴사일',
+            'real_retire_date' => '실퇴사일',
+        ];
+        foreach ($labels as $field => $label) {
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            if ($this->normalizeProtectedValue($data[$field] ?? null) !== $this->normalizeProtectedValue($current[$field] ?? null)) {
+                return $label . '은(는) 직원관리에서 수정할 수 없습니다. 인사발령관리에서 변경해 주세요.';
+            }
+        }
+        return null;
+    }
+
+    private function normalizeProtectedValue(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+        return $normalized === '' ? null : $normalized;
+    }
+
+    private function persistRepresentativeQualification(
+        string $employeeId,
+        ?array $current,
+        string $name,
+        ?array $uploaded,
+        ?array $uploadedFile,
+        bool $delete,
+        string $actor,
+        array &$deleteAfterCommit
+    ): void {
+        if ($delete) {
+            if (!$current) {
+                $this->model->updateRepresentativeQualificationId($employeeId, null);
+                return;
+            }
+
+            $this->model->updateRepresentativeQualificationId($employeeId, null);
+            $this->qualifications->softDelete((string)$current['id'], $actor);
+            $this->qualifications->audit($this->representativeQualificationAudit($current, null, 'DELETE', $actor));
+            if (!empty($current['attachment_path'])) {
+                $deleteAfterCommit[] = $current['attachment_path'];
+            }
+            return;
+        }
+
+        if (!$current && $name === '' && !$uploaded) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        if (!$current) {
+            $data = [
+                'employee_id' => $employeeId,
+                'qualification_type_code' => 'OTHER',
+                'qualification_name' => $name,
+                'status_code' => 'PENDING_VERIFICATION',
+                'attachment_path' => $uploaded['db_path'],
+                'attachment_name' => (string)($uploadedFile['name'] ?? ''),
+                'note' => '직원관리 대표 자격증',
+                'request_key' => 'EMPLOYEE-REPRESENTATIVE-QUALIFICATION-' . UuidHelper::generate(),
+                'created_at' => $now,
+                'created_by' => $actor,
+                'updated_at' => $now,
+                'updated_by' => $actor,
+            ];
+            $qualificationId = $this->qualifications->create($data);
+            $after = $this->qualifications->detail($qualificationId);
+            $this->qualifications->audit($this->representativeQualificationAudit(null, $after, 'CREATE', $actor));
+            $this->model->updateRepresentativeQualificationId($employeeId, $qualificationId);
+            return;
+        }
+
+        if ($name === (string)$current['qualification_name'] && !$uploaded) {
+            return;
+        }
+
+        $update = [
+            'qualification_name' => $name,
+            'updated_at' => $now,
+            'updated_by' => $actor,
+        ];
+        if ($uploaded) {
+            $update['attachment_path'] = $uploaded['db_path'];
+            $update['attachment_name'] = (string)($uploadedFile['name'] ?? '');
+            if (!empty($current['attachment_path'])) {
+                $deleteAfterCommit[] = $current['attachment_path'];
+            }
+        }
+        $this->qualifications->update((string)$current['id'], $update);
+        $after = $this->qualifications->detail((string)$current['id']);
+        $this->qualifications->audit($this->representativeQualificationAudit($current, $after, 'UPDATE', $actor));
+    }
+
+    private function representativeQualificationAudit(?array $before, ?array $after, string $action, string $actor): array
+    {
+        $row = $after ?? $before;
+        return [
+            'target_id' => (string)$row['id'],
+            'employee_id' => (string)$row['employee_id'],
+            'action_type_code' => $action,
+            'source_type_code' => 'ADMIN',
+            'reason' => '직원관리 대표 자격증 ' . ($action === 'CREATE' ? '등록' : ($action === 'UPDATE' ? '수정' : '삭제')),
+            'request_key' => 'EMPLOYEE-REPRESENTATIVE-QUALIFICATION-AUDIT-' . UuidHelper::generate(),
+            'before_data' => $before ? json_encode($before, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+            'after_data' => $after ? json_encode($after, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+            'processed_by' => $actor,
+            'processed_at' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    private function validateRequiredFieldPolicies(
+        array $data,
+        array $files,
+        ?array $current,
+        ?array $currentRepresentativeQualification
+    ): void {
+        $settings = $this->userSettings->detail('employee', 'TABLE')['settings_json'] ?? [];
+        $policies = is_array($settings['columnRequirementPolicy'] ?? null)
+            ? $settings['columnRequirementPolicy']
+            : [];
+        $displayNames = is_array($settings['columnDisplayName'] ?? null)
+            ? $settings['columnDisplayName']
+            : [];
+        $fieldLabels = [
+            'username' => '아이디', 'employee_name' => '직원명', 'phone' => '연락처',
+            'emergency_phone' => '비상연락처', 'email' => '이메일', 'rrn' => '주민등록번호',
+            'address' => '주소', 'address_detail' => '상세주소', 'password' => '비밀번호',
+            'department_id' => '부서', 'position_id' => '직위·직책', 'job_id' => '직무',
+            'employment_status' => '재직상태', 'role_id' => '역할',
+            'doc_hire_date' => '서류입사일', 'real_hire_date' => '실입사일',
+            'doc_retire_date' => '서류퇴사일', 'real_retire_date' => '실퇴사일',
+            'profile_image' => '프로필사진', 'rrn_image' => '신분증파일',
+            'representative_qualification_id' => '대표 자격증',
+            'bank_name' => '은행명', 'account_number' => '계좌번호',
+            'account_holder' => '예금주', 'bank_file' => '통장사본',
+            'two_factor_enabled' => '2차인증', 'email_notify' => '이메일알림',
+            'sms_notify' => 'SMS알림', 'note' => '노트', 'memo' => '메모',
+        ];
+
+        foreach ($fieldLabels as $key => $fallbackLabel) {
+            if (strtolower(trim((string)($policies[$key] ?? 'none'))) !== 'required') {
+                continue;
+            }
+
+            $hasValue = match ($key) {
+                'profile_image' => $this->hasEmployeeUploadOrExisting(
+                    $files['profile_image'] ?? null,
+                    $current['profile_image'] ?? null,
+                    (string)($data['profile_image_delete'] ?? '0') === '1'
+                ),
+                'rrn_image' => $this->hasEmployeeUploadOrExisting(
+                    $files['rrn_image'] ?? null,
+                    $current['rrn_image'] ?? null,
+                    (string)($data['rrn_image_delete'] ?? '0') === '1'
+                ),
+                'bank_file' => $this->hasEmployeeUploadOrExisting(
+                    $files['bank_file'] ?? null,
+                    $current['bank_file'] ?? null,
+                    (string)($data['bank_file_delete'] ?? '0') === '1'
+                ),
+                'representative_qualification_id' => $this->hasEmployeeUploadOrExisting(
+                    $files['representative_qualification_file'] ?? null,
+                    $currentRepresentativeQualification['attachment_path'] ?? null,
+                    (string)($data['representative_qualification_delete'] ?? '0') === '1'
+                ) && trim((string)($data['representative_qualification_name'] ?? $currentRepresentativeQualification['qualification_name'] ?? '')) !== '',
+                default => trim((string)($data[$key] ?? '')) !== '',
+            };
+
+            if (!$hasValue) {
+                $label = trim((string)($displayNames[$key] ?? '')) ?: $fallbackLabel;
+                throw new \InvalidArgumentException($label . ' 항목은 필수입니다.');
+            }
+        }
+    }
+
+    private function hasEmployeeUploadOrExisting(?array $file, mixed $existing, bool $delete): bool
+    {
+        $hasUpload = $file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+        return $hasUpload || (!$delete && trim((string)($existing ?? '')) !== '');
     }
 
 

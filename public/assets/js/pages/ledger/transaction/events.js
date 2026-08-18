@@ -1,7 +1,7 @@
 import { actorDisplay } from '/public/assets/js/common/actor.js';
 
 export function registerEvents(ctx) {
-    const { openVoucherModal, formatDateInputValue } = ctx;
+    const { formatDateInputValue } = ctx;
 
     function releaseModalFocus() {
         const $ = window.jQuery || window.$;
@@ -221,15 +221,6 @@ export function registerEvents(ctx) {
             }
         });
 
-        ctx.createVoucherBtn?.addEventListener('click', () => void ctx.createVoucherForCurrentTransaction());
-        ctx.selectVoucherBtn?.addEventListener('click', () => {
-            openVoucherModal({
-                selectedVoucherId: ctx.selectedVoucherId,
-                onConfirm: ctx.handleVoucherSelected,
-            });
-        });
-        ctx.linkVoucherBtn?.addEventListener('click', () => void ctx.linkVoucherToCurrentTransaction());
-        ctx.unlinkVoucherBtn?.addEventListener('click', () => void ctx.unlinkVoucherFromCurrentTransaction());
         ctx.unitCodeSelectEl?.addEventListener('change', ctx.applyPendingUnitSelection);
 
         document.addEventListener('trash:changed', (event) => {
@@ -258,8 +249,6 @@ export function registerEvents(ctx) {
                         <dt class="col-4">적요</dt>
                         <dd class="col-8">${ctx.escapeHtml(ctx.formatAmount(row.final_amount || row.transaction_final_amount || 0))}</dd>
                         <dt class="col-4">금액</dt>
-                        <dd class="col-8">${ctx.renderMatchStatus(row.match_status)}</dd>
-                        <dt class="col-4">전표연결</dt>
                         <dd class="col-8">${ctx.escapeHtml(row.deleted_at || '-')}</dd>
                         <dt class="col-4">삭제자</dt>
                         <dd class="col-8">${ctx.escapeHtml(actorDisplay(row, 'deleted_by'))}</dd>

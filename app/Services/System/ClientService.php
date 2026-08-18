@@ -520,7 +520,7 @@ class ClientService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '저장 중 오류가 발생했습니다.'
             ];
         }
     }

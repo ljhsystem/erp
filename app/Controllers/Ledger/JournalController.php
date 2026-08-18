@@ -1,18 +1,21 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/JournalController.php'
 
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
+use App\Services\Ledger\EvidenceTypePolicyService;
 use Core\DbPdo;
+use PDO;
 
 class JournalController
 {
     private LayoutController $layout;
+    private PDO $pdo;
 
     public function __construct()
     {
-        $this->layout = new LayoutController(DbPdo::conn());
+        $this->pdo = DbPdo::conn();
+        $this->layout = new LayoutController($this->pdo);
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -36,8 +39,12 @@ class JournalController
 
     public function webIndex(): void
     {
+        $evidenceTypePolicies = (new EvidenceTypePolicyService(null, $this->pdo))
+            ->statusViewImportTypePolicies();
+
         $this->renderPage('/app/views/ledger/journal/index.php', [
             'pageTitle' => '일반전표',
+            'evidenceTypePolicies' => $evidenceTypePolicies,
         ]);
     }
 }

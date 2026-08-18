@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createEvidenceTableModule({
     state,
     API,
@@ -9,6 +11,7 @@ export function createEvidenceTableModule({
     defaultEvidenceTypeCode,
     evidenceMetaDomain,
     evidenceMetaColumnsCache,
+    fetchDataTableMetaColumns,
     valueText,
     formatNumber,
     escapeHtml,
@@ -33,7 +36,6 @@ export function createEvidenceTableModule({
     compareFieldDisplayOrder,
     compareFormatColumns,
     formatEvidenceColumnDisplayLabel,
-    ensureActiveFormat,
     formatValue,
     isAmountColumn,
     isDateColumn,
@@ -44,23 +46,15 @@ export function createEvidenceTableModule({
     evidenceStatusTableSettingsStorageKey,
     handleEvidenceStatusTableOrderChange,
     refreshEvidenceTypeCounts,
-    updateTrashButtonState,
     openEvidenceNewModalLatest,
     openEvidenceTrash,
     renderEvidenceTypeTabs,
     showModal,
     syncExcelManager,
-    renderSeedStatus,
-    renderTransactionStatus,
-    renderVoucherStatus,
-    renderReviewStatus,
-    renderRecommendStatus,
-    renderUserModified,
-    renderWorkflowStatus,
-    renderTransactionWorkflowStatus,
-    renderVoucherWorkflowStatus,
     readDataTableSettingsState,
 }) {
+    let rebuildSequence = 0;
+    let rebuildQueue = Promise.resolve();
     function isBankTransactionEvidenceRow(row = {}) {
         const payload = mapped(row);
         return String(row.import_type || row.seed_source_type || row.source_type || payload.import_type || '').trim().toUpperCase() === 'BANK_TRANSACTION';
@@ -91,7 +85,7 @@ export function createEvidenceTableModule({
             ['삭제', 4],
             ['휴지통', 5],
             ['엑셀관리', 6],
-            ['새증빙', 7],
+            ['신규등록', 7],
         ]);
 
         const orderedButtons = Array.from(buttonWrap.children)
@@ -163,16 +157,7 @@ export function createEvidenceTableModule({
                 return evidenceMetaColumnsCache.get(domain) || [];
             }
     
-            let data = [];
-            try {
-                const response = await fetch(`${API.dataTableColumns}?domain=${encodeURIComponent(domain)}`, {
-                    credentials: 'include',
-                });
-                const json = await response.json().catch(() => ({}));
-                data = response.ok && json?.success && Array.isArray(json.data) ? json.data : [];
-            } catch (_error) {
-                data = [];
-            }
+            const data = await fetchDataTableMetaColumns({ metaDomain: domain });
     
             const normalized = data
                 .map((column, index) => {
@@ -288,7 +273,7 @@ export function createEvidenceTableModule({
                 ?? mappedPayload.bank_transaction_transaction_direction
                 ?? ''
             );
-            const directionLabel = directionDisplayText(directionSource);
+            const directionLabel = valueText(row.transaction_direction_name) || directionDisplayText(directionSource);
             if (directionLabel !== '') {
                 row.__transaction_direction_label = directionLabel;
             }
@@ -298,7 +283,7 @@ export function createEvidenceTableModule({
                 ?? mappedPayload.business_unit
                 ?? ''
             );
-            const businessUnitLabel = codeFieldDisplayText('business_unit', businessUnitSource);
+            const businessUnitLabel = valueText(row.business_unit_name) || codeFieldDisplayText('business_unit', businessUnitSource);
             if (businessUnitLabel !== '') {
                 row.__business_unit_label = businessUnitLabel;
             }
@@ -308,7 +293,7 @@ export function createEvidenceTableModule({
                 ?? mappedPayload.operation_type
                 ?? ''
             );
-            const operationTypeLabel = codeFieldDisplayText('operation_type', operationTypeSource);
+            const operationTypeLabel = valueText(row.operation_type_name) || codeFieldDisplayText('operation_type', operationTypeSource);
             if (operationTypeLabel !== '') {
                 row.__operation_type_label = operationTypeLabel;
             }
@@ -372,17 +357,48 @@ export function createEvidenceTableModule({
             if (keys.includes('business_unit')) return 'business_unit';
             if (keys.includes('operation_type')) return 'operation_type';
             if (keys.includes('transaction_direction') || keys.includes('bank_transaction_transaction_direction')) return 'transaction_direction';
+            if (keys.includes('source_type')) return 'source_type';
+            if (keys.includes('import_type')) return 'import_type';
 
             return '';
         }
 
+    function codeColumnDisplayValue(row = {}, field = '', fallback = '') {
+            const preparedLabels = {
+                business_unit: row.__business_unit_label,
+                operation_type: row.__operation_type_label,
+                transaction_direction: row.__transaction_direction_label,
+            };
+            return valueText(preparedLabels[field])
+                || valueText(row?.[`${field}_name`])
+                || codeFieldDisplayText(field, fallback)
+                || valueText(fallback);
+        }
+
+    const actorDisplayFields = new Set(['created_by', 'updated_by', 'deleted_by']);
+
+    function actorFieldForColumn(column = {}) {
+            return [column.system_field_name, column.original_column_key, column.key, column.data]
+                .map((value) => String(value || '').trim().toLowerCase())
+                .find((key) => actorDisplayFields.has(key)) || '';
+        }
+
+    function actorColumnDisplayValue(row = {}, field = '') {
+            if (!field || (valueText(row?.[field]) === '' && valueText(row?.[`${field}_name`]) === '')) {
+                return '';
+            }
+            return actorDisplay(row, field);
+        }
+
     const referenceDisplayFieldMap = {
-            client_id: 'client_name',
-            project_id: 'project_name',
-            employee_id: 'employee_name',
-            bank_account_id: 'bank_account_name',
-            card_id: 'card_name',
-            team_id: 'team_name',
+        client_id: 'client_name',
+        project_id: 'project_name',
+        employee_id: 'employee_name',
+        bank_account_id: 'bank_account_name',
+        card_id: 'card_name',
+        team_id: 'team_name',
+        source_type: 'source_type_name',
+        import_type: 'import_type_name',
         };
 
     function referenceDisplayFieldForColumn(column = {}) {
@@ -408,7 +424,8 @@ export function createEvidenceTableModule({
                 return valueText(fallback);
             }
 
-            return valueText(row?.[displayField]) || valueText(fallback);
+            const payload = mapped(row);
+            return valueText(row?.[displayField]) || valueText(payload?.[displayField]) || valueText(fallback);
         }
 
     function buildEvidencePhysicalColumns(metaColumns = []) {
@@ -438,18 +455,16 @@ export function createEvidenceTableModule({
                             const rawValue = evidenceFieldValue(row, key);
                             const codeField = displayCodeFieldForColumn(column);
                             const referenceField = referenceDisplayFieldForColumn(column);
+                            const actorField = actorFieldForColumn(column);
                             if (type === 'sort' || type === 'type') {
+                                if (actorField !== '') {
+                                    return actorColumnDisplayValue(row, actorField) || valueText(rawValue);
+                                }
                                 if (referenceField !== '') {
                                     return referenceDisplayValue(row, column, rawValue);
                                 }
-                                if (codeField === 'transaction_direction') {
-                                    return valueText(row.__transaction_direction_label) || directionDisplayText(rawValue) || valueText(rawValue);
-                                }
-                                if (codeField === 'business_unit') {
-                                    return valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', rawValue) || valueText(rawValue);
-                                }
-                                if (codeField === 'operation_type') {
-                                    return valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', rawValue) || valueText(rawValue);
+                                if (codeField !== '') {
+                                    return codeColumnDisplayValue(row, codeField, rawValue);
                                 }
                                 if (isEvidenceStatusColumn(column)) {
                                     return valueText(evidenceStatusDisplay(rawValue).text);
@@ -462,14 +477,11 @@ export function createEvidenceTableModule({
                                 }
                                 return valueText(rawValue);
                             }
-                            if (codeField === 'transaction_direction') {
-                                return escapeHtml(valueText(row.__transaction_direction_label) || directionDisplayText(rawValue) || '-');
+                            if (actorField !== '') {
+                                return escapeHtml(actorColumnDisplayValue(row, actorField) || '-');
                             }
-                            if (codeField === 'business_unit') {
-                                return escapeHtml(valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', rawValue) || '-');
-                            }
-                            if (codeField === 'operation_type') {
-                                return escapeHtml(valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', rawValue) || '-');
+                            if (codeField !== '') {
+                                return escapeHtml(codeColumnDisplayValue(row, codeField, rawValue) || '-');
                             }
                             if (referenceField !== '') {
                                 return escapeHtml(referenceDisplayValue(row, column, rawValue) || '-');
@@ -536,21 +548,20 @@ export function createEvidenceTableModule({
                                 data: dataField,
                             };
                             const referenceField = referenceDisplayFieldForColumn(referenceColumn);
+                            const actorField = actorFieldForColumn(referenceColumn);
                             if (type === 'sort' || type === 'type') {
+                                if (actorField !== '') return actorColumnDisplayValue(row, actorField) || valueText(value);
                                 if (referenceField !== '') return referenceDisplayValue(row, referenceColumn, value);
                                 if (isDate) return normalizeDateInputValue(value, isDateTimeColumn(column)) || '';
                                 if (isAmount) return parseCommonNumber(value);
                                 return valueText(value);
                             }
                             const codeField = displayCodeFieldForColumn(column);
-                            if (codeField === 'transaction_direction') {
-                                return escapeHtml(valueText(row.__transaction_direction_label) || directionDisplayText(value) || '-');
+                            if (actorField !== '') {
+                                return escapeHtml(actorColumnDisplayValue(row, actorField) || '-');
                             }
-                            if (codeField === 'business_unit') {
-                                return escapeHtml(valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', value) || '-');
-                            }
-                            if (codeField === 'operation_type') {
-                                return escapeHtml(valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', value) || '-');
+                            if (codeField !== '') {
+                                return escapeHtml(codeColumnDisplayValue(row, codeField, value) || '-');
                             }
                             if (referenceField !== '') {
                                 return escapeHtml(referenceDisplayValue(row, referenceColumn, value) || '-');
@@ -592,11 +603,8 @@ export function createEvidenceTableModule({
                     headerClassName: 'no-colvis text-center',
                     width: '36px',
                     widthResizable: true,
-                    render: (_value, type, row) => {
+                    render: (_value, type) => {
                         if (type !== 'display') return '';
-                        if (row?.processing_is_child) {
-                            return '<i class="bi bi-arrow-return-right processing-child-branch" title="자식행"></i>';
-                        }
                         return '<i class="bi bi-list"></i>';
                     },
                 },
@@ -608,15 +616,14 @@ export function createEvidenceTableModule({
                     headerClassName: 'text-center text-nowrap',
                     width: '56px',
                     render(value, type, row, meta) {
-                        const display = value || row?.processing_display_path || (meta.row + meta.settings._iDisplayStart + 1);
+                        const display = value || (meta.row + meta.settings._iDisplayStart + 1);
                         if (type === 'sort' || type === 'type') {
                             return String(display)
                                 .split('-')
                                 .reduce((total, part, index) => total + (Number(part) || 0) / Math.pow(1000, index), 0);
                         }
                         if (type !== 'display') return escapeHtml(display);
-                        const depth = Math.max(1, Number(row?.processing_level || 1));
-                        return `<span class="processing-row-no depth-${depth}">${escapeHtml(display)}</span>`;
+                        return escapeHtml(display);
                     },
                 },
                 ...evidenceColumns,
@@ -641,40 +648,6 @@ export function createEvidenceTableModule({
                         `;
                     },
                 },
-                {
-                    key: '__add',
-                    data: null,
-                    title: '추가',
-                    className: 'dt-action-column text-center no-colvis',
-                    headerClassName: 'dt-action-column text-center no-colvis',
-                    orderable: false,
-                    searchable: false,
-                    width: '52px',
-                    widthResizable: true,
-                    render: (_value, type, row) => {
-                        if (type !== 'display') return '';
-                        if (row?.processing_is_child) {
-                            return `
-                                <button type="button"
-                                        class="btn btn-outline-danger btn-sm evidence-delete-child-row-btn"
-                                        data-processing-item-id="${escapeHtml(row?.processing_item_id || '')}"
-                                        title="자식행 삭제"
-                                        aria-label="자식행 삭제">
-                                    -
-                                </button>
-                            `;
-                        }
-                        return `
-                            <button type="button"
-                                    class="btn btn-outline-primary btn-sm evidence-add-child-row-btn"
-                                    data-id="${escapeHtml(row?.id || '')}"
-                                    title="자식행 추가"
-                                    aria-label="자식행 추가">
-                                +
-                            </button>
-                        `;
-                    },
-                },
             ];
         }
 
@@ -688,214 +661,20 @@ export function createEvidenceTableModule({
             ];
         }
 
-    function applyProcessingRowState() {
-            if (!state.table) return;
-            const body = state.table.table?.().body?.();
-            if (!body) return;
-            const renderContext = processingChildRenderContext();
-            const renderedParentKeys = new Set();
-            Array.from(body.rows || []).forEach((tr) => {
-                if (tr.classList.contains('processing-child-display-row')) {
-                    return;
-                }
-                const row = state.table.row(tr).data();
-                tr.classList.toggle('processing-child-row', Boolean(row?.processing_is_child));
-                tr.classList.toggle('processing-parent-row', Boolean(row?.processing_has_children));
-                syncProcessingChildRows(tr, row, renderContext, renderedParentKeys);
-            });
-            cleanupStaleProcessingChildRows(body, renderedParentKeys);
-        }
+    function rebuildTable() {
+        const sequence = ++rebuildSequence;
+        rebuildQueue = rebuildQueue
+            .catch(() => {})
+            .then(() => performTableRebuild(sequence));
+        return rebuildQueue;
+    }
 
-    function processingChildRenderContext() {
-            const settings = state.table?.settings?.()[0];
-            const columns = settings?.aoColumns || [];
-            const visibleIndexes = columns
-                .map((column, index) => (column?.bVisible === false ? null : index))
-                .filter((index) => index !== null);
-
-            return {
-                columns,
-                visibleIndexes,
-                columnSignature: visibleIndexes.join(','),
-            };
-        }
-
-    function processingParentRowKey(row = {}) {
-            return String(row?.processing_item_id || row?.id || '').trim();
-        }
-
-    function processingChildRowKey(child = {}, index = 0) {
-            return String(child?.processing_item_id || child?.id || child?.processing_display_path || child?.sort_no || `child-${index}`).trim();
-        }
-
-    function processingChildRowSignature(child = {}, renderContext = null) {
-            return JSON.stringify({
-                columnSignature: renderContext?.columnSignature || '',
-                child,
-            });
-        }
-
-    function collectProcessingChildRows(parentTr, parentKey) {
-            const rows = [];
-            let cursor = parentTr?.nextElementSibling || null;
-            while (cursor && cursor.classList.contains('processing-child-display-row')) {
-                if (String(cursor.dataset.processingParentId || '').trim() !== parentKey) {
-                    break;
-                }
-                rows.push(cursor);
-                cursor = cursor.nextElementSibling;
-            }
-            return rows;
-        }
-
-    function createProcessingChildRow(parentKey, childKey) {
-            const tr = document.createElement('tr');
-            tr.className = 'processing-child-row processing-child-display-row';
-            tr.dataset.processingParentId = parentKey;
-            tr.dataset.processingChildKey = childKey;
-            return tr;
-        }
-
-    function syncProcessingChildRows(parentTr, row = {}, renderContext = null, renderedParentKeys = null) {
-            const parentKey = processingParentRowKey(row);
-            const desiredChildren = row?.processing_has_children && Array.isArray(row?.processing_children)
-                ? row.processing_children
-                : [];
-
-            if (parentKey && renderedParentKeys) {
-                renderedParentKeys.add(parentKey);
-            }
-
-            const existingRows = parentKey ? collectProcessingChildRows(parentTr, parentKey) : [];
-            if (!parentKey || desiredChildren.length === 0) {
-                existingRows.forEach((childRow) => childRow.remove());
-                return;
-            }
-
-            const existingByKey = new Map();
-            existingRows.forEach((childRow, index) => {
-                existingByKey.set(String(childRow.dataset.processingChildKey || `existing-${index}`).trim(), childRow);
-            });
-
-            const usedRows = new Set();
-            let anchor = parentTr;
-            desiredChildren.forEach((child, index) => {
-                const childKey = processingChildRowKey(child, index);
-                let childRow = existingByKey.get(childKey);
-                if (!childRow) {
-                    childRow = createProcessingChildRow(parentKey, childKey);
-                }
-
-                if (anchor.nextElementSibling !== childRow) {
-                    anchor.insertAdjacentElement('afterend', childRow);
-                }
-
-                syncProcessingChildRowCells(childRow, child, renderContext, childKey, parentKey);
-                usedRows.add(childRow);
-                anchor = childRow;
-            });
-
-            existingRows.forEach((childRow) => {
-                if (!usedRows.has(childRow)) {
-                    childRow.remove();
-                }
-            });
-        }
-
-    function syncProcessingChildRowCells(childRow, child = {}, renderContext = null, childKey = '', parentKey = '') {
-            const columns = renderContext?.columns || [];
-            const visibleIndexes = renderContext?.visibleIndexes || [];
-            const nextSignature = processingChildRowSignature(child, renderContext);
-
-            childRow.dataset.processingParentId = parentKey;
-            childRow.dataset.processingChildKey = childKey;
-            childRow.__processingRowData = child;
-
-            if (childRow.dataset.processingRenderSignature === nextSignature && childRow.children.length === visibleIndexes.length) {
-                return;
-            }
-
-            while (childRow.children.length > visibleIndexes.length) {
-                childRow.removeChild(childRow.lastElementChild);
-            }
-
-            visibleIndexes.forEach((columnIndex, visibleIndex) => {
-                const column = columns[columnIndex] || {};
-                let td = childRow.children[visibleIndex];
-                if (!td) {
-                    td = document.createElement('td');
-                    childRow.appendChild(td);
-                }
-                const className = String(column.sClass || '').trim();
-                td.className = className;
-                td.innerHTML = renderProcessingChildCell(column, child, columnIndex);
-            });
-
-            childRow.dataset.processingRenderSignature = nextSignature;
-        }
-
-    function cleanupStaleProcessingChildRows(body, renderedParentKeys = null) {
-            Array.from(body.rows || []).forEach((tr) => {
-                if (!tr.classList.contains('processing-child-display-row')) {
-                    return;
-                }
-                const parentKey = String(tr.dataset.processingParentId || '').trim();
-                if (!parentKey || !renderedParentKeys?.has(parentKey)) {
-                    tr.remove();
-                }
-            });
-        }
-
-    function dataTableColumnValue(row = {}, dataSrc = null) {
-            if (typeof dataSrc === 'function') return dataSrc(row, 'display', row);
-            if (dataSrc === null || dataSrc === undefined) return row;
-            if (typeof dataSrc !== 'string' || dataSrc === '') return row[dataSrc] ?? '';
-            return dataSrc.split('.').reduce((value, key) => (
-                value && typeof value === 'object' ? value[key] : undefined
-            ), row);
-        }
-
-    function renderProcessingChildCell(column = {}, row = {}, columnIndex = 0) {
-            const data = dataTableColumnValue(row, column.mData);
-            const meta = {
-                row: 0,
-                col: columnIndex,
-                settings: state.table?.settings?.()[0] || {},
-            };
-            if (typeof column.mRender === 'function') {
-                return column.mRender(data, 'display', row, meta);
-            }
-            if (typeof column.mRender === 'object' && typeof column.mRender?.display === 'function') {
-                return column.mRender.display(data, 'display', row, meta);
-            }
-            return escapeHtml(data ?? '');
-        }
-
-    function insertProcessingChildRows(parentTr, children = []) {
-            const parentKey = processingParentRowKey(state.table?.row(parentTr).data() || {});
-            if (!parentTr || !parentKey) return;
-            syncProcessingChildRows(parentTr, {
-                processing_item_id: parentKey,
-                processing_has_children: Array.isArray(children) && children.length > 0,
-                processing_children: Array.isArray(children) ? children : [],
-            }, processingChildRenderContext());
-        }
-
-    function rowDataFromTableNode(rowNode) {
-            if (!rowNode || !state.table) return null;
-            if (rowNode.__processingRowData) {
-                return rowNode.__processingRowData;
-            }
-            return state.table.row(rowNode).data() || null;
-        }
-
-    async function rebuildTable() {
+    async function performTableRebuild(sequence) {
+        if (sequence !== rebuildSequence) return;
         const config = currentConfig();
         const typeStorageKey = normalizeEvidenceType(state.currentType || defaultEvidenceTypeCode()) || defaultEvidenceTypeCode();
         const typeTableKey = `evidence-status-${String(typeStorageKey || 'tax-invoice').trim().toLowerCase()}`;
-     
-            state.activeFormat = await ensureActiveFormat(state.currentType);
-    
+
             if (state.refs.excelLabel) {
                 state.refs.excelLabel.textContent = `${config.label} / 자료유형 기준`;
             }
@@ -913,8 +692,9 @@ export function createEvidenceTableModule({
             document.querySelector(selector)?.classList.add('evidence-status-table', 'nowrap');
     
             const columns = await resolveEvidenceTableColumns(config);
+            if (sequence !== rebuildSequence) return;
     
-        state.table = createDataTable({
+        state.table = await createDataTable({
                 tableSelector: selector,
                 api: config.api,
                 ajaxData(request = {}) {
@@ -924,18 +704,21 @@ export function createEvidenceTableModule({
                         column_requirement_policy: JSON.stringify(currentColumnRequirementPolicyMap(state.currentType)),
                     };
                 },
-                pageLength: 100,
+                pageLength: 25,
                 defaultOrder: defaultOrderForConfig(config),
                 scrollX: false,
                 autoWidth: false,
                 paging: true,
                 searching: true,
                 info: true,
+                serverSide: true,
+                pageLoading: false,
                 showColumnVisibility: false,
+                redrawAfterInitialVisibility: false,
                 showCopyButton: true,
                 searchTableId: typeTableKey,
                 selectable: true,
-                rowIdField: (row) => (row?.processing_is_child ? '' : row?.id),
+                rowIdField: 'id',
                 deleteButton: true,
                 deleteApi: API.deleteRows,
                 bulkDelete: true,
@@ -975,33 +758,26 @@ export function createEvidenceTableModule({
                     },
                     {
                         text: '엑셀관리',
-                        className: 'btn btn-outline-dark btn-sm',
+                        className: evidenceTypePolicy(state.currentType)?.readOnly
+                            || evidenceTypePolicy(state.currentType)?.excelManagerMode === 'none'
+                            ? 'd-none'
+                            : 'btn btn-outline-dark btn-sm',
                         action: () => showModal('dataExcelModal'),
                     },
                     {
-                        text: '새 증빙',
-                        className: 'btn btn-outline-primary btn-sm evidence-new-btn',
+                        text: '신규등록',
+                        className: evidenceTypePolicy(state.currentType)?.readOnly ? 'd-none' : 'btn btn-outline-primary btn-sm evidence-new-btn',
                         action: () => { void openEvidenceNewModalLatest(); },
                     },
                 ],
         });
         arrangeEvidenceToolbar(state.table);
-            void updateTrashButtonState();
-            state.table.on('draw.dt', () => {
-                applyProcessingRowState();
-            });
-            state.table.on('column-visibility.dt responsive-resize.dt', () => {
-                window.setTimeout(applyProcessingRowState, 0);
-            });
-            applyProcessingRowState();
-    
             bindRowReorder(state.table, {
                 api: API.reorder,
                 sortNoField: 'sort_no',
                 includeAppliedRows: true,
                 changedRowsOnly: false,
-                sortableItems: '> tr:not(.processing-child-row)',
-                isReorderableRow: (row) => !row?.processing_is_child,
+                sortableItems: '> tr',
                 extraData: () => ({
                     scope: 'status',
                     import_type: state.currentType,
@@ -1018,6 +794,7 @@ export function createEvidenceTableModule({
             });
     
             const dateOptions = await resolveEvidenceDateOptions(state.currentType);
+            if (sequence !== rebuildSequence) return;
             SearchForm({
                 table: state.table,
                 apiList: config.api,
@@ -1040,11 +817,6 @@ export function createEvidenceTableModule({
         defaultOrderForConfig,
         commonColumns,
         genericEvidenceColumns,
-        applyProcessingRowState,
-        dataTableColumnValue,
-        renderProcessingChildCell,
-        insertProcessingChildRows,
-        rowDataFromTableNode,
         rebuildTable,
     };
 }

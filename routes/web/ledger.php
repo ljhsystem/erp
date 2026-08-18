@@ -44,20 +44,6 @@ $router->get('/ledger/settings/opening-balances', 'LedgerController@webPlacehold
     'log' => false,
 ]);
 
-$router->get('/ledger/data/formats', 'LedgerController@webDataFormat', [
-    'key' => 'web.ledger.data.formats',
-    'page' => '양식관리',
-    'page_description' => '자료 양식관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '양식관리 화면 조회',
-    'name' => '양식관리',
-    'description' => '회계관리 > 자료관리 > 양식관리',
-    'category' => '회계관리 > 자료관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->get('/ledger/data/evidence-metadata', 'EvidenceMetadataController@index', [
     'key' => 'web.ledger.evidence_metadata',
     'page' => '증빙정책',
@@ -72,50 +58,6 @@ $router->get('/ledger/data/evidence-metadata', 'EvidenceMetadataController@index
     'log' => false,
 ]);
 
-$router->get('/ledger/data/list', 'EvidenceController@webList', [
-    'key' => 'web.ledger.data.list',
-    'page' => '증빙원본',
-    'page_description' => '증빙원본 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '증빙원본 화면 조회',
-    'name' => '증빙원본',
-    'description' => '회계관리 > 자료관리 > 증빙원본',
-    'category' => '회계관리 > 자료관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/data/bank-transactions', 'EvidenceController@webBankTransactionList', [
-    'key' => 'web.ledger.data.bank-transactions',
-    'page' => '증빙원본',
-    'page_description' => '증빙원본 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '증빙원본 화면 조회',
-    'name' => '증빙원본',
-    'description' => '회계관리 > 자료관리 > 증빙원본',
-    'category' => '회계관리 > 자료관리',
-    'auth' => true,
-    'skip_permission' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/data/tax-invoices', 'EvidenceController@webTaxInvoiceList', [
-    'key' => 'web.ledger.data.tax-invoices',
-    'page' => '증빙원본',
-    'page_description' => '증빙원본 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '증빙원본 화면 조회',
-    'name' => '증빙원본',
-    'description' => '회계관리 > 자료관리 > 증빙원본',
-    'category' => '회계관리 > 자료관리',
-    'auth' => true,
-    'skip_permission' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->get('/ledger/data/raw', 'EvidenceController@webRaw', [
     'key' => 'web.ledger.data.raw',
     'page' => '원본자료',
@@ -124,20 +66,6 @@ $router->get('/ledger/data/raw', 'EvidenceController@webRaw', [
     'permission_description' => '원본자료 화면 조회',
     'name' => '원본자료',
     'description' => '회계관리 > 자료관리 > 원본자료',
-    'category' => '회계관리 > 자료관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/data/create', 'LedgerController@webDataCreate', [
-    'key' => 'web.ledger.data.create',
-    'page' => '생성센터',
-    'page_description' => '생성센터 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '생성센터 화면 조회',
-    'name' => '생성센터',
-    'description' => '회계관리 > 자료관리 > 생성센터',
     'category' => '회계관리 > 자료관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -158,7 +86,7 @@ $router->get('/ledger/transactions/input', 'TransactionController@webLedgerTrans
     'log' => false,
 ]);
 
-$router->get('/ledger/transactions', 'TransactionController@webLedgerTransaction', [
+$router->get('/ledger/transactions', 'TransactionController@webLedgerCreate', [
     'key' => 'web.ledger.transactions.index',
     'page' => '거래입력',
     'page_description' => '거래 입력 관리',
@@ -200,20 +128,6 @@ $router->get('/ledger/vouchers/input', 'VoucherController@webInput', [
     'log' => false,
 ]);
 
-$router->get('/ledger/accounts', 'ChartAccountController@index', [
-    'key' => 'web.ledger.accounts',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '계정과목 화면 조회',
-    'name' => '계정과목',
-    'description' => '회계관리 > 기초정보관리 > 계정과목',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->get('/ledger/journal', 'VoucherController@webInput', [
     'key' => 'web.ledger.journal',
     'page' => '분개장',
@@ -228,7 +142,7 @@ $router->get('/ledger/journal', 'VoucherController@webInput', [
     'log' => false,
 ]);
 
-$router->get('/ledger/transaction', 'TransactionController@webLedgerTransaction', [
+$router->get('/ledger/transaction', 'TransactionController@webLedgerCreate', [
     'key' => 'web.ledger.transaction.index',
     'page' => '거래입력',
     'page_description' => '거래 입력 관리',
@@ -244,12 +158,12 @@ $router->get('/ledger/transaction', 'TransactionController@webLedgerTransaction'
 
 $router->get('/ledger/transaction/create', 'TransactionController@webLedgerCreate', [
     'key' => 'web.ledger.transaction.create',
-    'page' => '전표검토/승인',
-    'page_description' => '전표 검토 및 승인',
+    'page' => '거래입력',
+    'page_description' => '거래 입력 관리',
     'permission_name' => '화면조회',
-    'permission_description' => '전표검토/승인 화면 조회',
-    'name' => '전표검토/승인',
-    'description' => '회계관리 > 전표관리 > 전표검토/승인',
+    'permission_description' => '거래입력 화면 조회',
+    'name' => '거래입력',
+    'description' => '회계관리 > 전표관리 > 거래입력',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -258,27 +172,13 @@ $router->get('/ledger/transaction/create', 'TransactionController@webLedgerCreat
 
 $router->get('/ledger/vouchers/review', 'LedgerController@webVoucherReview', [
     'key' => 'web.ledger.vouchers.review',
-    'page' => '전표검토/승인',
+    'page' => '전표검토·전기',
     'page_description' => '전표 검토 및 승인',
     'permission_name' => '화면조회',
-    'permission_description' => '전표검토/승인 화면 조회',
-    'name' => '전표검토/승인',
-    'description' => '회계관리 > 전표관리 > 전표검토/승인',
+    'permission_description' => '전표검토·전기 화면 조회',
+    'name' => '전표검토·전기',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기',
     'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/data/format', 'LedgerController@webDataFormat', [
-    'key' => 'web.ledger.data.format',
-    'page' => '양식관리',
-    'page_description' => '자료 양식관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '양식관리 화면 조회',
-    'name' => '양식관리',
-    'description' => '회계관리 > 자료관리 > 양식관리',
-    'category' => '회계관리 > 자료관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
@@ -312,22 +212,22 @@ $router->get('/ledger/data/upload', 'EvidenceController@webUpload', [
     'log' => false,
 ]);
 
-$router->get('/ledger/data', 'EvidenceController@webIndex', [
-    'key' => 'web.ledger.data.index',
-    'page' => '증빙원본',
-    'page_description' => '증빙원본 관리',
+$router->get('/ledger/funds', 'FundsOverviewController@index', [
+    'key' => 'web.ledger.funds.account_balances',
+    'page' => '자금현황',
+    'page_description' => '보유 자금 및 계좌별 잔액 현황',
     'permission_name' => '화면조회',
-    'permission_description' => '증빙원본 화면 조회',
-    'name' => '증빙원본',
-    'description' => '회계관리 > 자료관리 > 증빙원본',
-    'category' => '회계관리 > 자료관리',
+    'permission_description' => '자금현황 화면 조회',
+    'name' => '자금현황',
+    'description' => '회계관리 > 자금관리 > 자금현황',
+    'category' => '회계관리 > 자금관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
 ]);
 
 $router->get('/ledger/funds/account-transactions', 'BankTransactionReportController@index', [
-    'key' => 'web.ledger.funds.account_transactions',
+    'key' => 'web.ledger.funds.bank_transactions',
     'page' => '계좌별거래내역',
     'page_description' => '계좌별 거래내역 관리',
     'permission_name' => '화면조회',
@@ -467,35 +367,7 @@ $router->get('/ledger/book/vehicle-log', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/funds/deposit-ledger', 'PlaceholderController@index', [
-    'key' => 'web.ledger.funds.deposit_ledger',
-    'page' => '예금출납장',
-    'page_description' => '예금출납장 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '예금출납장 화면 조회',
-    'name' => '예금출납장',
-    'description' => '회계관리 > 자금관리 > 예금출납장',
-    'category' => '회계관리 > 자금관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/funds/cash-ledger', 'PlaceholderController@index', [
-    'key' => 'web.ledger.funds.cash_ledger',
-    'page' => '현금출납장',
-    'page_description' => '현금출납장 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '현금출납장 화면 조회',
-    'name' => '현금출납장',
-    'description' => '회계관리 > 자금관리 > 현금출납장',
-    'category' => '회계관리 > 자금관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/funds/daily-report', 'PlaceholderController@index', [
+$router->get('/ledger/funds/daily-report', 'DailyFundsReportController@index', [
     'key' => 'web.ledger.funds.daily_report',
     'page' => '자금일보',
     'page_description' => '자금일보 관리',
@@ -509,35 +381,22 @@ $router->get('/ledger/funds/daily-report', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/funds/account-balances', 'PlaceholderController@index', [
-    'key' => 'web.ledger.funds.account_balances',
+$router->get('/ledger/funds/account-balances', 'FundsOverviewController@legacyAccountBalances', [
+    'key' => 'web.ledger.funds.account_balances_legacy',
     'page' => '계좌잔액현황',
-    'page_description' => '계좌잔액현황 관리',
+    'page_description' => '자금현황 이전 주소 호환',
     'permission_name' => '화면조회',
-    'permission_description' => '계좌잔액현황 화면 조회',
+    'permission_description' => '자금현황 이전 주소 조회',
     'name' => '계좌잔액현황',
-    'description' => '회계관리 > 자금관리 > 계좌잔액현황',
+    'description' => '회계관리 > 자금관리 > 자금현황',
     'category' => '회계관리 > 자금관리',
     'auth' => true,
-    'permissions' => ['view'],
+    'permissions' => [],
+    'skip_permission' => true,
     'log' => false,
 ]);
 
-$router->get('/ledger/funds/unlinked-transactions', 'PlaceholderController@index', [
-    'key' => 'web.ledger.funds.unlinked_transactions',
-    'page' => '미연결입출금',
-    'page_description' => '미연결입출금 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '미연결입출금 화면 조회',
-    'name' => '미연결입출금',
-    'description' => '회계관리 > 자금관리 > 미연결입출금',
-    'category' => '회계관리 > 자금관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/funds/payment-schedule', 'PlaceholderController@index', [
+$router->get('/ledger/funds/payment-schedule', 'PaymentScheduleController@index', [
     'key' => 'web.ledger.funds.payment_schedule',
     'page' => '지급예정현황',
     'page_description' => '지급예정현황 관리',

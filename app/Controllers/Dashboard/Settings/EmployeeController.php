@@ -1,8 +1,8 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/EmployeeController.php'
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
+use Core\Session;
 use App\Services\System\EmployeeService;
 use App\Services\Auth\AuthService;
 
@@ -13,64 +13,54 @@ class EmployeeController
 
     public function __construct()
     {
-        $this->service = new EmployeeService(DbPdo::conn());    
+        $this->service = new EmployeeService(DbPdo::conn());
 
-        $this->authService = new AuthService(DbPdo::conn());  
+        $this->authService = new AuthService(DbPdo::conn());
     }
 
-
-    // ============================================================
-    // API: 직원 목록 조회
-    // URL: GET /api/settings/employee/list
-    // permission: settings.employee.list
-    // controller: EmployeeController@apiList
-    // ============================================================
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
-    
+        Session::write();
+
         try {
-    
+
             $filters = [];
-    
+
             if (!empty($_GET['filters'])) {
                 $decoded = json_decode($_GET['filters'], true);
-    
+
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $filters = $decoded;
                 }
             }
-    
-            // Service에서 목록 조회를 처리합니다.
+
             $rows = $this->service->getList($filters);
-    
+
             echo json_encode([
                 'success' => true,
                 'data'    => $rows
             ], JSON_UNESCAPED_UNICODE);
-    
+
         } catch (\Throwable $e) {
-    
+
             echo json_encode([
                 'success' => false,
                 'message' => '직원 목록 조회 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
-    
+
         exit;
     }
 
-    // ============================================================
-    // API: 직원 상세 조회
-    // URL: GET /api/settings/employee/detail
-    // ============================================================
     public function apiDetail(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
-    
+        Session::write();
+
         $id = $_GET['id'] ?? null;
-    
+
         if (!$id) {
             echo json_encode([
                 'success' => false,
@@ -78,12 +68,11 @@ class EmployeeController
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
-    
+
         try {
-    
-            // Service에서 상세 조회를 처리합니다.
+
             $row = $this->service->getById($id);
-    
+
             if (!$row) {
                 echo json_encode([
                     'success' => false,
@@ -91,35 +80,29 @@ class EmployeeController
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-    
+
             echo json_encode([
                 'success' => true,
                 'data' => $row
             ], JSON_UNESCAPED_UNICODE);
-    
+
         } catch (\Throwable $e) {
-    
+
             echo json_encode([
                 'success' => false,
                 'message' => '직원 조회 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
-    
+
         exit;
     }
 
 
-
-    // =====// ============================================================
-    // API: 직원 검색(Select2)
-    // URL: GET /api/settings/employee/search?q=검색어
-    // controller: EmployeeController@apiSearchPicker
-    // ============================================================
-    
     public function apiSearchPicker(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $keyword = trim($_GET['q'] ?? '');
@@ -141,33 +124,15 @@ class EmployeeController
         exit;
     }
 
-
-    // ============================================================
-    // API: 직원 저장(신규 + 수정)
-    // URL: POST /api/settings/employee/save
-    // ============================================================
     public function apiSave(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
 
         try {
-
-            /* =========================================================
-            payload 생성
-            ========================================================= */
-
             $payload = [
-
-                // =========================
-                // 기본
-                // =========================
                 'id'       => $_POST['id'] ?? null,
                 'sort_no'     => $_POST['sort_no'] ?? null,
                 'user_id'  => $_POST['user_id'] ?? null,
-
-                // =========================
-                // 기본 정보
-                // =========================
                 'employee_name' => trim($_POST['employee_name'] ?? ''),
 
                 'phone'           => $_POST['phone'] ?? null,
@@ -178,54 +143,33 @@ class EmployeeController
 
                 'department_id' => $_POST['department_id'] ?? null,
                 'position_id'   => $_POST['position_id'] ?? null,
-                'client_id'     => $_POST['client_id'] ?? null,
+                'job_id'        => $_POST['job_id'] ?? null,
+                'employment_status' => $_POST['employment_status'] ?? null,
 
-                // =========================
-                // 날짜
-                // =========================
                 'doc_hire_date'  => $_POST['doc_hire_date'] ?? null,
                 'real_hire_date' => $_POST['real_hire_date'] ?? null,
 
                 'doc_retire_date'  => $_POST['doc_retire_date'] ?? null,
                 'real_retire_date' => $_POST['real_retire_date'] ?? null,
 
-                // =========================
-                // 주민등록번호
-                // =========================
                 'rrn' => (
                     isset($_POST['rrn']) &&
                     trim($_POST['rrn']) !== ''
                 ) ? trim($_POST['rrn']) : null,
 
-                // =========================
-                // 계좌
-                // =========================
                 'bank_name'      => $_POST['bank_name'] ?? null,
                 'account_number' => $_POST['account_number'] ?? null,
                 'account_holder' => $_POST['account_holder'] ?? null,
 
-                // =========================
-                // 자격증
-                // =========================
-                'certificate_name' => $_POST['certificate_name'] ?? null,
-
-                // =========================
-                // 기타
-                // =========================
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
 
-                // =========================
-                // 파일 삭제 플래그
-                // =========================
                 'profile_image_delete'    => $_POST['profile_image_delete'] ?? '0',
                 'rrn_image_delete'        => $_POST['rrn_image_delete'] ?? '0',
-                'certificate_file_delete' => $_POST['certificate_file_delete'] ?? '0',
                 'bank_file_delete'        => $_POST['bank_file_delete'] ?? '0',
+                'representative_qualification_name' => trim($_POST['representative_qualification_name'] ?? ''),
+                'representative_qualification_delete' => $_POST['representative_qualification_delete'] ?? '0',
 
-                // =========================
-                // 계정(auth_users)
-                // =========================
                 'username' => trim($_POST['username'] ?? ''),
                 'email'    => trim($_POST['email'] ?? ''),
                 'role_id'  => $_POST['role_id'] ?? null,
@@ -236,9 +180,13 @@ class EmployeeController
                 'sms_notify'         => $_POST['sms_notify'] ?? '0',
             ];
 
-            /* =========================================================
-            필수값 체크
-            ========================================================= */
+            if (!empty($payload['id'])) {
+                foreach (['department_id', 'position_id', 'job_id', 'employment_status', 'doc_hire_date', 'real_hire_date', 'doc_retire_date', 'real_retire_date'] as $protectedField) {
+                    if (!array_key_exists($protectedField, $_POST)) {
+                        unset($payload[$protectedField]);
+                    }
+                }
+            }
 
             if ($payload['employee_name'] === '') {
 
@@ -331,9 +279,6 @@ class EmployeeController
                 exit;
             }
 
-            /* =========================================================
-            저장(Service 책임)
-            ========================================================= */
 
             $result = $this->service->save(
                 $payload,
@@ -341,11 +286,9 @@ class EmployeeController
                 $_FILES
             );
 
-            /* =========================================================
-            실패 처리
-            ========================================================= */
-
             if (!$result['success']) {
+
+                http_response_code((int) ($result['status'] ?? 400));
 
                 echo json_encode([
                     'success' => false,
@@ -353,10 +296,6 @@ class EmployeeController
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-
-            /* =========================================================
-            성공
-            ========================================================= */
 
             echo json_encode([
                 'success' => true,
@@ -377,11 +316,6 @@ class EmployeeController
         exit;
     }
 
-
-    // ============================================================
-    // API: 직원 상태 변경(활성/비활성)
-    // URL: POST /api/settings/employee/update-status
-    // ============================================================
     public function apiUpdateStatus(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
@@ -399,7 +333,6 @@ class EmployeeController
 
         try {
 
-            // employee_id 기준으로 전달
             $result = $this->service->updateStatus($id, $isActive);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -416,11 +349,6 @@ class EmployeeController
         exit;
     }
 
-
-    // ============================================================
-    // API: 직원 영구 삭제
-    // URL: POST /api/settings/employee/delete
-    // ============================================================
     public function apiDelete(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
@@ -439,7 +367,6 @@ class EmployeeController
 
         try {
 
-            // user_employees.id 기준
             $result = $this->service->purge($id, 'USER');
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);

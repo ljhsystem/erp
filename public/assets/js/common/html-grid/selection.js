@@ -150,6 +150,15 @@ export function createSelectionController(config = {}) {
         };
     }
 
+    function deselectRow(rowIndex) {
+        const row = getRows()[normalizeIndex(rowIndex)] || null;
+        if (!row) return { executed: false, reason: 'missing-row' };
+        const currentSelection = getState().selection || {};
+        const selectedRowIds = (currentSelection.selectedRowIds || []).filter((rowId) => rowId !== row.rowId);
+        setSelectionPatch({ selectedRowIds });
+        return { executed: true, rowId: row.rowId, selectedRowIds };
+    }
+
     function setRange(startCell, endCell) {
         if (!isSelectionEnabled(api)) {
             return { executed: false, reason: 'capability-blocked' };
@@ -201,6 +210,7 @@ export function createSelectionController(config = {}) {
     return {
         focusCell,
         selectRow,
+        deselectRow,
         setRange,
         clearRange,
         clearSelection,

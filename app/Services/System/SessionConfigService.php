@@ -8,7 +8,7 @@ class SessionConfigService
 {
     private SettingService $settingService;
 
-    public function __construct(PDO $pdo)
+    public function __construct(?PDO $pdo = null)
     {
         $this->settingService = new SettingService($pdo);
     }

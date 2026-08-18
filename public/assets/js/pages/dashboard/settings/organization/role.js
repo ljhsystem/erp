@@ -1,6 +1,9 @@
-// ?롪퍔?δ빳? PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/roles.js'
-
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import '/public/assets/js/common/core/AppAjax.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
 import {
     createDataTable,
     bindTableHighlight
@@ -10,7 +13,6 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
-import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -21,25 +23,28 @@ window.AdminPicker = AdminPicker;
 
     const API = {
         LIST: '/api/settings/organization/role/list',
+        DETAIL: '/api/settings/organization/role/detail',
         SAVE: '/api/settings/organization/role/save',
         DELETE: '/api/settings/organization/role/delete',
         REORDER: '/api/settings/organization/role/reorder'
     };
 
     const ROLE_COLUMN_MAP = {
+        id:          { label: 'ID', visible: false },
         sort_no:     { label: '\uC21C\uBC88', visible: true },
         role_key:    { label: '\uC5ED\uD560 \uD0A4', visible: true },
         role_name:   { label: '\uC5ED\uD560\uBA85', visible: true },
         description: { label: '\uC124\uBA85', visible: true },
         is_active:   { label: '\uC0C1\uD0DC', visible: true },
         created_at:  { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
-        created_by:  { label: '\uC0DD\uC131\uC790', visible: false },
+        created_by:  { label: '\uC0DD\uC131\uC790', visible: false, type: 'actor' },
         updated_at:  { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
-        updated_by:  { label: '\uC218\uC815\uC790', visible: false }
+        updated_by:  { label: '\uC218\uC815\uC790', visible: false, type: 'actor', settingsKey: 'updated_bY' }
     };
 
     const ROLE_COLUMN_WIDTHS = {
         __reorder: '40px',
+        id: '280px',
         sort_no: '80px',
         role_key: '160px',
         role_name: '180px',
@@ -67,6 +72,7 @@ window.AdminPicker = AdminPicker;
 
     let roleTable = null;
     let roleModal = null;
+    let roleCardCollapses = null;
     let todayPicker = null;
     let globalBound = false;
     let roleModalEls = {};
@@ -81,10 +87,9 @@ window.AdminPicker = AdminPicker;
         initRolePage(window.jQuery);
     });
 
-    function initRolePage($) {
-        sanitizeRoleTableSettingsState();
+    async function initRolePage($) {
         initModal();
-        initDataTable($);
+        await initDataTable($);
         bindRowReorder(roleTable, {
             api: API.REORDER,
             onSuccess() {
@@ -101,69 +106,12 @@ window.AdminPicker = AdminPicker;
         bindGlobalEvents();
     }
 
-    function sanitizeRoleTableSettingsState() {
-        try {
-            const parsed = readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, {
-                userSettingPageKey: 'role',
-            });
-            if (!parsed || typeof parsed !== 'object') return;
-
-            let changed = false;
-            const nextState = { ...parsed };
-            const deprecated = new Set(['__legacy_role_status']);
-
-            [
-                'columnWidths',
-                'pageLength',
-                'sortSettings',
-                'currentPage',
-                'searchFormExpanded',
-                'searchFormState',
-                'requiredColumns',
-                'columnWidth',
-            ].forEach((key) => {
-                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
-                    delete nextState[key];
-                    changed = true;
-                }
-            });
-
-            ['visibleColumns', 'columnOrder'].forEach((key) => {
-                if (!Array.isArray(nextState[key])) return;
-                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
-                if (filtered.length !== nextState[key].length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
-                if (!nextState[key] || typeof nextState[key] !== 'object') return;
-                const filtered = Object.fromEntries(
-                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
-                );
-                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
-                    nextState[key] = filtered;
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                writeSystemUserSettingsStorage(ROLE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
-                    userSettingPageKey: 'role',
-                    settingType: 'TABLE',
-                });
-            }
-        } catch (error) {
-            console.warn('[role] table settings sanitize failed:', error);
-        }
-    }
-
     function initModal() {
         const modalEl = document.getElementById('roleEditModal');
         if (!modalEl) return;
 
         roleModal = new bootstrap.Modal(modalEl, { focus: false });
+        roleCardCollapses = bindModalCardCollapses(modalEl, { resetOnShow: true });
         roleModalEls = {
             modal: modalEl,
             form: document.getElementById('role-edit-form'),
@@ -398,10 +346,10 @@ window.AdminPicker = AdminPicker;
         picker.open({ anchor: input });
     }
 
-    function initDataTable($) {
+    async function initDataTable($) {
         const columns = buildRoleColumns();
 
-        roleTable = createDataTable({
+        roleTable = await createDataTable({
             tableSelector: '#role-table',
             api: API.LIST,
             columns,
@@ -419,10 +367,11 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             selectable: true,
-            deleteButton: false,
+            deleteButton: true,
+            deleteApi: API.DELETE,
             buttons: [
                 {
-                    text: '\uC0C8 \uC5ED\uD560',
+                    text: '신규등록',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -469,6 +418,9 @@ window.AdminPicker = AdminPicker;
         Object.entries(ROLE_COLUMN_MAP).forEach(([field, config]) => {
             columns.push({
                 data: field,
+                settingsKey: config.settingsKey || field,
+                __dtColumnKind: 'physical',
+                type: config.type,
                 title: config.label,
                 width: ROLE_COLUMN_WIDTHS[field] || '120px',
                 visible: config.visible ?? true,
@@ -491,6 +443,10 @@ window.AdminPicker = AdminPicker;
                                        aria-label="\uC0C1\uD0DC \uBCC0\uACBD">
                             </div>
                         `;
+                    }
+
+                    if (config.type === 'actor') {
+                        return escapeHtml(actorDisplay(row, field));
                     }
 
                     if (data == null) return '';
@@ -584,7 +540,12 @@ window.AdminPicker = AdminPicker;
 
                 const id = $('#role_edit_id').val();
                 if (!id) return;
-                if (!confirm('\uC5ED\uD560\uC744 \uC601\uAD6C\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
+                if (!await confirmDialog({
+                    title: '\uC5ED\uD560 \uC601\uAD6C\uC0AD\uC81C',
+                    message: '\uC5ED\uD560\uC744 \uC601\uAD6C\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?',
+                    confirmText: '\uC601\uAD6C\uC0AD\uC81C',
+                    confirmClass: 'btn-danger'
+                })) return;
 
                 await deleteRole(id);
             });
@@ -596,7 +557,16 @@ window.AdminPicker = AdminPicker;
         roleModal?.show();
     }
 
-    function openEditModal(row) {
+    async function openEditModal(row) {
+        try {
+            const json = await window.AppAjax.fetchJson(`${API.DETAIL}?id=${encodeURIComponent(row.id || '')}`, {
+                credentials: 'include'
+            });
+            row = json.data || row;
+        } catch (error) {
+            notify('error', error.message || '\uC0C1\uC138 \uC870\uD68C \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
+            return;
+        }
         resetRoleForm();
         setRoleModalMode('edit');
 
@@ -605,6 +575,12 @@ window.AdminPicker = AdminPicker;
         if (roleModalEls.name) roleModalEls.name.value = row.role_name || '';
         if (roleModalEls.description) roleModalEls.description.value = row.description || '';
         if (roleModalEls.isActive) roleModalEls.isActive.checked = String(row.is_active) === '1';
+
+        const protectedRole = ['super_admin', 'admin'].includes(String(row.role_key || ''));
+        if (roleModalEls.key) roleModalEls.key.readOnly = protectedRole;
+        if (roleModalEls.isActive) roleModalEls.isActive.disabled = protectedRole;
+        if (roleModalEls.deleteBtn) roleModalEls.deleteBtn.style.display = protectedRole ? 'none' : '';
+        renderRoleSystemInfo(row);
 
         roleModal?.show();
     }
@@ -629,6 +605,10 @@ window.AdminPicker = AdminPicker;
 
         if (roleModalEls.id) roleModalEls.id.value = '';
         if (roleModalEls.isActive) roleModalEls.isActive.checked = true;
+        if (roleModalEls.key) roleModalEls.key.readOnly = false;
+        if (roleModalEls.isActive) roleModalEls.isActive.disabled = false;
+        renderRoleSystemInfo({});
+        roleCardCollapses?.reset();
         setRoleModalMode('create');
     }
 
@@ -651,19 +631,13 @@ window.AdminPicker = AdminPicker;
         fd.set('is_active', $('#role_edit_is_active').is(':checked') ? '1' : '0');
 
         try {
-            const res = await fetch(API.SAVE, {
+            const json = await window.AppAjax.fetchJson(API.SAVE, {
                 method: 'POST',
                 body: fd,
                 credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', resolveSaveMessage(json?.message));
-                return;
-            }
-
-            notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
+            notify('success', json.message || '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
             roleModal?.hide();
             reloadRoleTable();
         } catch (err) {
@@ -677,19 +651,13 @@ window.AdminPicker = AdminPicker;
         fd.append('id', id);
 
         try {
-            const res = await fetch(API.DELETE, {
+            const json = await window.AppAjax.fetchJson(API.DELETE, {
                 method: 'POST',
                 body: fd,
                 credentials: 'include'
             });
-            const json = await res.json();
 
-            if (!json?.success) {
-                notify('error', json?.message || '\uC0AD\uC81C \uC2E4\uD328');
-                return;
-            }
-
-            notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
+            notify('success', json.message || '\uC5ED\uD560\uC774 \uC601\uAD6C\uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
             roleModal?.hide();
             reloadRoleTable();
         } catch (err) {
@@ -707,24 +675,11 @@ window.AdminPicker = AdminPicker;
         fd.set('description', row.description || '');
         fd.set('is_active', active ? '1' : '0');
 
-        const res = await fetch(API.SAVE, {
+        return window.AppAjax.fetchJson(API.SAVE, {
             method: 'POST',
             body: fd,
             credentials: 'include'
         });
-        const json = await res.json();
-
-        if (!json?.success) {
-            throw new Error(resolveSaveMessage(json?.message));
-        }
-
-        return json;
-    }
-
-    function resolveSaveMessage(message) {
-        if (message === 'duplicate_key') return '\uC774\uBBF8 \uB4F1\uB85D\uB41C Role Key\uC785\uB2C8\uB2E4.';
-        if (message === 'duplicate') return '\uC774\uBBF8 \uB4F1\uB85D\uB41C Role Name\uC785\uB2C8\uB2E4.';
-        return message || '\uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.';
     }
 
     function reloadRoleTable() {
@@ -743,7 +698,35 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    
+    function renderRoleSystemInfo(data = {}) {
+        const container = document.getElementById('roleSystemInfoFields');
+        if (!container) return;
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '\uC21C\uBC88'],
+            ['created_at', '\uC0DD\uC131\uC77C\uC2DC', 'datetime'],
+            ['created_by', '\uC0DD\uC131\uC790', 'actor'],
+            ['updated_at', '\uC218\uC815\uC77C\uC2DC', 'datetime'],
+            ['updated_by', '\uC218\uC815\uC790', 'actor']
+        ];
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'role-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'role-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'role-system-info-value';
+            const raw = type === 'actor'
+                ? (String(data[`${key}_name`] || '').trim() ? actorDisplay(data, key) : '')
+                : (type === 'datetime' ? formatDateDisplay(data[key]) : data[key]);
+            value.textContent = raw == null ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
+    }
+
+
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -791,13 +774,7 @@ window.AdminPicker = AdminPicker;
             window.AppCore.notify(type, message);
             return;
         }
-
-        if (type === 'error' || type === 'warning') {
-            alert(message);
-            return;
-        }
-
-        window.console?.info?.(message);
+        window.console?.[type === 'error' ? 'error' : 'info']?.(message);
     }
 
     function escapeHtml(value) {

@@ -1,8 +1,9 @@
 <?php
 namespace App\Services\System;
 
-use App\Models\System\WorkTeamMemberModel;
 use App\Models\System\WorkTeamModel;
+use App\Models\System\ClientModel;
+use App\Repositories\System\WorkTeamDependencyRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
@@ -47,14 +48,16 @@ class WorkTeamService
 
     private readonly PDO $pdo;
     private WorkTeamModel $model;
-    private WorkTeamMemberModel $memberModel;
+    private ClientModel $clientModel;
+    private WorkTeamDependencyRepository $dependencyRepository;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
         $this->model = new WorkTeamModel($pdo);
-        $this->memberModel = new WorkTeamMemberModel($pdo);
+        $this->clientModel = new ClientModel($pdo);
+        $this->dependencyRepository = new WorkTeamDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.WorkTeamService');
     }
 
@@ -87,12 +90,18 @@ class WorkTeamService
 
             $id = trim((string)($data['id'] ?? ''));
             $data = $this->normalize($data);
+            $validationMessage = $this->validateSaveData($data);
+            if ($validationMessage !== '') {
+                $this->pdo->rollBack();
+                return ['success' => false, 'message' => $validationMessage];
+            }
 
             if ($id !== '') {
                 $before = $this->model->getById($id);
                 if (!$before) {
                     throw new \Exception('작업팀을 찾을 수 없습니다.');
                 }
+                $this->assertTeamLeader($data, $before);
 
                 $data['updated_by'] = $actor;
                 $data['sort_no'] = (int)($before['sort_no'] ?? 0);
@@ -112,6 +121,7 @@ class WorkTeamService
             }
 
             $newId = UuidHelper::generate();
+            $this->assertTeamLeader($data, null);
             $newSortNo = SequenceHelper::next('system_work_teams', 'sort_no');
 
             $insertData = array_merge($data, [
@@ -132,6 +142,11 @@ class WorkTeamService
                 'id' => $newId,
                 'sort_no' => $newSortNo,
             ];
+        } catch (\DomainException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            return ['success' => false, 'message' => $e->getMessage()];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -141,7 +156,7 @@ class WorkTeamService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '저장 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -157,7 +172,8 @@ class WorkTeamService
 
             return ['success' => $this->model->deleteById($id, $actor)];
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
+            $this->logger->error('delete() failed', ['id' => $id, 'error' => $e->getMessage()]);
+            return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
 
@@ -186,14 +202,18 @@ class WorkTeamService
     {
         $actor = ActorHelper::resolve($actorType);
         $count = 0;
-
-        foreach ($ids as $id) {
-            if ($this->model->restoreById((string)$id, $actor)) {
-                $count++;
+        try {
+            $this->pdo->beginTransaction();
+            foreach ($ids as $id) {
+                if ($this->model->restoreById((string)$id, $actor)) $count++;
             }
+            $this->pdo->commit();
+            return ['success' => true, 'message' => "복원 완료 ({$count}건)"];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->logger->error('restoreBulk() failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
-
-        return ['success' => true, 'message' => "복원 완료 ({$count}건)"];
     }
 
     public function restoreAll(string $actorType = 'USER'): array
@@ -203,29 +223,55 @@ class WorkTeamService
 
     public function purge(string $id): array
     {
-        try {
-            return ['success' => $this->model->hardDeleteById($id)];
-        } catch (\Throwable $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
+        return $this->purgeTeams([$id]);
     }
 
     public function purgeBulk(array $ids): array
     {
-        $count = 0;
-
-        foreach ($ids as $id) {
-            if ($this->model->hardDeleteById((string)$id)) {
-                $count++;
-            }
-        }
-
-        return ['success' => true, 'message' => "영구삭제 완료 ({$count}건)"];
+        return $this->purgeTeams($ids);
     }
 
     public function purgeAll(): array
     {
         return $this->purgeBulk(array_column($this->model->getDeleted(), 'id'));
+    }
+
+    private function purgeTeams(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn($id) => trim((string) $id), $ids))));
+        $deleted = 0;
+        $blocked = [];
+        $deletable = [];
+        foreach ($ids as $id) {
+            $item = $this->model->getById($id);
+            if (!$item || empty($item['deleted_at'])) continue;
+            $references = $this->dependencyRepository->findReferences($id);
+            if ($references !== []) {
+                $blocked[] = ['id' => $id, 'name' => (string) ($item['team_name'] ?? $id), 'references' => $references];
+                continue;
+            }
+            $deletable[] = $id;
+        }
+
+        try {
+            $this->pdo->beginTransaction();
+            foreach ($deletable as $id) {
+                if (!$this->model->hardDeleteById($id)) throw new \RuntimeException('작업팀 영구삭제 DB 처리 실패');
+                $deleted++;
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->logger->error('purgeTeams() failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
+        }
+
+        $skipped = count($blocked);
+        $message = $skipped > 0
+            ? ($deleted > 0 ? "작업팀 {$deleted}건을 영구삭제했고, 사용 중인 {$skipped}건은 유지했습니다." : '다른 업무에서 사용 중인 작업팀은 영구삭제할 수 없습니다.')
+            : ($deleted > 0 ? "작업팀 {$deleted}건을 영구삭제했습니다." : '영구삭제할 작업팀이 없습니다.');
+        $data = ['deleted_count' => $deleted, 'skipped_count' => $skipped, 'blocked' => $blocked];
+        return ['success' => true, 'message' => $message] + $data + ['data' => $data];
     }
 
     public function reorder(array $changes): bool
@@ -259,8 +305,31 @@ class WorkTeamService
         $data['team_leader_client_id'] = $this->blankToNull($data['team_leader_client_id'] ?? null);
         $data['note'] = $this->blankToNull($data['note'] ?? null);
         $data['memo'] = $this->blankToNull($data['memo'] ?? null);
-        $data['is_active'] = (int)($data['is_active'] ?? 1);
+        $activeValue = trim((string) ($data['is_active'] ?? '1'));
+        $data['is_active'] = in_array($activeValue, ['0', '1'], true) ? (int) $activeValue : -1;
         return $data;
+    }
+
+    private function validateSaveData(array $data): string
+    {
+        $teamName = (string) ($data['team_name'] ?? '');
+        if ($teamName === '') return '팀명은 필수입니다.';
+        if (mb_strlen($teamName, 'UTF-8') > 100) return '팀명은 100자 이내로 입력하세요.';
+        if (mb_strlen((string) ($data['note'] ?? ''), 'UTF-8') > 255) return '비고는 255자 이내로 입력하세요.';
+        if (mb_strlen((string) ($data['memo'] ?? ''), 'UTF-8') > 65535) return '메모가 허용 길이를 초과했습니다.';
+        if (!in_array((int) ($data['is_active'] ?? -1), [0, 1], true)) return '사용 상태 값이 올바르지 않습니다.';
+        return '';
+    }
+
+    private function assertTeamLeader(array $data, ?array $before): void
+    {
+        $clientId = trim((string) ($data['team_leader_client_id'] ?? ''));
+        if ($clientId === '') return;
+        if ($before && $clientId === trim((string) ($before['team_leader_client_id'] ?? ''))) return;
+        $client = $this->clientModel->getById($clientId);
+        if (!$client || !empty($client['deleted_at']) || (int) ($client['is_active'] ?? 1) !== 1) {
+            throw new \DomainException('사용 가능한 거래처만 팀장으로 지정할 수 있습니다.');
+        }
     }
 
     public function downloadTemplate(?string $columnsCsv = null): void
@@ -270,26 +339,6 @@ class WorkTeamService
         $rows = [$this->buildTemplateSampleRow($columns)];
 
         $this->writeSpreadsheet($headers, $rows, '작업팀 업로드', 'work-team-template.xlsx', $columns, true);
-        return;
-
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('작업팀 업로드');
-
-        $sheet->fromArray(['팀명', '팀장', '비고', '메모', '사용여부'], null, 'A1');
-        $sheet->fromArray([['시공팀', '홍길동 거래처', '현장 작업팀', '관리자 메모', '1']], null, 'A2');
-
-        foreach (range('A', 'E') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        $writer = new Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="work-team-template.xlsx"');
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
-        $spreadsheet->disconnectWorksheets();
-        exit;
     }
 
     public function saveFromExcelFile(string $filePath, ?string $columnsCsv = null): array
@@ -337,26 +386,8 @@ class WorkTeamService
                 $result = $this->save($payload, 'SYSTEM');
                 if (!empty($result['success'])) {
                     $count++;
-                }
-                continue;
-
-                $payload = [
-                    'team_name' => trim((string)($row[$map['팀명'] ?? -1] ?? '')),
-                    'team_leader_client_id' => $this->resolveTeamLeaderClientId(
-                        trim((string)($row[$map['팀장'] ?? -1] ?? ($row[$map['팀장 거래처 ID'] ?? -1] ?? '')))
-                    ),
-                    'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
-                    'memo' => trim((string)($row[$map['메모'] ?? -1] ?? '')),
-                    'is_active' => $this->parseActiveValue($row[$map['사용여부'] ?? -1] ?? '1'),
-                ];
-
-                if ($payload['team_name'] === '') {
-                    continue;
-                }
-
-                $result = $this->save($payload, 'SYSTEM');
-                if (!empty($result['success'])) {
-                    $count++;
+                } else {
+                    $requiredValueErrors[] = sprintf('%d행 : %s', $index + 2, (string) ($result['message'] ?? '저장 중 오류가 발생했습니다.'));
                 }
             }
 
@@ -391,38 +422,6 @@ class WorkTeamService
             'work-team-list.xlsx',
             $columns
         );
-        return;
-
-        $rows = $this->model->getList();
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('작업팀 목록');
-        $sheet->fromArray(['순번', '팀명', '팀장', '비고', '메모', '사용여부'], null, 'A1');
-
-        $rowNo = 2;
-        foreach ($rows as $row) {
-            $sheet->fromArray([[
-                $row['sort_no'] ?? '',
-                $row['team_name'] ?? '',
-                $row['team_leader_client_name'] ?? '',
-                $row['note'] ?? '',
-                $row['memo'] ?? '',
-                (string)($row['is_active'] ?? '1') === '1' ? '사용' : '미사용',
-            ]], null, 'A' . $rowNo);
-            $rowNo++;
-        }
-
-        foreach (range('A', 'F') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        $writer = new Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="work-team-list.xlsx"');
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
-        $spreadsheet->disconnectWorksheets();
-        exit;
     }
 
     private function resolveColumns(string $type, ?string $columnsCsv = null): array
@@ -744,48 +743,7 @@ class WorkTeamService
 
     private function tableColumnDropdownOptions(string $table, string $column): array
     {
-        $tableSql = '`' . str_replace('`', '``', $table) . '`';
-        $columnSql = '`' . str_replace('`', '``', $column) . '`';
-        $where = [];
-
-        if ($this->tableColumnExists($table, 'deleted_at')) {
-            $where[] = 'deleted_at IS NULL';
-        }
-        if ($this->tableColumnExists($table, 'is_active')) {
-            $where[] = 'COALESCE(is_active, 1) = 1';
-        }
-
-        try {
-            $stmt = $this->pdo->query(
-                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY {$columnSql} ASC"
-            );
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (\Throwable) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($rows as $row) {
-            $value = trim((string) ($row['dropdown_value'] ?? ''));
-            if ($value !== '') {
-                $options[] = $value;
-            }
-        }
-
-        return array_values(array_unique($options));
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
-            $stmt->execute([':column' => $column]);
-            return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (\Throwable) {
-            return false;
-        }
+        return $table === 'system_clients' ? $this->clientModel->getActiveDropdownValues($column) : [];
     }
 
     private function parseActiveValue(mixed $value): int
@@ -801,22 +759,11 @@ class WorkTeamService
             return null;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM system_clients
-            WHERE deleted_at IS NULL
-              AND (id = :id_value OR client_name = :name_value)
-            ORDER BY CASE WHEN id = :order_value THEN 0 ELSE 1 END, sort_no ASC
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':id_value' => $value,
-            ':name_value' => $value,
-            ':order_value' => $value,
-        ]);
-
-        $id = $stmt->fetchColumn();
-        return $id ? (string)$id : null;
+        $id = $this->clientModel->resolveActiveIdByIdOrName($value);
+        if ($id === null) {
+            throw new \DomainException('사용 가능한 거래처만 팀장으로 지정할 수 있습니다.');
+        }
+        return $id;
     }
 
     private function blankToNull(mixed $value): ?string

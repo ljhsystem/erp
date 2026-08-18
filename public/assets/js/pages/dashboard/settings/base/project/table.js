@@ -96,12 +96,9 @@ export function createProjectTableModule({
             });
             formData.set('id', projectId);
             formData.set('is_active', active ? '1' : '0');
-            const res = await window.jQuery.ajax({
-                url: API.SAVE,
+            const res = await window.AppAjax.fetchJson(API.SAVE, {
                 method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
+                body: formData,
             });
             if (!res.success) throw new Error(res.message || '상태 변경에 실패했습니다.');
             formModule.notify('success', active ? '진행중으로 변경되었습니다.' : '완료로 변경되었습니다.');
@@ -186,8 +183,8 @@ export function createProjectTableModule({
         return columns;
     }
 
-    function initDataTable() {
-        state.projectTable = createDataTable({
+    async function initDataTable() {
+        state.projectTable = await createDataTable({
             tableSelector: '#project-table',
             api: API.LIST,
             deleteApi: API.DELETE,
@@ -220,7 +217,7 @@ export function createProjectTableModule({
                     },
                 },
                 { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
-                { text: '새 프로젝트', className: 'btn btn-warning btn-sm', action: () => modalModule.openCreateModal() },
+                { text: '신규등록', className: 'btn btn-warning btn-sm', action: () => modalModule.openCreateModal() },
             ],
         });
 

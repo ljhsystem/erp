@@ -3,15 +3,17 @@ import { createDataTable, bindTableHighlight } from '/public/assets/js/common/ta
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import * as NumberFormat from '/public/assets/js/common/format.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, getCodeName, getCodeOptions, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { API, ACCOUNT_COLUMN_MAP, DATE_OPTIONS } from './api.js';
 import { initExcelDataset, bindExcelEvents } from './excel.js';
 import { bindTrashEvents } from './trash.js';
 import { createBankAccountFormModule } from './form.js';
 import { createBankAccountModalModule } from './modal.js';
 import { createBankAccountTableModule } from './table.js';
+import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
+import '/public/assets/js/common/core/AppAjax.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -21,12 +23,12 @@ const state = {
     excelModal: null,
 };
 
-void NumberFormat.loadBankAccountFormatRegistry?.();
-
 const formModule = createBankAccountFormModule({
     AdminPicker,
     initCodeSelectControls,
+    getCodeOptions,
     NumberFormat,
+    confirmDialog,
 });
 
 const modalModule = createBankAccountModalModule({
@@ -55,14 +57,11 @@ async function initAccountPage($) {
     modalModule.initModal();
     formModule.initAdminDatePicker();
     formModule.initBankBookUpload();
-    initExcelDataset(API);
-    void formModule.preloadAccountModalControls();
-
     onCodeOptionsLoaded(() => {
         state.accountTable?.rows().invalidate('data').draw(false);
     });
 
-    tableModule.initDataTable();
+    await tableModule.initDataTable();
     tableModule.bindTableEvents($);
     modalModule.bindModalEvents($, () => state.accountTable);
     formModule.bindAdminDateInputs();
@@ -76,6 +75,13 @@ async function initAccountPage($) {
         formatAccountNumber: NumberFormat.formatAccountNumber,
     });
     formModule.bindGlobalEvents();
+
+    window.requestAnimationFrame(() => {
+        void Promise.allSettled([
+            initExcelDataset(API),
+            formModule.preloadAccountModalControls(),
+        ]);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -84,5 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    initAccountPage(window.jQuery);
+    void initAccountPage(window.jQuery).catch(() => {
+        window.AppCore?.notify?.('error', '계좌관리 페이지를 불러오는 중 오류가 발생했습니다.');
+    });
 });

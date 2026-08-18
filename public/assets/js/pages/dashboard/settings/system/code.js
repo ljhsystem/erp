@@ -2,15 +2,14 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
-import '/public/assets/js/components/excel-manager.js';
-import '/public/assets/js/components/trash-manager.js';
 import {
     readDataTableSettingsState,
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
 import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 
 window.AdminPicker = AdminPicker;
@@ -24,17 +23,8 @@ window.AdminPicker = AdminPicker;
         GROUPS: '/api/settings/system/code/groups',
         SAVE: '/api/settings/system/code/save',
         DELETE: '/api/settings/system/code/delete',
-        TRASH: '/api/settings/system/code/trash',
-        RESTORE: '/api/settings/system/code/restore',
-        RESTORE_BULK: '/api/settings/system/code/restore-bulk',
-        RESTORE_ALL: '/api/settings/system/code/restore-all',
-        PURGE: '/api/settings/system/code/purge',
-        PURGE_BULK: '/api/settings/system/code/purge-bulk',
-        PURGE_ALL: '/api/settings/system/code/purge-all',
-        REORDER: '/api/settings/system/code/reorder',
-        EXCEL_UPLOAD: '/api/settings/system/code/excel-upload',
-        EXCEL_DOWNLOAD: '/api/settings/system/code/excel',
-        EXCEL_TEMPLATE: '/api/settings/system/code/template'
+        REFERENCES: '/api/settings/system/code/references',
+        REORDER: '/api/settings/system/code/reorder'
     };
 
     const CODE_COLUMN_MAP = {
@@ -50,9 +40,7 @@ window.AdminPicker = AdminPicker;
         created_at: { label: '생성일', visible: false },
         created_by_name: { label: '생성자', visible: false },
         updated_at: { label: '수정일', visible: false },
-        updated_by_name: { label: '수정자', visible: false },
-        deleted_at: { label: '삭제일', visible: false },
-        deleted_by_name: { label: '삭제자', visible: false }
+        updated_by_name: { label: '수정자', visible: false }
     };
 
     const DATE_OPTIONS = [
@@ -80,7 +68,7 @@ window.AdminPicker = AdminPicker;
 
     let codeTable = null;
     let codeModal = null;
-    let excelModal = null;
+    let codeModalCardCollapses = null;
     let codeQuickModal = null;
     let todayPicker = null;
     let codeGroups = [];
@@ -98,14 +86,13 @@ window.AdminPicker = AdminPicker;
         initCodePage(window.jQuery);
     });
 
-    function initCodePage($) {
+    async function initCodePage($) {
         sanitizeCodeTableSettingsState();
         initModal();
         bindCodePolicySync();
         initAdminDatePicker();
-        initExcelDataset();
         loadCodeGroups();
-        initDataTable($);
+        await initDataTable($);
         bindRowReorder(codeTable, {
             api: API.REORDER,
             onSuccess() {
@@ -121,8 +108,6 @@ window.AdminPicker = AdminPicker;
         bindModalEvents($);
         bindAdminDateInputs();
         bindDateIconPicker();
-        bindExcelEvents();
-        bindTrashEvents();
     }
 
     function sanitizeCodeTableSettingsState() {
@@ -134,7 +119,7 @@ window.AdminPicker = AdminPicker;
 
             let changed = false;
             const nextState = { ...parsed };
-            const deprecated = new Set(['__legacy_code_status']);
+            const deprecated = new Set(['__legacy_code_status', 'deleted_at', 'deleted_by', 'deleted_by_name']);
 
             [
                 'columnWidths',
@@ -188,6 +173,7 @@ window.AdminPicker = AdminPicker;
         if (!modalEl) return;
 
         codeModal = new bootstrap.Modal(modalEl, { focus: false });
+        codeModalCardCollapses = bindModalCardCollapses(modalEl, { resetOnShow: true });
         codeModalEls = {
             modal: modalEl,
             form: document.getElementById('codeForm'),
@@ -232,11 +218,6 @@ window.AdminPicker = AdminPicker;
                 applyCodeQuickModalPolicyLabels(quickModalEl);
                 codeQuickEls.codeGroup?.focus();
             });
-        }
-
-        const excelModalEl = document.getElementById('codeExcelModal');
-        if (excelModalEl) {
-            excelModal = new bootstrap.Modal(excelModalEl);
         }
 
         applyCodeModalPolicyLabels(document);
@@ -346,7 +327,7 @@ window.AdminPicker = AdminPicker;
             group_name: String(codeModalEls.groupName?.value || '').trim(),
             code: String(codeModalEls.code?.value || '').trim().toUpperCase(),
             code_name: String(codeModalEls.codeName?.value || '').trim(),
-            is_active: String(codeModalEls.isActive?.value || '1').trim(),
+            is_active: codeModalEls.isActive?.checked ? '1' : '0',
             extra_data: String(codeModalEls.extraData?.value || '').trim(),
             note: String(codeModalEls.note?.value || '').trim(),
             memo: String(codeModalEls.memo?.value || '').trim(),
@@ -391,29 +372,15 @@ window.AdminPicker = AdminPicker;
         return true;
     }
 
-    function initExcelDataset() {
-        const excelForm = document.getElementById('codeExcelForm');
-        if (!excelForm) return;
-
-        excelForm.dataset.templateUrl = API.EXCEL_TEMPLATE;
-        excelForm.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
-        excelForm.dataset.uploadUrl = API.EXCEL_UPLOAD;
-        createExcelManagerSettingsCore({
-            domain: 'code',
-            userSettingPageKey: 'code',
-            formSelector: '#codeExcelForm',
-            metaDomain: 'code',
-        });
-    }
-
-    function initDataTable($) {
-        codeTable = createDataTable({
+    async function initDataTable($) {
+        codeTable = await createDataTable({
             tableSelector: '#code-table',
             api: API.LIST,
             columns: buildColumns(),
             defaultOrder: [[3, 'asc'], [2, 'asc'], [1, 'asc']],
             pageLength: 100,
             autoWidth: false,
+            deleteButton: true,
             deleteApi: API.DELETE,
             selectionColumn: {
                 widthResizable: true,
@@ -430,19 +397,7 @@ window.AdminPicker = AdminPicker;
             },
             buttons: [
                 {
-                    text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
-                    action: openTrashModal
-                },
-                {
-                    text: '엑셀관리',
-                    className: 'btn btn-success btn-sm',
-                    action: function () {
-                        excelModal?.show();
-                    }
-                },
-                {
-                    text: '새 기준정보',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action: openQuickCreateModal
                 }
@@ -452,6 +407,15 @@ window.AdminPicker = AdminPicker;
         window.codeTable = codeTable;
 
         if (codeTable) {
+            const settingsButton = codeTable.table()
+                .container()
+                .querySelector('.dt-table-settings-trigger');
+            if (settingsButton) {
+                settingsButton.innerHTML = '<i class="bi bi-gear"></i>';
+                settingsButton.setAttribute('aria-label', '테이블 설정');
+                settingsButton.setAttribute('title', '테이블 설정');
+            }
+
             codeTable.on('init.dt draw.dt xhr.dt', () => {
                 updateCount(codeTable.page.info()?.recordsDisplay ?? 0);
             });
@@ -509,10 +473,6 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'updated_by_name') {
                         return escapeHtml(actorDisplay(row, 'updated_by'));
-                    }
-
-                    if (field === 'deleted_by_name') {
-                        return escapeHtml(actorDisplay(row, 'deleted_by'));
                     }
 
                     if (data === null || data === undefined) {
@@ -633,6 +593,7 @@ window.AdminPicker = AdminPicker;
             }
 
             openEditModal(json.data);
+            await loadReferenceSummary(id);
         } catch (error) {
             console.error(error);
             AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
@@ -648,6 +609,27 @@ window.AdminPicker = AdminPicker;
         }
 
         return json.data;
+    }
+
+    async function loadReferenceSummary(id) {
+        const summary = document.getElementById('codeReferenceSummary');
+        if (!summary) return;
+        summary.textContent = '참조 상태 확인 중...';
+        try {
+            const response = await fetch(`${API.REFERENCES}?id=${encodeURIComponent(id)}`);
+            const json = await response.json();
+            if (!json.success || !json.data?.checked) {
+                summary.textContent = '참조 상태를 확인할 수 없습니다.';
+                return;
+            }
+            const references = Array.isArray(json.data.references) ? json.data.references : [];
+            summary.textContent = references.length === 0
+                ? '참조 중인 업무 데이터가 없습니다.'
+                : `참조 중: ${references.map((item) => `${item.label} ${item.count}건`).join(', ')}`;
+        } catch (error) {
+            console.error(error);
+            summary.textContent = '참조 상태를 확인할 수 없습니다.';
+        }
     }
 
     async function updateCodeActive(id, active) {
@@ -684,6 +666,7 @@ window.AdminPicker = AdminPicker;
             event.preventDefault();
 
             const formData = new FormData(this);
+            formData.set('is_active', codeModalEls.isActive?.checked ? '1' : '0');
             const codeGroup = normalizeCodeGroup(getModalCodeGroupValue());
             const groupName = String(formData.get('group_name') || '').trim();
             const code = String(formData.get('code') || '').trim();
@@ -739,7 +722,7 @@ window.AdminPicker = AdminPicker;
 
         $('#btnDeleteCode').on('click', function () {
             const id = $('#modal_code_id').val();
-            if (!id || !confirm('삭제하시겠습니까?')) return;
+            if (!id || !confirm('영구삭제하시겠습니까? 삭제한 코드는 복구할 수 없습니다.')) return;
 
             deleteCodeById($, id, true);
         });
@@ -969,6 +952,8 @@ window.AdminPicker = AdminPicker;
         resetForm();
         codeModalEls.title.textContent = '기준정보 등록';
         codeModalEls.deleteBtn.style.display = 'none';
+        const referenceSummary = document.getElementById('codeReferenceSummary');
+        if (referenceSummary) referenceSummary.textContent = '';
         fillForm({
             ...initialValues,
             id: '',
@@ -992,8 +977,13 @@ window.AdminPicker = AdminPicker;
         if (codeModalEls.id) codeModalEls.id.value = '';
         if (codeModalEls.groupName) codeModalEls.groupName.value = '';
         if (codeModalEls.extraData) codeModalEls.extraData.value = '{}';
+        if (codeModalEls.isActive) codeModalEls.isActive.checked = true;
         setModalCodeGroup('');
         if (codeModalEls.deleteBtn) codeModalEls.deleteBtn.style.display = 'none';
+        const referenceSummary = document.getElementById('codeReferenceSummary');
+        if (referenceSummary) referenceSummary.textContent = '';
+        renderCodeSystemInfo();
+        codeModalCardCollapses?.reset?.();
     }
 
     function fillForm(data) {
@@ -1004,11 +994,49 @@ window.AdminPicker = AdminPicker;
         Object.entries(data).forEach(([key, value]) => {
             const el = document.getElementById(`modal_code_${key}`);
             if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = Number(value) === 1;
+                return;
+            }
             el.value = value ?? '';
         });
 
         setModalCodeGroup(data.code_group ?? '');
         syncGroupNameFromCodeGroup(data.code_group ?? '', data.group_name ?? '');
+        renderCodeSystemInfo(data);
+    }
+
+    function renderCodeSystemInfo(data = {}) {
+        const container = document.getElementById('codeSystemInfoFields');
+        if (!container) return;
+
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '순번'],
+            ['created_at', '생성일시', 'datetime'],
+            ['created_by', '생성자', 'actor'],
+            ['updated_at', '수정일시', 'datetime'],
+            ['updated_by', '수정자', 'actor'],
+        ];
+
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'code-system-info-field';
+
+            const label = document.createElement('span');
+            label.className = 'code-system-info-label';
+            label.textContent = labelText;
+
+            const value = document.createElement('span');
+            value.className = 'code-system-info-value';
+            const raw = type === 'actor'
+                ? actorDisplay(data, key)
+                : (type === 'datetime' ? formatDateDisplay(data[key]) : data[key]);
+            value.textContent = raw == null || raw === '(알 수 없음)' ? '' : String(raw);
+
+            item.append(label, value);
+            return item;
+        }));
     }
 
     function setModalCodeGroup(value) {
@@ -1340,82 +1368,17 @@ window.AdminPicker = AdminPicker;
                 if (res.success) {
                     if (closeModal) codeModal?.hide();
                     codeTable?.ajax.reload(null, false);
-                    AppCore?.notify?.('success', '삭제 완료');
+                    AppCore?.notify?.('success', '영구삭제 완료');
                 } else {
-                    AppCore?.notify?.('error', res.message || '삭제 실패');
+                    AppCore?.notify?.('error', res.message || '영구삭제 실패');
                 }
             })
             .fail(() => AppCore?.notify?.('error', '서버 오류가 발생했습니다.'));
     }
 
-    function bindExcelEvents() {
-        document.addEventListener('excel:uploaded', () => {
-            codeTable?.ajax.reload(null, false);
-        });
-    }
-
     function updateCount(count) {
         const el = document.getElementById('codeCount');
         if (el) el.textContent = `총 ${count ?? 0}건`;
-    }
-
-    function openTrashModal() {
-        const modalEl = document.getElementById('codeTrashModal');
-        if (!modalEl) return;
-
-        modalEl.dataset.listUrl = API.TRASH;
-        modalEl.dataset.restoreUrl = API.RESTORE;
-        modalEl.dataset.restoreBulkUrl = API.RESTORE_BULK;
-        modalEl.dataset.restoreAllUrl = API.RESTORE_ALL;
-        modalEl.dataset.deleteUrl = API.PURGE;
-        modalEl.dataset.deleteBulkUrl = API.PURGE_BULK;
-        modalEl.dataset.deleteAllUrl = API.PURGE_ALL;
-
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    }
-
-    function bindTrashEvents() {
-        window.TrashColumns = window.TrashColumns || {};
-        window.TrashColumns.code = function (row) {
-            return `
-                <td>${row.sort_no ?? ''}</td>
-                <td>${escapeHtml(row.code ?? '')}</td>
-                <td>${escapeHtml(row.code_name ?? '')}</td>
-                <td>${Number(row.is_active) === 1 ? '사용' : '미사용'}</td>
-                <td>${row.deleted_at ?? ''}</td>
-                <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
-                <td>
-                    <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
-                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
-                </td>
-            `;
-        };
-
-        document.addEventListener('trash:detail-render', function (event) {
-            const { data, modal } = event.detail;
-            if (modal.dataset.type !== 'code') return;
-
-            const detailBox = modal.querySelector('.trash-detail');
-            if (!detailBox) return;
-
-            detailBox.innerHTML = `
-                <div class="p-3">
-                    <h6 class="mb-3">기준정보 상세</h6>
-                    <div><b>순번:</b> ${escapeHtml(data.sort_no ?? '')}</div>
-                    <div><b>코드:</b> ${escapeHtml(data.code ?? '')}</div>
-                    <div><b>코드명:</b> ${escapeHtml(data.code_name ?? '')}</div>
-                    <div><b>상태:</b> ${Number(data.is_active) === 1 ? '사용' : '미사용'}</div>
-                    <div><b>비고:</b> ${escapeHtml(data.note ?? '')}</div>
-                    <div><b>메모:</b> ${escapeHtml(data.memo ?? '')}</div>
-                </div>
-            `;
-        });
-
-        document.addEventListener('trash:changed', (event) => {
-            if (event.detail?.type === 'code') {
-                codeTable?.ajax.reload(null, false);
-            }
-        });
     }
 
     function escapeHtml(value) {

@@ -1,9 +1,9 @@
 <?php
-
 namespace App\Controllers\Institution;
 
 use App\Controllers\System\LayoutController;
 use Core\DbPdo;
+use Core\Router;
 use PDO;
 
 class InstitutionController
@@ -38,6 +38,18 @@ class InstitutionController
     {
         $this->renderPage('/app/views/institution/index.php', [
             'pageTitle' => '대외기관업무',
+            'isDashboard' => true,
+        ]);
+    }
+
+    public function webPlaceholder(): void
+    {
+        $meta = Router::currentRouteMeta();
+        $pageTitle = trim((string) ($meta['page'] ?? $meta['name'] ?? '대외기관업무'));
+
+        $this->renderPage('/app/views/institution/index.php', [
+            'pageTitle' => $pageTitle,
+            'isDashboard' => false,
         ]);
     }
 }

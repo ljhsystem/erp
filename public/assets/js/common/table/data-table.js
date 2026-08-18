@@ -1,19 +1,16 @@
-/**
- * Common DataTable core factory
- * - Creates and initializes shared DataTable instances.
- * - Keeps the legacy file name while centralizing table behavior.
- */
-// Path: /assets/js/common/table/data-table.js
 import { createTableInteraction } from './index.js';
 import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableViewState } from '../datatable/dataTableSettings.js';
 import { applyActorDataTableColumn } from '../actor.js';
+import { hideDeleteProgress, updateDeleteProgress } from '../delete-progress.js';
 
 const __dtAdjustState = new WeakMap();
 const __dtInstances = new Set();
 const __dtResizeState = new WeakMap();
+const __dtContainerResizeState = new WeakMap();
 const DEFAULT_PAGE_LENGTH = 100;
 const PAGE_LENGTH_MENU = [100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000];
 const DELETE_PROGRESS_CHUNK_SIZE = 500;
+const LAYOUT_RESIZE_SETTLE_MS = 120;
 const AppCore = window.AppCore = window.AppCore || {};
 const AppAjax = window.AppAjax || window.AppCore.AppAjax || {};
 const AppNotify = window.AppNotify || window.AppCore.AppNotify || {};
@@ -374,100 +371,6 @@ function notify(type = 'info', message = '') {
     }
 }
 
-function ensureDeleteProgressPanel() {
-    let panel = document.getElementById('dt-delete-progress-panel');
-    if (panel) {
-        return panel;
-    }
-
-    panel = document.createElement('div');
-    panel.id = 'dt-delete-progress-panel';
-    panel.className = 'dt-delete-progress-panel';
-    panel.innerHTML = `
-        <div class="dt-delete-progress-card" role="status" aria-live="polite">
-            <div class="dt-delete-progress-head">
-                <strong data-dt-delete-title>\uC0AD\uC81C \uCC98\uB9AC \uC911</strong>
-                <span data-dt-delete-percent>0%</span>
-            </div>
-            <div class="dt-delete-progress-bar" aria-hidden="true">
-                <span data-dt-delete-bar></span>
-            </div>
-            <div class="dt-delete-progress-meta">
-                <span data-dt-delete-count>0 / 0\uAC74</span>
-                <span data-dt-delete-step>\uC900\uBE44 \uC911</span>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(panel);
-
-    if (!document.getElementById('dt-delete-progress-style')) {
-        const style = document.createElement('style');
-        style.id = 'dt-delete-progress-style';
-        style.textContent = `
-            .dt-delete-progress-panel {
-                position: fixed;
-                inset: 0;
-                z-index: 2100;
-                display: none;
-                align-items: center;
-                justify-content: center;
-                padding: 24px;
-                background: rgba(15, 23, 42, 0.28);
-            }
-            .dt-delete-progress-panel.is-active {
-                display: flex;
-            }
-            .dt-delete-progress-card {
-                width: min(420px, 100%);
-                border: 1px solid #d9e2ef;
-                border-radius: 8px;
-                background: #fff;
-                box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
-                padding: 18px 20px;
-                color: #111827;
-            }
-            .dt-delete-progress-head,
-            .dt-delete-progress-meta {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-            }
-            .dt-delete-progress-head strong {
-                font-size: 16px;
-                font-weight: 700;
-            }
-            .dt-delete-progress-head span {
-                font-size: 18px;
-                font-weight: 700;
-                color: #2563eb;
-            }
-            .dt-delete-progress-bar {
-                height: 10px;
-                margin: 14px 0 10px;
-                overflow: hidden;
-                border-radius: 999px;
-                background: #e5e7eb;
-            }
-            .dt-delete-progress-bar span {
-                display: block;
-                width: 0%;
-                height: 100%;
-                border-radius: inherit;
-                background: linear-gradient(90deg, #2563eb, #10b981);
-                transition: width 160ms ease;
-            }
-            .dt-delete-progress-meta {
-                font-size: 13px;
-                color: #4b5563;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    return panel;
-}
-
 function createPageLoadingHandle({ enabled = true, selector = '', message = '' } = {}) {
     if (!enabled || typeof window.PageLoadingSpinner?.hold !== 'function') {
         return {
@@ -518,25 +421,6 @@ if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'fu
     });
 } else {
     dataTableModuleLoadingHandle.release();
-}
-
-function updateDeleteProgress({ total = 0, processed = 0, step = '\uCC98\uB9AC \uC911' } = {}) {
-    const panel = ensureDeleteProgressPanel();
-    const safeTotal = Math.max(0, Number(total) || 0);
-    const safeProcessed = Math.min(safeTotal, Math.max(0, Number(processed) || 0));
-    const percent = safeTotal > 0 ? Math.round((safeProcessed / safeTotal) * 100) : 0;
-
-    panel.classList.add('is-active');
-    panel.querySelector('[data-dt-delete-percent]').textContent = `${percent}%`;
-    panel.querySelector('[data-dt-delete-count]').textContent = `${safeProcessed.toLocaleString('ko-KR')} / ${safeTotal.toLocaleString('ko-KR')}\uAC74`;
-    panel.querySelector('[data-dt-delete-step]').textContent = step;
-    panel.querySelector('[data-dt-delete-bar]').style.width = `${percent}%`;
-}
-
-function hideDeleteProgress() {
-    const panel = document.getElementById('dt-delete-progress-panel');
-    if (!panel) return;
-    panel.classList.remove('is-active');
 }
 
 function setDataTableDeleteBusy(table, busy = false, buttonNode = null) {
@@ -1046,10 +930,6 @@ function resolveColumnWidthKey(column = {}, index = 0) {
     return '';
 }
 
-function isButtonColumn(column = {}) {
-    return column.data == null && typeof column.render === 'function';
-}
-
 function isColumnWidthConfigurable(column = {}) {
     if (!column) {
         return false;
@@ -1067,7 +947,7 @@ function isColumnWidthConfigurable(column = {}) {
         return false;
     }
 
-    if (isReorderColumn(column) || isActionColumn(column) || isButtonColumn(column)) {
+    if (isReorderColumn(column) || isActionColumn(column)) {
         return false;
     }
 
@@ -1085,7 +965,21 @@ function getColumnWidthIndexMap(tableColumns = []) {
     return indexMap;
 }
 
+function isValidDataTableColumnIndex(table, index) {
+    if (!Number.isInteger(index) || index < 0) {
+        return false;
+    }
+
+    const settings = table?.settings?.()?.[0];
+    const columns = Array.isArray(settings?.aoColumns) ? settings.aoColumns : [];
+    return index < columns.length;
+}
+
 function getHeaderNodesByIndex(table, index) {
+    if (!isValidDataTableColumnIndex(table, index)) {
+        return [];
+    }
+
     return [
         table?.column?.(index)?.header?.() || null,
         getScrollHeaderNodeByIndex(table, index),
@@ -1093,6 +987,10 @@ function getHeaderNodesByIndex(table, index) {
 }
 
 function getBodyCellNodesByIndex(table, index) {
+    if (!isValidDataTableColumnIndex(table, index)) {
+        return [];
+    }
+
     const cells = [];
     table?.cells?.(null, index, { page: 'current' })?.every?.(function () {
         const node = this.node?.();
@@ -1104,6 +1002,10 @@ function getBodyCellNodesByIndex(table, index) {
 }
 
 function getVisibleColumnIndex(table, index) {
+    if (!isValidDataTableColumnIndex(table, index)) {
+        return -1;
+    }
+
     const visibleIndex = table?.column?.(index)?.index?.('visible');
     return Number.isInteger(visibleIndex) && visibleIndex >= 0 ? visibleIndex : -1;
 }
@@ -1270,6 +1172,9 @@ function measureAppliedColumnWidth(table, index) {
 
 function freezeVisibleColumnWidths(table, tableColumns = []) {
     tableColumns.forEach((column, index) => {
+        if (!isValidDataTableColumnIndex(table, index)) {
+            return;
+        }
         if (table.column(index).visible() === false) {
             return;
         }
@@ -1310,12 +1215,74 @@ function applyConfiguredColumnWidths(table, tableColumns = [], settingsContext =
     });
 }
 
+function fitVisibleColumnWidthsToScope(table, tableColumns = [], settingsContext = null) {
+    const wrapper = table?.table?.().container?.();
+    if (wrapper?.dataset.dtFitColumnsToScope === 'false') {
+        wrapper.classList.remove('dt-viewport-fitted');
+        return;
+    }
+    const scope = resolveDataTableResizeScope(wrapper);
+    const availableWidth = Math.floor(Math.min(
+        wrapper?.clientWidth || Number.POSITIVE_INFINITY,
+        scope?.clientWidth || scope?.getBoundingClientRect?.().width || Number.POSITIVE_INFINITY
+    ));
+    if (!wrapper || wrapper.classList.contains('dt-fixed-layout') || !Number.isFinite(availableWidth) || availableWidth <= 0) {
+        return;
+    }
+
+    const widths = collectVisibleColumnWidths(table, tableColumns, settingsContext);
+    const totalWidth = widths.reduce((sum, item) => sum + item.width, 0);
+    const targetWidth = Math.max(0, availableWidth - 2);
+    if (!widths.length || totalWidth <= targetWidth) {
+        wrapper.classList.remove('dt-viewport-fitted');
+        return;
+    }
+
+    const minimumFor = (item) => {
+        const column = tableColumns[item.index] || {};
+        return column.__dtColumnKind === 'virtual' || /reorder|select|checkbox|manage|action/i.test(
+            `${column.settingsKey || ''} ${column.className || ''}`
+        ) ? 32 : 40;
+    };
+    const fitted = widths.map(item => ({ ...item, fittedWidth: minimumFor(item) }));
+    let remaining = targetWidth - fitted.reduce((sum, item) => sum + item.fittedWidth, 0);
+    const flexibleTotal = fitted.reduce((sum, item) => sum + Math.max(0, item.width - item.fittedWidth), 0);
+    if (remaining > 0 && flexibleTotal > 0) {
+        fitted.forEach(item => {
+            const flexible = Math.max(0, item.width - item.fittedWidth);
+            const addition = Math.floor(remaining * (flexible / flexibleTotal));
+            item.fittedWidth += addition;
+        });
+        remaining = targetWidth - fitted.reduce((sum, item) => sum + item.fittedWidth, 0);
+        for (let index = 0; remaining > 0 && fitted.length; index = (index + 1) % fitted.length) {
+            fitted[index].fittedWidth += 1;
+            remaining -= 1;
+        }
+    }
+
+    fitted.forEach(item => applyColumnWidthPx(table, item.index, item.fittedWidth));
+    wrapper.classList.add('dt-viewport-fitted');
+}
+
+function reapplyResponsiveColumnWidths(table, tableColumns = [], settingsContext = null) {
+    const wrapper = table?.table?.().container?.();
+    if (wrapper?.classList.contains('dt-viewport-fitted')) {
+        clearAppliedColumnWidths(table, tableColumns);
+        wrapper.classList.remove('dt-viewport-fitted');
+    }
+    applyConfiguredColumnWidths(table, tableColumns, settingsContext);
+    fitVisibleColumnWidthsToScope(table, tableColumns, settingsContext);
+}
+
 function collectVisibleColumnWidths(table, tableColumns = [], settingsContext = null) {
     const configuredWidths = settingsContext?.viewState?.columnWidths && typeof settingsContext.viewState.columnWidths === 'object'
         ? settingsContext.viewState.columnWidths
         : {};
 
     return tableColumns.reduce((acc, column, index) => {
+        if (!isValidDataTableColumnIndex(table, index)) {
+            return acc;
+        }
         if (table.column(index).visible() === false) {
             return acc;
         }
@@ -1342,7 +1309,7 @@ function collectVisibleColumnWidths(table, tableColumns = [], settingsContext = 
 function scheduleApplyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null, delay = 0) {
     window.setTimeout(() => {
         window.requestAnimationFrame(() => {
-            applyConfiguredColumnWidths(table, tableColumns, settingsContext);
+            reconcileDataTableLayout(table, tableColumns, settingsContext);
         });
     }, Math.max(0, Number(delay) || 0));
 }
@@ -1374,6 +1341,7 @@ function renderColumnResizeHandles(table, tableColumns = []) {
             handle.className = 'dt-column-resizer';
             handle.dataset.columnIndex = String(index);
             handle.setAttribute('role', 'presentation');
+            handle.setAttribute('title', '드래그하여 열 너비 조정 · 더블클릭하여 내용에 맞춤');
             headerNode.appendChild(handle);
         });
         rendered.add(index);
@@ -1456,6 +1424,68 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         event.stopImmediatePropagation?.();
     };
 
+    const measureCellContentWidth = (cell, includeHeaderControls = false) => {
+        if (!cell) return 0;
+
+        const style = window.getComputedStyle(cell);
+        const canvas = measureCellContentWidth.canvas
+            || (measureCellContentWidth.canvas = document.createElement('canvas'));
+        const context = canvas.getContext('2d');
+        if (!context) return Math.ceil(cell.scrollWidth || 0);
+
+        context.font = style.font || [
+            style.fontStyle,
+            style.fontVariant,
+            style.fontWeight,
+            style.fontSize,
+            style.fontFamily,
+        ].filter(Boolean).join(' ');
+        const text = String(cell.innerText || cell.textContent || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const horizontalBox = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+            .reduce((sum, property) => sum + (parseFloat(style[property]) || 0), 0);
+        const childWidth = Array.from(cell.children || []).reduce((maxWidth, child) => {
+            if (child.classList?.contains('dt-column-resizer')) return maxWidth;
+            return Math.max(maxWidth, Math.ceil(child.scrollWidth || child.getBoundingClientRect?.().width || 0));
+        }, 0);
+        const textWidth = Math.ceil(context.measureText(text).width);
+        const controlAllowance = includeHeaderControls ? 32 : 8;
+        return Math.ceil(Math.max(textWidth, childWidth) + horizontalBox + controlAllowance);
+    };
+
+    const measureAutoFitWidth = (index, column = {}) => {
+        if (!isValidDataTableColumnIndex(table, index)) return 0;
+
+        const headerNodes = getHeaderNodesByIndex(table, index);
+        const bodyNodes = getBodyCellNodesByIndex(table, index);
+        const naturalWidth = Math.max(
+            ...headerNodes.map(node => measureCellContentWidth(node, true)),
+            ...bodyNodes.map(node => measureCellContentWidth(node, false)),
+            0
+        );
+        const minWidth = Math.max(32, Number(column.autoFitMinWidth) || 48);
+        const maxWidth = Math.max(minWidth, Number(column.autoFitMaxWidth) || 640);
+        return Math.min(maxWidth, Math.max(minWidth, naturalWidth));
+    };
+
+    const persistColumnWidth = (index, key, widthPx) => {
+        if (!Number.isFinite(widthPx) || widthPx <= 0 || !key) return;
+
+        applyColumnWidthPx(table, index, widthPx);
+        updateDataTableViewState(settingsContext, {
+            columnWidths: {
+                ...(settingsContext.viewState?.columnWidths || {}),
+                [key]: widthPx,
+            },
+        });
+        scheduleAdjust(table, {
+            draw: false,
+            tableColumns,
+            settingsContext,
+        });
+    };
+
     const finishResize = () => {
         if (!dragState.active) {
             return;
@@ -1476,18 +1506,7 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
             return;
         }
 
-        const nextColumnWidths = {
-            ...(settingsContext.viewState?.columnWidths || {}),
-            [dragState.key]: widthPx,
-        };
-        updateDataTableViewState(settingsContext, {
-            columnWidths: nextColumnWidths,
-        });
-        scheduleAdjust(table, {
-            draw: false,
-            tableColumns,
-            settingsContext,
-        });
+        persistColumnWidth(dragState.index, dragState.key, widthPx);
     };
 
     const onPointerMove = (event) => {
@@ -1528,7 +1547,7 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         const index = Number(handle.dataset.columnIndex);
         const column = tableColumns[index];
         const key = resolveColumnWidthKey(column, index);
-        if (!Number.isInteger(index) || index < 0 || !key || !indexMap.has(key)) {
+        if (!isValidDataTableColumnIndex(table, index) || !key || !indexMap.has(key)) {
             return;
         }
 
@@ -1563,9 +1582,20 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
     }, true);
 
     wrapper.addEventListener('dblclick', (event) => {
-        if (event.target.closest('.dt-column-resizer')) {
-            stopEvent(event);
+        const handle = event.target.closest('.dt-column-resizer') || syncResizeHoverState(event);
+        if (!handle) return;
+
+        const index = Number(handle.dataset.columnIndex);
+        const column = tableColumns[index];
+        const key = resolveColumnWidthKey(column, index);
+        if (!isValidDataTableColumnIndex(table, index) || !key || !indexMap.has(key)) return;
+
+        stopEvent(event);
+        if (dragState.active) finishResize();
+        if (wrapper.querySelector('.dataTables_scroll')) {
+            freezeVisibleColumnWidths(table, tableColumns);
         }
+        persistColumnWidth(index, key, measureAutoFitWidth(index, column));
     }, true);
 
     wrapper.addEventListener('pointermove', syncResizeHoverState, true);
@@ -1620,18 +1650,12 @@ function reconcileDataTableLayout(table, tableColumns = [], settingsContext = nu
         return;
     }
 
+    const wrapper = table.table?.().container?.();
+    if (wrapper?.classList.contains('dt-viewport-fitted')) clearAppliedColumnWidths(table, tableColumns);
+    wrapper?.classList.remove('dt-viewport-fitted');
     table.columns.adjust();
     applyConfiguredColumnWidths(table, tableColumns, settingsContext);
-}
-
-function isBackgroundTableDuringModal(table) {
-    const wrapper = table?.table?.().container?.();
-    if (!wrapper || !document.body.classList.contains('modal-open')) {
-        return false;
-    }
-
-    const ownerModal = wrapper.closest('.modal');
-    return !ownerModal || !ownerModal.classList.contains('show');
+    fitVisibleColumnWidthsToScope(table, tableColumns, settingsContext);
 }
 
 function findScrollParent(node) {
@@ -1730,6 +1754,90 @@ function bindStickyHeaderOffsetUpdates(table) {
         scrollParent.addEventListener('scroll', update, { passive: true });
     }
     wrapper.dataset.stickyOffsetBound = 'true';
+}
+
+function resolveDataTableResizeScope(wrapper) {
+    if (!wrapper) return null;
+
+    const configuredSelector = String(wrapper.dataset.dtWidthScopeSelector || '').trim();
+    if (configuredSelector) {
+        try {
+            const configuredScope = wrapper.closest(configuredSelector);
+            if (configuredScope) return configuredScope;
+        } catch (_error) {
+            // 잘못된 화면별 selector가 공용 폭 감지를 중단시키지 않도록 기본 scope를 사용한다.
+        }
+    }
+
+    return wrapper.closest('.table-box, .dt-content-stack, .content-area, .dt-page-shell')
+        || wrapper.parentElement;
+}
+
+function markDataTablePageShell(wrapper) {
+    if (!wrapper) return;
+
+    const shell = wrapper.closest('.dt-page-shell, .dt-content-stack, .content-area, .settings-main')
+        || wrapper.closest('main')
+        || wrapper.parentElement;
+    shell?.classList.add('dt-responsive-page-shell');
+
+    const titledShell = wrapper.closest('.dt-page-shell, [class$="-page"], [class*="-page "]');
+    titledShell?.classList.add('dt-responsive-page-shell');
+}
+
+function bindDataTableContainerResize(table) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper || __dtContainerResizeState.has(wrapper)) return;
+
+    markDataTablePageShell(wrapper);
+    const scope = resolveDataTableResizeScope(wrapper);
+    let settleTimer = null;
+    let lastWidth = Math.round(scope?.getBoundingClientRect?.().width || 0);
+    const refresh = ({ immediate = false } = {}) => {
+        if (settleTimer) {
+            clearTimeout(settleTimer);
+            settleTimer = null;
+        }
+
+        const run = () => {
+            settleTimer = null;
+            const nextWidth = Math.round(scope?.getBoundingClientRect?.().width || 0);
+            if (nextWidth > 0) lastWidth = nextWidth;
+            refreshDataTableLayout(table, { draw: false, delays: [0] });
+        };
+
+        if (immediate) {
+            requestAnimationFrame(run);
+            return;
+        }
+
+        settleTimer = window.setTimeout(run, LAYOUT_RESIZE_SETTLE_MS);
+    };
+    const onViewportResize = () => refresh();
+    const onSidebarToggled = () => refresh({ immediate: true });
+    const observer = typeof ResizeObserver === 'function' && scope
+        ? new ResizeObserver((entries) => {
+            const width = Math.round(entries[0]?.contentRect?.width || scope.getBoundingClientRect().width || 0);
+            if (width === lastWidth) return;
+            lastWidth = width;
+            refresh();
+        })
+        : null;
+
+    observer?.observe(scope);
+    if (!observer) {
+        window.addEventListener('resize', onViewportResize, { passive: true });
+    }
+    document.addEventListener('sidebar:toggled', onSidebarToggled);
+    __dtContainerResizeState.set(wrapper, {
+        scope,
+        destroy() {
+            if (settleTimer) clearTimeout(settleTimer);
+            observer?.disconnect();
+            if (!observer) window.removeEventListener('resize', onViewportResize);
+            document.removeEventListener('sidebar:toggled', onSidebarToggled);
+        },
+    });
 }
 
 function toCamelCase(value) {
@@ -2059,11 +2167,43 @@ function bindTableSettingsTooltip(table) {
     trigger.setAttribute('aria-label', '테이블 설정');
 
     if (window.bootstrap?.Tooltip) {
-        window.bootstrap.Tooltip.getOrCreateInstance(trigger, {
+        createDataTableTooltip(trigger, {
             container: 'body',
             placement: 'bottom',
             trigger: 'hover focus',
         });
+    }
+}
+
+function createDataTableTooltip(element, config) {
+    if (!(element instanceof HTMLElement) || !element.isConnected || !window.bootstrap?.Tooltip) {
+        return null;
+    }
+
+    try {
+        return window.bootstrap.Tooltip.getOrCreateInstance(element, config);
+    } catch (_error) {
+        try {
+            window.bootstrap.Tooltip.getInstance(element)?.dispose();
+        } catch (_disposeError) {
+            // 이미 분리된 Tooltip 인스턴스는 추가 처리 없이 정리한다.
+        }
+        element.removeAttribute('data-bs-toggle');
+        element.removeAttribute('data-bs-original-title');
+        return null;
+    }
+}
+
+function showDataTableTooltip(element, config) {
+    const tooltip = createDataTableTooltip(element, config);
+    if (!tooltip) {
+        return;
+    }
+
+    try {
+        tooltip.show();
+    } catch (_error) {
+        disposeCellTooltip(element);
     }
 }
 
@@ -2117,6 +2257,12 @@ function bindTruncatedHeaderTooltips(table) {
             return;
         }
 
+        if (event.target.closest('.dt-column-resizer')
+            || cell.classList.contains('dt-column-resize-active')) {
+            disposeCellTooltip(cell);
+            return;
+        }
+
         if (cell.querySelector('input, select, textarea, button, a, .dropdown-menu')) {
             disposeCellTooltip(cell);
             return;
@@ -2138,12 +2284,11 @@ function bindTruncatedHeaderTooltips(table) {
         cell.setAttribute('data-bs-placement', 'top');
         cell.setAttribute('data-bs-trigger', 'manual');
 
-        const tooltip = window.bootstrap.Tooltip.getOrCreateInstance(cell, {
+        showDataTableTooltip(cell, {
             container: 'body',
             placement: 'top',
             trigger: 'manual',
         });
-        tooltip.show();
     };
 
     const hideTooltip = (event) => {
@@ -2208,12 +2353,11 @@ function bindTruncatedCellTooltips(table, tableSelector) {
         cell.setAttribute('data-bs-placement', 'top');
         cell.setAttribute('data-bs-trigger', 'manual');
 
-        const tooltip = window.bootstrap.Tooltip.getOrCreateInstance(cell, {
+        showDataTableTooltip(cell, {
             container: 'body',
             placement: 'top',
             trigger: 'manual',
         });
-        tooltip.show();
     };
 
     const hideTooltip = (event) => {
@@ -2270,7 +2414,7 @@ function syncDataTableApiReference(targetTable, sourceTable) {
     }
 }
 
-function rebuildDataTableFromSettings(table, config = {}) {
+async function rebuildDataTableFromSettings(table, config = {}) {
     const tableSelector = String(config?.tableSelector || '').trim();
     const tableElement = tableSelector !== '' ? document.querySelector(tableSelector) : null;
     const $ = window.jQuery;
@@ -2286,7 +2430,7 @@ function rebuildDataTableFromSettings(table, config = {}) {
         }
 
         tableElement.innerHTML = '';
-        const rebuiltTable = createDataTable({ ...config });
+        const rebuiltTable = await createDataTable({ ...config });
         syncDataTableApiReference(table, rebuiltTable);
         tableElement.__dtCurrentInstance = rebuiltTable;
         window.scrollTo(0, savedScrollTop);
@@ -2297,7 +2441,7 @@ function rebuildDataTableFromSettings(table, config = {}) {
     }
 }
 
-export function createDataTable(config) {
+export async function createDataTable(config) {
     const hasExplicitAutoWidth = Object.prototype.hasOwnProperty.call(config || {}, 'autoWidth');
     const {
         tableSelector,
@@ -2316,6 +2460,7 @@ export function createDataTable(config) {
         initialData = null,
         density = null,
         scrollX = false,
+        scrollY = '',
         paging = true,
         searching = true,
         info = true,
@@ -2335,7 +2480,10 @@ export function createDataTable(config) {
         pageLoading = true,
         tableSettings = null,
         widthScopeSelector = null,
+        fitColumnsToScope = true,
         fixedLayout = false,
+        serverSide = false,
+        redrawAfterInitialVisibility = true,
     } = config;
     const isClientTableDiagnostic = tableSelector === '#client-table'
         || api === '/api/settings/base-info/client/list';
@@ -2358,7 +2506,7 @@ export function createDataTable(config) {
         columns: sourceColumnsWithSelection,
         pageLength: normalizedPageLength,
     });
-    const preparedTableSettings = prepareDataTableSettingsColumns(sourceColumnsWithSelection, resolvedTableSettings);
+    const preparedTableSettings = await prepareDataTableSettingsColumns(sourceColumnsWithSelection, resolvedTableSettings);
     const savedPageLength = Number(preparedTableSettings.context?.viewState?.pageLength);
     const savedCurrentPage = Number(preparedTableSettings.context?.viewState?.currentPage);
     const resolvedColumns = preparedTableSettings.columns || sourceColumnsWithSelection;
@@ -2445,6 +2593,7 @@ export function createDataTable(config) {
         } : false,
 
         scrollX,
+        ...(scrollY ? { scrollY } : {}),
         scrollCollapse: true,
 
         responsive,
@@ -2454,6 +2603,7 @@ export function createDataTable(config) {
         searching,
         info,
         processing: true,
+        serverSide: serverSide === true,
 
         dom: '<"dt-top d-flex justify-content-end align-items-center gap-2"fBl>rt<"dt-bottom d-flex justify-content-between align-items-center"ip>',
 
@@ -2598,6 +2748,7 @@ export function createDataTable(config) {
                 wrapper.dataset.dtWidthScopeSelector = widthScopeSelector.trim();
             }
             if (wrapper) {
+                wrapper.dataset.dtFitColumnsToScope = fitColumnsToScope === false ? 'false' : 'true';
                 wrapper.classList.toggle('dt-fixed-layout', fixedLayout === true);
             }
 
@@ -2617,30 +2768,34 @@ export function createDataTable(config) {
         wrapper.dataset.dtWidthScopeSelector = widthScopeSelector.trim();
     }
     if (wrapper) {
+        wrapper.dataset.dtFitColumnsToScope = fitColumnsToScope === false ? 'false' : 'true';
         wrapper.classList.toggle('dt-fixed-layout', fixedLayout === true);
     }
     __dtInstances.add(table);
     table.on('destroy.dt', () => {
         __dtInstances.delete(table);
+        __dtContainerResizeState.get(wrapper)?.destroy?.();
+        __dtContainerResizeState.delete(wrapper);
     });
     $(tableSelector).one('error.dt', () => {
         dataTableModuleLoadingHandle.release();
         releasePageLoading();
     });
     bindStickyHeaderOffsetUpdates(table);
+    bindDataTableContainerResize(table);
     updateStickyHeaderOffset(table);
     renderColumnResizeHandles(table, tableColumns);
     bindColumnResize(table, tableColumns, preparedTableSettings.context);
     scheduleApplyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context, 0);
 
     tableColumns.forEach((column, index) => {
-        if (column?.visible === false) {
+        if (column?.visible === false && isValidDataTableColumnIndex(table, index)) {
             table.column(index).visible(false, false);
         }
     });
     if (tableColumns.some((column) => column?.visible === false)) {
         scheduleAdjust(table, {
-            draw: true,
+            draw: redrawAfterInitialVisibility !== false,
             tableColumns,
             settingsContext: preparedTableSettings.context,
         });
@@ -2653,7 +2808,7 @@ export function createDataTable(config) {
     table.on('xhr.dt draw.dt', function () {
         updateStickyHeaderOffset(table);
         renderColumnResizeHandles(table, tableColumns);
-        applyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context);
+        reapplyResponsiveColumnWidths(table, tableColumns, preparedTableSettings.context);
         const info = table.page.info();
         const el = document.querySelector(`${tableSelector}_wrapper .dataTables_info`);
         if (el) {
@@ -2711,22 +2866,6 @@ export function createDataTable(config) {
             sortSettings: extractSortSettingsFromTable(table, tableColumns),
         });
     });
-
-    onWindow('resize', () => {
-        if (isBackgroundTableDuringModal(table)) {
-            return;
-        }
-        if (window.__erpSidebarLayoutSync === true) {
-            return;
-        }
-
-        updateStickyHeaderOffset(table);
-        scheduleAdjust(table, {
-            draw: false,
-            tableColumns,
-            settingsContext: preparedTableSettings.context,
-        });
-    }, { passive: true });
 
     bindCellSearchFill(table, tableSelector, {
         ...(cellSearchFill && typeof cellSearchFill === 'object' ? cellSearchFill : {}),

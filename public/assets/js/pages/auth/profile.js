@@ -6,7 +6,6 @@ const { formatMobile } = NumberFormat;
 (() => {
     'use strict';
 
-    console.log('[auth-profile.js] loaded');
 
     /* ============================================================
      * API
@@ -25,7 +24,6 @@ const { formatMobile } = NumberFormat;
      * 상태
      * ============================================================ */
     let currentProfileImagePath = '';
-    let currentCertificatePath = '';
     let isInitialized = false;
 
     /* ============================================================
@@ -45,7 +43,6 @@ const { formatMobile } = NumberFormat;
         bindSaveButtons();
         bindProfileImageModal();
         bindProfileImagePicker();
-        bindCertificatePicker();
         bindTabs();
         bindPasswordToggles(document);
         bindPasswordChange();
@@ -84,19 +81,11 @@ const { formatMobile } = NumberFormat;
             addressEl: document.getElementById('address'),
             addressDetailEl: document.getElementById('address_detail'),
 
-            certNameEl: document.getElementById('certificate_name'),
-            certFileInput: document.getElementById('certificate_file'),
-            certPreviewImg: document.getElementById('profile_cert_preview'),
-            certDeleteBtn: document.getElementById('certificate_file_delete_btn'),
-            certDeleteFlag: document.getElementById('certificate_file_delete'),
-            certBox: document.getElementById('profile_cert_box'),
-
             twoFactorEl: document.getElementById('two_factor_enabled'),
             emailNotifyEl: document.getElementById('email_notify'),
             smsNotifyEl: document.getElementById('sms_notify'),
 
             btnSaveAccount: document.getElementById('btn-save-account'),
-            btnSaveCertificate: document.getElementById('btn-save-certificate'),
             btnSaveNotify: document.getElementById('btn-save-notify'),
 
             btnChangePassword: document.getElementById('btn-change-password'),
@@ -120,7 +109,6 @@ const { formatMobile } = NumberFormat;
             return;
         }
 
-        console.log(`[${type}] ${message}`);
     }
 
     async function fetchJson(url, options = {}) {
@@ -160,28 +148,12 @@ const { formatMobile } = NumberFormat;
         return !!currentProfileImagePath;
     }
 
-    function getCertPreview(filePath) {
-        if (!filePath) return '/public/assets/img/placeholder-cert.png';
-
-        const ext = String(filePath).split('.').pop().toLowerCase();
-
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-            return `/api/file/preview?path=${encodeURIComponent(filePath)}`;
-        }
-
-        return '/public/assets/img/has-cert.png';
-    }
-
     function resetFileInputs() {
         const {
-            profileInput,
-            certFileInput,
-            certDeleteFlag
+            profileInput
         } = getDom();
 
         if (profileInput) profileInput.value = '';
-        if (certFileInput) certFileInput.value = '';
-        if (certDeleteFlag) certDeleteFlag.value = '0';
     }
 
     /* ============================================================
@@ -200,10 +172,6 @@ const { formatMobile } = NumberFormat;
             emergencyPhoneEl,
             addressEl,
             addressDetailEl,
-            certNameEl,
-            certPreviewImg,
-            certDeleteBtn,
-            certBox,
             twoFactorEl,
             emailNotifyEl,
             smsNotifyEl
@@ -216,7 +184,6 @@ const { formatMobile } = NumberFormat;
             const { data: u } = await fetchJson(API.DETAIL);
 
             currentProfileImagePath = u.profile_image || '';
-            currentCertificatePath = u.certificate_file || '';
 
             if (profileImg) {
                 profileImg.src = getProfileImageUrl(currentProfileImagePath);
@@ -240,29 +207,10 @@ const { formatMobile } = NumberFormat;
             if (emergencyPhoneEl) emergencyPhoneEl.value = formatMobile(u.emergency_phone || '');
             if (addressEl) addressEl.value = u.address || '';
             if (addressDetailEl) addressDetailEl.value = u.address_detail || '';
-            if (certNameEl) certNameEl.value = u.certificate_name || '';
 
             if (twoFactorEl) twoFactorEl.checked = Number(u.two_factor_enabled) === 1;
             if (emailNotifyEl) emailNotifyEl.checked = Number(u.email_notify) === 1;
             if (smsNotifyEl) smsNotifyEl.checked = Number(u.sms_notify) === 1;
-
-            if (certPreviewImg) {
-                if (currentCertificatePath) {
-                    certPreviewImg.src = getCertPreview(currentCertificatePath);
-                    certPreviewImg.dataset.filePath = currentCertificatePath;
-                } else {
-                    certPreviewImg.src = '/public/assets/img/placeholder-cert.png';
-                    certPreviewImg.dataset.filePath = '';
-                }
-            }
-
-            if (certDeleteBtn) {
-                certDeleteBtn.style.display = currentCertificatePath ? '' : 'none';
-            }
-
-            if (certBox) {
-                certBox.dataset.label = currentCertificatePath ? '원본 보기' : '업로드';
-            }
 
             resetFileInputs();
 
@@ -289,20 +237,15 @@ const { formatMobile } = NumberFormat;
             emergencyPhoneEl,
             addressEl,
             addressDetailEl,
-            certNameEl,
             twoFactorEl,
             emailNotifyEl,
             smsNotifyEl,
             profileInput,
-            certFileInput,
-            certDeleteFlag,
             btnSaveAccount,
-            btnSaveCertificate,
             btnSaveNotify
         } = getDom();
 
         if (btnSaveAccount) btnSaveAccount.disabled = true;
-        if (btnSaveCertificate) btnSaveCertificate.disabled = true;
         if (btnSaveNotify) btnSaveNotify.disabled = true;
 
         try {
@@ -313,7 +256,6 @@ const { formatMobile } = NumberFormat;
             fd.append('emergency_phone', onlyNumber(emergencyPhoneEl?.value ?? ''));
             fd.append('address', addressEl?.value.trim() ?? '');
             fd.append('address_detail', addressDetailEl?.value.trim() ?? '');
-            fd.append('certificate_name', certNameEl?.value.trim() ?? '');
 
             fd.append('email', emailInputEl?.value.trim() ?? '');
             fd.append('two_factor_enabled', twoFactorEl?.checked ? '1' : '0');
@@ -323,12 +265,6 @@ const { formatMobile } = NumberFormat;
             if (profileInput && profileInput.files.length) {
                 fd.append('profile_image', profileInput.files[0]);
             }
-
-            if (certFileInput && certFileInput.files.length) {
-                fd.append('certificate_file', certFileInput.files[0]);
-            }
-
-            fd.append('certificate_file_delete', certDeleteFlag?.value === '1' ? '1' : '0');
 
             const json = await fetchJson(API.SAVE, {
                 method: 'POST',
@@ -344,16 +280,14 @@ const { formatMobile } = NumberFormat;
             notify('error', err.message || '저장 실패');
         } finally {
             if (btnSaveAccount) btnSaveAccount.disabled = false;
-            if (btnSaveCertificate) btnSaveCertificate.disabled = false;
             if (btnSaveNotify) btnSaveNotify.disabled = false;
         }
     }
 
     function bindSaveButtons() {
-        const { btnSaveAccount, btnSaveCertificate, btnSaveNotify } = getDom();
+        const { btnSaveAccount, btnSaveNotify } = getDom();
 
         btnSaveAccount?.addEventListener('click', saveProfile);
-        btnSaveCertificate?.addEventListener('click', saveProfile);
         btnSaveNotify?.addEventListener('click', saveProfile);
     }
 
@@ -457,114 +391,6 @@ const { formatMobile } = NumberFormat;
             };
             reader.readAsDataURL(file);
         });
-    }
-
-    /* ============================================================
-     * 자격증 선택 / 미리보기
-     * ============================================================ */
-    function bindCertificatePicker() {
-        const {
-            certFileInput,
-            certPreviewImg,
-            certDeleteBtn,
-            certDeleteFlag,
-            certBox,
-            certNameEl
-        } = getDom();
-
-        if (certDeleteBtn) {
-            certDeleteBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                currentCertificatePath = '';
-
-                if (certPreviewImg) {
-                    certPreviewImg.src = '/public/assets/img/placeholder-cert.png';
-                    certPreviewImg.dataset.filePath = '';
-                }
-
-                if (certFileInput) {
-                    certFileInput.value = '';
-                }
-
-                if (certDeleteFlag) {
-                    certDeleteFlag.value = '1';
-                }
-
-                if (certNameEl) {
-                    certNameEl.value = '';
-                }
-
-                if (certBox) {
-                    certBox.dataset.label = '업로드';
-                }
-
-                certDeleteBtn.style.display = 'none';
-            });
-        }
-
-        if (certFileInput && certPreviewImg) {
-            certFileInput.addEventListener('change', () => {
-                if (!certFileInput.files.length) {
-                    certPreviewImg.src = currentCertificatePath
-                        ? getCertPreview(currentCertificatePath)
-                        : '/public/assets/img/placeholder-cert.png';
-
-                    certPreviewImg.dataset.filePath = currentCertificatePath || '';
-
-                    if (certDeleteBtn) {
-                        certDeleteBtn.style.display = currentCertificatePath ? '' : 'none';
-                    }
-
-                    if (certBox) {
-                        certBox.dataset.label = currentCertificatePath ? '원본 보기' : '업로드';
-                    }
-
-                    return;
-                }
-
-                const file = certFileInput.files[0];
-                const ext = String(file.name).split('.').pop().toLowerCase();
-
-                if (certDeleteFlag) {
-                    certDeleteFlag.value = '0';
-                }
-
-                if (certDeleteBtn) {
-                    certDeleteBtn.style.display = '';
-                }
-
-                if (certBox) {
-                    certBox.dataset.label = '원본 보기';
-                }
-
-                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                    const reader = new FileReader();
-                    reader.onload = e => {
-                        certPreviewImg.src = e.target.result;
-                        certPreviewImg.dataset.filePath = '';
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    certPreviewImg.src = '/public/assets/img/has-cert.png';
-                    certPreviewImg.dataset.filePath = '';
-                }
-            });
-        }
-
-        if (certPreviewImg) {
-            certPreviewImg.addEventListener('click', () => {
-                const path = certPreviewImg.dataset.filePath || '';
-
-                if (!path) {
-                    certFileInput?.click();
-                    return;
-                }
-
-                window.open(`/api/file/preview?path=${encodeURIComponent(path)}`, '_blank');
-            });
-        }
     }
 
     /* ============================================================

@@ -3,6 +3,13 @@
 use Core\Helpers\AssetHelper;
 // layout.php에서 로드된 UI 설정 배열 사용
 $ui = $uiSettings ?? [];
+$assetProfile = $pageAssetProfile ?? 'default';
+$isLightweightFormPage = $assetProfile === 'form-detail-light';
+$isLightweightDataListPage = $assetProfile === 'data-list-light';
+$loadDataTableExportAssets = !$isLightweightFormPage && !$isLightweightDataListPage;
+$loadSpreadsheetAssets = !$isLightweightFormPage && !$isLightweightDataListPage;
+$loadTrashAssets = !$isLightweightFormPage && !$isLightweightDataListPage;
+$loadInitialAddressAssets = !$isLightweightFormPage && !$isLightweightDataListPage;
 
 // 기본값 보정
 $ui = array_merge([
@@ -98,30 +105,36 @@ $ui = array_merge([
     <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css') ?>
     <?= AssetHelper::css('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css') ?>
 
-    <?= AssetHelper::css('https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css') ?>
-    <?= AssetHelper::css('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css') ?>
-    <?= AssetHelper::css('https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css') ?>
-    <?= AssetHelper::css('https://cdn.datatables.net/fixedheader/3.4.0/css/fixedHeader.dataTables.min.css') ?>
-    <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css') ?><!-- select2기능 -->
-
-    <?= AssetHelper::css('https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css') ?>
-    <?= AssetHelper::css('https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css') ?>
-    <?= AssetHelper::css('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css') ?>
-
+    <?php if (!$isLightweightFormPage): ?>
+        <?= AssetHelper::css('https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css') ?>
+        <?= AssetHelper::css('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css') ?>
+        <?= AssetHelper::css('https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css') ?>
+        <?= AssetHelper::css('https://cdn.datatables.net/fixedheader/3.4.0/css/fixedHeader.dataTables.min.css') ?>
+        <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css') ?>
+    <?php endif; ?>
 
     <!-- 공통 CSS -->
-    <?= AssetHelper::css('/assets/css/common/picker.css') ?>
+    <?php if (!$isLightweightFormPage): ?>
+        <?= AssetHelper::css('/assets/css/common/picker.css') ?>
+    <?php endif; ?>
     <?= AssetHelper::css('/assets/css/common/notification.css') ?>
     <?= AssetHelper::css('/assets/css/common/page-loading-spinner.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/spinner.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/navbar.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/footer.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/layout.css') ?>
-    <?= AssetHelper::css('/assets/css/components/data-table.css') ?>
-    <?= AssetHelper::css('/assets/css/components/spreadsheet.css') ?>
-    <?= AssetHelper::css('/assets/css/components/search-form.css') ?>
-    <?= AssetHelper::css('/assets/css/components/excel-manager.css') ?>
-    <?= AssetHelper::css('/assets/css/components/trash-manager.css') ?>
+    <?= AssetHelper::css('/assets/css/components/form-card.css') ?>
+    <?php if (!$isLightweightFormPage): ?>
+        <?= AssetHelper::css('/assets/css/components/data-table.css') ?>
+        <?php if ($loadSpreadsheetAssets): ?>
+            <?= AssetHelper::css('/assets/css/components/spreadsheet.css') ?>
+            <?= AssetHelper::css('/assets/css/components/excel-manager.css') ?>
+        <?php endif; ?>
+        <?= AssetHelper::css('/assets/css/components/search-form.css') ?>
+        <?php if ($loadTrashAssets): ?>
+            <?= AssetHelper::css('/assets/css/components/trash-manager.css') ?>
+        <?php endif; ?>
+    <?php endif; ?>
 
 
     <!-- 페이지별 CSS -->
@@ -129,24 +142,32 @@ $ui = array_merge([
 
     <!-- JS -->
     <?= AssetHelper::js('https://code.jquery.com/jquery-3.7.1.min.js') ?>
-    <?= AssetHelper::js('https://code.jquery.com/ui/1.13.2/jquery-ui.min.js') ?>
     <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js') ?><!-- Bootstrap -->
-    <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js') ?><!-- 이미지지캡쳐기능 --><!-- 모달그대로캡쳐기능 --><!-- Utilities -->
-    <?= AssetHelper::js('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js') ?> <!-- DataTables Core -->
-    <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js') ?><!-- DataTables Buttons -->
-    <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js') ?><!-- Buttons 확장 -->
-    <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js') ?>
-    <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js') ?><!-- 🔥 이게 없어서 터진 것 -->
-    <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js') ?><!-- 파일 출력용 -->
-    <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js') ?>
-    <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js') ?>
-    <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js') ?><!-- select2기능 -->
-    <?= AssetHelper::js('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js') ?><!-- 카카오 주소 API + 공통 주소 JS -->
-    <?= AssetHelper::js('/assets/js/common/address.js') ?>
+    <?php if (!$isLightweightFormPage): ?>
+        <?= AssetHelper::js('https://code.jquery.com/ui/1.13.2/jquery-ui.min.js') ?>
+        <?= AssetHelper::js('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js') ?>
+        <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js') ?>
+        <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js') ?>
+        <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js') ?>
+        <?php if ($loadDataTableExportAssets): ?>
+            <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js') ?>
+            <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js') ?>
+            <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js') ?>
+            <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js') ?>
+            <?= AssetHelper::js('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js') ?>
+        <?php endif; ?>
+        <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js') ?>
+        <?php if ($loadInitialAddressAssets): ?>
+            <?= AssetHelper::js('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js') ?>
+            <?= AssetHelper::js('/assets/js/common/address.js') ?>
+        <?php endif; ?>
+    <?php endif; ?>
     <?= AssetHelper::module('/assets/js/common/notification.js') ?>
     <?= AssetHelper::js('/assets/js/common/page-loading-spinner.js') ?>
-    <script type="module" src="<?= AssetHelper::url('/assets/js/common/picker/picker.select2.js') ?>"></script>
-    <?= AssetHelper::js('/assets/js/common/file.js') ?><!-- 파일주소 JS -->
+    <?php if (!$isLightweightFormPage): ?>
+        <script type="module" src="<?= AssetHelper::url('/assets/js/common/picker/picker.select2.js') ?>"></script>
+        <?= AssetHelper::js('/assets/js/common/file.js') ?>
+    <?php endif; ?>
     <?= AssetHelper::js('/assets/js/common/esc-manager.js') ?><!-- esc JS -->
 
 

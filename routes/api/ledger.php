@@ -157,19 +157,6 @@ $router->get('/api/ledger/account/detail', 'ChartAccountController@apiDetail', [
     'log' => true,
 ]);
 
-$router->get('/api/ledger/account/template', 'ChartAccountController@apiTemplate', [
-    'key' => 'api.ledger.account.template',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '양식다운로드',
-    'permission_description' => '계정과목 양식 다운로드',
-    'name' => '계정과목 양식다운로드',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 양식다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
 
 $router->get('/api/ledger/account/trash', 'ChartAccountController@apiTrashList', [
     'key' => 'api.ledger.account.trash',
@@ -227,20 +214,6 @@ $router->post('/api/ledger/account/delete', 'ChartAccountController@apiDelete', 
     'log' => true,
 ]);
 
-$router->post('/api/ledger/account/soft-delete', 'ChartAccountController@apiSoftDelete', [
-    'key' => 'api.ledger.account.soft_delete',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '삭제',
-    'permission_description' => '계정과목 삭제',
-    'name' => '계정과목 삭제',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 삭제',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
 $router->post('/api/ledger/account/restore', 'ChartAccountController@apiRestore', [
     'key' => 'api.ledger.account.restore',
     'page' => '계정과목',
@@ -255,47 +228,6 @@ $router->post('/api/ledger/account/restore', 'ChartAccountController@apiRestore'
     'log' => true,
 ]);
 
-$router->post('/api/ledger/account/hard-delete', 'ChartAccountController@apiHardDelete', [
-    'key' => 'api.ledger.account.hard_delete',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '영구삭제',
-    'permission_description' => '계정과목 영구 삭제',
-    'name' => '계정과목 영구삭제',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 영구삭제',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->get('/api/ledger/account/excel', 'ChartAccountController@apiDownloadAllExcel', [
-    'key' => 'api.ledger.account.excel',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '계정과목 엑셀 다운로드',
-    'name' => '계정과목 엑셀다운로드',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 엑셀다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/account/excel-upload', 'ChartAccountController@apiExcelUpload', [
-    'key' => 'api.ledger.account.excel_upload',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '계정과목 엑셀 업로드',
-    'name' => '계정과목 엑셀업로드',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 엑셀업로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
 
 $router->post('/api/ledger/account/reorder', 'ChartAccountController@apiReorder', [
     'key' => 'api.ledger.account.reorder',
@@ -381,34 +313,6 @@ $router->post('/api/ledger/account/restore-all', 'ChartAccountController@apiRest
     'log' => true,
 ]);
 
-$router->post('/api/ledger/account/hard-delete-bulk', 'ChartAccountController@apiHardDeleteBulk', [
-    'key' => 'api.ledger.account.hard_delete_bulk',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '일괄영구삭제',
-    'permission_description' => '계정과목 일괄 영구 삭제',
-    'name' => '계정과목 일괄영구삭제',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 일괄영구삭제',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/account/hard-delete-all', 'ChartAccountController@apiHardDeleteAll', [
-    'key' => 'api.ledger.account.hard_delete_all',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '전체영구삭제',
-    'permission_description' => '계정과목 전체 영구 삭제',
-    'name' => '계정과목 전체영구삭제',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 전체영구삭제',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['delete'],
-    'log' => true,
-]);
-
 $router->get('/api/ledger/account/search', 'ChartAccountController@apiSearch', [
     'key' => 'api.ledger.account.search',
     'page' => '계정과목',
@@ -447,6 +351,20 @@ $router->get('/api/ledger/evidence-metadata/list', 'EvidenceMetadataController@a
     'description' => '회계관리 > 자료관리 > 증빙정책 > 조회',
     'category' => '회계관리 > 자료관리',
     'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->get('/api/ledger/evidence/type-policies', 'EvidenceController@apiTypePolicies', [
+    'key' => 'api.ledger.evidence.type_policies',
+    'page' => '증빙원본',
+    'page_description' => '증빙원본 자료유형 정책 조회',
+    'permission_name' => '조회',
+    'permission_description' => '증빙원본 자료유형 정책 조회',
+    'name' => '증빙원본 자료유형 정책',
+    'description' => '회계관리 > 자료관리 > 증빙원본 > 자료유형 정책 조회',
+    'category' => '회계관리 > 자료관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
 ]);
 
 $router->get('/api/ledger/evidence-metadata/detail', 'EvidenceMetadataController@apiDetail', [
@@ -518,14 +436,6 @@ $router->post('/api/ledger/evidence-metadata/purge-bulk', 'EvidenceMetadataContr
     'page' => '증빙정책', 'page_description' => '증빙정책 선택 영구삭제',
     'permission_name' => '선택영구삭제', 'permission_description' => '선택한 증빙정책 영구삭제',
     'name' => '증빙정책 선택영구삭제', 'description' => '회계관리 > 자료관리 > 증빙정책 > 선택영구삭제',
-    'category' => '회계관리 > 자료관리', 'auth' => true, 'permissions' => ['delete'], 'log' => true,
-]);
-
-$router->post('/api/ledger/evidence-metadata/purge-all', 'EvidenceMetadataController@apiPurgeAll', [
-    'key' => 'api.ledger.evidence_metadata.purge_all',
-    'page' => '증빙정책', 'page_description' => '증빙정책 전체 영구삭제',
-    'permission_name' => '전체영구삭제', 'permission_description' => '휴지통 증빙정책 전체 영구삭제',
-    'name' => '증빙정책 전체영구삭제', 'description' => '회계관리 > 자료관리 > 증빙정책 > 전체영구삭제',
     'category' => '회계관리 > 자료관리', 'auth' => true, 'permissions' => ['delete'], 'log' => true,
 ]);
 
@@ -659,48 +569,6 @@ $router->get('/api/ledger/journal-rules/trash', 'JournalRuleController@apiTrashL
     'log' => true,
 ]);
 
-$router->get('/api/ledger/journal-rules/template', 'JournalRuleController@apiTemplate', [
-    'key' => 'api.ledger.journal_rules.template',
-    'page' => '분개규칙',
-    'page_description' => '분개규칙 관리',
-    'permission_name' => '양식다운로드',
-    'permission_description' => '분개규칙 양식 다운로드',
-    'name' => '분개규칙 양식다운로드',
-    'description' => '회계관리 > 기초정보관리 > 분개규칙 > 양식다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/ledger/journal-rules/excel', 'JournalRuleController@apiDownloadExcel', [
-    'key' => 'api.ledger.journal_rules.excel',
-    'page' => '분개규칙',
-    'page_description' => '분개규칙 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '분개규칙 엑셀 다운로드',
-    'name' => '분개규칙 엑셀다운로드',
-    'description' => '회계관리 > 기초정보관리 > 분개규칙 > 엑셀다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/ledger/journal-rules/excel-upload', 'JournalRuleController@apiExcelUpload', [
-    'key' => 'api.ledger.journal_rules.excel_upload',
-    'page' => '분개규칙',
-    'page_description' => '분개규칙 관리',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '분개규칙 엑셀 업로드',
-    'name' => '분개규칙 엑셀업로드',
-    'description' => '회계관리 > 기초정보관리 > 분개규칙 > 엑셀업로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
 $router->post('/api/ledger/journal-rules/restore', 'JournalRuleController@apiRestore', [
     'key' => 'api.ledger.journal_rules.restore',
     'page' => '분개규칙',
@@ -799,47 +667,6 @@ $router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList'
     'log' => false,
 ]);
 
-$router->get('/api/ledger/sub-account/template', 'SubChartAccountController@apiTemplate', [
-    'key' => 'api.ledger.sub_account.template',
-    'page' => '보조계정',
-    'page_description' => '보조계정 관리',
-    'permission_name' => '엑셀 템플릿 다운로드',
-    'permission_description' => '보조계정 엑셀 템플릿 다운로드',
-    'name' => '보조계정 엑셀 템플릿 다운로드',
-    'description' => '회계관리 > 기초정보관리 > 보조계정 > 엑셀 템플릿 다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->get('/api/ledger/sub-account/excel', 'SubChartAccountController@apiExcel', [
-    'key' => 'api.ledger.sub_account.excel',
-    'page' => '보조계정',
-    'page_description' => '보조계정 관리',
-    'permission_name' => '엑셀 다운로드',
-    'permission_description' => '보조계정 엑셀 다운로드',
-    'name' => '보조계정 엑셀 다운로드',
-    'description' => '회계관리 > 기초정보관리 > 보조계정 > 엑셀 다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/sub-account/excel-upload', 'SubChartAccountController@apiExcelUpload', [
-    'key' => 'api.ledger.sub_account.excel_upload',
-    'page' => '보조계정',
-    'page_description' => '보조계정 관리',
-    'permission_name' => '엑셀 업로드',
-    'permission_description' => '보조계정 엑셀 업로드',
-    'name' => '보조계정 엑셀 업로드',
-    'description' => '회계관리 > 기초정보관리 > 보조계정 > 엑셀 업로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
 
 $router->post('/api/ledger/sub-account/save', 'SubChartAccountController@apiSave', [
     'key' => 'api.ledger.sub_account.save',
@@ -897,48 +724,6 @@ $router->get('/api/ledger/voucher/list', 'VoucherController@apiList', [
     'log' => true,
 ]);
 
-$router->get('/api/ledger/voucher/template', 'VoucherController@apiTemplate', [
-    'key' => 'api.ledger.voucher.template',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '엑셀양식',
-    'permission_description' => '전표 엑셀 양식 다운로드',
-    'name' => '전표 엑셀양식',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 엑셀양식',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/ledger/voucher/excel', 'VoucherController@apiDownloadExcel', [
-    'key' => 'api.ledger.voucher.excel',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '전표 엑셀 다운로드',
-    'name' => '전표 엑셀다운로드',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 엑셀다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/ledger/voucher/excel-upload', 'VoucherController@apiExcelUpload', [
-    'key' => 'api.ledger.voucher.excel_upload',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '전표 엑셀 업로드',
-    'name' => '전표 엑셀업로드',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 엑셀업로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
 $router->get('/api/ledger/voucher/detail', 'VoucherController@apiDetail', [
     'key' => 'api.ledger.voucher.detail',
     'page' => '전표입력',
@@ -981,20 +766,6 @@ $router->get('/api/ledger/voucher/search', 'VoucherController@apiSearch', [
     'log' => false,
 ]);
 
-$router->get('/api/ledger/voucher/transaction-search', 'VoucherController@apiTransactionSearch', [
-    'key' => 'api.ledger.voucher.transaction_search',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '거래검색',
-    'permission_description' => '전표 거래 검색',
-    'name' => '전표 거래검색',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 거래검색',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->get('/api/ledger/voucher/evidence-search', 'VoucherController@apiEvidenceSearch', [
     'key' => 'api.ledger.voucher.evidence_search',
     'page' => '전표입력',
@@ -1003,6 +774,20 @@ $router->get('/api/ledger/voucher/evidence-search', 'VoucherController@apiEviden
     'permission_description' => '전표 증빙 검색',
     'name' => '전표 증빙검색',
     'description' => '회계관리 > 전표관리 > 전표입력 > 증빙검색',
+    'category' => '회계관리 > 전표관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->post('/api/ledger/voucher/evidence-recommendations', 'VoucherController@apiEvidenceRecommendations', [
+    'key' => 'api.ledger.voucher.evidence_recommendations',
+    'page' => '전표입력',
+    'page_description' => '전표 입력 관리',
+    'permission_name' => '분개추천',
+    'permission_description' => '추가 증빙 분개 추천',
+    'name' => '전표 증빙 분개추천',
+    'description' => '회계관리 > 전표관리 > 전표입력 > 증빙 분개추천',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -1081,113 +866,76 @@ $router->post('/api/ledger/voucher/cancel-review-request', 'VoucherController@ap
 
 $router->post('/api/ledger/voucher/complete-review', 'VoucherController@apiCompleteReview', [
     'key' => 'api.ledger.voucher.complete_review',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기',
     'permission_name' => '검토완료',
     'permission_description' => '전표 검토 완료',
     'name' => '전표 검토완료',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 검토완료',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 검토완료',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
+    'permission_key' => 'api.ledger.voucher.review',
     'log' => true,
 ]);
 
 $router->post('/api/ledger/voucher/cancel-complete-review', 'VoucherController@apiCancelCompleteReview', [
     'key' => 'api.ledger.voucher.cancel_complete_review',
-    'page' => '전표검토/승인',
-    'page_description' => '전표 검토 및 승인',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기',
     'permission_name' => '검토완료취소',
     'permission_description' => '전표 검토완료 취소',
     'name' => '전표 검토완료취소',
-    'description' => '회계관리 > 전표관리 > 전표검토/승인 > 검토완료취소',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 검토완료취소',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
+    'permission_key' => 'api.ledger.voucher.review_cancel',
     'log' => true,
 ]);
 
 $router->post('/api/ledger/voucher/post', 'VoucherController@apiPost', [
     'key' => 'api.ledger.voucher.post',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기',
     'permission_name' => '전기',
     'permission_description' => '전표 전기',
     'name' => '전표 전기',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 전기',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 전기',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
+    'permission_key' => 'api.ledger.voucher.post',
     'log' => true,
 ]);
 
 $router->post('/api/ledger/voucher/reverse', 'VoucherController@apiReverse', [
     'key' => 'api.ledger.voucher.reverse',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '역분개',
-    'permission_description' => '전표 역분개',
-    'name' => '전표 역분개',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 역분개',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기',
+    'permission_name' => '취소전표 작성',
+    'permission_description' => '전표 취소전표 작성(역분개)',
+    'name' => '전표 취소전표 작성',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 취소전표 작성',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/voucher/link-evidence', 'VoucherController@apiLinkEvidence', [
-    'key' => 'api.ledger.voucher.link_evidence',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '증빙연결',
-    'permission_description' => '전표 증빙 연결',
-    'name' => '전표 증빙연결',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 증빙연결',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/voucher/unlink-evidence', 'VoucherController@apiUnlinkEvidence', [
-    'key' => 'api.ledger.voucher.unlink_evidence',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '증빙연결해제',
-    'permission_description' => '전표 증빙 연결 해제',
-    'name' => '전표 증빙연결해제',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 증빙연결해제',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
+    'permission_key' => 'api.ledger.voucher.reverse',
     'log' => true,
 ]);
 
 $router->post('/api/ledger/voucher/reject', 'VoucherController@apiReject', [
     'key' => 'api.ledger.voucher.reject',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기',
     'permission_name' => '반려',
     'permission_description' => '전표 반려',
     'name' => '전표 반려',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 반려',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 반려',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/voucher/create-transaction', 'VoucherController@apiCreateTransaction', [
-    'key' => 'api.ledger.voucher.create_transaction',
-    'page' => '전표입력',
-    'page_description' => '전표 입력 관리',
-    'permission_name' => '거래생성',
-    'permission_description' => '전표 거래 생성',
-    'name' => '전표 거래생성',
-    'description' => '회계관리 > 전표관리 > 전표입력 > 거래생성',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
+    'permission_key' => 'api.ledger.voucher.review',
     'log' => true,
 ]);
 
@@ -1373,132 +1121,6 @@ $router->get('/api/ledger/transaction/file', 'TransactionController@apiFile', [
     'log' => false,
 ]);
 
-$router->get('/api/ledger/transaction/template', 'TransactionController@apiTemplate', [
-    'key' => 'api.ledger.transaction.template',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 엑셀 양식 다운로드',
-    'permission_name' => '엑셀양식',
-    'permission_description' => '거래 입력 엑셀 양식 다운로드',
-    'name' => '거래 입력 엑셀 양식 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 엑셀 양식 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/ledger/transaction/item/template', 'TransactionController@apiItemTemplate', [
-    'key' => 'api.ledger.transaction.item.template',
-    'page' => '거래입력',
-    'page_description' => '거래품목 엑셀 템플릿 다운로드',
-    'permission_name' => '품목엑셀템플릿',
-    'permission_description' => '거래품목 엑셀 템플릿 다운로드',
-    'name' => '거래품목 엑셀 템플릿 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래품목 엑셀 템플릿 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/ledger/transaction/settlement/template', 'TransactionController@apiSettlementTemplate', [
-    'key' => 'api.ledger.transaction.settlement.template',
-    'page' => '거래입력',
-    'page_description' => '거래정산 엑셀 템플릿 다운로드',
-    'permission_name' => '정산엑셀템플릿',
-    'permission_description' => '거래정산 엑셀 템플릿 다운로드',
-    'name' => '거래정산 엑셀 템플릿 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래정산 엑셀 템플릿 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/api/ledger/transaction/excel', 'TransactionController@apiDownloadExcel', [
-    'key' => 'api.ledger.transaction.excel',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 엑셀 다운로드',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '거래 입력 엑셀 다운로드',
-    'name' => '거래 입력 엑셀 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 엑셀 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/ledger/transaction/item/excel', 'TransactionController@apiDownloadItemExcel', [
-    'key' => 'api.ledger.transaction.item.excel',
-    'page' => '거래입력',
-    'page_description' => '거래품목 엑셀 다운로드',
-    'permission_name' => '품목엑셀다운로드',
-    'permission_description' => '거래품목 엑셀 다운로드',
-    'name' => '거래품목 엑셀 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래품목 엑셀 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/ledger/transaction/settlement/excel', 'TransactionController@apiDownloadSettlementExcel', [
-    'key' => 'api.ledger.transaction.settlement.excel',
-    'page' => '거래입력',
-    'page_description' => '거래정산 엑셀 다운로드',
-    'permission_name' => '정산엑셀다운로드',
-    'permission_description' => '거래정산 엑셀 다운로드',
-    'name' => '거래정산 엑셀 다운로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래정산 엑셀 다운로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->post('/api/ledger/transaction/excel-upload', 'TransactionController@apiExcelUpload', [
-    'key' => 'api.ledger.transaction.excel_upload',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 엑셀 업로드',
-    'permission_name' => '엑셀업로드',
-    'permission_description' => '거래 입력 엑셀 업로드',
-    'name' => '거래 입력 엑셀 업로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 엑셀 업로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/transaction/item/excel-upload', 'TransactionController@apiItemExcelUpload', [
-    'key' => 'api.ledger.transaction.item.excel_upload',
-    'page' => '거래입력',
-    'page_description' => '거래품목 엑셀 업로드',
-    'permission_name' => '품목엑셀업로드',
-    'permission_description' => '거래품목 엑셀 업로드',
-    'name' => '거래품목 엑셀 업로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래품목 엑셀 업로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/transaction/settlement/excel-upload', 'TransactionController@apiSettlementExcelUpload', [
-    'key' => 'api.ledger.transaction.settlement.excel_upload',
-    'page' => '거래입력',
-    'page_description' => '거래정산 엑셀 업로드',
-    'permission_name' => '정산엑셀업로드',
-    'permission_description' => '거래정산 엑셀 업로드',
-    'name' => '거래정산 엑셀 업로드',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 거래정산 엑셀 업로드',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
 $router->post('/api/ledger/transaction/save', 'TransactionController@apiSave', [
     'key' => 'api.ledger.transaction.save',
     'page' => '거래입력',
@@ -1507,62 +1129,6 @@ $router->post('/api/ledger/transaction/save', 'TransactionController@apiSave', [
     'permission_description' => '거래 저장',
     'name' => '거래 저장',
     'description' => '회계관리 > 전표관리 > 거래입력 > 저장',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/transaction/create-voucher', 'TransactionController@apiCreateVoucher', [
-    'key' => 'api.ledger.transaction.create_voucher',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 관리',
-    'permission_name' => '전표생성',
-    'permission_description' => '거래 전표 생성',
-    'name' => '거래 전표생성',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 전표생성',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->get('/api/ledger/transaction/recommend-voucher', 'TransactionController@apiRecommendVoucher', [
-    'key' => 'api.ledger.transaction.recommend_voucher',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 관리',
-    'permission_name' => '전표추천',
-    'permission_description' => '거래 전표 추천',
-    'name' => '거래 전표추천',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 전표추천',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/transaction/link-voucher', 'TransactionController@apiLinkVoucher', [
-    'key' => 'api.ledger.transaction.link_voucher',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 관리',
-    'permission_name' => '전표연결',
-    'permission_description' => '거래 전표 연결',
-    'name' => '거래 전표연결',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 전표연결',
-    'category' => '회계관리 > 전표관리',
-    'auth' => true,
-    'permissions' => ['save'],
-    'log' => true,
-]);
-
-$router->post('/api/ledger/transaction/unlink-voucher', 'TransactionController@apiUnlinkVoucher', [
-    'key' => 'api.ledger.transaction.unlink_voucher',
-    'page' => '거래입력',
-    'page_description' => '거래 입력 관리',
-    'permission_name' => '전표연결해제',
-    'permission_description' => '거래 전표 연결 해제',
-    'name' => '거래 전표연결해제',
-    'description' => '회계관리 > 전표관리 > 거래입력 > 전표연결해제',
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['save'],
@@ -1679,4 +1245,117 @@ $router->post('/api/ledger/transaction/purge-all', 'TransactionController@apiPur
     'auth' => true,
     'permissions' => ['delete'],
     'log' => true,
+]);
+$router->get('/api/funds/daily-report/report', 'DailyFundsReportController@apiReport', [
+    'key' => 'api.ledger.funds.daily_report.report',
+    'page' => '자금일보', 'page_description' => '자금일보 관리',
+    'permission_name' => '조회', 'permission_description' => '자금일보 조회',
+    'name' => '자금일보 조회', 'description' => '회계관리 > 자금관리 > 자금일보 > 조회',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => [],
+    'skip_permission' => true, 'log' => false,
+]);
+
+$router->get('/api/funds/daily-report/excel', 'DailyFundsReportController@apiExcel', [
+    'key' => 'api.ledger.funds.daily_report.excel',
+    'page' => '자금일보', 'page_description' => '자금일보 관리',
+    'permission_name' => '엑셀다운로드', 'permission_description' => '자금일보 엑셀 다운로드',
+    'name' => '자금일보 엑셀', 'description' => '회계관리 > 자금관리 > 자금일보 > 엑셀다운로드',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => [],
+    'skip_permission' => true, 'log' => false,
+]);
+
+$router->get('/api/funds/payment-schedule/list', 'PaymentScheduleController@apiList', [
+    'key' => 'api.ledger.funds.payment_schedule.list',
+    'page' => '지급예정현황', 'page_description' => '지급예정현황 관리',
+    'permission_name' => '조회', 'permission_description' => '지급예정현황 조회',
+    'name' => '지급예정현황 조회', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 조회',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->get('/api/funds/payment-schedule/detail', 'PaymentScheduleController@apiDetail', [
+    'key' => 'api.ledger.funds.payment_schedule.detail',
+    'page' => '지급예정현황', 'page_description' => '지급예정 상세',
+    'permission_name' => '조회', 'permission_description' => '지급예정 상세 조회',
+    'name' => '지급예정 상세', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 상세',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->post('/api/funds/payment-schedule/save', 'PaymentScheduleController@apiSave', [
+    'key' => 'api.ledger.funds.payment_schedule.save',
+    'page' => '지급예정현황', 'page_description' => '지급예정 저장',
+    'permission_name' => '저장', 'permission_description' => '지급예정 등록 및 수정',
+    'name' => '지급예정 저장', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 저장',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
+]);
+
+$router->post('/api/funds/payment-schedule/hold', 'PaymentScheduleController@apiHold', [
+    'key' => 'api.ledger.funds.payment_schedule.hold',
+    'page' => '지급예정현황', 'page_description' => '지급보류',
+    'permission_name' => '저장', 'permission_description' => '지급예정 보류',
+    'name' => '지급보류', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 보류',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
+]);
+
+$router->post('/api/funds/payment-schedule/release-hold', 'PaymentScheduleController@apiReleaseHold', [
+    'key' => 'api.ledger.funds.payment_schedule.release_hold',
+    'page' => '지급예정현황', 'page_description' => '지급보류 해제',
+    'permission_name' => '저장', 'permission_description' => '지급예정 보류 해제',
+    'name' => '지급보류 해제', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 보류 해제',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
+]);
+
+$router->post('/api/funds/payment-schedule/delete', 'PaymentScheduleController@apiDelete', [
+    'key' => 'api.ledger.funds.payment_schedule.delete',
+    'page' => '지급예정현황', 'page_description' => '지급예정 삭제',
+    'permission_name' => '삭제', 'permission_description' => '지급예정 삭제',
+    'name' => '지급예정 삭제', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 삭제',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['delete'], 'log' => true,
+]);
+
+$router->get('/api/funds/payment-schedule/trash', 'PaymentScheduleController@apiTrashList', [
+    'key' => 'api.ledger.funds.payment_schedule.trash',
+    'page' => '지급예정현황', 'page_description' => '지급예정 휴지통',
+    'permission_name' => '조회', 'permission_description' => '지급예정 휴지통 조회',
+    'name' => '지급예정 휴지통', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 휴지통',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->post('/api/funds/payment-schedule/restore', 'PaymentScheduleController@apiRestore', [
+    'key' => 'api.ledger.funds.payment_schedule.restore',
+    'page' => '지급예정현황', 'page_description' => '지급예정 복원',
+    'permission_name' => '저장', 'permission_description' => '지급예정 복원',
+    'name' => '지급예정 복원', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 복원',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
+]);
+
+$router->get('/api/funds/payment-schedule/excel', 'PaymentScheduleController@apiExcel', [
+    'key' => 'api.ledger.funds.payment_schedule.excel',
+    'page' => '지급예정현황', 'page_description' => '지급예정현황 엑셀',
+    'permission_name' => '엑셀다운로드', 'permission_description' => '지급예정현황 엑셀 다운로드',
+    'name' => '지급예정현황 엑셀', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 엑셀',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->get('/api/funds/payment-schedule/bank-withdrawals', 'PaymentScheduleController@apiBankWithdrawals', [
+    'key' => 'api.ledger.funds.payment_schedule.bank_withdrawals',
+    'page' => '지급예정현황', 'page_description' => '지급 연결 출금원본 검색',
+    'permission_name' => '조회', 'permission_description' => '지급 연결 가능한 은행 출금원본 조회',
+    'name' => '지급예정 출금원본 검색', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 출금원본 검색',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['view'], 'log' => false,
+]);
+
+$router->post('/api/funds/payment-schedule/allocate', 'PaymentScheduleController@apiAllocate', [
+    'key' => 'api.ledger.funds.payment_schedule.allocate',
+    'page' => '지급예정현황', 'page_description' => '지급예정 실제지급 연결',
+    'permission_name' => '저장', 'permission_description' => '은행 출금 원본을 지급예정에 배분 연결',
+    'name' => '지급예정 실제지급 연결', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 실제지급 연결',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
+]);
+
+$router->post('/api/funds/payment-schedule/release-allocation', 'PaymentScheduleController@apiReleaseAllocation', [
+    'key' => 'api.ledger.funds.payment_schedule.release_allocation',
+    'page' => '지급예정현황', 'page_description' => '지급예정 실제지급 연결 해제',
+    'permission_name' => '저장', 'permission_description' => '지급예정의 은행 출금 배분 연결 해제',
+    'name' => '지급예정 실제지급 연결 해제', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 실제지급 연결 해제',
+    'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
 ]);

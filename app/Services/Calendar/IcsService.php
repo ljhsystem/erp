@@ -1,18 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Calendar/IcsService.php'
 namespace App\Services\Calendar;
 
 use App\Services\Calendar\Caldav\Ics;
 use App\Services\Calendar\Time;
 
-/**
- * =========================================================
- * IcsService
- * - ICS 문자열 전용 유틸
- * - 생성 / 파싱 / 패치
- * - ❌ CalDAV 통신 없음
- * =========================================================
- */
 class IcsService
 {
 
@@ -23,25 +14,10 @@ class IcsService
         $this->ics = new Ics();
     }
 
-    /* =============================
-     * ICS 파싱은 "위임"만
-     * ============================= */
     public function parseIcs(string $ics): array
     {
         return $this->ics->parseCalendarData($ics);
     }
-
-    /* =============================
-     * 이하 build / patch / extract
-     * ============================= */
-
-
-
-
-
-    /* =========================================================
-     * id / COMPONENT / SEQUENCE
-     * ========================================================= */
 
     public function extractUid(string $ics): ?string
     {
@@ -65,9 +41,6 @@ class IcsService
         return 0;
     }
 
-    /* =========================================================
-     * ICS 생성
-     * ========================================================= */
     public function buildIcs(string $component, array $data): string
     {
         $component = strtoupper($component);
@@ -85,7 +58,6 @@ class IcsService
             'PRODID:-//SUKHYANG ERP//Calendar//KO',
             'CALSCALE:GREGORIAN',
 
-            // 🔥 RFC 5545 정석: TZID 사용 시 반드시 VTIMEZONE 포함
             'BEGIN:VTIMEZONE',
             'TZID:Asia/Seoul',
             'BEGIN:STANDARD',
@@ -117,9 +89,6 @@ class IcsService
         return $this->foldLines($lines);
     }
 
-    /* =========================================================
-     * STATUS / COMPLETED 패치
-     * ========================================================= */
 
     public function patchStatus(string $ics, string $status): string
     {
@@ -148,9 +117,6 @@ class IcsService
         return $this->patchComponent($ics, $component, $set, $remove);
     }
 
-    /* =========================================================
-     * ICS Component Patch (공용)
-     * ========================================================= */
 
     public function patchComponent(
         string $ics,
@@ -213,11 +179,6 @@ class IcsService
         );
     }
 
-
-    /* =========================================================
-     * Utils
-     * ========================================================= */
-
     private function escapeText(string $s): string
     {
         return str_replace(
@@ -246,16 +207,12 @@ class IcsService
         return $this->escapeText($text);
     }
 
-    /**
-     * RRULE / RDATE / EXDATE 추출
-     */
     public function extractProperty(string $ics, string $name): ?string
     {
         if (preg_match('/^' . preg_quote($name, '/') . ':(.+)$/mi', $ics, $m)) {
             return $name . ':' . trim($m[1]);
         }
 
-        // TZID 포함 케이스 (RDATE;TZID=Asia/Seoul:...)
         if (preg_match('/^' . preg_quote($name, '/') . ';[^:]+:(.+)$/mi', $ics, $m)) {
             return $name . ':' . trim($m[1]);
         }
@@ -271,21 +228,14 @@ class IcsService
         return null;
     }
 
-
-    /**
-     * 🔥 create / rebuild 공용
-     * payload → VEVENT raw lines 생성
-     */
     public function buildEventRawLines(array $payload, string $tzid = 'Asia/Seoul'): array
     {
         $rawLines = [];
 
-        // LOCATION
         if (array_key_exists('location', $payload)) {
             $rawLines[] = 'LOCATION:' . $this->escapeText($payload['location'] ?? '');
         }
 
-        // DESCRIPTION
         if (array_key_exists('description', $payload)) {
             $rawLines[] = 'DESCRIPTION:' . $this->escapeText($payload['description'] ?? '');
         }
@@ -301,7 +251,6 @@ class IcsService
         if ($isAllDay) {
             $baseStart = substr($start, 0, 10);
 
-            // ✅ end가 없거나 start와 같으면 "하루짜리"
             $rawLines[] = 'DTSTART;VALUE=DATE:' . str_replace('-', '', $baseStart);
             $rawLines[] = 'DTEND;VALUE=DATE:' . date('Ymd', strtotime($baseStart . ' +1 day'));
         } else {
@@ -330,21 +279,6 @@ class IcsService
         return $rawLines;
     }
 
-
-
-    /**
-     * 🔔 Reminder → ICS TRIGGER 정규화
-     *
-     * 허용 입력 예:
-     *  - 'at'        → TRIGGER:PT0S
-     *  - '5m'        → TRIGGER:-PT5M
-     *  - '10m'
-     *  - '30m'
-     *  - '1h'
-     *  - '2h'
-     *  - '1d'
-     *  - '-PT15M'    (이미 ICS 포맷)
-     */
     public function normalizeAlarmTrigger(string $v): string
     {
         $v = trim($v);
@@ -352,13 +286,10 @@ class IcsService
         if ($v === '' || $v === 'at') {
             return 'PT0S';
         }
-
-        // 이미 ICS TRIGGER 형식이면 그대로
         if (preg_match('/^-?P(T?\d+[SMHD])+$/i', $v)) {
             return $v;
         }
 
-        // 숫자 + 단위 파싱
         if (preg_match('/^(\d+)([smhd])$/i', $v, $m)) {
             $num  = (int)$m[1];
             $unit = strtoupper($m[2]);
@@ -372,7 +303,6 @@ class IcsService
             };
         }
 
-        // fallback (안전)
         return 'PT0S';
     }
 }

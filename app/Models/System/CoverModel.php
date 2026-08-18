@@ -19,10 +19,7 @@ public function __construct(?PDO $pdo = null)
     {
         $sql = "
             SELECT
-                c.*,
-                c.created_by AS created_by_name,
-                c.updated_by AS updated_by_name,
-                c.deleted_by AS deleted_by_name
+                c.*
             FROM system_coverimage_assets c
             WHERE c.deleted_at IS NULL
         ";
@@ -149,9 +146,9 @@ public function __construct(?PDO $pdo = null)
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -189,11 +186,7 @@ public function __construct(?PDO $pdo = null)
     {
         $stmt = $this->db->prepare("
             SELECT
-                c.*,
-
-            c.created_by AS created_by_name,
-            c.updated_by AS updated_by_name,
-            c.deleted_by AS deleted_by_name
+                c.*
 
             FROM system_coverimage_assets c
 
@@ -209,9 +202,9 @@ public function __construct(?PDO $pdo = null)
         }
 
         return ActorHelper::enrichActorNamesRow($row, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -308,11 +301,7 @@ public function __construct(?PDO $pdo = null)
     {
         $stmt = $this->db->prepare("
             SELECT
-                c.*,
-
-            c.created_by AS created_by_name,
-            c.updated_by AS updated_by_name,
-            c.deleted_by AS deleted_by_name
+                c.*
 
             FROM system_coverimage_assets c
 
@@ -325,9 +314,9 @@ public function __construct(?PDO $pdo = null)
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by_name',
-            'updated_by_name' => 'updated_by_name',
-            'deleted_by_name' => 'deleted_by_name',
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
         ]);
     }
 
@@ -380,6 +369,51 @@ public function __construct(?PDO $pdo = null)
             'newSortNo' => (int)$newSortNo,
             'id' => $id
         ]);
+    }
+
+    public function resequenceCodes(): void
+    {
+        $this->db->beginTransaction();
+
+        try {
+            $stmt = $this->db->query("
+                SELECT id, deleted_at, sort_no
+                FROM system_coverimage_assets
+            ");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $this->db->exec("
+                UPDATE system_coverimage_assets
+                SET sort_no = sort_no + 100000
+            ");
+
+            usort($rows, static function (array $a, array $b): int {
+                $aDeleted = empty($a['deleted_at']) ? 0 : 1;
+                $bDeleted = empty($b['deleted_at']) ? 0 : 1;
+
+                return $aDeleted !== $bDeleted
+                    ? $aDeleted <=> $bDeleted
+                    : (int) $a['sort_no'] <=> (int) $b['sort_no'];
+            });
+
+            $sequence = 1;
+            foreach ($rows as $row) {
+                $stmt = $this->db->prepare("
+                    UPDATE system_coverimage_assets
+                    SET sort_no = :sort_no
+                    WHERE id = :id
+                ");
+                $stmt->execute([
+                    ':sort_no' => $sequence++,
+                    ':id' => $row['id'],
+                ]);
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
 

@@ -246,23 +246,20 @@ class UserSettingModel
     private function columnExists(string $column): bool
     {
         $cacheKey = self::TABLE . '.' . $column;
-        if (array_key_exists($cacheKey, $this->columnExistsCache)) {
-            return $this->columnExistsCache[$cacheKey];
+        if ($this->columnExistsCache === []) {
+            $stmt = $this->db->prepare(
+                'SELECT COLUMN_NAME
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = :table'
+            );
+            $stmt->execute([':table' => self::TABLE]);
+
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $existingColumn) {
+                $this->columnExistsCache[self::TABLE . '.' . (string) $existingColumn] = true;
+            }
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT COUNT(*)
-             FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME = :table
-               AND COLUMN_NAME = :column'
-        );
-        $stmt->execute([
-            ':table' => self::TABLE,
-            ':column' => $column,
-        ]);
-
-        $this->columnExistsCache[$cacheKey] = (int) $stmt->fetchColumn() > 0;
-        return $this->columnExistsCache[$cacheKey];
+        return $this->columnExistsCache[$cacheKey] ?? false;
     }
 }

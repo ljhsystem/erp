@@ -24,6 +24,7 @@
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_notify" type="button">2단계/알림</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_note" type="button">노트/메모</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_logs" type="button">기록(Log)</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_system" type="button">시스템 처리 정보</button></li>
           </ul>
 
           <div class="tab-content">
@@ -97,19 +98,25 @@
                   <select name="position_id" id="edit_position_select" class="form-select form-select-sm"></select>
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">역할</label>
-                  <select name="role_id" id="edit_role_select" class="form-select form-select-sm"></select>
+                  <label class="form-label">직무</label>
+                  <select name="job_id" id="edit_job_select" class="form-select form-select-sm"></select>
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">거래처(회계용)</label>
-                  <select name="client_id" id="edit_employee_client_select" class="form-select form-select-sm">
-                    <option value="">선택(없음)</option>
-                  </select>
+                  <label class="form-label">재직상태</label>
+                  <select name="employment_status" id="edit_employment_status" class="form-select form-select-sm" data-code-group="EMPLOYMENT_STATUS"></select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">역할</label>
+                  <select name="role_id" id="edit_role_select" class="form-select form-select-sm"></select>
                 </div>
               </div>
             </div>
 
             <div class="tab-pane fade" id="edit_tab_dates">
+              <div class="alert alert-light border py-2 small employee-hr-edit-notice d-none">
+                부서·직위·직무·재직상태와 입·퇴사일은 인사발령관리에서 변경해 주세요.
+                <a href="/institution/human-resources/personnel-actions" class="ms-1">인사발령관리 열기</a>
+              </div>
               <div class="row g-3">
                 <?php foreach ([
                   ['doc_hire_date', 'edit_doc_hire_date', '문서상 입사일'],
@@ -133,7 +140,7 @@
                 <div class="col-md-4 text-center">
                   <label class="form-label fw-semibold">프로필 사진</label>
                   <div class="employee-file-preview-box" id="profile_box" data-label="업로드">
-                    <img src="/public/assets/img/default-avatar.png" id="edit_profile_preview" class="employee-file-preview-img" alt="프로필 사진">
+                    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" id="edit_profile_preview" class="employee-file-preview-img" alt="프로필 사진">
                     <button type="button" id="edit_profile_delete_btn" class="btn btn-light border employee-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
                   </div>
                   <input type="file" id="edit_profile_image" name="profile_image" accept="image/*" class="form-control form-control-sm employee-file-input" data-preview="#edit_profile_preview">
@@ -143,7 +150,7 @@
                 <div class="col-md-4 text-center">
                   <label class="form-label fw-semibold">신분증</label>
                   <div class="employee-file-preview-box" id="id_box" data-label="업로드">
-                    <img src="/public/assets/img/placeholder-id.png" id="edit_id_preview" class="employee-file-preview-img" alt="신분증 미리보기">
+                    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" id="edit_id_preview" class="employee-file-preview-img" alt="신분증 미리보기">
                     <button type="button" id="edit_id_delete_btn" class="btn btn-light border employee-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
                   </div>
                   <input type="file" id="edit_rrn_image" name="rrn_image" accept="image/*,application/pdf" class="form-control form-control-sm employee-file-input" data-preview="#edit_id_preview">
@@ -151,16 +158,20 @@
                   <div class="form-text small text-muted">이미지 또는 PDF 업로드 가능</div>
                 </div>
                 <div class="col-md-4 text-center">
-                  <label class="form-label fw-semibold">자격증</label>
-                  <div class="employee-file-preview-box" id="cert_box" data-label="업로드">
-                    <img src="/public/assets/img/placeholder-cert.png" id="edit_cert_preview_img" class="employee-file-preview-img" alt="자격증 미리보기">
-                    <button type="button" id="edit_cert_delete_btn" class="btn btn-light border employee-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
+                  <label class="form-label fw-semibold">대표 자격증</label>
+                  <div class="employee-file-preview-box" id="representative_qualification_box" data-label="업로드">
+                    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" id="edit_representative_qualification_preview" class="employee-file-preview-img" alt="대표 자격증 미리보기">
+                    <button type="button" id="edit_representative_qualification_delete_btn" class="btn btn-light border employee-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
                   </div>
-                  <input type="file" name="certificate_file" accept="image/*,application/pdf" class="form-control form-control-sm" id="edit_certificate_file">
-                  <input type="hidden" name="certificate_file_delete" id="edit_certificate_file_delete" value="0">
+                  <input type="file" name="representative_qualification_file" accept="image/*,application/pdf" class="form-control form-control-sm employee-file-input" id="edit_representative_qualification_file">
+                  <input type="hidden" name="representative_qualification_delete" id="edit_representative_qualification_delete" value="0">
                   <div class="input-group employee-cert-name-group">
                     <span class="input-group-text"><i class="fas fa-certificate"></i></span>
-                    <input type="text" name="certificate_name" id="edit_certificate_name" class="form-control form-control-sm" placeholder="자격증 이름을 입력하세요">
+                    <input type="text" name="representative_qualification_name" id="edit_representative_qualification_name" class="form-control form-control-sm" placeholder="대표 자격증 이름을 입력하세요" maxlength="150">
+                  </div>
+                  <div class="d-flex align-items-center justify-content-between gap-2">
+                    <small id="edit_qualification_education_status" class="text-muted text-start">자격 0건 · 교육 0건</small>
+                    <a id="edit_qualification_education_link" class="btn btn-outline-primary btn-sm text-nowrap" href="/institution/human-resources/qualification-education">자격·교육관리</a>
                   </div>
                 </div>
               </div>
@@ -188,7 +199,7 @@
                   <div class="bank-right-wrap text-center">
                     <label class="form-label fw-semibold">통장 사본</label>
                     <div class="employee-file-preview-box" id="bank_box" data-label="업로드">
-                      <img src="/public/assets/img/placeholder-bank.png" id="edit_bank_preview" class="employee-file-preview-img" alt="통장 사본 미리보기">
+                      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" id="edit_bank_preview" class="employee-file-preview-img" alt="통장 사본 미리보기">
                       <button type="button" id="edit_bank_delete_btn" class="btn btn-light border employee-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
                     </div>
                     <input type="file" name="bank_file" id="edit_bank_file" accept="image/*,application/pdf" class="form-control form-control-sm employee-file-input">
@@ -243,12 +254,11 @@
                   <div class="log-row"><span>비밀번호 변경일</span><span id="edit_password_updated_at"></span></div>
                   <div class="log-row"><span>비밀번호 변경자</span><span id="edit_password_updated_by"></span></div>
                 </div>
-                <div class="log-card danger">
-                  <div class="log-title">삭제 정보</div>
-                  <div class="log-row"><span>삭제일</span><span id="edit_deleted_at"></span></div>
-                  <div class="log-row"><span>삭제자</span><span id="edit_deleted_by"></span></div>
-                </div>
               </div>
+            </div>
+
+            <div class="tab-pane fade" id="edit_tab_system">
+              <div class="employee-log-section" id="employeeSystemInfoFields"></div>
             </div>
           </div>
         </div>

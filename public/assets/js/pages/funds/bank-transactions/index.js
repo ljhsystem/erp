@@ -4,6 +4,7 @@ import { formatAccountNumber } from '/public/assets/js/common/format.js';
 import { renderSummary } from './summary.js';
 import { createFundsBankTransactionTable, escapeHtml } from './table.js';
 import '/public/assets/js/components/trash-manager.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 const API = {
     list: '/api/funds/bank-transactions',
@@ -328,8 +329,8 @@ async function openVoucher(voucherId) {
 
 function openVoucherCreate(evidenceId) {
     window.location.href = evidenceId
-        ? `/ledger/data/create?import_type=BANK_TRANSACTION&evidence_id=${encodeURIComponent(evidenceId)}`
-        : '/ledger/data/create?import_type=BANK_TRANSACTION';
+        ? `/ledger/journal?import_type=BANK_TRANSACTION&evidence_id=${encodeURIComponent(evidenceId)}`
+        : '/ledger/journal';
 }
 
 async function fetchTransaction(id, options = {}) {
@@ -391,13 +392,18 @@ async function deleteBankTransaction(id) {
         return false;
     }
 
-    const json = await postJson(API.delete, { id });
-    notify('success', json.message || '입출금 원본을 휴지통으로 이동했습니다.');
-    return true;
+    return runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '입출금 원본을 휴지통으로 이동 중' }, async () => {
+        const json = await postJson(API.delete, { id });
+        notify('success', json.message || '입출금 원본을 휴지통으로 이동했습니다.');
+        return true;
+    });
 }
 
-(() => {
-    const api = API.list;
+(async () => {
+    const bankAccountId = new URLSearchParams(window.location.search).get('bank_account_id') || '';
+    const api = bankAccountId
+        ? `${API.list}?bank_account_id=${encodeURIComponent(bankAccountId)}`
+        : API.list;
     let activeManageRow = null;
     let manageOpenToken = 0;
 
@@ -448,7 +454,7 @@ async function deleteBankTransaction(id) {
         }
     }
 
-    const table = createFundsBankTransactionTable({
+    const table = await createFundsBankTransactionTable({
         api,
         reorderApi: API.reorder,
         onSummary: renderSummary,
@@ -478,10 +484,7 @@ async function deleteBankTransaction(id) {
                 } else if (action === 'create-voucher') {
                     openVoucherCreate(evidenceId);
                 } else if (action === 'delete') {
-                    if (!window.confirm('입출금 원본을 휴지통으로 이동할까요?')) return;
-                    await postJson(API.delete, { id });
-                    notify('success', '입출금 원본을 휴지통으로 이동했습니다.');
-                    table.ajax.reload(null, false);
+                    if (await deleteBankTransaction(id)) table.ajax.reload(null, false);
                 } else if (action === 'restore') {
                     await postJson(API.restore, { id });
                     notify('success', '입출금 원본을 복구했습니다.');
@@ -540,14 +543,56 @@ async function deleteBankTransaction(id) {
         void openManageModal(id, row).catch((error) => notify('error', error.message));
     });
 
+    const legacySearchFieldMap = {
+        transaction_datetime: 'raw_transaction_datetime',
+        uploaded_at: 'created_at',
+        description: 'raw_description',
+        memo: 'raw_description',
+        direction: 'transaction_direction',
+        deposit_amount: 'raw_deposit_amount',
+        withdraw_amount: 'raw_withdraw_amount',
+        counterparty_name: 'raw_counterparty_name',
+        counterparty_account_number: 'raw_counterparty_account_number',
+        counterparty_bank_name: 'raw_counterparty_bank_name',
+    };
+    const savedViewState = table?.__dtTableSettings?.getViewState?.() || {};
+    const savedSearchFormState = savedViewState.searchFormState;
+    if (savedSearchFormState && typeof savedSearchFormState === 'object') {
+        const migratedSearchFormState = {
+            ...savedSearchFormState,
+            dateType: legacySearchFieldMap[savedSearchFormState.dateType] || savedSearchFormState.dateType,
+            conditions: Array.isArray(savedSearchFormState.conditions)
+                ? savedSearchFormState.conditions.map((condition) => ({
+                    ...condition,
+                    field: legacySearchFieldMap[condition?.field] || condition?.field,
+                }))
+                : [],
+        };
+        table.__dtTableSettings?.updateViewState?.({
+            searchFormState: migratedSearchFormState,
+        });
+    }
+    const requestedParams = new URLSearchParams(window.location.search);
+    if (requestedParams.get('link_status') === 'UNLINKED') {
+        table.__dtTableSettings?.updateViewState?.({
+            searchFormState: {
+                conditions: [{ field: 'voucher_link_status', value: 'UNLINKED' }],
+                dateType: 'raw_transaction_datetime',
+                dateStart: requestedParams.get('date_start') || '',
+                dateEnd: requestedParams.get('date_end') || '',
+            },
+            searchFormExpanded: true,
+        });
+    }
+
     SearchForm({
         table,
         apiList: api,
         tableId: 'fundsBankTransactions',
-        defaultSearchField: 'description',
+        defaultSearchField: 'raw_description',
         dateOptions: [
-            { value: 'transaction_datetime', label: '거래일시' },
-            { value: 'uploaded_at', label: '업로드일시' },
+            { value: 'raw_transaction_datetime', label: '거래일시' },
+            { value: 'created_at', label: '업로드일시' },
         ],
         normalizeFilters: (filters = []) => filters.map((filter) => {
             const field = String(filter.field || '');
@@ -556,7 +601,7 @@ async function deleteBankTransaction(id) {
                 if (/미|unlinked/i.test(value)) return { ...filter, value: 'UNLINKED' };
                 if (/연결|linked/i.test(value)) return { ...filter, value: 'LINKED' };
             }
-            if (field === 'direction') {
+            if (field === 'transaction_direction') {
                 if (/입|in/i.test(value)) return { ...filter, value: 'IN' };
                 if (/출|out/i.test(value)) return { ...filter, value: 'OUT' };
             }
@@ -603,11 +648,10 @@ async function deleteBankTransaction(id) {
             } else if (action === 'voucher') {
                 await openVoucher(voucherId);
             } else if (action === 'delete') {
-                if (!window.confirm('\uC785\uCD9C\uAE08 \uC6D0\uBCF8\uC744 \uD734\uC9C0\uD1B5\uC73C\uB85C \uC774\uB3D9\uD560\uAE4C\uC694?')) return;
-                await postJson(API.delete, { id });
-                notify('success', '\uC785\uCD9C\uAE08 \uC6D0\uBCF8\uC744 \uD734\uC9C0\uD1B5\uC73C\uB85C \uC774\uB3D9\uD588\uC2B5\uB2C8\uB2E4.');
-                table.ajax.reload(null, false);
-                window.bootstrap?.Modal.getInstance(document.getElementById('fundsBankManageModal'))?.hide();
+                if (await deleteBankTransaction(id)) {
+                    table.ajax.reload(null, false);
+                    window.bootstrap?.Modal.getInstance(document.getElementById('fundsBankManageModal'))?.hide();
+                }
             } else if (action === 'restore') {
                 await postJson(API.restore, { id });
                 notify('success', '\uC785\uCD9C\uAE08 \uC6D0\uBCF8\uC744 \uBCF5\uAD6C\uD588\uC2B5\uB2C8\uB2E4.');

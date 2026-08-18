@@ -332,7 +332,7 @@ export function SearchForm(config) {
             persistSearchFormState(readCurrentSearchFormState());
             const url = buildFilterUrl(normalizedFilters);
             table.ajax.url(url).load(() => {
-                refreshTableLayout({ draw: true });
+                refreshTableLayout({ draw: false });
             });
         });
 
@@ -363,7 +363,7 @@ export function SearchForm(config) {
             persistSearchFormState(null);
 
             table.ajax.url(currentApiList()).load(() => {
-                refreshTableLayout({ draw: true });
+                refreshTableLayout({ draw: false });
             });
         });
 
@@ -632,7 +632,7 @@ export function SearchForm(config) {
         const normalizedFilters = applyFilterNormalizer(filters);
         const url = buildFilterUrl(normalizedFilters);
         table.ajax.url(url).load(() => {
-            refreshTableLayout({ draw: true });
+            refreshTableLayout({ draw: false });
         });
     }
 

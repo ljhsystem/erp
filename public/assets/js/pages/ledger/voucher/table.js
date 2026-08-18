@@ -1,4 +1,7 @@
-import { fetchDataTableMetaColumnsSync } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import {
+    fetchDataTableMetaColumns,
+    getCachedDataTableMetaColumns,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { manageButtonRenderer } from '/public/assets/js/common/table/renderers/index.js';
 
 const VOUCHER_META_DOMAIN = 'voucher-header';
@@ -19,29 +22,45 @@ export function registerTable(ctx) {
         tableBody,
         formatAmountValue,
         renderJournalStatusBadge,
-        renderDragHandle,
-        renderEllipsisText,
         escapeHtml,
         notify,
     } = ctx;
 
+    function renderEllipsisText(value = '') {
+        const text = String(value ?? '').trim();
+        if (text === '') {
+            return '';
+        }
+        return `<span title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+    }
+
     function voucherHeaderMetaColumns() {
-        return fetchDataTableMetaColumnsSync({
+        return getCachedDataTableMetaColumns({
             metaDomain: VOUCHER_META_DOMAIN,
             storageKey: VOUCHER_TABLE_SETTINGS_STORAGE_KEY,
             userSettingPageKey: VOUCHER_TABLE_SETTINGS_PAGE_KEY,
         }).filter((column) => String(column?.column_type || 'physical') === 'physical');
     }
 
-    function renderBooleanBadge(value) {
+    function renderReversalBadge(value) {
         const active = String(value || '').trim() === '1'
             || value === 1
             || value === true
             || String(value || '').trim().toLowerCase() === 'y';
 
         return active
-            ? '<span class="journal-link-badge journal-link-linked">예</span>'
-            : '<span class="journal-link-badge journal-link-unlinked">아니오</span>';
+            ? '<span class="badge text-bg-danger">취소전표</span>'
+            : '<span class="badge text-bg-secondary">정상</span>';
+    }
+
+    function renderReferenceName(row, fields = []) {
+        for (const field of fields) {
+            const name = String(row?.[field] || '').trim();
+            if (name !== '') {
+                return renderEllipsisText(name);
+            }
+        }
+        return '<span class="text-muted">-</span>';
     }
 
     function renderVoucherField(field, data, type, row) {
@@ -86,22 +105,22 @@ export function registerTable(ctx) {
             return escapeHtml(String(value ?? '0'));
 
         case 'summary_account_id':
-            return renderEllipsisText(row?.summary_account_name || value || '');
+            return renderReferenceName(row, ['account_label', 'summary_account_name']);
 
         case 'summary_client_id':
-            return renderEllipsisText(row?.summary_client_name || value || '');
+            return renderReferenceName(row, ['summary_client_name', 'client_name']);
 
         case 'summary_project_id':
-            return renderEllipsisText(row?.summary_project_name || value || '');
+            return renderReferenceName(row, ['summary_project_name']);
 
         case 'summary_bank_account_id':
-            return renderEllipsisText(row?.summary_bank_account_name || value || '');
+            return renderReferenceName(row, ['summary_bank_account_name']);
 
         case 'summary_card_id':
-            return renderEllipsisText(row?.summary_card_name || value || '');
+            return renderReferenceName(row, ['summary_card_name']);
 
         case 'summary_employee_id':
-            return renderEllipsisText(row?.summary_employee_name || value || '');
+            return renderReferenceName(row, ['summary_employee_name']);
 
         case 'summary_line_summary':
             return renderEllipsisText(value || '');
@@ -113,13 +132,13 @@ export function registerTable(ctx) {
             if (type === 'sort' || type === 'type') {
                 return value ? 1 : 0;
             }
-            return renderBooleanBadge(value);
+            return renderReversalBadge(value);
 
         case 'reversal_of':
             if (type === 'sort' || type === 'type') {
                 return String(value || '');
             }
-            return renderEllipsisText(row?.original_voucher_no || value || '');
+            return renderReferenceName(row, ['original_voucher_no']);
 
         case 'created_by':
         case 'updated_by':
@@ -130,11 +149,14 @@ export function registerTable(ctx) {
             return escapeHtml(actorDisplay(row, field));
 
         case 'id':
-            return escapeHtml(value || '');
+            return renderReferenceName(row, ['voucher_no']);
 
         default:
             if (type === 'sort' || type === 'type') {
                 return value;
+            }
+            if (field.endsWith('_id')) {
+                return renderReferenceName(row, [`${field.slice(0, -3)}_name`]);
             }
             return escapeHtml(value || '');
         }
@@ -171,6 +193,7 @@ export function registerTable(ctx) {
                 sourceField: field,
                 title: String(meta?.label || field).trim() || field,
                 className: columnClassName(field),
+                widthResizable: true,
                 visible: meta?.settings_visible !== false,
                 defaultContent: '',
                 render(data, type, row) {
@@ -189,8 +212,10 @@ export function registerTable(ctx) {
             orderable: false,
             searchable: false,
             defaultContent: '',
-            render() {
-                return renderDragHandle();
+            render(_data, type) {
+                return type === 'display'
+                    ? '<i class="bi bi-list" aria-hidden="true"></i>'
+                    : '';
             },
         };
     }
@@ -280,12 +305,18 @@ export function registerTable(ctx) {
                 void ctx.loadDetail?.(id);
             });
     }
-    function initJournalTable() {
+    async function initJournalTable() {
         if (state.journalTable || !journalTableEl || !tableBody || !window.jQuery?.fn?.DataTable) {
             return Boolean(state.journalTable);
         }
 
-        state.journalTable = createDataTable({
+        await fetchDataTableMetaColumns({
+            metaDomain: VOUCHER_META_DOMAIN,
+            storageKey: VOUCHER_TABLE_SETTINGS_STORAGE_KEY,
+            userSettingPageKey: VOUCHER_TABLE_SETTINGS_PAGE_KEY,
+        });
+
+        state.journalTable = await createDataTable({
             tableSelector: '#journal-table',
             api: API.list,
             columns: buildJournalColumns(),
@@ -305,11 +336,6 @@ export function registerTable(ctx) {
                     text: '\uD734\uC9C0\uD1B5',
                     className: 'btn btn-danger btn-sm voucher-trash-btn',
                     action: openTrashModal,
-                },
-                {
-                    text: '\uC5D1\uC140\uAD00\uB9AC',
-                    className: 'btn btn-success btn-sm voucher-excel-manager-btn',
-                    action: () => ctx.openHeaderExcelManager?.(),
                 },
                 {
                     text: '\uC2E0\uADDC\uC804\uD45C',
@@ -360,7 +386,8 @@ export function registerTable(ctx) {
         }
     }
 
-    function openTrashModal() {
+    async function openTrashModal() {
+        await ctx.ensureTrashManager?.();
         const modalEl = document.getElementById('journalTrashModal');
         if (!modalEl) {
             notify('warning', '\uC804\uD45C \uD734\uC9C0\uD1B5 \uBAA8\uB2EC\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');

@@ -135,8 +135,8 @@ export function createBankAccountTableModule({
         return columns;
     }
 
-    function initDataTable() {
-        state.accountTable = createDataTable({
+    async function initDataTable() {
+        state.accountTable = await createDataTable({
             tableSelector: '#account-table',
             api: API.LIST,
             deleteApi: API.DELETE,
@@ -183,7 +183,7 @@ export function createBankAccountTableModule({
                     },
                 },
                 {
-                    text: '새 계좌',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action() {
                         const form = document.getElementById('accountForm');
@@ -218,7 +218,7 @@ export function createBankAccountTableModule({
                         formModule.resetBankBookUI();
                         state.accountModal?.show();
 
-                        void formModule.prepareAccountModalControls().catch((error) => {
+                        void formModule.preloadAccountModalControls().catch((error) => {
                             console.error('[bank-account] modal controls prepare failed', error);
                             formModule.notify('error', '계좌 입력 항목 준비 중 오류가 발생했습니다.');
                         });
@@ -230,9 +230,7 @@ export function createBankAccountTableModule({
         window.accountTable = state.accountTable;
         if (!state.accountTable) return;
 
-        state.accountTable.on('init.dt', () => {
-            updateAccountCount(state.accountTable.page.info()?.recordsDisplay ?? 0);
-        });
+        updateAccountCount(state.accountTable.page.info()?.recordsDisplay ?? 0);
         state.accountTable.on('draw.dt', () => {
             updateAccountCount(state.accountTable.page.info()?.recordsDisplay ?? 0);
         });
@@ -276,17 +274,7 @@ export function createBankAccountTableModule({
             formData.set('is_active', active ? '1' : '0');
             formData.set('delete_bank_file', '0');
 
-            const res = await window.jQuery.ajax({
-                url: API.SAVE,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-            });
-
-            if (!res.success) {
-                throw new Error(res.message || '상태 변경에 실패했습니다.');
-            }
+            await window.AppAjax.fetchJson(API.SAVE, { method: 'POST', body: formData });
 
             formModule.notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
             state.accountTable?.ajax.reload(null, false);

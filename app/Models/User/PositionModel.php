@@ -3,6 +3,7 @@ namespace App\Models\User;
 
 use PDO;
 use Core\Database;
+use Core\Helpers\ActorHelper;
 
 class PositionModel
 {
@@ -146,7 +147,10 @@ class PositionModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return ActorHelper::enrichActorNames(
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            ['created_by', 'updated_by']
+        );
     }
 
     public function getById(string $id): ?array
@@ -161,7 +165,10 @@ class PositionModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row
+            ? ActorHelper::enrichActorNamesRow($row, ['created_by', 'updated_by'])
+            : null;
     }
 
     public function existsByName(string $name, ?string $excludeId = null): bool
@@ -232,7 +239,8 @@ class PositionModel
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("DELETE FROM user_positions WHERE id = ?");
-        return $stmt->execute([$id]);
+        $stmt->execute([$id]);
+        return $stmt->rowCount() === 1;
     }
 
     public function updateSortNo(string $id, int $sort_no): bool

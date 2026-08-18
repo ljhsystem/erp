@@ -1,5 +1,3 @@
-// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/calendar/sidebar.left.list.js'
-
 (() => {
   'use strict';
   console.log('[sidebar.left.list] loaded');
@@ -17,10 +15,8 @@
   let currentOpenMenu = null;
   let isPaletteOpen = false;
   let __leftDocBound = false;
-  let paletteAnchorBtn = null;   // 어떤 버튼 기준으로 열렸는지
+  let paletteAnchorBtn = null;
 
-
-  /* ================= Utils ================= */
   const esc = s =>
     String(s ?? '').replace(/[&<>"']/g, m =>
       ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])
@@ -32,10 +28,6 @@
   const getColor = o =>
     o?.admin_calendar_color || '#666F80';
 
-
-/* =====================================================
- * Init (🔥 calendar:ready 놓치는 문제 해결)
- * ===================================================== */
 function initFromContext() {
   const list = window.CalendarContext?.calendars || [];
 
@@ -59,9 +51,8 @@ function initFromContext() {
   return true;
 }
 
-// 1️⃣ 즉시 시도 (이미 bootstrap 완료된 경우)
 if (!initFromContext()) {
-  // 2️⃣ 아직이면 calendar:ready 대기
+
   document.addEventListener(
     'calendar:ready',
     () => initFromContext(),
@@ -69,11 +60,6 @@ if (!initFromContext()) {
   );
 }
 
-
-
-  // =====================================================
-  // Render
-  // =====================================================
   function renderCalendars() {
     const ul = document.getElementById('calendar-list');
     if (!ul) return;
@@ -85,7 +71,7 @@ if (!initFromContext()) {
       CalendarStore.setCalendarColor(rawId, color);
       const key   = `cal:${rawId}`;
       const on = true;;
-      
+
 
       return buildItemHTML({
         kind: 'cal',
@@ -103,29 +89,27 @@ if (!initFromContext()) {
   function renderTasks() {
     const ul = document.getElementById('task-list');
     if (!ul) return;
-  
+
     if (!State.tasks.length) {
       ul.innerHTML = `<li class="cal-item is-empty">작업이 없습니다</li>`;
       return;
     }
-  
+
     ul.innerHTML = State.tasks.map(t => {
       const calId = String(t.calendar_id || '');
       const name  = getName(t);
 
-      // 🔥 핵심 수정 부분
       let color = t?.admin_calendar_color;
-  
+
       if (!color) {
         color = CalendarStore.getCalendarColor?.(calId) || '#666F80';
       }
 
-      // 🔥 task도 CalendarStore에 컬러 등록 (핵심)
       CalendarStore.setCalendarColor(calId, color);
-  
+
       const key = `task:${calId}`;
       const on  = true;
-  
+
       return buildItemHTML({
         kind: 'task',
         rawId: calId,
@@ -135,73 +119,56 @@ if (!initFromContext()) {
         checked: on,
       });
     }).join('');
-  
+
     syncTasks();
   }
 
-
-
-
-
-
-  /* ================= Events ================= */
   function bindEvents() {
     const root = document.getElementById('calendar-left-root');
     if (!root) return;
-  
-    /* =========================
-     * 체크박스
-     * ========================= */
+
     root.addEventListener('change', e => {
       const cb = e.target.closest('.cal-checkbox');
       if (!cb) return;
-  
+
       const li = cb.closest('.cal-item');
       li.classList.toggle('is-checked', cb.checked);
-  
+
       li.dataset.kind === 'cal'
         ? syncCalendars()
         : syncTasks();
     });
-  
-    /* =========================
-     * ⋯ 메뉴 열기/닫기
-     * ========================= */
+
     root.addEventListener('click', e => {
       const btn = e.target.closest('.cal-more');
       if (!btn) return;
-        
+
       const li = btn.closest('.cal-item');
       const menu = li?.querySelector('.cal-menu');
       if (!menu) return;
-    
-      // 같은 메뉴 재클릭
+
       if (currentOpenMenu === menu) {
         closeAll();
         return;
       }
-    
+
       closeAll();
-    
+
       menu.classList.remove('is-hidden');
       currentOpenMenu = menu;
     });
-  
+
     root.addEventListener('mouseleave', e => {
 
       const menu = e.target.closest('.cal-menu');
       if (!menu) return;
-    
+
       setTimeout(() => {
         if (!isPaletteOpen) return;
         hideGlobalPalette();
       }, 150);
-    
+
     });
-    
-    /* =========================
-    * 색상 변경 (HOVER 방식)
-    * ========================= */
 
     root.addEventListener('mouseover', e => {
 
@@ -223,10 +190,6 @@ if (!initFromContext()) {
       showGlobalPalette(btn, rawId, kind, currentColor);
     });
 
-
-    /* =========================
-    * 이것만 보기
-    * ========================= */
     root.addEventListener('click', e => {
       const btn = e.target.closest('.cal-menu-item[data-action="only"]');
       if (!btn) return;
@@ -240,7 +203,6 @@ if (!initFromContext()) {
       const kind  = li.dataset.kind;
       const rawId = li.dataset.rawId;
 
-      /* 1️⃣ 같은 kind 전부 OFF */
       root.querySelectorAll(`.cal-item[data-kind="${kind}"]`)
         .forEach(item => {
           const cb = item.querySelector('.cal-checkbox');
@@ -248,59 +210,55 @@ if (!initFromContext()) {
           item.classList.remove('is-checked');
         });
 
-      /* 2️⃣ 선택한 것만 ON */
       const cb = li.querySelector('.cal-checkbox');
       if (cb) cb.checked = true;
       li.classList.add('is-checked');
 
-      /* 🔥 3️⃣ FullCalendar 동기화 추가 */
       if (kind === 'cal') {
         syncCalendars();
       } else {
         syncTasks();
       }
 
-      /* 4️⃣ 메뉴 닫기 */
       const menu = li.querySelector('.cal-menu');
       if (menu) menu.classList.add('is-hidden');
     });
 
 
-  
+
     if (!__leftDocBound) {
       __leftDocBound = true;
-    
+
       document.addEventListener('mousedown', e => {
 
         if (e.button !== 0) return;
-      
+
         const paletteEl = globalPalette;
         const menuEl = currentOpenMenu;
-      
+
         const clickedInsidePalette =
           paletteEl && paletteEl.contains(e.target);
-      
+
         const clickedInsideMenu =
           menuEl && menuEl.contains(e.target);
-      
+
         const clickedColorButton =
           paletteAnchorBtn && paletteAnchorBtn.contains(e.target);
-      
-        // 🔥 메뉴/팔레트/색상버튼 외부 클릭이면 닫기
+
         if (!clickedInsidePalette && !clickedInsideMenu && !clickedColorButton) {
           closeAll();
         }
-      
+
       });
-    
+
       document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
-    
+
         if (isPaletteOpen) {
           hideGlobalPalette();
           return;
         }
-    
+
         if (currentOpenMenu) {
           currentOpenMenu.classList.add('is-hidden');
           currentOpenMenu = null;
@@ -312,9 +270,7 @@ if (!initFromContext()) {
 
 
   }
-  
 
-  /* ================= Sync ================= */
   function syncCalendars() {
     const set = new Set();
     document.querySelectorAll('#calendar-list .cal-item.is-checked')
@@ -339,22 +295,21 @@ if (!initFromContext()) {
       btn.addEventListener('click', () => {
         const section = btn.closest('.cal-section');
         if (!section) return;
-  
+
         const header = section.querySelector('.cal-collapsible');
         const body   = section.querySelector('.cal-collapsible-body');
-  
+
         if (!header || !body) return;
-  
+
         const isHidden = body.classList.toggle('is-hidden');
-  
-        // 🔥 핵심: 헤더 상태 동기화
+
         header.classList.toggle('is-collapsed', isHidden);
       });
     });
   }
 
   function buildItemHTML({ kind, rawId, key, name, color, checked }) {
-    // kind: "cal" | "task"
+
     return `
       <li class="cal-item ${checked ? 'is-checked' : ''} ${kind === 'task' ? 'is-task' : ''}"
           data-kind="${esc(kind)}"
@@ -390,9 +345,7 @@ if (!initFromContext()) {
       </li>
     `;
   }
-    // =====================================================
-  // Palette
-  // =====================================================
+
   function buildColorPalette(current) {
     const COLORS = [
       '#CC4E4E','#D67240','#DB8F2C','#E0A416','#E0BB00',
@@ -415,11 +368,7 @@ if (!initFromContext()) {
       </div>
     `;
   }
-  
 
-/* =====================================================
- * GLOBAL COLOR PALETTE
- * ===================================================== */
 let globalPalette = null;
 
 function createGlobalPalette() {
@@ -431,7 +380,7 @@ function createGlobalPalette() {
   globalPalette.className = 'global-color-palette is-hidden';
   globalPalette.setAttribute('data-role', 'color-palette');
 
-  document.body.appendChild(globalPalette);  // 🔥 body에 붙임
+  document.body.appendChild(globalPalette);
 
   return globalPalette;
 }
@@ -486,14 +435,11 @@ function hideGlobalPalette() {
 
 function applyColorChange(rawId, kind, color) {
 
-  // 1) 리스트 UI 반영
   const li = document.querySelector(`.cal-item[data-raw-id="${rawId}"]`);
   if (li) li.style.setProperty('--cal', color);
 
-  // 2) Store 반영 (calendar/task 공통)
   CalendarStore.setCalendarColor(rawId, color);
 
-  // 3) DB 저장 (calendar/task 동일 endpoint 사용)
   fetch('/api/dashboard/calendar/update-admin-color', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -504,7 +450,6 @@ function applyColorChange(rawId, kind, color) {
     })
   }).catch(err => console.error('[ADMIN COLOR SAVE ERROR]', err));
 
-  // 4) FullCalendar 재렌더
   if (window.__calendar) {
     window.__calendar.refetchEvents();
   }

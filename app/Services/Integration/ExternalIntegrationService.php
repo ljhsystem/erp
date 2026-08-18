@@ -57,18 +57,16 @@ class ExternalIntegrationService
 
         if ($response === false) {
             $error = curl_error($ch);
-            //curl_close($ch);
+
             throw new \RuntimeException("API 호출 실패: {$error}");
         }
 
         $data = json_decode($response, true);
 
         if ($data === null) {
-            //curl_close($ch);
+
             throw new \RuntimeException("JSON 파싱 실패: " . $response);
         }
-
-        //curl_close($ch);
 
         return [
             'success' => true,

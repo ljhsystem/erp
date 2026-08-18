@@ -30,11 +30,9 @@ export function registerEditors(ctx) {
         headerFinalAmountEl,
     } = ctx;
     let unitOptions = ctx.unitOptions;
-    let taxTypeOptions = ctx.taxTypeOptions;
     let settlementTypeOptions = ctx.settlementTypeOptions;
     let amountSignOptions = ctx.amountSignOptions;
     let unitCodeSelectEl = ctx.unitCodeSelectEl;
-    let taxTypeCodeSelectEl = ctx.taxTypeCodeSelectEl;
     let settlementTypeCodeSelectEl = ctx.settlementTypeCodeSelectEl;
     let amountSignCodeSelectEl = ctx.amountSignCodeSelectEl;
     let pendingUnitCell = ctx.pendingUnitCell;
@@ -82,7 +80,6 @@ export function registerEditors(ctx) {
 
     const LINE_ITEM_DATE_COL = 2;
     const LINE_UNIT_COL = 5;
-    const TAX_TYPE_DEFAULT_LABEL = '과세';
     const UNIT_EMPTY_LABEL = '선택(없음)';
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
 
@@ -297,11 +294,6 @@ export function registerEditors(ctx) {
     const SYSTEM_INFO_LABEL_OVERRIDES = {
         sort_no: '순번',
         status: '상태',
-        match_status: '매칭상태',
-        voucher_link_status: '전표연계상태',
-        source_type: '자료출처',
-        import_type: '자료유형',
-        evidence_id: '증빙',
         transaction_no: '거래번호',
         created_at: '생성일시',
         created_by: '생성자',
@@ -313,11 +305,6 @@ export function registerEditors(ctx) {
     const SYSTEM_INFO_FALLBACK_ORDER = [
         'sort_no',
         'status',
-        'match_status',
-        'voucher_link_status',
-        'source_type',
-        'import_type',
-        'evidence_id',
         'transaction_no',
         'created_at',
         'created_by',
@@ -880,99 +867,6 @@ export function registerEditors(ctx) {
         ctx.lineGrid?.render();
     }
 
-    function updateTaxTypeOptionsFromCodeState(options = {}) {
-        const rows = Array.isArray(options.TAX_TYPE) ? options.TAX_TYPE : [];
-        taxTypeOptions = rows
-            .map((row) => ({
-                code: String(row.code ?? '').trim(),
-                label: String(row.code_name || row.code || '').trim(),
-            }))
-            .filter((row) => row.code && row.label);
-
-        ctx.taxTypeOptions = taxTypeOptions;
-        (ctx.lineGrid?.getSourceData() || []).forEach((row, index) => {
-            const normalized = normalizeTaxTypeCellValue(row?.tax_type);
-            if (row && row.tax_type !== normalized) {
-                ctx.lineGrid.setSourceDataAtCell(index, 'tax_type', normalized);
-            }
-        });
-        ctx.lineGrid?.render();
-    }
-
-    function findTaxTypeOption(value) {
-        const text = String(value ?? '').trim();
-        return taxTypeOptions.find((option) => (
-            option.code === text ||
-            option.label === text
-        ));
-    }
-
-    function taxTypeDropdownSource(query, process) {
-        const keyword = String(query ?? '').trim().toLowerCase();
-        const isCurrentSelection = taxTypeOptions.some((option) => (
-            option.label.toLowerCase() === keyword ||
-            option.code.toLowerCase() === keyword
-        ));
-        const rows = taxTypeOptions.filter((option) => {
-            if (!keyword || isCurrentSelection) return true;
-
-            return option.label.toLowerCase().includes(keyword)
-                || option.code.toLowerCase().includes(keyword);
-        });
-
-        process(rows.map((option) => option.label));
-    }
-
-    function normalizeTaxTypeCellValue(value) {
-        const text = String(value ?? '').trim();
-        if (!text) return '?덈ぉ';
-
-        const found = findTaxTypeOption(text);
-        return found?.label || text;
-    }
-
-    function taxTypeCodeFromCellValue(value) {
-        const text = String(value ?? '').trim();
-        if (!text) return '?덈ぉ';
-
-        const found = findTaxTypeOption(text);
-        return found?.code || text;
-    }
-
-    function normalizeTaxTypeCode(value) {
-        const code = taxTypeCodeFromCellValue(value).trim().toUpperCase();
-        if (code) return code;
-
-        return String(value ?? '').trim().toUpperCase();
-    }
-
-    function taxTypeLabelFromCode(value) {
-        const text = String(value ?? '').trim();
-        if (!text) return TAX_TYPE_DEFAULT_LABEL;
-
-        const found = findTaxTypeOption(text);
-        return found?.label || text;
-    }
-
-    function defaultLineTaxTypeCode() {
-        return usesForeignCurrency() ? 'ZERO' : 'TAXABLE';
-    }
-
-    function defaultLineTaxTypeLabel() {
-        return taxTypeLabelFromCode(defaultLineTaxTypeCode());
-    }
-
-    function applyForeignTaxTypeToLines() {
-        if (!usesForeignCurrency() || !ctx.lineGrid) return;
-
-        (ctx.lineGrid.getSourceData() || []).forEach((row, index) => {
-            if (!row) return;
-            if (!String(row.tax_type || '').trim()) {
-                setLineCellValue(index, 'tax_type', taxTypeLabelFromCode('ZERO'), 'foreign-tax');
-            }
-        });
-    }
-
     async function initUnitCodeOptions() {
         unitCodeSelectEl = document.getElementById('transaction_unit_code_select');
         if (!unitCodeSelectEl) {
@@ -985,17 +879,6 @@ export function registerEditors(ctx) {
             document.body.appendChild(unitCodeSelectEl);
         }
         ctx.unitCodeSelectEl = unitCodeSelectEl;
-
-        taxTypeCodeSelectEl = document.getElementById('transaction_tax_type_code_select');
-        if (!taxTypeCodeSelectEl) {
-            taxTypeCodeSelectEl = document.createElement('select');
-            taxTypeCodeSelectEl.id = 'transaction_tax_type_code_select';
-            taxTypeCodeSelectEl.dataset.codeGroup = 'TAX_TYPE';
-            taxTypeCodeSelectEl.className = 'd-none';
-            taxTypeCodeSelectEl.tabIndex = -1;
-            document.body.appendChild(taxTypeCodeSelectEl);
-        }
-        ctx.taxTypeCodeSelectEl = taxTypeCodeSelectEl;
 
         settlementTypeCodeSelectEl = document.getElementById('transaction_settlement_type_code_select');
         if (!settlementTypeCodeSelectEl) {
@@ -1019,16 +902,11 @@ export function registerEditors(ctx) {
         }
         ctx.amountSignCodeSelectEl = amountSignCodeSelectEl;
         onCodeOptionsLoaded(updateUnitOptionsFromCodeState);
-        onCodeOptionsLoaded(updateTaxTypeOptionsFromCodeState);
         onCodeOptionsLoaded(updateSettlementTypeOptionsFromCodeState);
         onCodeOptionsLoaded(updateAmountSignOptionsFromCodeState);
         await createCodeSelect({
             selectId: unitCodeSelectEl.id,
             codeGroup: 'UNIT',
-        });
-        await createCodeSelect({
-            selectId: taxTypeCodeSelectEl.id,
-            codeGroup: 'TAX_TYPE',
         });
         await createCodeSelect({
             selectId: settlementTypeCodeSelectEl.id,
@@ -1201,13 +1079,6 @@ export function registerEditors(ctx) {
         return json;
     }
 
-    function renderMatchStatus(value) {
-        const key = String(value || 'none').toLowerCase();
-        const label = key === 'matched' ? '연결' : '미연결';
-        const className = key === 'matched' ? 'transaction-status matched' : 'transaction-status none';
-        return `<span class="${className}">${label}</span>`;
-    }
-
     function normalizeTransactionStatus(value) {
         const status = String(value || 'draft').toLowerCase();
         return ['draft', 'completed', 'closed', 'cancelled'].includes(status) ? status : 'draft';
@@ -1269,17 +1140,6 @@ export function registerEditors(ctx) {
         };
 
         return labels[normalizeTransactionStatus(value)] || labels.draft;
-    }
-
-    function matchStatusDisplayLabel(value) {
-        const labels = {
-            none: '미연결',
-            matched: '연결완료',
-            partial: '부분연결',
-            pending: '대기',
-        };
-
-        return labels[String(value || 'none').trim().toLowerCase()] || '미연결';
     }
 
     async function fetchTransactionHeaderMeta() {
@@ -1355,26 +1215,6 @@ export function registerEditors(ctx) {
         return formatNumber(value);
     }
 
-    function voucherLinkStatusDisplayLabel(value, row = {}) {
-        const linkedCount = Array.isArray(row.linked_vouchers) ? row.linked_vouchers.length : 0;
-        if (linkedCount > 0) {
-            return '연결완료';
-        }
-
-        const key = String(value || '').trim().toLowerCase();
-        if (key === '') {
-            return '-';
-        }
-
-        return ({
-            none: '미연결',
-            linked: '연결완료',
-            matched: '연결완료',
-            partial: '부분연결',
-            pending: '대기',
-        })[key] || value;
-    }
-
     function systemInfoFieldLabel(field, meta = {}) {
         const state = readTransactionTableSettingsState();
         return SYSTEM_INFO_LABEL_OVERRIDES[field]
@@ -1392,17 +1232,6 @@ export function registerEditors(ctx) {
         switch (field) {
         case 'status':
             return statusDisplayLabel(data.status || 'draft');
-        case 'match_status':
-            return matchStatusDisplayLabel(data.match_status || 'none');
-        case 'voucher_link_status':
-            return voucherLinkStatusDisplayLabel(data.voucher_link_status, data);
-        case 'source_type':
-            return String(data.source_type_name || '').trim() || (String(data.source_type || '').trim() !== '' ? '(알 수 없음)' : '-');
-        case 'import_type':
-            return String(data.import_type_name || '').trim() || (String(data.import_type || '').trim() !== '' ? '(알 수 없음)' : '-');
-        case 'evidence_id':
-            return String(data.evidence_display_name || data.evidence_source_key || '').trim()
-                || (String(data.evidence_id || '').trim() !== '' ? '(알 수 없음)' : '-');
         case 'created_by':
         case 'updated_by':
         case 'deleted_by':
@@ -1431,7 +1260,7 @@ export function registerEditors(ctx) {
         return isBlankSystemValue(data[field]) ? '-' : String(data[field]).trim();
     }
 
-    function shouldRenderSystemInfoField(field, data = {}) {
+    function shouldRenderSystemInfoField(field, data = {}, definedByMeta = false) {
         if (field === '' || SYSTEM_INFO_EXCLUDED_FIELDS.has(field)) {
             return false;
         }
@@ -1439,13 +1268,14 @@ export function registerEditors(ctx) {
         if (
             /(_name|_uuid|_code)$/.test(field)
             || field.includes('.')
-            || ['items', 'settlements', 'files', 'linked_vouchers'].includes(field)
+            || ['items', 'settlements', 'files'].includes(field)
         ) {
             return false;
         }
 
         const value = data[field];
-        const hasDisplaySource = Object.prototype.hasOwnProperty.call(data, field)
+        const hasDisplaySource = definedByMeta
+            || Object.prototype.hasOwnProperty.call(data, field)
             || Object.prototype.hasOwnProperty.call(data, actorNameField(field))
             || Object.prototype.hasOwnProperty.call(data, `${field}_name`);
 
@@ -1498,7 +1328,7 @@ export function registerEditors(ctx) {
                     return false;
                 }
                 seen.add(normalizedField);
-                return shouldRenderSystemInfoField(normalizedField, data);
+                return shouldRenderSystemInfoField(normalizedField, data, metaByField.has(normalizedField));
             })
             .map((field) => ({
                 ...(metaByField.get(field) || {}),
@@ -1595,6 +1425,6 @@ export function registerEditors(ctx) {
 
     bindTransactionHeaderMetaSync();
 
-    Object.assign(ctx, { getLineColumns, getSettlementColumns, escapeHtml, notify, today, formatDate, decorateGridDatePicker, isLineDateCell, isManualDateKey, getVisibleGridDatePicker, closeGridDatePicker, unbindLineDateInputFormatter, bindLineDateInputFormatter, unbindLineDateEscHandler, bindLineDateEscHandler, getUnitDropdownSource, unitDropdownSource, normalizeUnitCellValue, isAllowedUnitCellValue, notifyInvalidUnitValue, updateSettlementTypeOptionsFromCodeState, updateAmountSignOptionsFromCodeState, findSettlementTypeOption, settlementTypeLabelFromCode, settlementTypeCodeFromCell, findAmountSignOption, amountSignLabelFromCode, amountSignCodeFromCell, updateUnitOptionsFromCodeState, updateTaxTypeOptionsFromCodeState, findTaxTypeOption, taxTypeDropdownSource, normalizeTaxTypeCellValue, taxTypeCodeFromCellValue, normalizeTaxTypeCode, taxTypeLabelFromCode, defaultLineTaxTypeCode, defaultLineTaxTypeLabel, applyForeignTaxTypeToLines, openUnitQuickAdd, applyPendingUnitSelection, numberValue, formatAmount, setHeaderAmountValues, syncHeaderFinalAmount, normalizeHeaderAmountFormData, lineRowNoRenderer, dragHandleHeaderComponent, dragHandleCellRenderer, lineActionRenderer, formatBytes, updateFileDropzone, renderMatchStatus, normalizeTransactionStatus, renderTransactionStatus, renderLineStatus, updateTransactionStatusBadge, statusDisplayLabel, matchStatusDisplayLabel, setSystemInfoFields, setTransactionModalEditable, renderCodeName, ensureAgGridLibrary, initUnitCodeOptions, fetchJson, HOT_DATE_PICKER_CONFIG, LINE_ITEM_DATE_COL, LINE_UNIT_COL, TAX_TYPE_DEFAULT_LABEL, UNIT_EMPTY_LABEL, UNIT_QUICK_ADD_LABEL, DEFAULT_SETTLEMENT_TYPE_OPTIONS, DEFAULT_AMOUNT_SIGN_OPTIONS, LINE_COLUMNS, SETTLEMENT_COLUMNS });
+    Object.assign(ctx, { getLineColumns, getSettlementColumns, escapeHtml, notify, today, formatDate, decorateGridDatePicker, isLineDateCell, isManualDateKey, getVisibleGridDatePicker, closeGridDatePicker, unbindLineDateInputFormatter, bindLineDateInputFormatter, unbindLineDateEscHandler, bindLineDateEscHandler, getUnitDropdownSource, unitDropdownSource, normalizeUnitCellValue, isAllowedUnitCellValue, notifyInvalidUnitValue, updateSettlementTypeOptionsFromCodeState, updateAmountSignOptionsFromCodeState, findSettlementTypeOption, settlementTypeLabelFromCode, settlementTypeCodeFromCell, findAmountSignOption, amountSignLabelFromCode, amountSignCodeFromCell, updateUnitOptionsFromCodeState, openUnitQuickAdd, applyPendingUnitSelection, numberValue, formatAmount, setHeaderAmountValues, syncHeaderFinalAmount, normalizeHeaderAmountFormData, lineRowNoRenderer, dragHandleHeaderComponent, dragHandleCellRenderer, lineActionRenderer, formatBytes, updateFileDropzone, normalizeTransactionStatus, renderTransactionStatus, renderLineStatus, updateTransactionStatusBadge, statusDisplayLabel, setSystemInfoFields, setTransactionModalEditable, renderCodeName, ensureAgGridLibrary, initUnitCodeOptions, fetchJson, HOT_DATE_PICKER_CONFIG, LINE_ITEM_DATE_COL, LINE_UNIT_COL, UNIT_EMPTY_LABEL, UNIT_QUICK_ADD_LABEL, DEFAULT_SETTLEMENT_TYPE_OPTIONS, DEFAULT_AMOUNT_SIGN_OPTIONS, LINE_COLUMNS, SETTLEMENT_COLUMNS });
     return ctx;
 }

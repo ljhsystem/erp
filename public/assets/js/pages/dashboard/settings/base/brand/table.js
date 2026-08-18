@@ -2,12 +2,13 @@ import { actorDisplay } from '/public/assets/js/common/actor.js';
 
 export function createBrandTableModule({ api, notify }) {
     function loadExistingFiles() {
-        window.jQuery.post(api.LIST, {}, (response) => {
+        return new Promise((resolve) => window.jQuery.post(api.LIST, {}, (response) => {
             const tbody = window.jQuery('#existing-files');
             tbody.empty();
 
             if (!response?.success || !Array.isArray(response.data) || response.data.length === 0) {
                 tbody.append('<tr><td colspan="7" class="text-center text-muted">등록된 파일이 없습니다.</td></tr>');
+                resolve([]);
                 return;
             }
 
@@ -43,10 +44,12 @@ export function createBrandTableModule({ api, notify }) {
 
                 tbody.append(row);
             });
+            resolve(response.data);
         }, 'json').fail(() => {
             window.jQuery('#existing-files').html('<tr><td colspan="7" class="text-center text-danger">파일 목록을 불러오지 못했습니다.</td></tr>');
             notify('error', '파일 목록을 불러오지 못했습니다.');
-        });
+            resolve([]);
+        }));
     }
 
     return {

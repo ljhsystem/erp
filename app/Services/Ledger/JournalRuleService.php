@@ -46,6 +46,16 @@ class JournalRuleService
             return ['success' => false, 'message' => '이미 사용 중인 규칙코드입니다.'];
         }
 
+        $conflict = $this->model->conditionConflict($data, $id !== '' ? $id : null);
+        if ($conflict !== null) {
+            $sameAccounts = (string) $conflict['debit_account_id'] === (string) $data[':debit_account_id']
+                && (string) $conflict['credit_account_id'] === (string) $data[':credit_account_id']
+                && (string) ($conflict['vat_account_id'] ?? '') === (string) ($data[':vat_account_id'] ?? '');
+            return ['success' => false, 'message' => $sameAccounts
+                ? '동일한 조건과 계정 조합의 분개규칙이 존재합니다.'
+                : '동일한 조건에서 다른 계정을 추천하는 분개규칙이 존재합니다.'];
+        }
+
         if ($id !== '') {
             $ok = $this->model->update($id, $data);
             return [
@@ -180,6 +190,9 @@ class JournalRuleService
 
     public function hardDelete(string $id): array
     {
+        if ($this->model->referencedRuleIds([$id]) !== []) {
+            return ['success' => false, 'message' => '사용된 분개규칙은 영구삭제할 수 없습니다.', 'data' => ['deleted_count' => 0, 'skipped_count' => 1]];
+        }
         $deleted = $this->model->hardDelete($id);
 
         return [
@@ -195,7 +208,9 @@ class JournalRuleService
     public function hardDeleteBulk(array $ids): array
     {
         $ids = array_values(array_filter(array_map('strval', $ids)));
-        $deletedCount = $this->model->hardDeleteByIds($ids);
+        $referenced = $this->model->referencedRuleIds($ids);
+        $deletable = array_values(array_diff($ids, $referenced));
+        $deletedCount = $this->model->hardDeleteByIds($deletable);
 
         return [
             'success' => true,
@@ -211,17 +226,8 @@ class JournalRuleService
 
     public function hardDeleteAll(): array
     {
-        $deletedCount = $this->model->hardDeleteAllDeleted();
-
-        return [
-            'success' => true,
-            'message' => $deletedCount > 0
-                ? '휴지통의 분개규칙이 모두 영구 삭제되었습니다.'
-                : '영구 삭제할 분개규칙이 없습니다.',
-            'data' => [
-                'deleted_count' => $deletedCount,
-            ],
-        ];
+        $trashIds = array_column($this->model->getList([], true), 'id');
+        return $this->hardDeleteBulk($trashIds);
     }
 
     private function normalizePayload(array $payload): array
@@ -237,12 +243,35 @@ class JournalRuleService
         $creditAccountId = trim((string) ($payload['credit_account_id'] ?? ''));
         $vatAccountId = trim((string) ($payload['vat_account_id'] ?? ''));
 
-        if ($ruleCode === '' || $ruleName === '' || $direction === '' || $clientType === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
-            throw new \InvalidArgumentException('규칙코드, 규칙명, 거래구분, 거래처유형, 자료유형, 차변계정, 대변계정은 필수입니다.');
+        if ($ruleCode === '' || $ruleName === '' || $direction === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
+            throw new \InvalidArgumentException('규칙코드, 규칙명, 거래구분, 자료유형, 차변계정, 대변계정은 필수입니다.');
         }
 
         if (!in_array($direction, ['PURCHASE', 'SALES', 'IN', 'OUT'], true)) {
             throw new \InvalidArgumentException('거래구분 값이 올바르지 않습니다.');
+        }
+
+        foreach ([
+            'BUSINESS_UNIT' => $businessUnit,
+            'OPERATION_TYPE' => $operationType,
+            'TRANSACTION_DIRECTION' => $direction,
+            'IMPORT_TYPE' => $importType,
+        ] as $group => $code) {
+            if (!$this->model->activeCodeExists($group, $code)) {
+                throw new \InvalidArgumentException('분개규칙 조건값이 올바르지 않습니다.');
+            }
+        }
+        if ($clientType !== '' && !$this->model->activeCodeExists('CLIENT_TYPE', $clientType)) {
+            throw new \InvalidArgumentException('거래처유형 값이 올바르지 않습니다.');
+        }
+        foreach (['차변계정' => $debitAccountId, '대변계정' => $creditAccountId, '부가세계정' => $vatAccountId] as $label => $accountId) {
+            if ($accountId === '') continue;
+            if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $accountId)) {
+                throw new \InvalidArgumentException("{$label} ID가 올바르지 않습니다.");
+            }
+            if (!$this->model->usableAccountExists($accountId)) {
+                throw new \InvalidArgumentException("사용할 수 없는 {$label}입니다.");
+            }
         }
 
         return [
@@ -251,7 +280,7 @@ class JournalRuleService
             ':business_unit' => $businessUnit,
             ':operation_type' => $operationType,
             ':transaction_direction' => $direction,
-            ':client_type' => $clientType,
+            ':client_type' => $clientType !== '' ? $clientType : null,
             ':import_type' => $importType,
             ':debit_account_id' => $debitAccountId,
             ':credit_account_id' => $creditAccountId,

@@ -13,7 +13,7 @@ export function createProjectFormModule({
             window.AppCore.notify(type, message);
             return;
         }
-        if (type === 'error') alert(message);
+        if (window.AppNotify?.notify) window.AppNotify.notify(type, message);
     };
 
     function escapeHtml(value) {
@@ -66,11 +66,10 @@ export function createProjectFormModule({
 
         const params = new URLSearchParams({ field, q: input.value || '', limit: '20' });
         try {
-            const response = await fetch(`${api.PROJECT_VALUE_SEARCH}?${params.toString()}`, {
+            const json = await window.AppAjax.fetchJson(`${api.PROJECT_VALUE_SEARCH}?${params.toString()}`, {
                 cache: 'no-store',
                 headers: { Accept: 'application/json' },
             });
-            const json = await response.json();
             const rows = Array.isArray(json?.data) ? json.data : [];
             list.innerHTML = '';
             rows.forEach((row) => {

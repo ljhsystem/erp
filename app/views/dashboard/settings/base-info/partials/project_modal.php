@@ -14,7 +14,6 @@
                 <div class="modal-body project-modal-body">
 
                     <input type="hidden" name="id" id="modal_project_id">
-                    <input type="hidden" name="delete_project_image" id="delete_project_image" value="0">
 
                     <div class="card mb-3">
                         <div class="card-header py-1 px-2">기본 정보</div>
@@ -412,6 +411,19 @@
                             </div>
                         </div>
                     </div>
+
+                    <section class="ui-form-card project-system-card" aria-label="시스템 처리 정보">
+                        <button type="button" class="ui-form-card__toggle collapsed"
+                                id="projectSystemInfoToggle" data-ui-modal-card-collapse
+                                data-bs-target="#projectSystemInfoCollapse" aria-expanded="false"
+                                aria-controls="projectSystemInfoCollapse">
+                            <span class="ui-form-card__title">시스템 처리 정보</span>
+                            <i class="bi bi-chevron-down ui-form-card__toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div id="projectSystemInfoCollapse" class="collapse">
+                            <div class="ui-form-card__body project-system-info-grid" id="projectSystemInfoFields"></div>
+                        </div>
+                    </section>
 
                 </div>
 

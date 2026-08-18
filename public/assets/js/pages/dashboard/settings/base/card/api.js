@@ -12,7 +12,7 @@ export const API = {
     PURGE_ALL: '/api/settings/base-info/card/purge-all',
     REORDER: '/api/settings/base-info/card/reorder',
     EXCEL_UPLOAD: '/api/settings/base-info/card/excel-upload',
-    EXCEL_DOWNLOAD: '/api/settings/base-info/card/excel',
+    EXCEL_DOWNLOAD: '/api/settings/base-info/card/download',
     EXCEL_TEMPLATE: '/api/settings/base-info/card/template',
     CLIENT_SEARCH: '/api/settings/base-info/client/search-picker',
     BANK_ACCOUNT_SEARCH: '/api/settings/base-info/bank-account/search-picker',

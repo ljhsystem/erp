@@ -2,7 +2,7 @@
 
 global $router;
 
-$router->get('/error', 'ErrorController@forbidden', [
+$router->get('/error', 'ErrorController@error403', [
     'key' => 'web.system.error.forbidden',
     'page' => '오류페이지',
     'page_description' => '시스템 오류 페이지',
@@ -289,20 +289,6 @@ $router->get('/password/change', 'PasswordController@webChangePassword', [
     'log' => false,
 ]);
 
-$router->get('/institution', 'InstitutionController@webIndex', [
-    'key' => 'web.institution.index',
-    'page' => '거래입력',
-    'page_description' => '거래입력 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '거래입력 화면 조회',
-    'name' => '거래입력',
-    'description' => '현장관리 > 현장 > 거래입력',
-    'category' => '현장관리 > 현장',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true,
-]);
-
 $router->get('/site/entry', 'TransactionController@webTransaction', [
     'key' => 'web.site.entry.index',
     'page' => '거래입력',
@@ -319,12 +305,12 @@ $router->get('/site/entry', 'TransactionController@webTransaction', [
 
 $router->get('/site/entry/create', 'TransactionController@webCreate', [
     'key' => 'web.site.entry.create',
-    'page' => '현장 대시보드',
-    'page_description' => '현장 대시보드 관리',
+    'page' => '거래입력',
+    'page_description' => '거래입력 관리',
     'permission_name' => '화면조회',
-    'permission_description' => '현장 대시보드 화면 조회',
-    'name' => '현장 대시보드',
-    'description' => '현장관리 > 현장 > 현장 대시보드',
+    'permission_description' => '거래입력 화면 조회',
+    'name' => '거래입력',
+    'description' => '현장관리 > 현장 > 거래입력',
     'category' => '현장관리 > 현장',
     'auth' => true,
     'permissions' => ['view'],
@@ -358,4 +344,3 @@ $router->get('/notice', 'NoticeController@webIndex', [
     'permissions' => ['view'],
     'log' => false,
 ]);
-

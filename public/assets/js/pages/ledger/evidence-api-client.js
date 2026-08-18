@@ -27,8 +27,6 @@ export function createEvidenceApiClient() {
         purgeAll: '/api/import/evidences/purge-all',
         saveSeedRow: '/api/import/evidence/save',
         evidenceSummarySearch: '/api/import/evidence/summary-search',
-        createTransactions: '/api/import/create-transactions',
-        createVoucherFromTransaction: '/api/ledger/transaction/create-voucher',
         accountList: '/api/ledger/account/list',
         subAccountList: '/api/account/sub-accounts',
         clientList: '/api/settings/base-info/client/list',

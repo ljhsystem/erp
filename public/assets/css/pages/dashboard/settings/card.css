@@ -185,3 +185,32 @@
     }
 
 }
+.card-system-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.card-system-info-field {
+    display: grid;
+    grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.card-system-info-label {
+    color: var(--bs-secondary-color);
+    font-size: 0.8125rem;
+}
+
+.card-system-info-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 767.98px) {
+    .card-system-info-grid {
+        grid-template-columns: 1fr;
+    }
+}

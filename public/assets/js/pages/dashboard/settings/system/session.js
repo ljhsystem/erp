@@ -1,4 +1,3 @@
-// Path: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/system/session.js'
 (function () {
     "use strict";
 

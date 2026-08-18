@@ -3,7 +3,8 @@
 namespace App\Controllers\Dashboard;
 
 use App\Controllers\System\LayoutController;
-use App\Models\System\PageRegistryModel;
+use App\Services\System\PageRegistryQueryService;
+use App\Services\System\SettingsNavigationService;
 use Core\DbPdo;
 
 class DashboardController
@@ -17,6 +18,10 @@ class DashboardController
 
     private function renderPage(string $viewPath, array $params = []): void
     {
+        if ($viewPath === '/app/views/dashboard/settings.php') {
+            $navigation = (new SettingsNavigationService(DbPdo::conn()))->getViewData();
+            $params = array_replace($navigation, $params);
+        }
         if (!empty($params)) {
             extract($params, EXTR_SKIP);
         }
@@ -24,6 +29,7 @@ class DashboardController
         $pageTitle = $pageTitle ?? ($params['pageTitle'] ?? '대시보드');
         $pageStyles = $pageStyles ?? ($params['pageStyles'] ?? '');
         $pageScripts = $pageScripts ?? ($params['pageScripts'] ?? '');
+        $pageAssetProfile = $pageAssetProfile ?? ($params['pageAssetProfile'] ?? 'default');
         $layoutOptions = $layoutOptions ?? ($params['layoutOptions'] ?? []);
 
         ob_start();
@@ -40,6 +46,7 @@ class DashboardController
             'layoutOptions' => $layoutOptions,
             'pageStyles' => $pageStyles,
             'pageScripts' => $pageScripts,
+            'pageAssetProfile' => $pageAssetProfile,
         ]);
     }
 
@@ -124,17 +131,12 @@ class DashboardController
         ]);
     }
 
-    public function settingsBaseInfoCodes(): void
-    {
-        $this->redirect('/dashboard/settings/system/codes', 301);
-    }
-
-    public function settingsSystemCodes(): void
+    public function settingsStandardCode(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
-            'pageTitle' => '기준정보',
-            'cat' => 'system',
-            'sub' => 'codes',
+            'pageTitle' => '코드관리',
+            'cat' => 'standard',
+            'sub' => 'code',
         ]);
     }
 
@@ -277,7 +279,7 @@ class DashboardController
     {
         $pageRegistryRows = [];
         try {
-            $pageRegistryRows = (new PageRegistryModel())->getAll();
+            $pageRegistryRows = (new PageRegistryQueryService(DbPdo::conn()))->getAll();
         } catch (\Throwable $e) {
             $pageRegistryRows = [];
         }

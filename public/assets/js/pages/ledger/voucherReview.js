@@ -2,10 +2,13 @@ import {
     bindTableHighlight,
     createDataTable,
     refreshDataTableLayout,
-    setDataTableFixedLayout,
 } from '/public/assets/js/common/table/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { fetchDataTableMetaColumnsSync } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import {
+    fetchDataTableMetaColumns,
+    getCachedDataTableMetaColumns,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { notify } from '/public/assets/js/common/notification.js';
 import {
     normalizeStatus,
     statusBadge as commonStatusBadge,
@@ -16,7 +19,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.vou
 const VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY = 'ledger.vouchers.review';
 const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
 
-(() => {
+(async () => {
     const tableEl = document.getElementById('voucherReviewTable');
     const countEl = document.getElementById('voucherReviewCount');
     const layoutEl = document.querySelector('.voucher-review-layout');
@@ -43,7 +46,6 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
     const API = {
         list: '/api/ledger/voucher/list',
         detail: '/api/ledger/voucher/detail',
-        confirm: '/api/ledger/voucher/confirm',
         completeReview: '/api/ledger/voucher/complete-review',
         cancelCompleteReview: '/api/ledger/voucher/cancel-complete-review',
         post: '/api/ledger/voucher/post',
@@ -84,7 +86,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
     }
 
     function voucherHeaderMetaColumns() {
-        return fetchDataTableMetaColumnsSync({
+        return getCachedDataTableMetaColumns({
             metaDomain: VOUCHER_META_DOMAIN,
             storageKey: VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY,
             userSettingPageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
@@ -142,6 +144,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
                 sourceField: field,
                 title: String(meta?.label || field).trim() || field,
                 className: reviewColumnClassName(field),
+                widthResizable: true,
                 visible: meta?.settings_visible !== false,
                 defaultContent: '',
                 render(data, type, row) {
@@ -185,7 +188,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         }
 
         if (status === 'APPROVED' || status === 'POSTED') {
-            return { key: 'done', label: '승인완료' };
+            return { key: 'done', label: '전기완료' };
         }
 
         if (status === 'CLOSED') {
@@ -254,7 +257,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         return ids;
     }
 
-    function hasUnlinkedVoucher(ids = []) {
+    function hasUnlinkedEvidence(ids = []) {
         if (!table) return false;
 
         const targetIds = new Set(ids.map((id) => String(id)));
@@ -265,15 +268,15 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
                 return;
             }
 
-            const linked = String(row.transaction_id || '').trim() !== ''
-                || String(row.linked_status || '').toLowerCase() === 'linked';
+            const linked = String(row.linked_status || '').toLowerCase() === 'linked';
             if (!linked) {
                 hasUnlinked = true;
             }
         });
 
         if (!hasUnlinked && selectedVoucher?.id && targetIds.has(String(selectedVoucher.id))) {
-            hasUnlinked = !selectedVoucher.linked_transaction;
+            hasUnlinked = !Array.isArray(selectedVoucher.linked_evidences)
+                || selectedVoucher.linked_evidences.length === 0;
         }
 
         return hasUnlinked;
@@ -329,7 +332,10 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         if (open && rowEl) {
             rowEl.classList.add('is-selected');
         }
-        setDataTableFixedLayout(table, open);
+        if (layoutEl && table) {
+            void layoutEl.offsetWidth;
+            table.columns.adjust().draw(false);
+        }
     }
 
     function closeDetailPanel() {
@@ -378,8 +384,39 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         return '-';
     }
 
+    function refTargetLabel(target = '') {
+        return ({
+            CLIENT: '거래처', CUSTOMER: '거래처', VENDOR: '거래처', COUNTERPARTY: '거래처',
+            PROJECT: '프로젝트', EMPLOYEE: '직원', USER: '직원',
+            ACCOUNT: '계좌', BANK: '계좌', BANK_ACCOUNT: '계좌', CARD: '카드',
+        })[String(target || '').toUpperCase()] || String(target || '참조');
+    }
+
+    function renderLineRefs(line = {}) {
+        const refs = Array.isArray(line.refs) ? line.refs : [];
+        if (!refs.length) return '';
+        return `<div class="voucher-review-line-sub">${refs.map((ref) => {
+            const target = ref.ref_target || ref.line_ref_target || '';
+            const value = ref.ref_label || ref.line_ref_label || ref.ref_id || ref.line_ref_id || '';
+            return `<span class="me-2">${escapeHtml(refTargetLabel(target))}: ${escapeHtml(value)}</span>`;
+        }).join('')}</div>`;
+    }
+
+    function renderRecommendation(line = {}) {
+        const values = [];
+        if (line.journal_rule_id) values.push(`분개규칙 ${escapeHtml(line.journal_rule_id)}`);
+        if (line.recommend_source) values.push(`추천근거 ${escapeHtml(line.recommend_source)}`);
+        if (line.recommend_confidence !== null && line.recommend_confidence !== undefined && line.recommend_confidence !== '') {
+            values.push(`신뢰도 ${escapeHtml(line.recommend_confidence)}%`);
+        }
+        if (Number(line.is_user_modified || 0) === 1) values.push('사용자 수정');
+        return values.length ? `<div class="voucher-review-line-sub">${values.join(' · ')}</div>` : '';
+    }
+
     async function loadDetail(id) {
-        layoutEl?.classList.add('is-detail-open');
+        if (!layoutEl?.classList.contains('is-detail-open')) {
+            openDetailPanel();
+        }
         const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
         const voucher = json.data || {};
         selectedVoucher = voucher;
@@ -396,6 +433,10 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
             <dt>취소구분</dt><dd>${renderReversalInfo(voucher)}</dd>
             <dt>적요</dt><dd>${escapeHtml(voucher.summary_text || '')}</dd>
             <dt>비고</dt><dd>${escapeHtml(voucher.note || '')}</dd>
+            <dt>작성자</dt><dd>${escapeHtml(voucher.created_by_name || voucher.created_by || '-')}</dd>
+            <dt>작성일시</dt><dd>${escapeHtml(voucher.created_at || '-')}</dd>
+            <dt>수정자</dt><dd>${escapeHtml(voucher.updated_by_name || voucher.updated_by || '-')}</dd>
+            <dt>수정일시</dt><dd>${escapeHtml(voucher.updated_at || '-')}</dd>
         `;
 
         const lines = Array.isArray(voucher.lines) ? voucher.lines : [];
@@ -404,6 +445,8 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
                 <div>
                     <div class="voucher-review-line-main">${escapeHtml(line.line_no || '')}. ${escapeHtml(line.account_text || line.account_name || line.account_id || '')}</div>
                     <div class="voucher-review-line-sub">${escapeHtml(line.line_summary || '')}</div>
+                    ${renderLineRefs(line)}
+                    ${renderRecommendation(line)}
                 </div>
                 <div class="voucher-review-line-amount">
                     <div>차 ${formatNumber(line.debit)}</div>
@@ -421,20 +464,27 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         `;
 
         const linkedEvidences = Array.isArray(voucher.linked_evidences) ? voucher.linked_evidences : [];
-        const linkedEvidenceText = linkedEvidences.map((evidence) => [
+        const originalLinkedEvidences = Array.isArray(voucher.original_linked_evidences)
+            ? voucher.original_linked_evidences
+            : [];
+        const evidenceText = (evidences) => evidences.map((evidence) => [
             evidence.source_type || '',
             evidence.evidence_date || '',
             evidence.client_name || '',
             evidence.source_key || evidence.id || '',
         ].filter(Boolean).join(' / '));
-        linkedInfoEl.innerHTML = [
-            voucher.linked_transaction
-                ? `거래: ${escapeHtml([voucher.linked_transaction.transaction_date || '', voucher.linked_transaction.client_name || '', voucher.linked_transaction.description || ''].filter(Boolean).join(' / '))}`
-                : '거래: 미연결',
-            linkedEvidenceText.length
-                ? `증빙: ${linkedEvidenceText.map((text) => '<span class="d-block">' + escapeHtml(text) + '</span>').join('')}`
-                : '증빙: 미연결',
-        ].join('<br>');
+        const linkedEvidenceText = evidenceText(linkedEvidences);
+        const originalEvidenceText = evidenceText(originalLinkedEvidences);
+        const evidenceSections = [];
+        evidenceSections.push(linkedEvidenceText.length
+            ? `<strong class="d-block mb-1">직접 연결 증빙</strong>${linkedEvidenceText.map((text) => '<span class="d-block">' + escapeHtml(text) + '</span>').join('')}`
+            : '<strong class="d-block mb-1">직접 연결 증빙</strong><span class="text-muted">미연결</span>');
+        if (Number(voucher.is_reversal || 0) === 1) {
+            evidenceSections.push(originalEvidenceText.length
+                ? `<strong class="d-block mt-2 mb-1">원전표 증빙 <span class="text-muted fw-normal">(읽기 전용)</span></strong>${originalEvidenceText.map((text) => '<span class="d-block">' + escapeHtml(text) + '</span>').join('')}`
+                : '<strong class="d-block mt-2 mb-1">원전표 증빙 <span class="text-muted fw-normal">(읽기 전용)</span></strong><span class="text-muted">미연결</span>');
+        }
+        linkedInfoEl.innerHTML = evidenceSections.join('');
 
         updateActionButtons();
     }
@@ -456,10 +506,17 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         updateActionButtons();
     }
 
-    function initTable() {
-        table = createDataTable({
+    async function initTable() {
+        await fetchDataTableMetaColumns({
+            metaDomain: VOUCHER_META_DOMAIN,
+            storageKey: VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY,
+            userSettingPageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
+        });
+
+        table = await createDataTable({
             tableSelector: '#voucherReviewTable',
             api: API.list,
+            serverSide: true,
             ajaxData(request) {
                 return {
                     ...request,
@@ -475,13 +532,13 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
                 userSettingPageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
                 metaDomain: VOUCHER_META_DOMAIN,
                 description: '전표 헤더 메타데이터 기준 테이블 설정',
-                tableLabel: '전표검토/승인 목록',
-                title: '전표검토/승인 목록 테이블 설정',
+                tableLabel: '전표검토·전기 목록',
+                title: '전표검토·전기 목록 테이블 설정',
             },
             dataSrc(json) {
                 return Array.isArray(json?.data) ? json.data : [];
             },
-            defaultOrder: [[0, 'asc']],
+            defaultOrder: [[0, 'desc']],
             pageLength: 100,
             selectable: false,
             showCopyButton: false,
@@ -520,22 +577,42 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
     }
 
     async function runAction(action, ids, payload = {}) {
-        if (!ids.length) return;
+        if (!ids.length) return false;
 
-        for (const id of ids) {
-            await fetchJson(API[action], {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ id, ...payload }),
+        const actionButtons = [rejectBtn, confirmBtn, cancelConfirmBtn, approveBtn, reverseBtn, confirmRejectBtn]
+            .filter(Boolean);
+        if (actionButtons.some((button) => button.dataset.actionPending === '1')) return false;
+        actionButtons.forEach((button) => {
+            button.dataset.actionPending = '1';
+            button.disabled = true;
+        });
+
+        try {
+            for (const id of ids) {
+                await fetchJson(API[action], {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ id, ...payload }),
+                });
+            }
+
+            table.ajax.reload(null, false);
+            if (selectedVoucher?.id) {
+                await loadDetail(selectedVoucher.id).catch(renderEmptyDetail);
+            }
+            return true;
+        } catch (error) {
+            notify('error', error?.message || '요청 처리에 실패했습니다.');
+            return false;
+        } finally {
+            actionButtons.forEach((button) => {
+                delete button.dataset.actionPending;
+                button.disabled = false;
             });
-        }
-
-        table.ajax.reload(null, false);
-        if (selectedVoucher?.id) {
-            await loadDetail(selectedVoucher.id).catch(renderEmptyDetail);
+            updateActionButtons();
         }
     }
 
@@ -565,8 +642,9 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         confirmRejectBtn.disabled = true;
 
         try {
-            await runAction('reject', pendingRejectIds, { reason });
-            rejectModal?.hide();
+            if (await runAction('reject', pendingRejectIds, { reason })) {
+                rejectModal?.hide();
+            }
         } finally {
             confirmRejectBtn.disabled = false;
         }
@@ -615,7 +693,8 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         approveBtn?.addEventListener('click', () => {
             const ids = actionIds(['REVIEWED']);
             if (!ids.length) return;
-            if (hasUnlinkedVoucher(ids) && !window.confirm('거래가 연결되지 않은 전표가 있습니다. 승인 후에도 거래 연결은 가능하지만 회계에는 영향이 없습니다. 계속 승인하시겠습니까?')) {
+            const evidenceNotice = hasUnlinkedEvidence(ids) ? ' 증빙이 연결되지 않은 전표가 포함되어 있습니다.' : '';
+            if (!window.confirm(`전기 후에는 직접 수정할 수 없으며 오류는 취소전표로 정정합니다. 회계·지급·학습 후속처리가 실행됩니다.${evidenceNotice} 계속하시겠습니까?`)) {
                 return;
             }
             void runAction('post', ids);
@@ -623,7 +702,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         reverseBtn?.addEventListener('click', () => {
             const ids = reverseActionIds();
             if (!ids.length) return;
-            if (!window.confirm('정말 취소하시겠습니까?')) return;
+            if (!window.confirm('원전표는 전기완료 상태로 유지되며, 차·대변을 반대로 한 취소전표가 작성중 상태로 생성됩니다. 계속하시겠습니까?')) return;
             void runAction('reverse', ids);
         });
         basicInfoEl?.addEventListener('click', (event) => {
@@ -635,7 +714,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
         });
     }
 
-    initTable();
+    await initTable();
     initSearchForm();
     bindEvents();
     renderEmptyDetail();

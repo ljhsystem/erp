@@ -2,6 +2,9 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceReferenceModel;
+use App\Models\System\ClientModel;
+use App\Models\System\ProjectModel;
 use PDO;
 
 class EvidenceReferenceResolverService
@@ -9,6 +12,9 @@ class EvidenceReferenceResolverService
     private array $voucherRefIdCache = [];
     private array $voucherRefNameCache = [];
     private array $bankAccountIdCache = [];
+    private EvidenceReferenceModel $referenceModel;
+    private ClientModel $clientModel;
+    private ProjectModel $projectModel;
 
     /**
      * @param callable(string):bool $tableExists
@@ -25,6 +31,9 @@ class EvidenceReferenceResolverService
         private $normalizeVoucherRefType,
         private $normalizeBusinessNumber
     ) {
+        $this->referenceModel = new EvidenceReferenceModel($pdo);
+        $this->clientModel = new ClientModel($pdo);
+        $this->projectModel = new ProjectModel($pdo);
     }
 
     public function businessRefNameById(string $refType, string $id): ?string
@@ -60,7 +69,7 @@ class EvidenceReferenceResolverService
             'EMPLOYEE' => ['employee_name', 'name', 'username'],
             'ACCOUNT' => ['account_name', 'bank_account_name', 'bank_name', 'account_number'],
             'CARD' => ['card_name', 'card_number', 'card_company_name'],
-            'TEAM' => ['team_name', 'team_code'],
+            'TEAM' => ['team_name'],
             default => [],
         };
         $selects = [];
@@ -74,10 +83,7 @@ class EvidenceReferenceResolverService
             return null;
         }
 
-        $deleted = $this->tableColumnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $stmt = $this->pdo->prepare('SELECT ' . implode(', ', $selects) . " FROM {$table} WHERE id = :id{$deleted} LIMIT 1");
-        $stmt->execute([':id' => $id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $row = $this->referenceModel->findDisplayRow($refType, $id);
 
         foreach ($selects as $column) {
             $value = trim((string) ($row[$column] ?? ''));
@@ -103,46 +109,9 @@ class EvidenceReferenceResolverService
             return $this->bankAccountIdCache[$cacheKey];
         }
 
-        $where = [];
-        $params = [];
-        foreach (['id', 'account_name', 'account_number', 'bank_name', 'account_holder'] as $column) {
-            if ($this->tableColumnExists('system_bank_accounts', $column)) {
-                $param = ':bank_account_' . $column;
-                $where[] = $column . ' = ' . $param;
-                $params[$param] = $value;
-            }
-        }
-
         $normalized = preg_replace('/[\s-]+/u', '', $value) ?? $value;
         $digits = preg_replace('/\D+/u', '', $value) ?? '';
-        if ($this->tableColumnExists('system_bank_accounts', 'account_number')) {
-            if ($normalized !== '') {
-                $where[] = "REPLACE(REPLACE(account_number, '-', ''), ' ', '') = :normalized_account_number";
-                $params[':normalized_account_number'] = $normalized;
-            }
-            if ($digits !== '' && $digits !== $normalized) {
-                $where[] = "REPLACE(REPLACE(account_number, '-', ''), ' ', '') = :account_number_digits";
-                $params[':account_number_digits'] = $digits;
-            }
-        }
-
-        if ($where === []) {
-            return null;
-        }
-
-        $deleted = $this->tableColumnExists('system_bank_accounts', 'deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM system_bank_accounts
-            WHERE (" . implode(' OR ', $where) . ")
-              {$deleted}
-            ORDER BY id ASC
-            LIMIT 1
-        ");
-        $stmt->execute($params);
-        $id = $stmt->fetchColumn();
-
-        $resolved = $id !== false ? (string) $id : null;
+        $resolved = $this->referenceModel->resolveBankAccountId($value, $normalized, $digits);
         $this->bankAccountIdCache[$cacheKey] = $resolved;
 
         return $resolved;
@@ -175,39 +144,7 @@ class EvidenceReferenceResolverService
             return null;
         }
 
-        $columns = $this->refLookupColumns($table);
-        if ($columns === []) {
-            $this->voucherRefIdCache[$cacheKey] = null;
-            return null;
-        }
-
-        $where = [];
-        $params = [];
-        foreach ($columns as $column) {
-            if ($this->tableColumnExists($table, $column)) {
-                $param = ':ref_' . $column;
-                $where[] = $column . ' = ' . $param;
-                $params[$param] = $value;
-            }
-        }
-        if ($where === []) {
-            $this->voucherRefIdCache[$cacheKey] = null;
-            return null;
-        }
-
-        $deleted = $this->tableColumnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM {$table}
-            WHERE (" . implode(' OR ', $where) . ")
-              {$deleted}
-            ORDER BY id ASC
-            LIMIT 1
-        ");
-        $stmt->execute($params);
-        $id = $stmt->fetchColumn();
-
-        $resolved = $id !== false ? (string) $id : null;
+        $resolved = $this->referenceModel->resolveId($refType, $value);
         $this->voucherRefIdCache[$cacheKey] = $resolved;
 
         return $resolved;
@@ -220,10 +157,7 @@ class EvidenceReferenceResolverService
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT id FROM system_clients WHERE client_name = :name AND deleted_at IS NULL LIMIT 1');
-        $stmt->execute([':name' => $clientName]);
-
-        return $stmt->fetchColumn() ?: null;
+        return $this->clientModel->findIdByClientName($clientName);
     }
 
     public function existingClientIdByBusinessNumber(string $businessNumber): ?string
@@ -233,17 +167,7 @@ class EvidenceReferenceResolverService
             return null;
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM system_clients
-            WHERE business_number = :business_number
-              AND deleted_at IS NULL
-            LIMIT 1
-        ");
-        $stmt->execute([':business_number' => $businessNumber]);
-        $id = $stmt->fetchColumn();
-
-        return $id ? (string) $id : null;
+        return $this->clientModel->findIdByBusinessNumber($businessNumber);
     }
 
     public function findProjectId(string $projectName): ?string
@@ -253,10 +177,7 @@ class EvidenceReferenceResolverService
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT id FROM system_projects WHERE project_name = :name AND deleted_at IS NULL LIMIT 1');
-        $stmt->execute([':name' => $projectName]);
-
-        return $stmt->fetchColumn() ?: null;
+        return $this->projectModel->findIdByProjectName($projectName);
     }
 
     private function normalizeVoucherRefType(string $value): string
@@ -292,7 +213,7 @@ class EvidenceReferenceResolverService
             'system_bank_accounts' => ['id', 'account_name', 'account_number', 'bank_name'],
             'system_cards' => ['id', 'card_name', 'card_number'],
             'user_employees' => ['id', 'employee_name', 'name'],
-            'system_work_teams' => ['id', 'team_name', 'team_code'],
+            'system_work_teams' => ['id', 'team_name'],
             default => ['id'],
         };
     }

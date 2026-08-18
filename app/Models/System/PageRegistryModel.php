@@ -100,4 +100,16 @@ class PageRegistryModel
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
+
+    public function getResolverRows(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT page_key, breadcrumb, default_route_key
+            FROM system_page_registry
+            WHERE is_active = 1
+        ");
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 }

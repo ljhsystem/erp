@@ -792,7 +792,7 @@ function ensureQuickCreateConfigs() {
             detailUrl(value) {
                 return `/api/ledger/account/detail?code=${encodeURIComponent(value)}`;
             },
-            deleteUrl: '/api/ledger/account/soft-delete',
+            deleteUrl: '/api/ledger/account/delete',
             quickFields: [
                 { name: 'account_code', label: '계정코드', required: true, placeholder: '계정코드를 입력하세요' },
                 { name: 'account_name', label: '계정과목명', required: true, placeholder: '계정과목명을 입력하세요' },
@@ -1121,7 +1121,7 @@ function ensureQuickCreateConfigs() {
                         const formData = new FormData();
                         formData.set('id', id);
 
-                        const json = await fetchJson('/api/ledger/account/soft-delete', {
+                        const json = await fetchJson('/api/ledger/account/delete', {
                             method: 'POST',
                             body: formData,
                         });

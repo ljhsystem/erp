@@ -5,6 +5,7 @@ use PDO;
 use App\Models\System\SettingConfigModel;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
+use Core\Database;
 
 class SettingService
 {
@@ -12,8 +13,9 @@ class SettingService
     private SettingConfigModel $model;
     private $logger;
 
-    public function __construct(PDO $pdo)
+    public function __construct(?PDO $pdo = null)
     {
+        $pdo = $pdo ?? Database::getInstance()->getConnection();
         $this->pdo         = $pdo;
         $this->model  = new SettingConfigModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.SettingService');

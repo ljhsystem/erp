@@ -1,6 +1,3 @@
-/**
- * Path: /public/assets/js/pages/dashboard/settings/system/api.js
- */
 (() => {
     'use strict';
 

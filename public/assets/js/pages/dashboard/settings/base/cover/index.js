@@ -4,11 +4,14 @@ import {
     bindTableHighlight
 } from '/public/assets/js/common/table/data-table.js';
 import {
-    fetchDataTableMetaColumnsSync
+    getCachedDataTableMetaColumns
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.cover.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { createCoverYearMonthPicker } from './picker.js';
+import { createCoverSystemInfo } from './system-info.js';
 import { API, COVER_COLUMN_MAP, DATE_OPTIONS } from './api.js';
 import {
     setCoverModalMode as applyCoverModalMode,
@@ -30,23 +33,20 @@ import {
 } from './trash.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
 
-    console.log('[base-cover.js] loaded');
-
-
     let coverTable = null;
     let coverModal = null;
     let coverTrashModal = null;
     let coverTrashTable = null;
-    let yearMonthPicker = null;
     let selectedTrashDetailId = null;
-    let globalBound = false;
-    let yearMonthOpenTimer = null;
+    let coverPickerModule = null;
+    let coverSystemInfo = null;
     let DOM = null;
     const COVER_TABLE_SETTINGS_META_DOMAIN = 'cover';
     const COVER_MODAL_FIELD_POLICIES = Object.freeze([
@@ -95,7 +95,8 @@ window.AdminPicker = AdminPicker;
             modalImagePreview: '#modal-image-preview',
             modalDeleteBtn: '#modal_delete_btn',
             modalSaveBtn: '#modal_save_btn',
-            modalLabel: '#coverModalLabel'
+            modalLabel: '#coverModalLabel',
+            systemInfoFields: '#coverSystemInfoFields'
         };
     }
 
@@ -105,7 +106,9 @@ window.AdminPicker = AdminPicker;
     function bootCoverPage() {
         if (!window.jQuery) return;
 
-        initCoverPage(window.jQuery);
+        void initCoverPage(window.jQuery).catch(() => {
+            window.AppCore?.notify?.('error', '커버이미지 목록을 불러오는 중 오류가 발생했습니다.');
+        });
     }
 
     if (document.readyState === 'loading') {
@@ -117,15 +120,18 @@ window.AdminPicker = AdminPicker;
     window.TrashColumns = window.TrashColumns || {};
 
 
-    function initCoverPage($) {
-        console.log('[cover] initCoverPage start');
-
+    async function initCoverPage($) {
         DOM = resolveDOM();
-        console.log('[cover] resolved DOM', DOM);
+        coverPickerModule = createCoverYearMonthPicker({ AdminPicker, getDateStartInput, getDateEndInput });
+        coverSystemInfo = createCoverSystemInfo({
+            containerSelector: DOM.systemInfoFields,
+            resolveMetaColumn: resolveCoverMetaColumn,
+        });
 
-        initDataTable($);
+        await initDataTable($);
         initModal();
-        bindYearMonthInputs();
+        bindSystemInfoCard();
+        coverPickerModule.bind();
 
         initTrashColumns();
 
@@ -148,7 +154,6 @@ window.AdminPicker = AdminPicker;
 
         populateCoverYearOptions();
 
-        console.log('[cover] initCoverPage done');
     }
 
 
@@ -179,7 +184,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function currentCoverMetaPolicy() {
-        const metaColumns = fetchDataTableMetaColumnsSync({
+        const metaColumns = getCachedDataTableMetaColumns({
             metaDomain: COVER_TABLE_SETTINGS_META_DOMAIN,
         });
 
@@ -229,6 +234,16 @@ window.AdminPicker = AdminPicker;
             const starMarkup = coverFieldStarMarkup(field.key, field.fallback);
             labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
         });
+    }
+
+    function bindSystemInfoCard() {
+        const modal = qs(DOM.modal);
+        if (!modal) return;
+        bindModalCardCollapses(modal, { resetOnShow: true });
+    }
+
+    function renderCoverSystemInfo(data = {}) {
+        coverSystemInfo?.render(data);
     }
 
     function isCoverFieldVisible(selector) {
@@ -345,6 +360,7 @@ window.AdminPicker = AdminPicker;
             keyboard: true
         });
         applyCoverModalPolicyLabels();
+        renderCoverSystemInfo();
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             const form = qs(DOM.form);
@@ -353,6 +369,7 @@ window.AdminPicker = AdminPicker;
             populateCoverYearOptions();
             window.jQuery(DOM.modalIsActive).val('1');
             setCoverModalMode('create');
+            renderCoverSystemInfo();
             applyCoverModalPolicyLabels();
 
             const preview = qs(DOM.modalImagePreview);
@@ -396,229 +413,11 @@ window.AdminPicker = AdminPicker;
     }
 
 
-    function initYearMonthPicker() {
-        if (yearMonthPicker) return yearMonthPicker;
-
-        const container = ensureYearMonthPickerContainer();
-        if (!container) return null;
-
-        yearMonthPicker = AdminPicker.create({
-            type: 'year-month',
-            container,
-            options: {
-                yearMin: new Date().getFullYear() - 50,
-                yearMax: new Date().getFullYear() + 5
-            }
-        });
-
-        yearMonthPicker.subscribe(() => {
-            const input = yearMonthPicker.__target;
-            if (!input) return;
-
-            const selected = yearMonthPicker.getState?.().date;
-
-            if (!(selected instanceof Date) || Number.isNaN(selected.getTime())) return;
-
-            input.value = formatYearMonth(selected);
-
-            normalizeStartEnd(
-                input.name === 'dateStart' ? 'start' : 'end'
-            );
-
-            yearMonthPicker.close();
-        });
-
-        yearMonthPicker.onClear = () => {
-            const input = yearMonthPicker.__target;
-            if (!input) return;
-
-            input.value = '';
-            yearMonthPicker.close();
-        };
-
-        return yearMonthPicker;
-    }
-
-    function ensureYearMonthPickerContainer() {
-        let container = document.getElementById('year-month-picker');
-        if (container) {
-            return container;
-        }
-
-        let root = document.querySelector('.picker-root');
-        if (!root) {
-            root = document.createElement('div');
-            root.className = 'picker-root';
-            document.body.appendChild(root);
-        }
-
-        container = document.createElement('div');
-        container.id = 'year-month-picker';
-        container.className = 'picker is-hidden';
-        root.appendChild(container);
-
-        return container;
-    }
-
-    function bindYearMonthInputs() {
-        if (globalBound) return;
-        globalBound = true;
-
-        document
-            .querySelectorAll('input.year-input, input[name="dateStart"], input[name="dateEnd"]')
-            .forEach(input => {
-                input.setAttribute('autocomplete', 'off');
-                input.setAttribute('inputmode', 'none');
-                input.readOnly = true;
-            });
-
-        document.addEventListener('pointerdown', function (e) {
-            const input = e.target.closest(
-                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
-            );
-
-            if (input) {
-                e.preventDefault();
-                e.stopPropagation();
-                scheduleOpenYearMonthPicker(input);
-                return;
-            }
-
-            const icon = e.target.closest('.date-icon');
-            if (icon) {
-                const wrap = icon.closest('.date-input');
-                const targetInput = wrap?.querySelector('input');
-
-                if (targetInput) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    scheduleOpenYearMonthPicker(targetInput);
-                }
-            }
-        }, true);
-
-        document.addEventListener('click', function (e) {
-            const input = e.target.closest(
-                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
-            );
-
-            if (input) {
-                e.preventDefault();
-                e.stopPropagation();
-                scheduleOpenYearMonthPicker(input);
-                return;
-            }
-
-            const icon = e.target.closest('.date-icon');
-            if (icon) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const wrap = icon.closest('.date-input');
-                const targetInput = wrap?.querySelector('input');
-
-                if (targetInput) {
-                    scheduleOpenYearMonthPicker(targetInput);
-                }
-            }
-        }, true);
-
-        document.addEventListener('focusin', function (e) {
-            const input = e.target.closest(
-                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
-            );
-
-            if (input) {
-                scheduleOpenYearMonthPicker(input);
-            }
-        });
-    }
-
-    function scheduleOpenYearMonthPicker(input) {
-        openYearMonthPicker(input);
-    }
-
-    function openYearMonthPicker(input) {
-        try {
-            if (!input) return;
-
-            input.setAttribute('autocomplete', 'off');
-            input.setAttribute('inputmode', 'none');
-            input.readOnly = true;
-
-            const picker = initYearMonthPicker();
-            if (!picker) return;
-
-            picker.__target = input;
-
-            const parsed = parseYearMonth(input.value);
-            if (parsed) {
-                if (typeof picker.setYearMonth === 'function') {
-                    picker.setYearMonth(parsed);
-                } else {
-                    picker.setView(parsed.getFullYear(), parsed.getMonth());
-                }
-            } else if (typeof picker.clearDate === 'function') {
-                picker.clearDate();
-            }
-
-            picker.open({ anchor: input });
-        } catch (err) {
-            console.error('[cover] year-month picker open failed:', err);
-        }
-    }
-
-    function parseYearMonth(value) {
-        const raw = String(value || '').trim();
-
-        const ym = raw.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
-        if (ym) {
-            const year = parseInt(ym[1], 10);
-            const month = parseInt(ym[2], 10) - 1;
-            if (month >= 0 && month <= 11) {
-                return new Date(year, month, 1);
-            }
-        }
-
-        const y = raw.match(/^(\d{4})$/);
-        if (y) {
-            return new Date(parseInt(y[1], 10), 0, 1);
-        }
-
-        return null;
-    }
-
-    function formatYearMonth(date) {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    }
-
-    function normalizeStartEnd(type) {
-        const start = getDateStartInput();
-        const end = getDateEndInput();
-
-        if (!start || !end) return;
-        if (!start.value || !end.value) return;
-
-        const startDate = parseYearMonth(start.value);
-        const endDate = parseYearMonth(end.value);
-
-        if (!startDate || !endDate) return;
-
-        if (type === 'start' && startDate > endDate) {
-            end.value = start.value;
-        }
-
-        if (type === 'end' && endDate < startDate) {
-            start.value = end.value;
-        }
-    }
-
-
-    function initDataTable($) {
+    async function initDataTable($) {
         const columns = buildCoverColumns();
         const trashModalEl = qs(DOM.trashModal);
 
-        coverTable = createDataTable({
+        coverTable = await createDataTable({
             tableSelector: DOM.table,
             api: API.LIST,
             deleteApi: API.DELETE,
@@ -649,13 +448,14 @@ window.AdminPicker = AdminPicker;
                     }
                 },
                 {
-                    text: '\uc0c8 \uc774\ubbf8\uc9c0',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action: function () {
                         const form = qs(DOM.form);
                         if (form) form.reset();
 
                         setCoverModalMode('create');
+                        renderCoverSystemInfo();
 
                         if (coverModal) {
                             coverModal.show();
@@ -805,6 +605,7 @@ window.AdminPicker = AdminPicker;
         window.jQuery(DOM.modalId).val(rowData.id || '');
         window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
         setCoverModalMode('edit');
+        renderCoverSystemInfo(rowData);
 
         if (coverModal) {
             coverModal.show();
@@ -1016,7 +817,7 @@ window.AdminPicker = AdminPicker;
         });
 
         $(document).off('click', DOM.modalDeleteBtn);
-        $(document).on('click', DOM.modalDeleteBtn, function () {
+        $(document).on('click', DOM.modalDeleteBtn, async function () {
             const coverId = $(DOM.modalId).val();
             if (!coverId) {
                 notifyMessage('warning', 'No item to delete.');
@@ -1025,16 +826,16 @@ window.AdminPicker = AdminPicker;
 
             if (!confirm('Are you sure you want to delete this item?')) return;
 
-            $.post(API.DELETE, { id: coverId }, function (res) {
-                if (res && res.success) {
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '커버이미지를 휴지통으로 이동 중' }, async () => {
+                    const res = await $.post(API.DELETE, { id: coverId });
+                    if (!res?.success) throw new Error(res?.message || '삭제에 실패했습니다.');
                     resetCoverAfterAction();
-                    notifyMessage('success', 'Deleted successfully.');
-                } else {
-                    notifyMessage('error', res?.message || 'Delete failed.');
-                }
-            }, 'json').fail(function () {
-                notifyMessage('error', 'Delete request failed.');
-            });
+                    notifyMessage('success', '삭제되었습니다.');
+                });
+            } catch (error) {
+                notifyMessage('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
     }
 

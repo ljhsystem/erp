@@ -123,6 +123,20 @@ class UserModel
         return $this->fetchOne($sql, [$username, $email]);
     }
 
+    public function findUsernameByEmployeeNameAndEmail(string $employeeName, string $email): ?string
+    {
+        $sql = "
+            SELECT a.username
+            FROM auth_users AS a
+            INNER JOIN user_employees AS p ON a.id = p.user_id
+            WHERE p.employee_name = ? AND a.email = ?
+            LIMIT 1
+        ";
+        $row = $this->fetchOne($sql, [$employeeName, $email]);
+
+        return $row === null ? null : (string) $row['username'];
+    }
+
     public function findApprovalRequestUser(string $userId): ?array
     {
         $sql = "
@@ -244,26 +258,12 @@ class UserModel
 
     public function softDelete(string $userId, ?string $deletedBy = null): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE auth_users
-               SET deleted_at = NOW(),
-                   deleted_by = ?
-             WHERE id = ?
-        ");
-
-        return $stmt->execute([$deletedBy, $userId]);
+        return $this->setActive($userId, 0, $deletedBy);
     }
 
     public function restore(string $userId): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE auth_users
-               SET deleted_at = NULL,
-                   deleted_by = NULL
-             WHERE id = ?
-        ");
-
-        return $stmt->execute([$userId]);
+        return $this->setActive($userId, 1, null);
     }
 
     public function updateNotifySettings(string $userId, int $emailNotify, int $smsNotify): bool
@@ -317,8 +317,6 @@ class UserModel
             'password_updated_by',
             'created_by',
             'updated_by',
-            'deleted_at',
-            'deleted_by',
             'role_id',
         ];
 
@@ -389,7 +387,6 @@ class UserModel
             SELECT username
             FROM auth_users
             WHERE id = ?
-            AND (deleted_at IS NULL OR deleted_at = '')
             LIMIT 1
         ");
         $stmt->execute([$userId]);
@@ -408,6 +405,18 @@ class UserModel
         return $stmt->execute([
             'id' => $id
         ]);
+    }
+
+    public function getActiveAdminUserIds(): array
+    {
+        $stmt = $this->db->query("
+            SELECT u.id FROM auth_users u JOIN auth_roles r ON r.id = u.role_id
+             WHERE u.approved = 1 AND u.is_active = 1
+               AND r.role_key IN ('super_admin', 'admin')
+             ORDER BY FIELD(r.role_key, 'super_admin', 'admin'), u.username ASC
+        ");
+
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
 }

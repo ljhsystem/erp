@@ -456,9 +456,6 @@ export function registerKeyboard(ctx) {
                 const normalized = ctx.normalizeUnitCellValue(value);
                 return normalized === ctx.UNIT_EMPTY_LABEL ? '' : normalized;
             }
-            if (field === 'tax_type') {
-                return value === '' ? ctx.defaultLineTaxTypeLabel() : ctx.normalizeTaxTypeCellValue(value);
-            }
             return value;
         }
 

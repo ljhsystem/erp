@@ -3,7 +3,6 @@ export function registerValidation(ctx) {
         const fieldNames = [
             'id',
             'status',
-            'match_status',
             'transaction_date',
             'business_unit',
             'transaction_direction',
@@ -39,7 +38,6 @@ export function registerValidation(ctx) {
             foreign_unit_price: String(row?.foreign_unit_price ?? ''),
             foreign_amount: String(row?.foreign_amount ?? ''),
             amount: String(row?.amount ?? ''),
-            tax_type: String(row?.tax_type ?? ''),
             description: String(row?.description ?? ''),
         }));
         ctx.saveCurrentSettlementRows();
@@ -56,6 +54,10 @@ export function registerValidation(ctx) {
 
         return JSON.stringify({
             fields,
+            linkedEvidences: (ctx.linkedEvidences || []).map((row) => ({
+                import_type: String(row?.import_type || row?.source_type || '').toUpperCase(),
+                evidence_id: String(row?.evidence_id || row?.id || ''),
+            })).sort((left, right) => `${left.import_type}:${left.evidence_id}`.localeCompare(`${right.import_type}:${right.evidence_id}`)),
             toggles: {
                 is_import: Boolean(ctx.importToggle?.checked),
                 use_file_reference: Boolean(ctx.fileToggle?.checked),
@@ -70,8 +72,6 @@ export function registerValidation(ctx) {
             })),
             fileRowOrder: ctx.fileRowOrder.slice(),
             deleteFileIds,
-            selectedVoucherId: String(ctx.selectedVoucherId || ''),
-            selectedVoucherLabel: String(ctx.selectedVoucherLabel || ''),
         });
     }
 

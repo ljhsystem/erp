@@ -23,8 +23,16 @@ class BankTransactionReportController
 
     public function index(): void
     {
+        $bankAccountId = trim((string) ($_GET['bank_account_id'] ?? ''));
+        $bankAccount = $bankAccountId !== '' ? $this->service->account($bankAccountId) : null;
+        if ($bankAccountId !== '' && !$bankAccount) {
+            header('Location: /ledger/funds', true, 302);
+            exit;
+        }
+
         $this->renderPage('/app/views/funds/bank-transactions/index.php', [
             'pageTitle' => '계좌별거래내역',
+            'bankAccount' => $bankAccount,
         ]);
     }
 
@@ -162,14 +170,25 @@ class BankTransactionReportController
             'account_number',
             'bank_name',
             'transaction_datetime',
+            'raw_transaction_datetime',
             'direction',
+            'transaction_direction',
             'deposit_amount',
+            'raw_deposit_amount',
             'withdraw_amount',
+            'raw_withdraw_amount',
             'client_name',
             'counterparty_name',
+            'raw_counterparty_name',
             'counterparty_account_number',
+            'raw_counterparty_account_number',
             'counterparty_bank_name',
+            'raw_counterparty_bank_name',
             'description',
+            'raw_description',
+            'raw_memo',
+            'raw_check_bill_amount',
+            'raw_cms_code',
             'voucher_link_status',
             'evidence_status',
             'amount_min',

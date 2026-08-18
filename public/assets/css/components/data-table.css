@@ -51,6 +51,49 @@
 }
 
 /*
+ * 공용 목록 화면 폭 경계
+ * 개발자도구 열기, 사이드바 토글처럼 viewport가 바뀌어도 페이지 배경과
+ * 제목·검색폼·테이블 묶음은 콘텐츠 영역을 넘지 않고 테이블 내부에서 스크롤한다.
+ */
+.dt-responsive-page-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.dt-responsive-page-shell .content-area,
+.dt-responsive-page-shell .dt-content-stack,
+.dt-responsive-page-shell .search-form-container,
+.dt-responsive-page-shell .table-box {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.dt-responsive-page-shell .dataTables_wrapper {
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  scrollbar-gutter: auto;
+}
+
+.dataTables_wrapper.dt-viewport-fitted > table.dataTable,
+.dataTables_wrapper.dt-viewport-fitted .dataTables_scrollHead table.dataTable,
+.dataTables_wrapper.dt-viewport-fitted .dataTables_scrollBody table.dataTable {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+.dataTables_wrapper.dt-viewport-fitted table.dataTable thead th {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/*
  * DataTables processing indicator (공통)
  * - 헤더/검색창에 가리지 않게 가운데 정렬하고
  * - 헤더 아래 약 7번째 행 위치(검색영역 + 헤더 기준)에서 표시
@@ -515,6 +558,120 @@ table.dataTable thead th.dt-select-column::after {
 
 .dt-column-settings-item {
   user-select: none;
+}
+
+/* 테이블 설정은 Excel Manager 자산을 로드하지 않아도 독립적으로 표시되어야 한다. */
+.dt-column-settings-grid {
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dt-column-settings-grid .excel-settings-grid-header,
+.dt-column-settings-grid .excel-settings-grid-row {
+  display: grid;
+  align-items: center;
+}
+
+.dt-column-settings-grid .excel-settings-grid-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dt-column-settings-grid .excel-settings-grid-body .excel-settings-grid-row + .excel-settings-grid-row {
+  border-top: 1px solid #eef2f7;
+}
+
+.dt-column-settings-grid .excel-settings-grid-head,
+.dt-column-settings-grid .excel-settings-grid-cell {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.dt-column-settings-grid .excel-settings-grid-head {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dt-column-settings-grid .excel-settings-head-icon,
+.dt-column-settings-grid .excel-settings-head-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 20px;
+}
+
+.dt-column-settings-grid .excel-settings-head-icon {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.dt-column-settings-grid .excel-settings-grid-row {
+  position: relative;
+  background: #fff;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+
+.dt-column-settings-grid .excel-settings-grid-row:hover {
+  background: #f8fbff;
+}
+
+.dt-column-settings-grid .excel-settings-grid-cell-handle,
+.dt-column-settings-grid .excel-settings-grid-cell-usage,
+.dt-column-settings-grid .excel-settings-grid-cell-order {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dt-column-settings-grid .excel-settings-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  cursor: grab;
+}
+
+.dt-column-settings-grid .excel-settings-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dt-column-settings-grid .excel-settings-order-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dt-column-settings-grid .excel-settings-grid-cell-label {
+  display: flex;
+  align-items: center;
+  width: auto;
+}
+
+.dt-column-settings-grid .excel-settings-column-label {
+  flex: 1 1 auto;
+  width: 100%;
+  overflow: hidden;
+  color: #0f172a;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dt-column-settings-item.is-dragging {

@@ -23,6 +23,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                 </h5>
                 <span id="journalRuleCount" class="text-primary page-count"></span>
             </div>
+            <p class="small text-muted mb-2">행 순서는 동일한 신뢰도와 사용통계를 가진 규칙의 최종 추천 우선순위에 영향을 줄 수 있습니다.</p>
 
             <div class="content-area">
                 <?php
@@ -100,7 +101,9 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="journalRuleClientType">거래처유형</label>
-                                <select class="form-select form-select-sm js-client-type" id="journalRuleClientType" name="client_type" data-code-group="CLIENT_TYPE"></select>
+                                <select class="form-select form-select-sm js-client-type" id="journalRuleClientType" name="client_type" data-code-group="CLIENT_TYPE">
+                                    <option value="">전체</option>
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="journalRuleImportType">자료유형</label>
@@ -153,23 +156,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
     </div>
 
     <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
-
-    <?php
-    $templateUrl = '/api/ledger/journal-rules/template';
-    $downloadUrl = '/api/ledger/journal-rules/excel';
-    $uploadUrl = '/api/ledger/journal-rules/excel-upload';
-
-    $modalId = 'journalRuleExcelModal';
-    $formId = 'journal-rule-excel-upload-form';
-    $modalTitle = 'Journal Rule Excel';
-    $fileInputId = 'journalRuleExcelUpload';
-    $fileInputName = 'file';
-    $spinnerId = 'journalRuleExcelUploadSpinner';
-    $btnTemplateId = 'btnDownloadJournalRuleTemplate';
-    $btnDownloadAll = 'btnDownloadAllJournalRules';
-    $uploadBtnId = 'btnUploadJournalRuleExcel';
-    include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-    ?>
 
     <?php
     $modalId = 'journalRuleTrashModal';

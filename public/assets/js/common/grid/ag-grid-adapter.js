@@ -389,7 +389,9 @@ export function createAgGridAdapter(host, config = {}) {
             config.onColumnHeaderClicked?.(event, adapter);
         },
         onCellKeyDown(event) {
-            handleAgGridKeyboard(event, adapter, config);
+            if (config.useDefaultKeyboard !== false) {
+                handleAgGridKeyboard(event, adapter, config);
+            }
             config.gridOptions?.onCellKeyDown?.(event);
             config.onCellKeyDown?.(event, adapter);
         },

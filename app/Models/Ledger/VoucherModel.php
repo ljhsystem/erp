@@ -2,6 +2,7 @@
 
 namespace App\Models\Ledger;
 
+use App\Models\Ledger\Concerns\VoucherModelPersistenceSupport;
 use App\Services\Ledger\VoucherStatus;
 use Core\Helpers\ActorHelper;
 use Core\Database;
@@ -9,6 +10,7 @@ use PDO;
 
 class VoucherModel
 {
+    use VoucherModelPersistenceSupport;
     protected string $table = 'ledger_vouchers';
 
     private PDO $db;
@@ -20,77 +22,14 @@ class VoucherModel
 
     public function getList(array $filters = []): array
     {
-        $hasSeedRows = $this->hasTable('ledger_data_evidences');
         $hasEvidenceLinks = $this->hasTable('ledger_evidence_links');
-        $hasEvidenceTransactionId = $hasSeedRows && $this->tableColumnExists('ledger_data_evidences', 'transaction_id');
-        $hasEvidenceFormat = false;
-        $seedSources = [];
-        $seedIds = [];
-        if ($hasEvidenceLinks) {
-            $seedSources[] = 'evidence_linked_seed.source_type';
-            $seedIds[] = 'evidence_linked_seed.evidence_id';
-        }
-        if ($hasEvidenceTransactionId) {
-            $seedSources[] = 'linked_seed.source_type';
-            $seedIds[] = 'linked_seed.evidence_id';
-        }
-        $importTypeExpr = $hasSeedRows && $seedSources !== []
-            ? "COALESCE(" . implode(', ', $seedSources) . ")"
-            : 'NULL';
-        $evidenceIdExpr = $hasSeedRows && $seedIds !== []
-            ? "COALESCE(" . implode(', ', $seedIds) . ")"
-            : 'NULL';
-        $evidenceLinkJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
+        $evidenceBundleJoinSql = $hasEvidenceLinks ? "
             LEFT JOIN (
                 SELECT
                     el.target_id AS voucher_id,
-                    MIN(e.id) AS evidence_id,
-                    MIN(e.source_type) AS source_type
+                    COUNT(DISTINCT CONCAT(el.evidence_type, ':', el.evidence_id)) AS evidence_count,
+                    GROUP_CONCAT(DISTINCT el.evidence_type ORDER BY el.evidence_type SEPARATOR ',') AS evidence_source_types
                 FROM ledger_evidence_links el
-                INNER JOIN ledger_data_evidences e
-                    ON e.id = el.evidence_id
-                   AND e.deleted_at IS NULL
-                WHERE el.deleted_at IS NULL
-                  AND el.target_type = 'VOUCHER'
-                  AND el.target_id IS NOT NULL
-                GROUP BY el.target_id
-            ) evidence_linked_seed
-                ON evidence_linked_seed.voucher_id = v.id
-        " : "";
-        $transactionSeedJoinSql = ($hasSeedRows && $hasEvidenceTransactionId) ? "
-            LEFT JOIN (
-                SELECT
-                    l.voucher_id,
-                    MIN(sr.id) AS evidence_id,
-                    MIN(sr.source_type) AS source_type
-                FROM ledger_transaction_links l
-                INNER JOIN ledger_data_evidences sr
-                    ON sr.transaction_id = l.transaction_id
-                   AND sr.deleted_at IS NULL
-                WHERE l.deleted_at IS NULL
-                  AND l.is_active = 1
-                GROUP BY l.voucher_id
-            ) linked_seed
-                ON linked_seed.voucher_id = v.id
-        " : "";
-        $seedJoinSql = $hasSeedRows ? "
-            {$evidenceLinkJoinSql}
-            {$transactionSeedJoinSql}
-        " : "";
-        $formatJoinSql = "";
-        $formatNameSelect = "NULL";
-        $evidenceBundleJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
-            LEFT JOIN (
-                SELECT
-                    el.target_id AS voucher_id,
-                    COUNT(DISTINCT e.id) AS evidence_count,
-                    GROUP_CONCAT(DISTINCT e.source_type ORDER BY e.source_type SEPARATOR ',') AS evidence_source_types,
-                    {$formatNameSelect} AS evidence_format_names
-                FROM ledger_evidence_links el
-                INNER JOIN ledger_data_evidences e
-                    ON e.id = el.evidence_id
-                   AND e.deleted_at IS NULL
-                {$formatJoinSql}
                 WHERE el.deleted_at IS NULL
                   AND el.target_type = 'VOUCHER'
                   AND el.target_id IS NOT NULL
@@ -98,15 +37,11 @@ class VoucherModel
             ) evidence_bundle
                 ON evidence_bundle.voucher_id = v.id
         " : "";
-        $evidenceCountExpr = ($hasSeedRows && $hasEvidenceLinks)
-            ? "COALESCE(evidence_bundle.evidence_count, CASE WHEN {$evidenceIdExpr} IS NULL THEN 0 ELSE 1 END)"
-            : "CASE WHEN {$evidenceIdExpr} IS NULL THEN 0 ELSE 1 END";
-        $evidenceSourceTypesExpr = ($hasSeedRows && $hasEvidenceLinks)
+        $evidenceCountExpr = $hasEvidenceLinks ? 'COALESCE(evidence_bundle.evidence_count, 0)' : '0';
+        $evidenceSourceTypesExpr = $hasEvidenceLinks
             ? "evidence_bundle.evidence_source_types"
             : "NULL";
-        $evidenceFormatNamesExpr = ($hasSeedRows && $hasEvidenceLinks)
-            ? "evidence_bundle.evidence_format_names"
-            : "NULL";
+        $evidenceFormatNamesExpr = 'NULL';
 
         $sql = "
             SELECT
@@ -124,15 +59,11 @@ class VoucherModel
                 COALESCE(v.debit_total, 0) AS debit_total,
                 COALESCE(v.credit_total, 0) AS credit_total,
                 COALESCE(v.line_count, 0) AS line_count,
-                transaction_links.transaction_id AS transaction_id,
-                transaction_links.match_status,
-                {$importTypeExpr} AS import_type,
-                {$evidenceIdExpr} AS evidence_id,
                 {$evidenceCountExpr} AS evidence_count,
                 {$evidenceSourceTypesExpr} AS evidence_source_types,
                 {$evidenceFormatNamesExpr} AS evidence_format_names,
                 CASE
-                    WHEN {$evidenceIdExpr} IS NULL THEN 'unlinked'
+                    WHEN {$evidenceCountExpr} = 0 THEN 'unlinked'
                     ELSE 'linked'
                 END AS evidence_link_status,
                 COALESCE(summary_client.client_name, '') AS client_name,
@@ -145,10 +76,7 @@ class VoucherModel
                 reversal_vouchers.id AS reversal_voucher_id,
                 reversal_vouchers.voucher_no AS reversal_voucher_no,
                 original_vouchers.voucher_no AS original_voucher_no,
-                CASE
-                    WHEN transaction_links.transaction_id IS NULL THEN 'unlinked'
-                    ELSE 'linked'
-                END AS linked_status
+                CASE WHEN {$evidenceCountExpr} = 0 THEN 'unlinked' ELSE 'linked' END AS linked_status
             FROM {$this->table} v
             {$evidenceBundleJoinSql}
             LEFT JOIN (
@@ -177,25 +105,6 @@ class VoucherModel
                AND summary_card.deleted_at IS NULL
             LEFT JOIN user_employees summary_employee
                 ON summary_employee.id = v.summary_employee_id
-            LEFT JOIN (
-                SELECT
-                    l.voucher_id,
-                    MIN(l.transaction_id) AS transaction_id,
-                    CASE
-                        WHEN SUM(CASE WHEN t.match_status = 'matched' THEN 1 ELSE 0 END) > 0 THEN 'matched'
-                        WHEN COUNT(t.id) > 0 THEN MIN(t.match_status)
-                        ELSE NULL
-                    END AS match_status
-                FROM ledger_transaction_links l
-                LEFT JOIN ledger_transactions t
-                    ON t.id = l.transaction_id
-                   AND t.deleted_at IS NULL
-                WHERE l.deleted_at IS NULL
-                  AND l.is_active = 1
-                GROUP BY l.voucher_id
-            ) transaction_links
-                ON transaction_links.voucher_id = v.id
-            {$seedJoinSql}
             LEFT JOIN {$this->table} reversal_vouchers
                 ON reversal_vouchers.reversal_of = v.id
                AND reversal_vouchers.is_reversal = 1
@@ -425,9 +334,9 @@ class VoucherModel
                 case 'linked':
                 case 'linked_status':
                     if ($this->normalizeLinkedFilter($rawValue) === 'linked') {
-                        $sql .= " AND transaction_links.voucher_id IS NOT NULL";
+                        $sql .= " AND {$evidenceCountExpr} > 0";
                     } else {
-                        $sql .= " AND transaction_links.voucher_id IS NULL";
+                        $sql .= " AND {$evidenceCountExpr} = 0";
                     }
                     break;
 
@@ -470,8 +379,6 @@ class VoucherModel
                 COALESCE(v.debit_total, 0) AS debit_total,
                 COALESCE(v.credit_total, 0) AS credit_total,
                 COALESCE(v.line_count, 0) AS line_count,
-                transaction_links.transaction_id AS transaction_id,
-                transaction_links.match_status AS match_status,
                 NULL AS import_type,
                 COALESCE(summary_client.client_name, '') AS client_name,
                 COALESCE(voucher_line_accounts.account_name, '') AS summary_account_name,
@@ -483,10 +390,7 @@ class VoucherModel
                 NULL AS reversal_voucher_id,
                 NULL AS reversal_voucher_no,
                 NULL AS original_voucher_no,
-                CASE
-                    WHEN transaction_links.transaction_id IS NULL THEN 'unlinked'
-                    ELSE 'linked'
-                END AS linked_status
+                'unlinked' AS linked_status
             FROM {$this->table} v
             LEFT JOIN (
                 SELECT
@@ -514,24 +418,6 @@ class VoucherModel
                AND summary_card.deleted_at IS NULL
             LEFT JOIN user_employees summary_employee
                 ON summary_employee.id = v.summary_employee_id
-            LEFT JOIN (
-                SELECT
-                    l.voucher_id,
-                    MIN(l.transaction_id) AS transaction_id,
-                    CASE
-                        WHEN SUM(CASE WHEN t.match_status = 'matched' THEN 1 ELSE 0 END) > 0 THEN 'matched'
-                        WHEN COUNT(t.id) > 0 THEN MIN(t.match_status)
-                        ELSE NULL
-                    END AS match_status
-                FROM ledger_transaction_links l
-                LEFT JOIN ledger_transactions t
-                    ON t.id = l.transaction_id
-                   AND t.deleted_at IS NULL
-                WHERE l.deleted_at IS NULL
-                  AND l.is_active = 1
-                GROUP BY l.voucher_id
-            ) transaction_links
-                ON transaction_links.voucher_id = v.id
             WHERE v.deleted_at IS NULL
             ORDER BY v.sort_no ASC, v.voucher_date ASC, v.created_at ASC
         ");
@@ -578,7 +464,6 @@ class VoucherModel
             '쇼핑몰', 'SHOPPING' => 'SHOPPING',
             '수입', '무역', '수입/무역', 'TRADE', 'IMPORT' => 'TRADE',
             '수기입력', '수기', 'MANUAL' => 'MANUAL',
-            '거래', 'TRANSACTION' => 'TRANSACTION',
             default => $normalized,
         };
     }
@@ -735,6 +620,75 @@ class VoucherModel
         }
 
         return sprintf('%s-%04d', $prefix, $next);
+    }
+
+    public function findActiveNumberState(string $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, voucher_no, status
+            FROM {$this->table}
+            WHERE id = :id
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $id]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function activeVoucherNoExists(string $voucherNo, string $excludeId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM {$this->table}
+            WHERE voucher_no = :voucher_no
+              AND id <> :id
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([':voucher_no' => $voucherNo, ':id' => $excludeId]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function updateVoucherNo(string $id, string $voucherNo, string $actor): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE {$this->table}
+            SET voucher_no = :voucher_no,
+                updated_by = :updated_by,
+                updated_at = NOW()
+            WHERE id = :id
+              AND deleted_at IS NULL
+        ");
+
+        return $stmt->execute([':voucher_no' => $voucherNo, ':updated_by' => $actor, ':id' => $id]);
+    }
+
+    public function findActiveByDateAndAmount(string $voucherDate, float $amount, bool $lineHasDeletedAt): ?array
+    {
+        $lineDeletedFilter = $lineHasDeletedAt ? 'AND l.deleted_at IS NULL' : '';
+        $stmt = $this->db->prepare("
+            SELECT
+                v.id,
+                v.voucher_no,
+                v.voucher_date,
+                COALESCE(v.summary, '') AS summary,
+                COALESCE(SUM(l.debit), 0) AS debit_total,
+                COALESCE(SUM(l.credit), 0) AS credit_total
+            FROM {$this->table} v
+            INNER JOIN ledger_voucher_lines l
+                ON l.voucher_id = v.id
+                {$lineDeletedFilter}
+            WHERE v.deleted_at IS NULL
+              AND v.voucher_date = :voucher_date
+            GROUP BY v.id, v.voucher_no, v.voucher_date, v.summary, v.created_at, v.sort_no
+            HAVING ABS(GREATEST(debit_total, credit_total) - :amount) < 0.01
+            ORDER BY v.created_at DESC, v.sort_no DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':voucher_date' => $voucherDate, ':amount' => abs($amount)]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function getTrashList(): array
@@ -1042,104 +996,5 @@ class VoucherModel
         $stmt->execute([':voucher_id' => $voucherId]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
-
-    public function purge(string $id): bool
-    {
-        return $this->hardDelete($id);
-    }
-
-    private function filterData(array $data, array $allowed): array
-    {
-        $payload = [];
-
-        foreach ($allowed as $column) {
-            if (array_key_exists($column, $data)) {
-                $payload[$column] = $data[$column];
-            }
-        }
-
-        return $payload;
-    }
-
-    private function hasColumn(string $column): bool
-    {
-        static $columns = null;
-
-        if ($columns === null) {
-            try {
-                $stmt = $this->db->query("SHOW COLUMNS FROM {$this->table}");
-                $columns = array_flip(array_map(
-                    static fn(array $row): string => (string) ($row['Field'] ?? ''),
-                    $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-                ));
-            } catch (\Throwable) {
-                $columns = [];
-            }
-        }
-
-        return isset($columns[$column]);
-    }
-
-    private function hasTable(string $table): bool
-    {
-        static $tables = [];
-
-        if (!array_key_exists($table, $tables)) {
-            try {
-                $stmt = $this->db->prepare("
-                    SELECT 1
-                    FROM information_schema.TABLES
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = :table_name
-                    LIMIT 1
-                ");
-                $stmt->execute([':table_name' => $table]);
-                $tables[$table] = (bool) $stmt->fetchColumn();
-            } catch (\Throwable) {
-                $tables[$table] = false;
-            }
-        }
-
-        return $tables[$table];
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        static $cache = [];
-        $key = $table . '.' . $column;
-
-        if (!array_key_exists($key, $cache)) {
-            try {
-                $stmt = $this->db->prepare("
-                    SELECT 1
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = :table_name
-                      AND COLUMN_NAME = :column_name
-                    LIMIT 1
-                ");
-                $stmt->execute([
-                    ':table_name' => $table,
-                    ':column_name' => $column,
-                ]);
-                $cache[$key] = (bool) $stmt->fetchColumn();
-            } catch (\Throwable) {
-                $cache[$key] = false;
-            }
-        }
-
-        return $cache[$key];
-    }
-
-    private function bindParams(array $data): array
-    {
-        $params = [];
-
-        foreach ($data as $column => $value) {
-            $params[':' . $column] = $value;
-        }
-
-        return $params;
     }
 }

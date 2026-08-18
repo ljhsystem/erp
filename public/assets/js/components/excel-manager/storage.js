@@ -4,14 +4,14 @@ import {
     writeSystemUserSettingsStorage,
 } from '../../common/user-settings/systemUserSettingsStorage.js';
 
-export function loadExcelSettings(storageKey, fallbackState, options = {}) {
+export async function loadExcelSettings(storageKey, fallbackState, options = {}) {
     try {
-        const savedFromDb = readSystemUserSettingsStorage(storageKey, options);
+        const savedFromDb = await readSystemUserSettingsStorage(storageKey, options);
         if (savedFromDb && typeof savedFromDb === 'object') {
             return savedFromDb;
         }
 
-        return ensureSystemUserSettingsStorage(storageKey, fallbackState, options) || fallbackState;
+        return await ensureSystemUserSettingsStorage(storageKey, fallbackState, options) || fallbackState;
     } catch {
         return fallbackState;
     }

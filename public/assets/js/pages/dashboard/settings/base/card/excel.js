@@ -1,6 +1,6 @@
 import { createExcelManagerSettingsCore } from '../../../../../components/excel-manager/index.js';
 
-export function initExcelDataset(api) {
+export async function initExcelDataset(api) {
     const excelForm = document.getElementById('cardExcelForm');
     if (!excelForm) return;
 
@@ -8,7 +8,7 @@ export function initExcelDataset(api) {
     excelForm.dataset.downloadUrl = api.EXCEL_DOWNLOAD;
     excelForm.dataset.uploadUrl = api.EXCEL_UPLOAD;
 
-    createExcelManagerSettingsCore({
+    await createExcelManagerSettingsCore({
         domain: 'card',
         userSettingPageKey: 'card',
         formSelector: '#cardExcelForm',

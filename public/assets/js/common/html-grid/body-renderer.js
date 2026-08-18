@@ -80,6 +80,7 @@ function createBodyCell(documentRef, row, column, options = {}) {
     const formatter = resolveFormatter(options.formatterRegistry, column.formatter);
     const displayValue = formatter
         ? formatter(value, {
+            ...(column.meta?.formatterOptions || {}),
             row,
             column,
             cellState,
@@ -91,7 +92,21 @@ function createBodyCell(documentRef, row, column, options = {}) {
 
     const valueSlot = documentRef.createElement('span');
     valueSlot.className = 'html-grid-cell-value';
-    renderCellValue(valueSlot, displayValue);
+    if (column.type === 'selection') {
+        const checkbox = documentRef.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input html-grid-row-selection';
+        checkbox.dataset.rowId = row.rowId;
+        checkbox.checked = (options.selectedRowIds || []).includes(row.rowId);
+        checkbox.disabled = row.values?.selection_disabled === true;
+        checkbox.setAttribute('aria-label', column.label || '행 선택');
+        valueSlot.appendChild(checkbox);
+    } else {
+        renderCellValue(valueSlot, displayValue);
+        if (displayValue != null && String(displayValue).trim() !== '') {
+            valueSlot.title = String(displayValue);
+        }
+    }
     cellContent.appendChild(valueSlot);
 
     const shouldRenderEditorSlot = cellStates.includes('editing') || column.editor;
@@ -141,6 +156,10 @@ function createRowElement(documentRef, row, columns, options = {}) {
     const tr = documentRef.createElement('tr');
     tr.className = `html-grid-body-row html-grid-row-state-${row.rowState}`;
     tr.dataset.rowId = row.rowId;
+    if ((options.selectedRowIds || []).includes(row.rowId)) {
+        tr.classList.add('is-selected');
+        tr.setAttribute('aria-selected', 'true');
+    }
 
     columns.forEach((column) => {
         const rowCellState = options.cells?.[row.rowId]?.[column.key] || null;

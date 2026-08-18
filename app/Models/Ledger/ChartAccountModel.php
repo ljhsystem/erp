@@ -10,12 +10,10 @@ class ChartAccountModel
 {
     private PDO $db;
     private array $columnExistsCache = [];
-
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
-
     public function getAll(): array
     {
         $levelExpr = $this->accountLevelExpr('a');
@@ -95,6 +93,16 @@ class ChartAccountModel
             'updated_by_name' => 'updated_by_name',
             'deleted_by_name' => 'deleted_by_name',
         ]);
+    }
+
+    public function getActiveDropdownValues(string $field): array
+    {
+        if (!in_array($field, ['id', 'account_code', 'account_name'], true)) return [];
+        $stmt = $this->db->query("SELECT DISTINCT `{$field}` AS dropdown_value FROM ledger_accounts WHERE deleted_at IS NULL ORDER BY `{$field}` ASC");
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['dropdown_value'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        ), static fn(string $value): bool => $value !== '')));
     }
 
     public function resolveByIdOrCode(string $value): ?array
@@ -393,17 +401,6 @@ class ChartAccountModel
         return $stmt->rowCount() > 0;
     }
 
-    public function hardDelete(string $id, string $actor): bool
-    {
-        $stmt = $this->db->prepare("
-            DELETE FROM ledger_accounts
-            WHERE id = :id
-        ");
-
-        $stmt->execute([':id' => $id]);
-        return $stmt->rowCount() > 0;
-    }
-
     public function findByCode(string $code): ?array
     {
         $stmt = $this->db->prepare("
@@ -458,14 +455,7 @@ class ChartAccountModel
                 a.created_by AS created_by_name,
                 a.updated_by AS updated_by_name,
                 a.deleted_by AS deleted_by_name,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM ledger_accounts_sub sa
-                        WHERE sa.account_id = a.id
-                    ) THEN 1
-                    ELSE 0
-                END AS has_sub_account,
+                CASE WHEN COUNT(sa.id) > 0 THEN 1 ELSE 0 END AS has_sub_account,
                 GROUP_CONCAT(DISTINCT {$subAccountNameExpr} ORDER BY {$subAccountNameExpr} SEPARATOR ', ') AS sub_account_names
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
@@ -556,6 +546,17 @@ class ChartAccountModel
                     $params[$key] = $normalized;
                     break;
 
+                case 'sub_account_status':
+                    $normalized = trim((string) $value);
+                    if ($normalized === '사용중') {
+                        $sql .= ' AND EXISTS (SELECT 1 FROM ledger_accounts_sub sas WHERE sas.account_id = a.id)';
+                    } elseif ($normalized === '가능') {
+                        $sql .= ' AND a.allow_sub_account = 1 AND NOT EXISTS (SELECT 1 FROM ledger_accounts_sub sas WHERE sas.account_id = a.id)';
+                    } elseif ($normalized === '미사용') {
+                        $sql .= ' AND a.allow_sub_account = 0 AND NOT EXISTS (SELECT 1 FROM ledger_accounts_sub sas WHERE sas.account_id = a.id)';
+                    }
+                    break;
+
                 case 'is_posting':
                 case 'is_postable':
                 case 'is_active':
@@ -613,6 +614,43 @@ class ChartAccountModel
         ]);
     }
 
+    public function restoreByIds(array $ids): int
+    {
+        $ids = array_values(array_filter(array_map('strval', $ids)));
+        if ($ids === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $statusSet = $this->columnExists('ledger_accounts', 'status') ? "status = 'active'," : '';
+        $stmt = $this->db->prepare("UPDATE ledger_accounts SET deleted_at = NULL, deleted_by = NULL, {$statusSet} is_active = 1 WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
+        return $stmt->rowCount();
+    }
+
+    public function restoreAllDeleted(): int
+    {
+        $statusSet = $this->columnExists('ledger_accounts', 'status') ? "status = 'active'," : '';
+        $stmt = $this->db->prepare("UPDATE ledger_accounts SET deleted_at = NULL, deleted_by = NULL, {$statusSet} is_active = 1 WHERE deleted_at IS NOT NULL");
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
+
+    public function hardDeleteByIds(array $ids): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare(
+            'DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL AND id IN ('
+            . implode(',', array_fill(0, count($ids), '?'))
+            . ')'
+        );
+        $stmt->execute($ids);
+        return $stmt->rowCount();
+    }
+
     public function getDescendantIds(string $id, bool $includeSelf = false): array
     {
         $ids = [];
@@ -660,44 +698,6 @@ class ChartAccountModel
     public function isDescendantOf(string $candidateParentId, string $id): bool
     {
         return in_array($candidateParentId, $this->getDescendantIds($id), true);
-    }
-
-    public function hasVoucherUsage(string $id): bool
-    {
-        $account = $this->getById($id);
-        if (!$account) {
-            return false;
-        }
-
-        $checks = [];
-        $params = [];
-
-        if ($this->columnExists('ledger_voucher_lines', 'account_id')) {
-            $checks[] = 'account_id = :id';
-            $params[':id'] = $id;
-        }
-
-        if ($this->columnExists('ledger_voucher_lines', 'account_code')) {
-            $checks[] = 'account_code = :code';
-            $params[':code'] = $account['account_code'] ?? '';
-        }
-
-        if (empty($checks)) {
-            return false;
-        }
-
-        $deletedWhere = $this->columnExists('ledger_voucher_lines', 'deleted_at')
-            ? 'deleted_at IS NULL AND'
-            : '';
-
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*)
-            FROM ledger_voucher_lines
-            WHERE {$deletedWhere} (" . implode(' OR ', $checks) . ")
-        ");
-        $stmt->execute($params);
-
-        return (int) $stmt->fetchColumn() > 0;
     }
 
     public function refreshHierarchyMetadata(): void

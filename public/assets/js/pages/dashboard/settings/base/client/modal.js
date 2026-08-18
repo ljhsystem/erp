@@ -1,6 +1,9 @@
 import {
-    fetchDataTableMetaColumnsSync,
+    getCachedDataTableMetaColumns,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { formatDateDisplay } from '/public/assets/js/common/format.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 export function createClientModalModule({
     API,
@@ -132,7 +135,7 @@ export function createClientModalModule({
     }
 
     function currentClientMetaPolicy() {
-        const metaColumns = fetchDataTableMetaColumnsSync({
+        const metaColumns = getCachedDataTableMetaColumns({
             metaDomain: CLIENT_META_DOMAIN,
         });
 
@@ -672,7 +675,43 @@ export function createClientModalModule({
         renderBusinessCertificate(data.business_certificate || '', notify);
         renderRrnImage(data.rrn_image || '', notify);
         renderBankFile(data.bank_file || '', notify);
+        renderClientSystemInfo(data);
         applyClientModalPolicyLabels(document);
+    }
+
+    function renderClientSystemInfo(data = {}) {
+        const container = document.getElementById('clientSystemInfoFields');
+        if (!container) return;
+
+        const fields = [
+            { key: 'id', label: 'ID' },
+            { key: 'sort_no', label: '순번' },
+            { key: 'created_at', label: '생성일시', type: 'datetime' },
+            { key: 'created_by_name', label: '생성자' },
+            { key: 'updated_at', label: '수정일시', type: 'datetime' },
+            { key: 'updated_by_name', label: '수정자' },
+            { key: 'deleted_at', label: '삭제일시', type: 'datetime' },
+            { key: 'deleted_by_name', label: '삭제자' },
+        ];
+
+        container.replaceChildren(...fields.map((field) => {
+            const item = document.createElement('div');
+            item.className = 'client-system-info-field';
+
+            const label = document.createElement('span');
+            label.className = 'client-system-info-label';
+            label.textContent = field.label;
+
+            const value = document.createElement('span');
+            value.className = 'client-system-info-value';
+            const rawValue = field.type === 'datetime'
+                ? formatDateDisplay(data[field.key])
+                : data[field.key];
+            value.textContent = rawValue === null || rawValue === undefined ? '' : String(rawValue);
+
+            item.append(label, value);
+            return item;
+        }));
     }
 
     function initModal() {
@@ -681,6 +720,8 @@ export function createClientModalModule({
         state.excelModal = document.getElementById('clientExcelModal') ? new bootstrap.Modal(document.getElementById('clientExcelModal')) : null;
         if (!modalEl) return;
         applyClientModalPolicyLabels(document);
+        bindModalCardCollapses(modalEl, { resetOnShow: true });
+        renderClientSystemInfo();
         modalEl.addEventListener('hide.bs.modal', closeClientModalSelect2);
         modalEl.addEventListener('hidden.bs.modal', () => {
             closeClientModalSelect2();
@@ -701,6 +742,7 @@ export function createClientModalModule({
                 rrnField.dataset.real = '';
             }
             resetRrnVisibility();
+            renderClientSystemInfo();
             applyClientModalPolicyLabels(document);
         });
         formModule.bindDateIconPicker();
@@ -745,6 +787,7 @@ export function createClientModalModule({
             field.dispatchEvent(new Event('change', { bubbles: true }));
         });
         applyClientModalPolicyLabels(document);
+        renderClientSystemInfo();
         state.clientModal?.show();
         void prepareClientModalControls().catch((error) => {
             console.error('[client] modal controls prepare failed', error);
@@ -796,15 +839,20 @@ export function createClientModalModule({
                 if (button) button.disabled = false;
             });
         });
-        $('#btnDeleteClient').off('click').on('click', function () {
+        $('#btnDeleteClient').off('click').on('click', async function () {
             const id = $('#modal_client_id').val();
             if (!id || !confirm('삭제하시겠습니까?')) return;
-            $.post(API.DELETE, { id }).done((res) => {
-                if (!res.success) return alert(res.message || '삭제에 실패했습니다.');
-                notify('success', '삭제가 완료되었습니다.');
-                state.clientTable?.ajax.reload(null, false);
-                state.clientModal?.hide();
-            });
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '거래처를 휴지통으로 이동 중' }, async () => {
+                    const res = await $.post(API.DELETE, { id });
+                    if (!res.success) throw new Error(res.message || '삭제에 실패했습니다.');
+                    notify('success', '삭제가 완료되었습니다.');
+                    await new Promise(resolve => state.clientTable?.ajax.reload(() => resolve(), false));
+                    state.clientModal?.hide();
+                });
+            } catch (error) {
+                notify('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
     }
 

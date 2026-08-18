@@ -37,3 +37,9 @@ storage/tmp/
 # OS
 Thumbs.db
 .DS_Store
+
+# 데이터베이스 백업
+storage/db_backup/
+
+# 사용자 업로드 문서
+public/uploads/documents/

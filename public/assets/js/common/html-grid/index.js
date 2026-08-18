@@ -8,12 +8,13 @@ import {
     formatCurrency,
     formatDate,
     formatNumber,
+    formatOption,
     formatPercent,
     formatText,
 } from './formatter.js';
 import { createKeyboardController } from './keyboard.js';
 import { createPluginRegistry } from './plugin-registry.js';
-import { createGridRenderer } from './renderer.js';
+import { createGridRenderer } from './renderer.js?v=20260811-pinned-1';
 import { createReorderController } from './reorder.js';
 import { createResizeController } from './resize.js';
 import { createRuntimeSchema } from './schema.js';
@@ -38,6 +39,7 @@ import { createCurrencyPlugin } from './plugins/currency.js';
 import { createDatepickerPlugin } from './plugins/datepicker.js';
 import { createNumberPlugin } from './plugins/number.js';
 import { createSelect2Plugin } from './plugins/select2.js';
+import { createTimePickerPlugin } from './plugins/time-picker.js';
 
 function resolveDocument(config = {}) {
     if (config.document) {
@@ -71,6 +73,7 @@ function createBuiltinFormatterMap(customFormatters = {}) {
     return {
         text: formatText,
         number: formatNumber,
+        option: formatOption,
         currency: formatCurrency,
         date: formatDate,
         percent: formatPercent,
@@ -92,6 +95,7 @@ function createBuiltinPluginMap(customPlugins = {}) {
     return {
         select2: createSelect2Plugin,
         datepicker: createDatepickerPlugin,
+        'time-picker': createTimePickerPlugin,
         number: createNumberPlugin,
         currency: createCurrencyPlugin,
         'code-picker': createCodePickerPlugin,
@@ -168,6 +172,30 @@ function applyColumnWidths(host, columns = [], columnState = {}) {
             }
         });
     });
+
+    const pinnedKeys = new Set(Array.isArray(columnState.pinned) ? columnState.pinned : []);
+    let left = 0;
+    let lastPinnedKey = '';
+    visibleColumns.forEach((column) => {
+        const selector = `[data-column-key="${String(column.key)}"]`;
+        const elements = Array.from(host.querySelectorAll(selector));
+        elements.forEach((element) => {
+            element.classList.remove('is-pinned-left', 'is-last-pinned-left');
+            element.style.removeProperty('--html-grid-pinned-left');
+        });
+        if (!pinnedKeys.has(column.key)) return;
+
+        elements.forEach((element) => {
+            element.classList.add('is-pinned-left');
+            element.style.setProperty('--html-grid-pinned-left', `${left}px`);
+        });
+        lastPinnedKey = column.key;
+        left += Number(widths[column.key] ?? column.width ?? 0);
+    });
+    if (lastPinnedKey !== '') {
+        Array.from(host.querySelectorAll(`[data-column-key="${String(lastPinnedKey)}"]`))
+            .forEach((element) => element.classList.add('is-last-pinned-left'));
+    }
 }
 
 function createCommandContext(dependencies = {}) {
@@ -277,9 +305,95 @@ export function createHtmlGrid(config = {}) {
     let renderedStructure = null;
     let destroyed = false;
     let keyboardUnbind = null;
+    let editorFocusUnbind = null;
+    let editorCommitUnbind = null;
     const deferredRowRenderIds = new Set();
     let deferredRowRenderQueued = false;
     let keyboard = null;
+    let selectionCheckboxBound = false;
+
+    function bindSelectionCheckboxes() {
+        if (!rootHost || selectionCheckboxBound) return;
+        rootHost.addEventListener('change', (event) => {
+            const checkbox = event.target.closest?.('.html-grid-row-selection');
+            if (!checkbox) return;
+            const rowIndex = state.rows.findIndex((row) => row.rowId === checkbox.dataset.rowId);
+            if (rowIndex < 0) return;
+            const result = checkbox.checked
+                ? selection.selectRow(rowIndex, { append: true })
+                : selection.deselectRow(rowIndex);
+            if (result?.executed) {
+                eventBus.emit('selection:changed', {
+                    selection: state.selection,
+                    rowId: result.rowId,
+                    selected: checkbox.checked,
+                });
+            }
+        });
+        selectionCheckboxBound = true;
+    }
+
+    function commitEditorSlot(slot) {
+        const editor = slot?.__htmlGridEditor;
+        const cell = slot?.closest?.('[data-row-id][data-column-key]');
+        if (!editor?.getValue || !cell) return false;
+        const rowIndex = state.rows.findIndex((row) => row.rowId === cell.dataset.rowId);
+        const columnKey = String(cell.dataset.columnKey || '');
+        const column = schema.columns.find((entry) => entry.key === columnKey);
+        if (rowIndex < 0 || columnKey === '' || column?.editable === false) return false;
+        const value = editor.getValue();
+        if (String(state.rows[rowIndex]?.values?.[columnKey] ?? '') === String(value ?? '')) return false;
+        api.updateCell(rowIndex, columnKey, value);
+        return true;
+    }
+
+    function commitEditors() {
+        if (!rootHost?.querySelectorAll) return 0;
+        return Array.from(rootHost.querySelectorAll('.html-grid-cell-editor-slot'))
+            .reduce((count, slot) => count + (commitEditorSlot(slot) ? 1 : 0), 0);
+    }
+
+    function focusEditorCell(rowIndex, columnKey) {
+        const row = state.rows[rowIndex];
+        if (!row || !rootHost?.querySelector) return false;
+        const selector = `[data-row-id="${CSS.escape(row.rowId)}"][data-column-key="${CSS.escape(columnKey)}"] .html-grid-editor`;
+        const editor = rootHost.querySelector(selector);
+        if (!editor) return false;
+        editor.focus?.({ preventScroll: true });
+        editor.select?.();
+        return true;
+    }
+
+    function bindEditorFocus() {
+        if (!rootHost?.addEventListener || editorFocusUnbind) return;
+        const handler = (event) => {
+            const cell = event.target?.closest?.('[data-row-id][data-column-key]');
+            if (!cell || !rootHost.contains(cell)) return;
+            const rowIndex = state.rows.findIndex((row) => row.rowId === cell.dataset.rowId);
+            const columnKey = String(cell.dataset.columnKey || '');
+            if (rowIndex < 0 || columnKey === '') return;
+            const active = state.selection?.activeCell;
+            if (active?.rowIndex !== rowIndex || active?.columnKey !== columnKey) api.focusCell(rowIndex, columnKey);
+        };
+        rootHost.addEventListener('focusin', handler);
+        editorFocusUnbind = () => {
+            rootHost?.removeEventListener?.('focusin', handler);
+            editorFocusUnbind = null;
+        };
+    }
+
+    function bindEditorCommit() {
+        if (config.commitEditorsOnChange !== true || !rootHost?.addEventListener || editorCommitUnbind) return;
+        const handler = (event) => {
+            const slot = event.target?.closest?.('.html-grid-cell-editor-slot');
+            if (slot && rootHost.contains(slot)) commitEditorSlot(slot);
+        };
+        rootHost.addEventListener('change', handler);
+        editorCommitUnbind = () => {
+            rootHost?.removeEventListener?.('change', handler);
+            editorCommitUnbind = null;
+        };
+    }
 
     function syncColumnStateToState() {
         state.columns = {
@@ -313,7 +427,11 @@ export function createHtmlGrid(config = {}) {
 
         syncColumnStateToState();
         cleanupRoot(rootHost);
-        renderedStructure = renderer.render(rootHost, state, options);
+        renderedStructure = renderer.render(rootHost, state, {
+            ...options,
+            showResizeHandle: options.showResizeHandle ?? state.capabilities?.columnResize !== false,
+        });
+        bindSelectionCheckboxes();
         applyColumnWidths(rootHost, columnManager.getVisibleColumns(), columnManager.getState());
         pluginRegistry.mount(rootHost, getPluginContext());
         pluginRegistry.update(rootHost, getPluginContext());
@@ -331,6 +449,20 @@ export function createHtmlGrid(config = {}) {
 
         renderedStructure.table.classList.toggle('is-hidden', !hasRows && !isLoading && !hasError);
         renderedStructure.empty.classList.toggle('is-hidden', hasRows && !isLoading && !hasError);
+    }
+
+    function syncSelectionDom() {
+        if (!rootHost?.querySelectorAll) return;
+        const selectedRowIds = new Set(state.selection?.selectedRowIds || []);
+        rootHost.querySelectorAll('.html-grid-body-row[data-row-id]').forEach(row => {
+            const selected = selectedRowIds.has(String(row.dataset.rowId || ''));
+            row.classList.toggle('is-selected', selected);
+            if (selected) row.setAttribute('aria-selected', 'true');
+            else row.removeAttribute('aria-selected');
+            row.querySelector('.html-grid-row-selection')?.toggleAttribute('checked', selected);
+            const checkbox = row.querySelector('.html-grid-row-selection');
+            if (checkbox) checkbox.checked = selected;
+        });
     }
 
     function renderBodyOnly() {
@@ -368,7 +500,7 @@ export function createHtmlGrid(config = {}) {
 
         syncColumnStateToState();
         renderer.renderHeader(renderedStructure.thead, state, {
-            showResizeHandle: true,
+            showResizeHandle: state.capabilities?.columnResize !== false,
             showSortUi: false,
         });
         applyColumnWidths(rootHost, columnManager.getVisibleColumns(), columnManager.getState());
@@ -467,12 +599,14 @@ export function createHtmlGrid(config = {}) {
     });
 
     function validateState() {
+        if (config.commitEditorsBeforeRead === true) commitEditors();
         state.validation = validator.validate({ state, reason: 'api-validate' });
         eventBus.emit('validation:changed', { validation: cloneValue(state.validation) });
         return cloneValue(state.validation);
     }
 
     function serializeState() {
+        if (config.commitEditorsBeforeRead === true) commitEditors();
         return serializer.serialize({ state, reason: 'api-serialize' });
     }
 
@@ -536,6 +670,8 @@ export function createHtmlGrid(config = {}) {
         onCopy: config.hooks?.onCopy || null,
         onPaste: config.hooks?.onPaste || null,
         onSelectAll: config.hooks?.onSelectAll || null,
+        onBeforeMove: ({ event }) => commitEditorSlot(event.target?.closest?.('.html-grid-cell-editor-slot')),
+        onFocusCell: ({ rowIndex, columnKey }) => focusEditorCell(rowIndex, columnKey),
     });
 
     function bindKeyboard() {
@@ -587,6 +723,9 @@ export function createHtmlGrid(config = {}) {
     eventBus.on('cell:changed', ({ row, columnKey }) => {
         updateCellPartial(row?.rowId || '', columnKey || '');
     });
+    eventBus.on('selection:changed', () => {
+        syncSelectionDom();
+    });
     eventBus.on('validation:changed', () => {
         // Validation updates must not recreate active editors; row/cell events own body rendering.
         renderFooterOnly();
@@ -605,6 +744,8 @@ export function createHtmlGrid(config = {}) {
         }
 
         keyboardUnbind?.();
+        editorFocusUnbind?.();
+        editorCommitUnbind?.();
         cleanupRoot(rootHost);
         eventBus.clear();
         if (rootHost) {
@@ -636,6 +777,8 @@ export function createHtmlGrid(config = {}) {
                 rootHost = options.host;
             }
             bindKeyboard();
+            bindEditorCommit();
+            bindEditorFocus();
             return api.render(options);
         },
         refresh(options = {}) {
@@ -648,6 +791,7 @@ export function createHtmlGrid(config = {}) {
             return serializeState();
         },
         destroy,
+        commitEditors,
         on(eventName, handler) {
             return api.on(eventName, handler);
         },
@@ -683,6 +827,19 @@ export function createHtmlGrid(config = {}) {
         focusCell(rowIndex, columnKey) {
             return api.focusCell(rowIndex, columnKey);
         },
+        focusFirstError(validation = state.validation) {
+            const cellErrors = validation?.cellErrors || {};
+            for (let rowIndex = 0; rowIndex < state.rows.length; rowIndex += 1) {
+                const row = state.rows[rowIndex];
+                const rowErrors = cellErrors[row.rowId] || {};
+                const column = schema.columns.find((entry) => rowErrors[entry.key]?.length);
+                if (!column) continue;
+                api.focusCell(rowIndex, column.key);
+                rootHost?.querySelector(`[data-row-id="${CSS.escape(row.rowId)}"][data-column-key="${CSS.escape(column.key)}"] .html-grid-editor`)?.focus?.();
+                return { rowIndex, columnKey: column.key, messages: rowErrors[column.key] };
+            }
+            return null;
+        },
         selectRow(rowIndex, options = {}) {
             return selection.selectRow(rowIndex, options);
         },
@@ -707,6 +864,8 @@ export function createHtmlGrid(config = {}) {
 
     if (rootHost) {
         bindKeyboard();
+        bindEditorCommit();
+        bindEditorFocus();
     }
 
     return publicApi;

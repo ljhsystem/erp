@@ -2,7 +2,7 @@
 
 namespace Core\Helpers;
 
-use Core\Database;
+use App\Models\System\SequenceModel;
 use Throwable;
 
 class SequenceHelper
@@ -17,13 +17,8 @@ class SequenceHelper
             throw new \InvalidArgumentException("Invalid column name: {$column}");
         }
 
-        $pdo = Database::getInstance()->getConnection();
-
         try {
-            $stmt = $pdo->query("SELECT COALESCE(MAX(`{$column}`), 0) + 1 FROM `{$table}`");
-            $next = (int) $stmt->fetchColumn();
-
-            return $next > 0 ? $next : 1;
+            return (new SequenceModel())->nextMaximumValue($table, $column);
         } catch (Throwable $e) {
             error_log("[SequenceHelper] next error ({$table}.{$column}): " . $e->getMessage());
             throw $e;

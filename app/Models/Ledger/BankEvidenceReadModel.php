@@ -2,8 +2,8 @@
 
 namespace App\Models\Ledger;
 
-use App\Services\Ledger\BodyTableSchemaService;
-use App\Services\Ledger\EvidenceProcessingPolicyService;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -11,8 +11,8 @@ class BankEvidenceReadModel
 {
     public function __construct(
         private PDO $pdo,
-        private BodyTableSchemaService $schemaService,
-        private EvidenceProcessingPolicyService $processingPolicyService
+        private EvidenceSchemaModel $schemaService,
+        private EvidenceBodyStatusProjectionModel $processingPolicyService
     ) {
     }
 
@@ -49,7 +49,6 @@ class BankEvidenceReadModel
                 st.code_name AS source_type_name,
                 it.code_name AS import_type_name,
                 body.sort_no AS sort_no,
-                body.evidence_sort_no AS evidence_sort_no,
                 0 AS row_no,
                 " . $this->schemaService->sourceFormatIdSelect('ledger_evidence_bank_transaction') . " AS format_id,
                 " . $this->schemaService->sourceRawJsonSelect('ledger_evidence_bank_transaction') . " AS raw_json,
@@ -94,13 +93,11 @@ class BankEvidenceReadModel
                AND vx.target_type = 'VOUCHER'
                AND vx.deleted_at IS NULL
             LEFT JOIN system_codes st
-                ON st.deleted_at IS NULL
-               AND st.is_active = 1
+                ON st.is_active = 1
                AND st.code_group IN ('IMPORT_SOURCE', 'SOURCE_TYPE')
                AND st.code = 'BANK'
             LEFT JOIN system_codes it
-                ON it.deleted_at IS NULL
-               AND it.is_active = 1
+                ON it.is_active = 1
                AND it.code_group = 'IMPORT_TYPE'
                AND it.code = 'BANK_TRANSACTION'
             WHERE " . implode(' AND ', $where) . "

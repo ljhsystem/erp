@@ -3,11 +3,12 @@
 
 namespace Core;
 
+use App\Services\System\PageRegistryQueryService;
 use PDO;
 
 class PageKeyResolver
 {
-    private PDO $pdo;
+    private PageRegistryQueryService $pageRegistryService;
     private bool $loaded = false;
 
     /** @var array<string,string> */
@@ -29,6 +30,7 @@ class PageKeyResolver
         'api.settings.base-info.bank-account.' => 'settings.base_info.bank_accounts',
         'api.settings.base-info.card.' => 'settings.base_info.cards',
         'api.settings.base-info.work-team.' => 'settings.base_info.work_teams',
+        'api.settings.statutory-standards.' => 'settings.statutory_standards.manage',
         'api.settings.base-info.code.' => 'settings.system.codes',
         'api.settings.employee.' => 'settings.organization.employees',
         'api.settings.department.' => 'settings.organization.departments',
@@ -49,13 +51,12 @@ class PageKeyResolver
         'api.ledger.transaction.' => 'ledger.transactions',
         'api.ledger.voucher.' => 'ledger.vouchers',
         'api.funds.bank_transactions.' => 'ledger.funds.bank_transactions',
-        'api.approval.request.' => 'approval.dashboard',
-        'api.approval.step.' => 'approval.dashboard',
+        'api.approval.personal-expense.' => 'approval.personal_expense',
+        'api.approval.inbox.' => 'approval.inbox',
         'api.import.format.' => 'ledger.data.formats',
         'api.import.formats.' => 'ledger.data.formats',
         'api.import.seed_row.' => 'ledger.data.upload',
         'api.import.seed_rows.' => 'ledger.data.upload',
-        'api.import.processing_items.' => 'ledger.data.create_center',
         'api.user.external_accounts.' => 'profile.view',
     ];
 
@@ -71,11 +72,10 @@ class PageKeyResolver
         'api.funds.bank_transactions.accounts' => 'ledger.funds.bank_transactions',
         'api.funds.bank_transactions.reconcile' => 'ledger.funds.reconciliation',
         'api.import.batch.delete' => 'ledger.data.upload',
-        'api.import.create_bundled_voucher' => 'ledger.data.create_center',
         'api.import.data_types' => 'ledger.data.formats',
-        'api.import.recommend_transactions' => 'ledger.data.create_center',
-        'api.import.recommend_voucher_lines' => 'ledger.data.create_center',
         'api.ledger.voucher.number' => 'ledger.vouchers',
+        'web.approval.inbox' => 'approval.inbox',
+        'web.approval.personal-expense' => 'approval.personal_expense',
         'web.ledger.data.raw' => 'ledger.data.list',
         'web.ledger.funds.reconciliation' => 'ledger.funds.reconciliation',
         'web.ledger.sub_accounts' => 'ledger.settings.sub_accounts',
@@ -92,13 +92,13 @@ class PageKeyResolver
         '회계관리 > 자료관리 > 원본자료' => 'ledger.data.list',
         '회계관리 > 자금관리 > 계좌별거래내역' => 'ledger.funds.bank_transactions',
         '회계관리 > 자금관리 > 계좌대사' => 'ledger.funds.reconciliation',
-        '회계관리 > 전표관리 > 전표검토/승인' => 'ledger.vouchers.index',
+        '회계관리 > 전표관리 > 전표검토·전기' => 'ledger.vouchers.review',
         '회계관리 > 전표관리 > 전표조회' => 'ledger.vouchers.index',
     ];
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo = $pdo;
+        $this->pageRegistryService = new PageRegistryQueryService($pdo);
     }
 
     public function resolve(string $permissionKey, ?string $description = null, ?string $category = null): ?string
@@ -149,12 +149,7 @@ class PageKeyResolver
         $this->loaded = true;
 
         try {
-            $stmt = $this->pdo->query("
-                SELECT page_key, breadcrumb, default_route_key
-                FROM system_page_registry
-                WHERE is_active = 1
-            ");
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rows = $this->pageRegistryService->getResolverRows();
         } catch (\Throwable $e) {
             $rows = [];
         }
@@ -262,15 +257,6 @@ class PageKeyResolver
             str_contains($normalizedKey, '.batch.delete')
         ) {
             return 'ledger.data.upload';
-        }
-
-        if (
-            str_contains($normalizedKey, '.processing_items.') ||
-            str_contains($normalizedKey, '.create_bundled_voucher') ||
-            str_contains($normalizedKey, '.recommend_transactions') ||
-            str_contains($normalizedKey, '.recommend_voucher_lines')
-        ) {
-            return 'ledger.data.create_center';
         }
 
         if (

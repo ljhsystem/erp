@@ -55,10 +55,7 @@ function resolveMetaConfig(domain, options = {}) {
 }
 
 function buildExcelColumnsFromMeta(domain, type, options = {}) {
-    const metaEntries = buildDataTableDefaultMetaEntries(
-        resolveMetaConfig(domain, options),
-        { forceRefresh: options?.forceRefresh === true }
-    );
+    const metaEntries = Array.isArray(options?.metaEntries) ? options.metaEntries : [];
 
     return metaEntries.map((entry) => ({
         key: entry.key,
@@ -378,10 +375,10 @@ function serializeState(type, state) {
     return payload;
 }
 
-function loadState(domain, type, options = {}) {
+async function loadState(domain, type, options = {}) {
     const fallback = serializeState(type, createDefaultState(domain, type, options));
     const key = settingsKey(domain, type);
-    const loaded = loadExcelSettings(key, fallback, buildStorageOptions(domain, type, options));
+    const loaded = await loadExcelSettings(key, fallback, buildStorageOptions(domain, type, options));
     const normalized = normalizeState(domain, type, loaded, options);
 
     if (needsStateMigration(type, loaded)) {
@@ -778,7 +775,7 @@ function bindEvents(form, domain, states, options = {}) {
     };
 }
 
-export function createExcelManagerSettingsCore(config) {
+export async function createExcelManagerSettingsCore(config) {
     const domain = String(config?.domain || '').trim();
     const formSelector = String(config?.formSelector || '').trim();
     const form = document.querySelector(formSelector);
@@ -792,17 +789,25 @@ export function createExcelManagerSettingsCore(config) {
         return null;
     }
 
+    stateOptions.metaEntries = await buildDataTableDefaultMetaEntries(resolveMetaConfig(domain, stateOptions));
+
+    const [templateState, downloadState] = await Promise.all([
+        loadState(domain, 'template', stateOptions),
+        loadState(domain, 'download', stateOptions),
+    ]);
     const states = {
-        template: loadState(domain, 'template', stateOptions),
-        download: loadState(domain, 'download', stateOptions),
+        template: templateState,
+        download: downloadState,
     };
 
     ensureExcelSettingsLayout(form);
     render(form, domain, states, stateOptions);
     bindEvents(form, domain, states, stateOptions);
-    window.setTimeout(() => {
-        states.template = loadState(domain, 'template', stateOptions);
-        states.download = loadState(domain, 'download', stateOptions);
+    window.setTimeout(async () => {
+        [states.template, states.download] = await Promise.all([
+            loadState(domain, 'template', stateOptions),
+            loadState(domain, 'download', stateOptions),
+        ]);
         render(form, domain, states, stateOptions);
     }, 0);
 
@@ -818,9 +823,11 @@ export function createExcelManagerSettingsCore(config) {
         getColumnRequirement(type) {
             return isTemplateType(type) ? buildColumnRequirement(states[type] || null) : {};
         },
-        reload() {
-            states.template = loadState(domain, 'template', stateOptions);
-            states.download = loadState(domain, 'download', stateOptions);
+        async reload() {
+            [states.template, states.download] = await Promise.all([
+                loadState(domain, 'template', stateOptions),
+                loadState(domain, 'download', stateOptions),
+            ]);
             render(form, domain, states, stateOptions);
         },
         destroy() {

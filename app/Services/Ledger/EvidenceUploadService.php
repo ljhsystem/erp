@@ -2,6 +2,7 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceBodyStorageModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
@@ -12,6 +13,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class EvidenceUploadService
 {
+    private EvidenceBodyStorageModel $bodyStorageModel;
+    private EvidenceExternalKeyService $externalKeyService;
     /**
      * @param callable(string):string $dataTypeNormalizer
      * @param callable(array):array $bankPayloadNormalizer
@@ -49,10 +52,11 @@ class EvidenceUploadService
         private $requiredFormatColumnChecker,
         private array $callbacks = []
     ) {
+        $this->bodyStorageModel = new EvidenceBodyStorageModel($pdo);
+        $this->externalKeyService = new EvidenceExternalKeyService();
     }
 
     private array $existingSeedRowCache = [];
-    private array $existingSeedFingerprintCache = [];
 
     public function cancel(array $payload): array
     {
@@ -384,6 +388,12 @@ class EvidenceUploadService
     public function buildCompletedChunkUploadResult(int $totalRows, int $offset): array
     {
         return [
+            'total_count' => $totalRows,
+            'inserted_count' => 0,
+            'duplicate_count' => 0,
+            'deleted_duplicate_count' => 0,
+            'conflict_count' => 0,
+            'details' => [],
             'total_rows' => $totalRows,
             'processed_count' => 0,
             'new_count' => 0,
@@ -621,21 +631,9 @@ class EvidenceUploadService
             }
 
             $existing = $this->findExistingSeedRow($dataType, $sourceKey);
-            if (!$existing && $this->usesFingerprintSourceKey($dataType)) {
-                $existing = $this->findExistingSeedRowByFingerprint($dataType, $parsed);
+            if ($existing) {
+                $row['_seed_action'] = !empty($existing['deleted_at']) ? 'DELETED_DUPLICATE' : 'DUPLICATE';
             }
-            if (!$existing) {
-                continue;
-            }
-
-            $rawJson = ($this->jsonEncoder)(is_array($row['_raw_payload'] ?? null) ? $row['_raw_payload'] : []);
-            $parsedJson = ($this->jsonEncoder)($parsed);
-            $existingParsed = json_decode((string) ($existing['mapped_payload_json'] ?? ''), true);
-            $existingParsed = is_array($existingParsed) ? $existingParsed : [];
-            $isUnchanged = (string) ($existing['raw_json'] ?? '') === $rawJson && ($this->jsonEncoder)($existingParsed) === $parsedJson;
-            $row['_seed_action'] = $isUnchanged
-                ? 'UNCHANGED'
-                : ($this->isUploadProtectedExistingSeed($existing) ? 'PROTECTED_UPDATE' : 'UPDATED');
         }
         unset($row);
 
@@ -644,10 +642,6 @@ class EvidenceUploadService
 
     public function preloadExistingSeedRowsForUploadRows(array $rows, string $dataType): void
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return;
-        }
-
         $sourceKeys = [];
         $dataType = ($this->dataTypeNormalizer)($dataType);
         foreach ($rows as $row) {
@@ -659,9 +653,6 @@ class EvidenceUploadService
                 $parsedPayload = ($this->bankPayloadNormalizer)($parsedPayload);
             }
             $sourceKey = ($this->seedSourceKeyBuilder)($parsedPayload, $dataType);
-            if ($sourceKey === null) {
-                $sourceKey = hash('sha256', $dataType . '|' . ($this->jsonEncoder)(is_array($row['_raw_payload'] ?? null) ? $row['_raw_payload'] : $parsedPayload));
-            }
             if ($sourceKey !== '') {
                 $sourceKeys[] = $sourceKey;
             }
@@ -672,47 +663,14 @@ class EvidenceUploadService
 
     public function findExistingSeedRow(string $sourceType, string $sourceKey): ?array
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return null;
-        }
-
         $cacheKey = ($this->dataTypeNormalizer)($sourceType) . '|' . $sourceKey;
         if (array_key_exists($cacheKey, $this->existingSeedRowCache)) {
             return $this->existingSeedRowCache[$cacheKey];
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT
-                p.id AS id,
-                p.raw_json,
-                p.mapped_payload_json,
-                CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                tx.target_id AS transaction_id
-            FROM ledger_data_evidences p
-            " . $this->evidenceProcessingJoin('p', 'pr') . "
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE p.source_type = :source_type
-              AND source_key = :source_key
-            ORDER BY p.created_at DESC
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':source_type' => ($this->dataTypeNormalizer)($sourceType),
-            ':source_key' => $sourceKey,
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $this->bodyStorageModel->findUploadSeedByImportType(
+            ($this->dataTypeNormalizer)($sourceType), $sourceKey
+        );
         $this->existingSeedRowCache[$cacheKey] = $row;
 
         return $row;
@@ -720,156 +678,30 @@ class EvidenceUploadService
 
     public function findExistingSeedRowByFingerprint(string $sourceType, array $payload): ?array
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return null;
-        }
-
-        $sourceType = ($this->dataTypeNormalizer)($sourceType);
-        $fingerprint = $this->sourceFingerprintKey($payload, $sourceType);
-        if (!isset($this->existingSeedFingerprintCache[$sourceType])) {
-            $this->existingSeedFingerprintCache[$sourceType] = $this->loadExistingSeedFingerprintIndex($sourceType);
-        }
-
-        return $this->existingSeedFingerprintCache[$sourceType][$fingerprint] ?? null;
+        return $this->findExistingSeedRow($sourceType, $this->externalKeyService->key($payload, $sourceType));
     }
 
     public function sourceFingerprintKey(array $row, string $dataType): string
     {
-        $payload = $this->sourceFingerprintPayload($row);
-        if ($payload === []) {
-            return hash('sha256', ($this->dataTypeNormalizer)($dataType) . '|empty');
-        }
-
-        return hash('sha256', ($this->dataTypeNormalizer)($dataType) . '|fingerprint|' . ($this->jsonEncoder)($payload));
+        return $this->externalKeyService->key($row, ($this->dataTypeNormalizer)($dataType));
     }
 
     public function usesFingerprintSourceKey(string $dataType): bool
     {
-        return in_array(($this->dataTypeNormalizer)($dataType), ['CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'], true);
+        return false;
     }
-
     public function seedSourceKey(array $row, string $dataType): ?string
     {
-        $dataType = ($this->dataTypeNormalizer)($dataType);
-        $explicitSourceKey = trim((string) ($row['source_key'] ?? ''));
-        if ($dataType !== 'BANK_TRANSACTION' && $explicitSourceKey !== '') {
-            return $explicitSourceKey;
-        }
-        if ($dataType === 'BANK_TRANSACTION') {
-            $bankReferenceNo = trim((string) ($row['bank_reference_no'] ?? ''));
-            $rawTransactionDateTime = $this->call('dateTimeValue', $row['raw_transaction_datetime'] ?? $row['transaction_datetime'] ?? $row['transaction_at'] ?? null);
-            $parts = [
-                $rawTransactionDateTime ?: '',
-                $this->call('businessRefIdForStorage', 'ACCOUNT', $row) ?? '',
-                $row['bank_account_name'] ?? '',
-                $this->call('number', $row['raw_deposit_amount'] ?? $row['deposit_amount'] ?? 0),
-                $this->call('number', $row['raw_withdraw_amount'] ?? $row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? 0),
-                $this->call('amountOrNull', $row['raw_balance_amount'] ?? $row['balance_amount'] ?? null) ?? '',
-                $this->call('amountOrNull', $row['raw_check_bill_amount'] ?? $row['check_bill_amount'] ?? null) ?? '',
-                $row['raw_description'] ?? $row['description'] ?? '',
-                $row['raw_counterparty_name'] ?? $row['counterparty_name'] ?? '',
-                $row['raw_counterparty_account_number'] ?? $row['counterparty_account_number'] ?? $row['counterparty_account_no'] ?? '',
-                $row['raw_counterparty_bank_name'] ?? $row['counterparty_bank_name'] ?? $row['counterparty_bank'] ?? '',
-                $row['raw_cms_code'] ?? $bankReferenceNo,
-            ];
-
-            $parts = array_map(static fn(mixed $value): string => trim((string) $value), $parts);
-            if (implode('', $parts) === '') {
-                return null;
-            }
-
-            return hash('sha256', $dataType . '|bank|' . implode('|', $parts));
-        }
-
-        $parts = [];
-        if ($dataType === 'TAX_INVOICE' || $this->call('isManualTaxInvoiceDataType', $dataType)) {
-            $parts = [
-                $row['approval_number'] ?? '',
-                $this->call('normalizeBusinessNumber', (string) ($row['supplier_business_number'] ?? '')),
-                $this->call('normalizeBusinessNumber', (string) ($row['customer_business_number'] ?? '')),
-                $this->call('dateValue', $row['issue_date'] ?? $row['transaction_date'] ?? ''),
-            ];
-        } elseif ($dataType === 'CARD_HOMETAX') {
-            return $this->sourceFingerprintKey($row, $dataType);
-        } elseif (in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true)) {
-            return $this->sourceFingerprintKey($row, $dataType);
-        } else {
-            $parts = [
-                $row['approval_number'] ?? '',
-                $this->call('dateValue', $row['transaction_date'] ?? $row['issue_date'] ?? ''),
-                $this->call('normalizeBusinessNumber', (string) ($row['supplier_business_number'] ?? $row['customer_business_number'] ?? $row['client_business_number'] ?? $row['merchant_business_number'] ?? '')),
-                $this->call('number', $row['total_amount'] ?? 0),
-                trim((string) ($row['description'] ?? $row['merchant_company_name'] ?? '')),
-            ];
-        }
-
-        $parts = array_map(static fn(mixed $value): string => trim((string) $value), $parts);
-        if (implode('', $parts) === '') {
-            return null;
-        }
-
-        return hash('sha256', $dataType . '|' . implode('|', $parts));
+        return $this->externalKeyService->key($row, ($this->dataTypeNormalizer)($dataType));
     }
 
+    public function externalKeyContentDigest(array $row, string $dataType): string
+    {
+        return $this->externalKeyService->contentDigest($row, ($this->dataTypeNormalizer)($dataType));
+    }
     public function updateUploadRowStatus(string $rowId, string $status, ?string $message, ?string $transactionId = null): void
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return;
-        }
-
-        $isCorrectionError = $status === 'ERROR' && $this->isGenerationCorrectionMessage($message);
-        $processStatus = match ($status) {
-            'CREATED', 'PROCESSED' => 'PROCESSED',
-            'DUPLICATE', 'DUPLICATED' => 'DUPLICATED',
-            'PROCESSING' => 'PROCESSING',
-            'ERROR' => 'ERROR',
-            default => 'READY',
-        };
-        if ($isCorrectionError) {
-            $processStatus = 'READY';
-        }
-
-        $this->pdo->prepare("
-            UPDATE ledger_data_evidences
-            SET updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE id = :id
-        ")->execute([
-            ':id' => $rowId,
-            ':updated_by' => ActorHelper::user(),
-        ]);
-
-        if ($this->hasEvidenceProcessingTable()) {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO ledger_evidence_processing
-                    (id, evidence_type, evidence_id, processing_status, review_status, last_error_message, created_at, updated_at)
-                SELECT
-                    :processing_id,
-                    p.source_type,
-                    p.id,
-                    :processing_status,
-                    :review_status,
-                    :error_message,
-                    NOW(),
-                    NOW()
-                FROM ledger_data_evidences p
-                WHERE p.id = :id
-                ON DUPLICATE KEY UPDATE
-                    processing_status = VALUES(processing_status),
-                    review_status = VALUES(review_status),
-                    last_error_message = VALUES(last_error_message),
-                    deleted_at = NULL,
-                    updated_at = NOW()
-            ");
-            $params = [
-                ':id' => $rowId,
-                ':processing_id' => UuidHelper::generate(),
-                ':processing_status' => $processStatus,
-                ':review_status' => 'NORMAL',
-                ':error_message' => $isCorrectionError ? null : $message,
-            ];
-            $stmt->execute($params);
-        }
+        // 생성센터 처리상태 저장은 폐기되었으며 연결 상태는 ledger_evidence_links에서 조회한다.
     }
 
     public function isUploadProtectedExistingSeed(array $row): bool
@@ -900,9 +732,7 @@ class EvidenceUploadService
 
         $dataType = ($this->dataTypeNormalizer)($dataType);
         $this->existingSeedRowCache[$dataType . '|' . $sourceKey] = $row;
-        if ($payload !== null && $this->usesFingerprintSourceKey($dataType)) {
-            $this->existingSeedFingerprintCache[$dataType][$this->sourceFingerprintKey($payload, $dataType)] = $row;
-        }
+
     }
 
     private function uploadCancelPath(string $token): string
@@ -919,48 +749,6 @@ class EvidenceUploadService
         return str_contains($text, '자동으로 새 전표를 만들지 않았습니다.')
             || (str_contains($text, '이미 생성된 전표가 있어') && str_contains($text, '수정할 수 없습니다.'));
     }
-    private function hasEvidenceProcessingTable(): bool
-    {
-        return (bool) $this->call('tableExists', 'ledger_evidence_processing');
-    }
-
-    private function hasEvidenceSourceTable(): bool
-    {
-        return (bool) $this->call('tableExists', 'ledger_data_evidences');
-    }
-
-    private function evidenceProcessingJoin(string $payloadAlias = 'p', string $processingAlias = 'pr'): string
-    {
-        if (!$this->hasEvidenceProcessingTable()) {
-            return '';
-        }
-
-        return "
-            LEFT JOIN ledger_evidence_processing {$processingAlias}
-                ON {$processingAlias}.evidence_type COLLATE utf8mb4_unicode_ci = {$payloadAlias}.source_type COLLATE utf8mb4_unicode_ci
-               AND {$processingAlias}.evidence_id COLLATE utf8mb4_unicode_ci = {$payloadAlias}.id COLLATE utf8mb4_unicode_ci
-               AND {$processingAlias}.deleted_at IS NULL
-        ";
-    }
-
-    private function evidenceProcessingStatusSelect(string $processingAlias = 'pr', string $default = 'READY'): string
-    {
-        if (!$this->hasEvidenceProcessingTable()) {
-            return "'" . addslashes($default) . "'";
-        }
-
-        return "COALESCE({$processingAlias}.processing_status, '" . addslashes($default) . "')";
-    }
-
-    private function evidenceProcessingErrorMessageSelect(string $processingAlias = 'pr'): string
-    {
-        if (!$this->hasEvidenceProcessingTable()) {
-            return 'NULL';
-        }
-
-        return "{$processingAlias}.last_error_message";
-    }
-
     private function call(string $name, mixed ...$args): mixed
     {
         if (!isset($this->callbacks[$name])) {
@@ -977,75 +765,6 @@ class EvidenceUploadService
         }
 
         @file_put_contents($this->uploadCancelPath($token), (string) time(), LOCK_EX);
-    }
-
-    private function sourceFingerprintPayload(array $row): array
-    {
-        $skipKeys = [
-            '_row_no' => true,
-            '_upload_row_no' => true,
-            '_raw_payload' => true,
-            '_validation' => true,
-            '_seed_key' => true,
-            '_seed_action' => true,
-            '_voucher_lines' => true,
-        ];
-
-        $payload = [];
-        foreach ($row as $key => $value) {
-            $key = (string) $key;
-            if ($key === '' || isset($skipKeys[$key]) || str_starts_with($key, '_')) {
-                continue;
-            }
-            if (preg_match('/^column_\d+$/', $key) === 1) {
-                continue;
-            }
-            if (preg_match('/^\d+$/', $key) === 1) {
-                continue;
-            }
-            $normalized = $this->sourceFingerprintValue($value);
-            if ($normalized === '') {
-                continue;
-            }
-            $payload[$key] = $normalized;
-        }
-
-        ksort($payload);
-
-        return $payload;
-    }
-
-    private function sourceFingerprintValue(mixed $value): string
-    {
-        if (is_array($value)) {
-            $normalized = [];
-            foreach ($value as $key => $item) {
-                $itemValue = $this->sourceFingerprintValue($item);
-                if ($itemValue !== '') {
-                    $normalized[(string) $key] = $itemValue;
-                }
-            }
-            ksort($normalized);
-
-            return $normalized !== [] ? ($this->jsonEncoder)($normalized) : '';
-        }
-
-        $text = trim((string) $value);
-        if ($text === '') {
-            return '';
-        }
-
-        $amount = ($this->amountParser)($text);
-        if ($amount !== null && preg_match('/[0-9]/', $text) === 1 && !preg_match('/^\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}/', $text)) {
-            return rtrim(rtrim(sprintf('%.6F', $amount), '0'), '.');
-        }
-
-        $date = ($this->dateParser)($text);
-        if ($date !== null) {
-            return $date;
-        }
-
-        return preg_replace('/\s+/u', ' ', $text) ?? $text;
     }
 
     private function preloadExistingSeedRowsBySourceKeys(string $sourceType, array $sourceKeys): void
@@ -1068,44 +787,13 @@ class EvidenceUploadService
         }
 
         foreach (array_chunk($missing, 1000) as $chunkIndex => $chunk) {
-            $params = [':source_type' => $sourceType];
-            $placeholders = [];
-            foreach ($chunk as $index => $sourceKey) {
-                $name = ':source_key_' . $chunkIndex . '_' . $index;
-                $placeholders[] = $name;
-                $params[$name] = $sourceKey;
-            }
-
-            $stmt = $this->pdo->prepare("
-                SELECT
-                    p.id AS id,
-                    p.source_key,
-                    p.raw_json,
-                    p.mapped_payload_json,
-                    CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                    " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
-                    CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                    " . ($this->evidenceTransactionIdSelectBuilder)('') . "
-                FROM ledger_data_evidences p
-                " . $this->evidenceProcessingJoin('p', 'pr') . "
-                LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-                   AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-                   AND tx.target_type = 'TRANSACTION'
-                   AND tx.deleted_at IS NULL
-                LEFT JOIN ledger_evidence_links vx
-                    ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-                   AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-                   AND vx.target_type = 'VOUCHER'
-                   AND vx.deleted_at IS NULL
-                WHERE p.source_type = :source_type
-                  AND p.source_key IN (" . implode(', ', $placeholders) . ")
-                ORDER BY p.source_key ASC, p.created_at DESC
-            ");
-            $stmt->execute($params);
-
             $seen = [];
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $foundRows = [];
+            foreach ($chunk as $sourceKey) {
+                $row = $this->bodyStorageModel->findUploadSeedByImportType($sourceType, $sourceKey);
+                if ($row !== null) $foundRows[] = $row;
+            }
+            foreach ($foundRows as $row) {
                 $sourceKey = (string) ($row['source_key'] ?? '');
                 if ($sourceKey === '' || isset($seen[$sourceKey])) {
                     continue;
@@ -1121,50 +809,6 @@ class EvidenceUploadService
                 }
             }
         }
-    }
-
-    private function loadExistingSeedFingerprintIndex(string $sourceType): array
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT
-                p.id AS id,
-                p.source_key,
-                p.raw_json,
-                p.mapped_payload_json,
-                CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                tx.target_id AS transaction_id
-            FROM ledger_data_evidences p
-            " . $this->evidenceProcessingJoin('p', 'pr') . "
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE p.deleted_at IS NULL
-              AND p.source_type = :source_type
-        ");
-        $stmt->execute([':source_type' => ($this->dataTypeNormalizer)($sourceType)]);
-
-        $index = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
-            if (!is_array($payload)) {
-                continue;
-            }
-            $fingerprint = $this->sourceFingerprintKey($payload, $sourceType);
-            if (!isset($index[$fingerprint])) {
-                $index[$fingerprint] = $row;
-            }
-        }
-
-        return $index;
     }
 
     private function loadUploadedSpreadsheetHeaderOnly(array $file): Spreadsheet
@@ -1211,86 +855,12 @@ class EvidenceUploadService
 
     public function batches(): array
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return [];
-        }
-
-        $statusReady = $this->evidenceProcessingStatusSelect('pr');
-        $statusRaw = $this->evidenceProcessingStatusSelect('pr', '');
-        $stmt = $this->pdo->query("
-            SELECT
-                DATE(e.latest_imported_at) AS imported_date,
-                e.source_type AS data_type,
-                e.source_type AS source_type,
-                e.format_id,
-                '' AS format_name,
-                COUNT(*) AS total_rows,
-                SUM(CASE WHEN {$statusReady} = 'READY' THEN 1 ELSE 0 END) AS ready_count,
-                SUM(CASE WHEN {$statusReady} = 'READY' THEN 1 ELSE 0 END) AS valid_count,
-                0 AS warning_count,
-                SUM(CASE WHEN {$statusRaw} = 'ERROR' THEN 1 ELSE 0 END) AS error_count,
-                SUM(CASE WHEN {$statusRaw} = 'DUPLICATED' THEN 1 ELSE 0 END) AS duplicate_count,
-                SUM(CASE WHEN {$statusRaw} = 'PROCESSED' THEN 1 ELSE 0 END) AS created_count,
-                SUM(CASE WHEN {$statusRaw} = 'PROCESSED' THEN 1 ELSE 0 END) AS processed_count,
-                MAX(e.latest_imported_at) AS created_at,
-                MAX(e.updated_at) AS updated_at
-            FROM ledger_data_evidences e
-            " . $this->evidenceProcessingJoin('e', 'pr') . "
-            WHERE e.deleted_at IS NULL
-            GROUP BY DATE(e.latest_imported_at), e.source_type, e.format_id
-            ORDER BY MAX(e.latest_imported_at) DESC
-            LIMIT 100
-        ");
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $this->bodyStorageModel->uploadBatches();
     }
 
     public function batchRows(string $batchId): array
     {
-        if (!$this->hasEvidenceSourceTable()) {
-            return [];
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT
-                p.id AS id,
-                NULL AS batch_id,
-                p.source_type AS source_type,
-                0 AS row_no,
-                p.raw_json AS raw_payload,
-                p.mapped_payload_json AS mapped_payload,
-                CASE
-                    WHEN " . $this->evidenceProcessingStatusSelect('pr') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->evidenceProcessingStatusSelect('pr') . "
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE " . $this->evidenceProcessingStatusSelect('pr') . "
-                END AS status,
-                " . $this->evidenceProcessingErrorMessageSelect('pr') . " AS error_message,
-                tx.target_id AS transaction_id,
-                p.latest_imported_at AS processed_at,
-                p.created_at,
-                p.updated_at
-            FROM ledger_data_evidences p
-            " . $this->evidenceProcessingJoin('p', 'pr') . "
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            WHERE p.deleted_at IS NULL
-              AND (:batch_id_empty = '' OR DATE(p.latest_imported_at) = :batch_id)
-            ORDER BY COALESCE(
-                JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.evidence_date')),
-                JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.transaction_date')),
-                DATE(p.latest_imported_at),
-                DATE(p.created_at)
-            ) DESC, p.latest_imported_at DESC, p.created_at DESC
-        ");
-        $stmt->execute([
-            ':batch_id_empty' => $batchId,
-            ':batch_id' => $batchId,
-        ]);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $this->bodyStorageModel->uploadBatchRows($batchId);
         foreach ($rows as $index => &$row) {
             $row['row_no'] = $index + 1;
             $row['raw_payload'] = json_decode((string) ($row['raw_payload'] ?? ''), true) ?: [];

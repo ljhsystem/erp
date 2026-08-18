@@ -2,11 +2,20 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\ChartAccountModel;
+use App\Models\Ledger\SubAccountPolicyModel;
 use PDO;
 
 class VoucherPolicyService
 {
-    public function __construct(private PDO $pdo, private array $callbacks = []) {}
+    private ChartAccountModel $chartAccountModel;
+    private SubAccountPolicyModel $subAccountPolicyModel;
+
+    public function __construct(private PDO $pdo, private array $callbacks = [])
+    {
+        $this->chartAccountModel = new ChartAccountModel($pdo);
+        $this->subAccountPolicyModel = new SubAccountPolicyModel($pdo);
+    }
 
     public function applyEvidenceRefsToVoucherLines(array $lines, array $evidence): array
     {
@@ -110,50 +119,10 @@ class VoucherPolicyService
         }
 
         $policies = [];
-
-        if ($this->call('tableExists', 'ledger_accounts_sub')) {
-            $hasRefType = $this->call('tableColumnExists', 'ledger_accounts_sub', 'ref_target');
-            $hasSubCode = $this->call('tableColumnExists', 'ledger_accounts_sub', 'sub_code');
-            if ($hasRefType || $hasSubCode) {
-                $select = [
-                    $hasRefType ? 'ref_target' : "'' AS ref_target",
-                    $hasSubCode ? 'sub_code' : "'' AS sub_code",
-                    $this->call('tableColumnExists', 'ledger_accounts_sub', 'is_required') ? 'is_required' : '0 AS is_required',
-                ];
-                $deleted = $this->call('tableColumnExists', 'ledger_accounts_sub', 'deleted_at') ? ' AND deleted_at IS NULL' : '';
-                $stmt = $this->pdo->prepare("
-                    SELECT " . implode(', ', $select) . "
-                    FROM ledger_accounts_sub
-                    WHERE account_id = :account_id
-                      {$deleted}
-                ");
-                $stmt->execute([':account_id' => $accountId]);
-                foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-                    $type = $this->policyRefTypeFromRow($row);
-                    if ($type === '') {
-                        continue;
-                    }
-                    $policies[$type] = !empty($policies[$type]) || (int) ($row['is_required'] ?? 0) === 1;
-                }
-            }
-        }
-
-        if ($this->call('tableExists', 'ledger_account_sub_policies')) {
-            $deleted = $this->call('tableColumnExists', 'ledger_account_sub_policies', 'deleted_at') ? ' AND deleted_at IS NULL' : '';
-            $stmt = $this->pdo->prepare("
-                SELECT sub_account_type, custom_group_code, is_required
-                FROM ledger_account_sub_policies
-                WHERE account_id = :account_id
-                  {$deleted}
-            ");
-            $stmt->execute([':account_id' => $accountId]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-                $type = $this->policyRefTypeFromSubPolicy($row);
-                if ($type === '') {
-                    continue;
-                }
-                $policies[$type] = !empty($policies[$type]) || (int) ($row['is_required'] ?? 0) === 1;
-            }
+        foreach ($this->subAccountPolicyModel->getByAccountId($accountId) as $row) {
+            $type = $this->policyRefTypeFromRow($row);
+            if ($type === '') continue;
+            $policies[$type] = !empty($policies[$type]) || (int) ($row['is_required'] ?? 0) === 1;
         }
 
         return $policies;
@@ -187,24 +156,8 @@ class VoucherPolicyService
     public function resolveLedgerAccountId(string $accountValue): ?string
     {
         $accountValue = $this->normalizeAccountInput($accountValue);
-        if ($accountValue === '' || !$this->call('tableExists', 'ledger_accounts')) {
-            return null;
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT id
-            FROM ledger_accounts
-            WHERE deleted_at IS NULL
-              AND (id = :account_id_value OR account_code = :account_code_value)
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':account_id_value' => $accountValue,
-            ':account_code_value' => $accountValue,
-        ]);
-        $id = $stmt->fetchColumn();
-
-        return $id !== false ? (string) $id : null;
+        $account = $accountValue === '' ? null : $this->chartAccountModel->resolveByIdOrCode($accountValue);
+        return $account ? (string) ($account['id'] ?? '') : null;
     }
 
     public function voucherRefTypeLabel(string $refType): string

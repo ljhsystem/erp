@@ -69,6 +69,7 @@ function withPopup(picker, container) {
       container.style.top = `${Math.round(top)}px`;
       container.style.opacity = '1';
       container.style.pointerEvents = '';
+      picker.__scrollToActive?.();
     });
 
     const panel = container.querySelector('.admin-picker__panel');

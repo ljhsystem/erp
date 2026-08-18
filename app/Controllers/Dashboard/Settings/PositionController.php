@@ -2,6 +2,7 @@
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
+use Core\Session;
 use App\Services\User\PositionService;
 
 class PositionController
@@ -21,6 +22,7 @@ class PositionController
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         try {
             echo json_encode([
@@ -28,10 +30,10 @@ class PositionController
                 'data'    => $this->service->getAll($this->readFilters())
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'list failed',
-                'error'   => $e->getMessage()
+                'message' => '직책 목록 조회 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -41,11 +43,13 @@ class PositionController
     public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
+        Session::write();
 
         $id = $_GET['id'] ?? $_POST['id'] ?? '';
 
         if (!$id) {
-            echo json_encode(['success' => false, 'message' => 'invalid_id'], JSON_UNESCAPED_UNICODE);
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => '직책 ID가 필요합니다.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
@@ -54,13 +58,13 @@ class PositionController
             echo json_encode([
                 'success' => (bool)$row,
                 'data'    => $row,
-                'message' => $row ? null : 'not_found',
+                'message' => $row ? null : '직책 정보를 찾을 수 없습니다.',
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'detail_failed',
-                'error'   => $e->getMessage()
+                'message' => '직책 조회 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -71,24 +75,32 @@ class PositionController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $action = $_POST['action'] ?? '';
-        $id = $_POST['id'] ?? '';
+        $action = trim((string) ($_POST['action'] ?? ''));
+        $id = trim((string) ($_POST['id'] ?? ''));
+        $payload = [
+            'position_name' => $_POST['position_name'] ?? '',
+            'level_rank' => $_POST['level_rank'] ?? null,
+            'description' => $_POST['description'] ?? null,
+            'is_active' => $_POST['is_active'] ?? null,
+        ];
 
-        switch ($action) {
-            case 'create':
-                $result = $this->createPosition();
-                break;
-
-            case 'update':
-                $result = $this->updatePosition($id);
-                break;
-
-            default:
-                $result = ['success' => false, 'message' => 'invalid_action'];
-                break;
+        try {
+            $result = match ($action) {
+                'create' => $this->service->create($payload),
+                'update' => $this->service->update($id, $payload),
+                default => throw new \InvalidArgumentException('지원하지 않는 저장 요청입니다.'),
+            };
+            if (empty($result['success'])) {
+                http_response_code(422);
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => '저장 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
         }
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -96,42 +108,20 @@ class PositionController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['id'] ?? '';
-        echo json_encode($this->deletePosition($id), JSON_UNESCAPED_UNICODE);
+        try {
+            $result = $this->service->delete((string) ($_POST['id'] ?? ''));
+            if (empty($result['success'])) {
+                http_response_code(409);
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
+        }
         exit;
-    }
-
-    private function createPosition(): array
-    {
-        return $this->service->create([
-            'position_name' => trim($_POST['position_name'] ?? ''),
-            'level_rank'    => (int)($_POST['level_rank'] ?? 0),
-            'description'   => $_POST['description'] ?? null,
-            'is_active'     => (int)($_POST['is_active'] ?? 1),
-        ]);
-    }
-
-    private function updatePosition(string $id): array
-    {
-        if (!$id) {
-            return ['success' => false, 'message' => 'invalid_id'];
-        }
-
-        return $this->service->update($id, [
-            'position_name' => trim($_POST['position_name'] ?? ''),
-            'level_rank'    => (int)($_POST['level_rank'] ?? 0),
-            'description'   => $_POST['description'] ?? null,
-            'is_active'     => (int)($_POST['is_active'] ?? 1),
-        ]);
-    }
-
-    private function deletePosition(string $id): array
-    {
-        if (!$id) {
-            return ['success' => false, 'message' => 'invalid_id'];
-        }
-
-        return $this->service->delete($id);
     }
 
 
@@ -146,13 +136,13 @@ class PositionController
             $ok = $this->service->reorder($changes);
             echo json_encode([
                 'success' => (bool)$ok,
-                'message' => $ok ? 'reordered' : 'fail'
+                'message' => $ok ? '정렬이 저장되었습니다.' : '정렬 저장 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'reorder failed',
-                'error'   => $e->getMessage()
+                'message' => '정렬 저장 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         }
 

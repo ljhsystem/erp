@@ -1,3 +1,6 @@
+<?php include_once PROJECT_ROOT . '/app/views/ledger/evidence/partials/evidence_edit_modal.php'; ?>
+<?php include_once PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/work_team_modal.php'; ?>
+
 <div class="modal fade"
      id="journalModal"
      tabindex="-1"
@@ -9,7 +12,7 @@
                 <div class="modal-header journal-modal-header">
                     <div>
                         <h5 class="modal-title" id="journalModalLabel">전표 등록</h5>
-                        <p class="journal-modal-subtitle mb-0">전표 처리상태, 분개라인, 거래·증빙 연결정보를 한 화면에서 관리합니다.</p>
+                        <p class="journal-modal-subtitle mb-0">전표 처리상태, 분개라인, 자료·자금증빙 연결정보를 한 화면에서 관리합니다.</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
@@ -161,24 +164,15 @@
                         </div>
                     </section>
 
-                    <section class="form-section journal-section journal-system-info-panel" aria-label="시스템 처리 정보">
-                        <button type="button"
-                                class="journal-card-toggle collapsed"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#voucherSystemInfoCollapse"
-                                aria-expanded="false"
-                                aria-controls="voucherSystemInfoCollapse">
-                            <span class="journal-card-heading">
-                                <span class="section-title journal-section-title journal-card-title">시스템 처리 정보</span>
-                                <span class="journal-card-description">상태, 생성자, 수정자, 생성일시, 수정일시를 현재 메타 순서대로 확인합니다.</span>
-                            </span>
-                            <i class="bi bi-chevron-down journal-card-icon" aria-hidden="true"></i>
-                        </button>
-
-                        <div id="voucherSystemInfoCollapse" class="collapse">
-                            <div class="section-body journal-card-body">
-                                <div id="voucher_system_info_fields" class="journal-header-grid journal-system-grid"></div>
+                    <section class="form-section journal-section journal-recommendation-panel" id="voucherRecommendationPanel" aria-label="분개추천" hidden>
+                        <div class="section-header journal-card-header">
+                            <div class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">분개추천</span>
+                                <p class="journal-card-description">연결한 증빙을 분석한 추천 후보입니다. 후보를 선택해야 분개라인에 반영됩니다.</p>
                             </div>
+                        </div>
+                        <div class="section-body">
+                            <div id="voucher_recommendation_list" class="voucher-recommendation-list" aria-live="polite"></div>
                         </div>
                     </section>
 
@@ -198,28 +192,33 @@
 
                         <div id="voucherLinkInfoCollapse" class="collapse">
                             <div class="section-body journal-card-body journal-link-card-body">
-                                <div class="journal-link-sections">
-                                    <section class="journal-link-section journal-evidence-panel" aria-label="증빙 연결">
-                                        <div class="journal-link-section-head">
-                                            <span class="journal-link-section-title">증빙연결</span>
-                                        </div>
-
-                                        <div class="journal-evidence-link">
-                                            <input type="hidden"
-                                                   name="linked_evidence_id"
-                                                   id="linked_evidence_id">
-                                            <button type="button"
-                                                    class="btn btn-outline-primary btn-sm"
-                                                    id="btnSelectEvidence">증빙 선택</button>
-                                            <button type="button"
-                                                    class="btn btn-outline-secondary btn-sm"
-                                                    id="btnClearEvidenceLink">연결 해제</button>
-                                            <div class="journal-transaction-summary"
-                                                 id="linked_evidence_summary">연결된 증빙이 없습니다.</div>
-                                            <div class="journal-source-origin d-none" id="linked_evidence_origin"></div>
-                                        </div>
-                                    </section>
+                                <div class="journal-evidence-toolbar mb-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="btnSelectEvidence">증빙 추가</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearSelectedEvidence">선택 해제</button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="btnRecommendVoucherEvidence">분개추천 조회</button>
                                 </div>
+                                <div id="linked_evidences_grid" class="journal-evidence-grid-host"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section journal-section journal-system-info-panel" aria-label="시스템 처리 정보">
+                        <button type="button"
+                                class="journal-card-toggle collapsed"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#voucherSystemInfoCollapse"
+                                aria-expanded="false"
+                                aria-controls="voucherSystemInfoCollapse">
+                            <span class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">시스템 처리 정보</span>
+                                <span class="journal-card-description">상태, 생성자, 수정자, 생성일시, 수정일시를 현재 메타 순서대로 확인합니다.</span>
+                            </span>
+                            <i class="bi bi-chevron-down journal-card-icon" aria-hidden="true"></i>
+                        </button>
+
+                        <div id="voucherSystemInfoCollapse" class="collapse">
+                            <div class="section-body journal-card-body">
+                                <div id="voucher_system_info_fields" class="journal-header-grid journal-system-grid"></div>
                             </div>
                         </div>
                     </section>
@@ -250,44 +249,35 @@
      tabindex="-1"
      aria-labelledby="journalEvidenceSearchModalLabel"
      aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="journalEvidenceSearchModalLabel">증빙 선택</h5>
+                <h5 class="modal-title" id="journalEvidenceSearchModalLabel">증빙 추가</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
-                <div class="journal-transaction-search">
-                    <input type="search"
-                           class="form-control form-control-sm"
-                           id="journal_evidence_search_keyword"
-                           placeholder="자료유형, 일자, 거래처, 금액, 적요로 검색">
-                    <button type="button"
-                            class="btn btn-outline-secondary btn-sm"
-                            id="btnSearchEvidence">검색</button>
-                </div>
-
-                <div class="table-responsive journal-search-table-wrap">
-                    <table class="table table-bordered align-middle mb-0 journal-transaction-search-table">
-                        <thead class="table-light">
+                <div class="journal-evidence-table-wrap">
+                    <table id="journal_evidence_search_table" class="table table-sm align-middle nowrap w-100">
+                        <thead>
                             <tr>
-                                <th width="120">증빙일자</th>
-                                <th width="170">자료유형</th>
-                                <th width="150">거래처</th>
-                                <th width="120">금액</th>
+                                <th>선택</th>
+                                <th>기준일</th>
+                                <th>증빙구분</th>
+                                <th>자료유형</th>
+                                <th>거래처</th>
                                 <th>적요</th>
-                                <th width="90">선택</th>
+                                <th>금액</th>
+                                <th>관리</th>
                             </tr>
                         </thead>
-                        <tbody id="journal_evidence_search_body">
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
-                                    증빙을 검색해 주세요.
-                                </td>
-                            </tr>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto text-muted small" id="journal_evidence_selection_count">0개 선택</span>
+                <button type="button" class="btn btn-primary btn-sm" id="btnApplyEvidenceSelection">추가 적용</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
             </div>
         </div>
     </div>

@@ -11,6 +11,7 @@ class TransactionModel
     protected string $table = 'ledger_transactions';
 
     private PDO $db;
+    private int $lastFilteredCount = 0;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -19,10 +20,24 @@ class TransactionModel
 
     public function getList(array $filters = []): array
     {
-        $lineStatusJoin = $this->lineStatusJoinSql();
+        $orderField = trim((string) ($filters['_order_field'] ?? ''));
+        $orderDirection = strtolower(trim((string) ($filters['_order_direction'] ?? ''))) === 'asc'
+            ? 'ASC'
+            : 'DESC';
+        $usesLineStatusJoin = $orderField === 'transaction_line_status';
+        $lineStatusJoin = $usesLineStatusJoin ? $this->lineStatusJoinSql() : '';
+        $lineStatusSelect = $usesLineStatusJoin
+            ? "COALESCE(tls.item_count, 0) AS transaction_line_count,
+                COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
+                CASE
+                    WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
+                    WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
+                    ELSE 'COMPLETE'
+                END AS transaction_line_status"
+            : "0 AS transaction_line_count,
+                0 AS transaction_line_incomplete_count,
+                'NONE' AS transaction_line_status";
         $hasOperationType = $this->tableColumnExists($this->table, 'operation_type');
-        $hasSourceType = $this->tableColumnExists($this->table, 'source_type');
-        $hasImportType = $this->tableColumnExists($this->table, 'import_type');
         $operationTypeSelect = $hasOperationType
             ? "COALESCE(ot.code_name, '') AS operation_type_name,
                 COALESCE(NULLIF(ot.code_name, ''), '') AS operation_type,
@@ -30,27 +45,42 @@ class TransactionModel
             : "'' AS operation_type_name,
                 '' AS operation_type,
                 '' AS operation_type_code,";
-        $sourceTypeSelect = $hasSourceType
-            ? "COALESCE(st.code_name, '') AS source_type_name,"
-            : "'' AS source_type_name,";
-        $importTypeSelect = $hasImportType
-            ? "COALESCE(it.code_name, '') AS import_type_name,"
-            : "'' AS import_type_name,";
-        $sql = "
+        $selectSql = "
             SELECT
-                t.*,
+                t.id,
+                t.sort_no,
+                t.business_unit AS business_unit_code,
+                t.transaction_direction AS transaction_direction_code,
+                t.currency AS currency_code,
+                t.client_id AS client_uuid,
+                t.project_id AS project_uuid,
+                t.bank_account_id AS bank_account_uuid,
+                t.card_id AS card_uuid,
+                t.team_id AS team_uuid,
+                t.employee_id AS employee_uuid,
+                t.transaction_date,
+                t.transaction_description,
+                t.transaction_exchange_rate,
+                t.transaction_foreign_amount,
+                t.transaction_supply_amount,
+                t.transaction_settlement_amount,
+                t.transaction_final_amount,
+                t.transaction_note,
+                t.transaction_memo,
+                t.status,
+                t.created_at,
+                t.created_by,
+                t.updated_at,
+                t.updated_by,
+                t.deleted_at,
+                t.deleted_by,
                 COALESCE(bu.code_name, '') AS business_unit_name,
                 COALESCE(td.code_name, '') AS transaction_direction_name,
                 {$operationTypeSelect}
-                {$sourceTypeSelect}
-                {$importTypeSelect}
                 COALESCE(cur.code_name, '') AS currency_name,
                 COALESCE(NULLIF(bu.code_name, ''), '') AS business_unit,
                 COALESCE(NULLIF(td.code_name, ''), '') AS transaction_direction,
                 COALESCE(NULLIF(cur.code_name, ''), '') AS currency,
-                t.business_unit AS business_unit_code,
-                t.transaction_direction AS transaction_direction_code,
-                t.currency AS currency_code,
                 COALESCE(sc.client_name, '') AS client_name,
                 COALESCE(sp.project_name, '') AS project_name,
                 COALESCE(sba.account_name, '') AS bank_account_name,
@@ -63,55 +93,26 @@ class TransactionModel
                 COALESCE(NULLIF(scd.card_name, ''), '') AS card_id,
                 COALESCE(NULLIF(swt.team_name, ''), '') AS team_id,
                 COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id,
-                t.client_id AS client_uuid,
-                t.project_id AS project_uuid,
-                t.bank_account_id AS bank_account_uuid,
-                t.card_id AS card_uuid,
-                t.team_id AS team_uuid,
-                t.employee_id AS employee_uuid,
-                COALESCE(tls.item_count, 0) AS transaction_line_count,
-                COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
-                t.created_by AS created_by_name,
-                t.updated_by AS updated_by_name,
-                t.deleted_by AS deleted_by_name,
-                CASE
-                    WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
-                    WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
-                    ELSE 'COMPLETE'
-                END AS transaction_line_status
+                {$lineStatusSelect}
+        ";
+        $fromSql = "
             FROM {$this->table} t
             LEFT JOIN system_codes bu
-                ON bu.deleted_at IS NULL
-               AND bu.is_active = 1
+                ON bu.is_active = 1
                AND bu.code_group = 'BUSINESS_UNIT'
                AND bu.code = t.business_unit
             LEFT JOIN system_codes td
-                ON td.deleted_at IS NULL
-               AND td.is_active = 1
+                ON td.is_active = 1
                AND td.code_group = 'TRANSACTION_DIRECTION'
                AND td.code = t.transaction_direction
              " . ($hasOperationType ? "
              LEFT JOIN system_codes ot
-                 ON ot.deleted_at IS NULL
-                AND ot.is_active = 1
+                 ON ot.is_active = 1
                 AND ot.code_group = 'OPERATION_TYPE'
                 AND ot.code = t.operation_type
-             " : "") . ($hasSourceType ? "
-             LEFT JOIN system_codes st
-                 ON st.deleted_at IS NULL
-                AND st.is_active = 1
-                AND st.code_group = 'SOURCE_TYPE'
-                AND st.code = t.source_type
-             " : "") . ($hasImportType ? "
-             LEFT JOIN system_codes it
-                 ON it.deleted_at IS NULL
-                AND it.is_active = 1
-                AND it.code_group = 'IMPORT_TYPE'
-                AND it.code = t.import_type
              " : "") . "
              LEFT JOIN system_codes cur
-                 ON cur.deleted_at IS NULL
-                AND cur.is_active = 1
+                 ON cur.is_active = 1
                AND cur.code_group = 'CURRENCY'
                AND cur.code = t.currency
             LEFT JOIN system_clients sc
@@ -126,57 +127,51 @@ class TransactionModel
                 ON t.team_id = swt.id
             LEFT JOIN user_employees ue
                 ON t.employee_id = ue.id
-            {$lineStatusJoin}
-            WHERE t.deleted_at IS NULL
         ";
+        $whereSql = " WHERE t.deleted_at IS NULL";
 
         $params = [];
 
         if (!empty($filters['business_unit'])) {
-            $sql .= " AND t.business_unit = :business_unit";
+            $whereSql .= " AND t.business_unit = :business_unit";
             $params[':business_unit'] = $filters['business_unit'];
         }
 
         if (!empty($filters['status'])) {
             $status = strtolower(trim((string) $filters['status']));
             if (in_array($status, ['draft', 'completed', 'closed', 'cancelled'], true)) {
-                $sql .= " AND t.status = :status";
+                $whereSql .= " AND t.status = :status";
                 $params[':status'] = $status;
             }
         }
 
-        if (!empty($filters['match_status'])) {
-            $sql .= " AND t.match_status = :match_status";
-            $params[':match_status'] = $filters['match_status'];
-        }
-
         if (!empty($filters['project_id'])) {
-            $sql .= " AND t.project_id = :project_id";
+            $whereSql .= " AND t.project_id = :project_id";
             $params[':project_id'] = $filters['project_id'];
         }
 
         if (!empty($filters['client_id'])) {
-            $sql .= " AND t.client_id = :client_id";
+            $whereSql .= " AND t.client_id = :client_id";
             $params[':client_id'] = $filters['client_id'];
         }
 
         if (!empty($filters['date_from'])) {
-            $sql .= " AND t.transaction_date >= :date_from";
+            $whereSql .= " AND t.transaction_date >= :date_from";
             $params[':date_from'] = $filters['date_from'];
         }
 
         if (!empty($filters['date_to'])) {
-            $sql .= " AND t.transaction_date <= :date_to";
+            $whereSql .= " AND t.transaction_date <= :date_to";
             $params[':date_to'] = $filters['date_to'];
         }
 
         if (!empty($filters['updated_from'])) {
-            $sql .= " AND t.updated_at >= :updated_from";
+            $whereSql .= " AND t.updated_at >= :updated_from";
             $params[':updated_from'] = $filters['updated_from'];
         }
 
         if (!empty($filters['updated_to'])) {
-            $sql .= " AND t.updated_at <= :updated_to";
+            $whereSql .= " AND t.updated_at <= :updated_to";
             $params[':updated_to'] = $filters['updated_to'];
         }
 
@@ -213,7 +208,6 @@ class TransactionModel
                 'currency_name' => 'cur.code_name',
                 'transaction_exchange_rate' => 't.transaction_exchange_rate',
                 'status' => 't.status',
-                'match_status' => 't.match_status',
                 'transaction_note' => 't.transaction_note',
                 'transaction_memo' => 't.transaction_memo',
                 'created_at' => 't.created_at',
@@ -242,20 +236,87 @@ class TransactionModel
                 $param = ':search_' . $index;
                 $fieldExpr = $fieldMap[$field];
                 if (str_contains($fieldExpr, '%s')) {
-                    $sql .= ' AND ' . sprintf($fieldExpr, $param, $param);
+                    $whereSql .= ' AND ' . sprintf($fieldExpr, $param, $param);
                 } else {
-                    $sql .= " AND {$fieldExpr} LIKE {$param}";
+                    $whereSql .= " AND {$fieldExpr} LIKE {$param}";
                 }
                 $params[$param] = '%' . $value . '%';
             }
         }
 
-        $sql .= " ORDER BY t.sort_no ASC, t.transaction_date ASC, t.created_at ASC";
+        $orderFieldMap = [
+            'sort_no' => 't.sort_no',
+            'transaction_date' => 't.transaction_date',
+            'business_unit' => "COALESCE(bu.code_name, t.business_unit, '')",
+            'business_unit_name' => "COALESCE(bu.code_name, '')",
+            'transaction_direction' => "COALESCE(td.code_name, t.transaction_direction, '')",
+            'transaction_direction_name' => "COALESCE(td.code_name, '')",
+            'operation_type' => $hasOperationType
+                ? "COALESCE(ot.code_name, t.operation_type, '')"
+                : "''",
+            'operation_type_name' => $hasOperationType ? "COALESCE(ot.code_name, '')" : "''",
+            'client_id' => "COALESCE(sc.client_name, t.client_id, '')",
+            'client_name' => "COALESCE(sc.client_name, '')",
+            'project_id' => "COALESCE(sp.project_name, t.project_id, '')",
+            'project_name' => "COALESCE(sp.project_name, '')",
+            'bank_account_id' => "COALESCE(sba.account_name, t.bank_account_id, '')",
+            'bank_account_name' => "COALESCE(sba.account_name, '')",
+            'card_id' => "COALESCE(scd.card_name, t.card_id, '')",
+            'card_name' => "COALESCE(scd.card_name, '')",
+            'team_id' => "COALESCE(swt.team_name, t.team_id, '')",
+            'team_name' => "COALESCE(swt.team_name, '')",
+            'employee_id' => "COALESCE(ue.employee_name, t.employee_id, '')",
+            'employee_name' => "COALESCE(ue.employee_name, '')",
+            'transaction_foreign_amount' => 't.transaction_foreign_amount',
+            'transaction_supply_amount' => 't.transaction_supply_amount',
+            'transaction_settlement_amount' => 't.transaction_settlement_amount',
+            'transaction_final_amount' => 't.transaction_final_amount',
+            'currency' => "COALESCE(cur.code_name, t.currency, '')",
+            'currency_name' => "COALESCE(cur.code_name, '')",
+            'exchange_rate' => 't.transaction_exchange_rate',
+            'transaction_line_status' => "CASE
+                WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
+                WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
+                ELSE 'COMPLETE'
+            END",
+            'description' => 't.transaction_description',
+            'status' => 't.status',
+            'note' => 't.transaction_note',
+            'memo' => 't.transaction_memo',
+            'created_at' => 't.created_at',
+            'created_by' => 't.created_by',
+            'updated_at' => 't.updated_at',
+            'updated_by' => 't.updated_by',
+            'deleted_at' => 't.deleted_at',
+            'deleted_by' => 't.deleted_by',
+        ];
+        $sql = $selectSql . $fromSql . $lineStatusJoin . $whereSql;
+        $countSql = 'SELECT COUNT(DISTINCT t.id)' . $fromSql . $whereSql;
+        if (isset($orderFieldMap[$orderField])) {
+            $sql .= " ORDER BY {$orderFieldMap[$orderField]} {$orderDirection}, t.created_at DESC, t.id DESC";
+        } else {
+            $sql .= " ORDER BY t.transaction_date DESC, t.created_at DESC, t.id DESC";
+        }
+        if (isset($filters['_length'])) {
+            $length = max(10, min(100, (int) $filters['_length']));
+            $start = max(0, (int) ($filters['_start'] ?? 0));
+            $sql .= " LIMIT {$start}, {$length}";
+        }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($params === []) {
+            $this->lastFilteredCount = $this->activeTotalCount();
+        } else {
+            $countStmt = $this->db->prepare($countSql);
+            $countStmt->execute($params);
+            $this->lastFilteredCount = (int) $countStmt->fetchColumn();
+        }
+        if (!$usesLineStatusJoin) {
+            $rows = $this->hydrateLineStatuses($rows);
+        }
         $rows = ActorHelper::enrichActorNames($rows, [
             'created_by_name' => 'created_by',
             'updated_by_name' => 'updated_by',
@@ -265,99 +326,100 @@ class TransactionModel
         return $this->stripHeaderTaxTypeRows($rows);
     }
 
-    private function lineStatusJoinSql(): string
+    public function lastFilteredCount(): int
     {
-        $source = $this->resolveLineStatusSource();
-        if ($source === null) {
-            return "
-                LEFT JOIN (
-                    SELECT NULL AS transaction_id, 0 AS item_count, 0 AS incomplete_count
-                ) tls ON tls.transaction_id = t.id
-            ";
+        return $this->lastFilteredCount;
+    }
+
+    public function activeTotalCount(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM ledger_transactions WHERE deleted_at IS NULL')->fetchColumn();
+    }
+
+    public function activeExists(string $id): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM ledger_transactions WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function updateSortNo(string $id, int $sortNo): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE {$this->table}
+            SET sort_no = :sort_no
+            WHERE id = :id
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([
+            ':sort_no' => $sortNo,
+            ':id' => $id,
+        ]);
+        if ($stmt->rowCount() !== 1 && !$this->activeExists($id)) {
+            throw new \RuntimeException('정렬할 거래를 찾을 수 없습니다.');
+        }
+    }
+
+    private function hydrateLineStatuses(array $rows): array
+    {
+        $transactionIds = array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
+            $rows
+        ))));
+        if ($transactionIds === []) {
+            return $rows;
         }
 
-        $where = $source['has_deleted_at']
-            ? 'WHERE deleted_at IS NULL'
-            : '';
-        $itemNameExpr = $source['has_item_name']
-            ? "TRIM(COALESCE(item_name, '')) = ''"
-            : '0 = 1';
-        $amountExpr = $source['amount_expr'];
+        $placeholders = implode(', ', array_fill(0, count($transactionIds), '?'));
+        $stmt = $this->db->prepare("
+            SELECT
+                transaction_id,
+                COUNT(*) AS item_count,
+                SUM(CASE
+                    WHEN TRIM(COALESCE(item_name, '')) = '' OR COALESCE(item_supply_amount, 0) = 0 THEN 1
+                    ELSE 0
+                END) AS incomplete_count
+            FROM ledger_transaction_items
+            WHERE transaction_id IN ({$placeholders})
+            GROUP BY transaction_id
+        ");
+        $stmt->execute($transactionIds);
 
+        $statusByTransactionId = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $statusRow) {
+            $statusByTransactionId[(string) $statusRow['transaction_id']] = $statusRow;
+        }
+
+        return array_map(static function (array $row) use ($statusByTransactionId): array {
+            $status = $statusByTransactionId[(string) ($row['id'] ?? '')] ?? [];
+            $itemCount = (int) ($status['item_count'] ?? 0);
+            $incompleteCount = (int) ($status['incomplete_count'] ?? 0);
+            $row['transaction_line_count'] = $itemCount;
+            $row['transaction_line_incomplete_count'] = $incompleteCount;
+            $row['transaction_line_status'] = $itemCount === 0
+                ? 'NONE'
+                : ($incompleteCount > 0 ? 'INCOMPLETE' : 'COMPLETE');
+
+            return $row;
+        }, $rows);
+    }
+
+    private function lineStatusJoinSql(): string
+    {
         return "
             LEFT JOIN (
                 SELECT
                     transaction_id,
                     COUNT(*) AS item_count,
                     SUM(CASE
-                        WHEN {$itemNameExpr} OR {$amountExpr} = 0 THEN 1
+                        WHEN TRIM(COALESCE(item_name, '')) = '' OR COALESCE(item_supply_amount, 0) = 0 THEN 1
                         ELSE 0
                     END) AS incomplete_count
-                FROM {$source['table']}
-                {$where}
+                FROM ledger_transaction_items
                 GROUP BY transaction_id
             ) tls
                 ON tls.transaction_id = t.id
         ";
-    }
-
-    private function resolveLineStatusSource(): ?array
-    {
-        foreach (['ledger_transaction_items', 'ledger_transaction_lines'] as $tableName) {
-            if (!$this->tableExists($tableName) || !$this->tableColumnExists($tableName, 'transaction_id')) {
-                continue;
-            }
-
-            return [
-                'table' => $tableName,
-                'has_deleted_at' => $this->tableColumnExists($tableName, 'deleted_at'),
-                'has_item_name' => $this->tableColumnExists($tableName, 'item_name'),
-                'amount_expr' => $this->lineAmountExpression($tableName),
-            ];
-        }
-
-        return null;
-    }
-
-    private function lineAmountExpression(string $tableName): string
-    {
-        if ($this->tableColumnExists($tableName, 'item_supply_amount')) {
-            return 'COALESCE(item_supply_amount, 0)';
-        }
-        if ($this->tableColumnExists($tableName, 'amount')) {
-            return 'COALESCE(amount, 0)';
-        }
-        if ($this->tableColumnExists($tableName, 'total_amount')) {
-            return 'COALESCE(total_amount, 0)';
-        }
-        if ($this->tableColumnExists($tableName, 'supply_amount') || $this->tableColumnExists($tableName, 'vat_amount')) {
-            $supply = $this->tableColumnExists($tableName, 'supply_amount') ? 'COALESCE(supply_amount, 0)' : '0';
-            $vat = $this->tableColumnExists($tableName, 'vat_amount') ? 'COALESCE(vat_amount, 0)' : '0';
-
-            return "({$supply} + {$vat})";
-        }
-
-        return '1';
-    }
-
-    private function tableExists(string $tableName): bool
-    {
-        static $cache = [];
-        if (array_key_exists($tableName, $cache)) {
-            return $cache[$tableName];
-        }
-
-        $stmt = $this->db->prepare("
-            SELECT 1
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $tableName]);
-        $cache[$tableName] = (bool) $stmt->fetchColumn();
-
-        return $cache[$tableName];
     }
 
     private function tableColumnExists(string $tableName, string $columnName): bool
@@ -399,7 +461,6 @@ class TransactionModel
                 ON t.project_id = sp.id
             WHERE t.deleted_at IS NULL
               AND t.status = 'draft'
-              AND t.match_status = 'none'
             ORDER BY t.sort_no ASC, t.transaction_date ASC, t.created_at ASC
         ");
         $stmt->execute();
@@ -410,68 +471,39 @@ class TransactionModel
     public function getById(string $id): ?array
     {
         $hasOperationType = $this->tableColumnExists($this->table, 'operation_type');
-        $hasSourceType = $this->tableColumnExists($this->table, 'source_type');
-        $hasImportType = $this->tableColumnExists($this->table, 'import_type');
         $operationTypeSelect = $hasOperationType
             ? "COALESCE(ot.code_name, '') AS operation_type_name,"
             : "'' AS operation_type_name,";
-        $sourceTypeSelect = $hasSourceType
-            ? "COALESCE(st.code_name, '') AS source_type_name,"
-            : "'' AS source_type_name,";
-        $importTypeSelect = $hasImportType
-            ? "COALESCE(it.code_name, '') AS import_type_name,"
-            : "'' AS import_type_name,";
         $stmt = $this->db->prepare("
             SELECT
                 t.*,
                 COALESCE(bu.code_name, '') AS business_unit_name,
                 COALESCE(td.code_name, '') AS transaction_direction_name,
                 {$operationTypeSelect}
-                {$sourceTypeSelect}
-                {$importTypeSelect}
                 COALESCE(cur.code_name, '') AS currency_name,
                 COALESCE(sc.client_name, '') AS client_name,
                 COALESCE(sp.project_name, '') AS project_name,
                 COALESCE(sba.account_name, '') AS bank_account_name,
                 COALESCE(scd.card_name, '') AS card_name,
                 COALESCE(swt.team_name, '') AS team_name,
-                COALESCE(ue.employee_name, '') AS employee_name,
-                t.created_by AS created_by_name,
-                t.updated_by AS updated_by_name,
-                t.deleted_by AS deleted_by_name
+                COALESCE(ue.employee_name, '') AS employee_name
             FROM {$this->table} t
             LEFT JOIN system_codes bu
-                ON bu.deleted_at IS NULL
-               AND bu.is_active = 1
+                ON bu.is_active = 1
                AND bu.code_group = 'BUSINESS_UNIT'
                AND bu.code = t.business_unit
             LEFT JOIN system_codes td
-                ON td.deleted_at IS NULL
-               AND td.is_active = 1
+                ON td.is_active = 1
                AND td.code_group = 'TRANSACTION_DIRECTION'
                AND td.code = t.transaction_direction
             " . ($hasOperationType ? "
             LEFT JOIN system_codes ot
-                ON ot.deleted_at IS NULL
-               AND ot.is_active = 1
+                ON ot.is_active = 1
                AND ot.code_group = 'OPERATION_TYPE'
                AND ot.code = t.operation_type
-            " : "") . ($hasSourceType ? "
-            LEFT JOIN system_codes st
-                ON st.deleted_at IS NULL
-               AND st.is_active = 1
-               AND st.code_group = 'SOURCE_TYPE'
-               AND st.code = t.source_type
-            " : "") . ($hasImportType ? "
-            LEFT JOIN system_codes it
-                ON it.deleted_at IS NULL
-               AND it.is_active = 1
-               AND it.code_group = 'IMPORT_TYPE'
-               AND it.code = t.import_type
             " : "") . "
             LEFT JOIN system_codes cur
-                ON cur.deleted_at IS NULL
-               AND cur.is_active = 1
+                ON cur.is_active = 1
                AND cur.code_group = 'CURRENCY'
                AND cur.code = t.currency
             LEFT JOIN system_clients sc
@@ -504,6 +536,52 @@ class TransactionModel
         return $row;
     }
 
+    public function getByIdForUpdate(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM ledger_transactions WHERE id = :id LIMIT 1 FOR UPDATE');
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getTrashList(): array
+    {
+        $hasOperationType = $this->tableColumnExists($this->table, 'operation_type');
+        $operationSelect = $hasOperationType
+            ? "COALESCE(ot.code_name, '') AS operation_type_name, COALESCE(NULLIF(ot.code_name, ''), '') AS operation_type,"
+            : "'' AS operation_type_name, '' AS operation_type,";
+        $operationJoin = $hasOperationType
+            ? "LEFT JOIN system_codes ot ON ot.is_active = 1 AND ot.code_group = 'OPERATION_TYPE' AND ot.code = t.operation_type"
+            : '';
+        $stmt = $this->db->query("SELECT t.*, COALESCE(bu.code_name, '') AS business_unit_name,
+            COALESCE(td.code_name, '') AS transaction_direction_name, {$operationSelect}
+            COALESCE(cur.code_name, '') AS currency_name,
+            COALESCE(NULLIF(bu.code_name, ''), '') AS business_unit,
+            COALESCE(NULLIF(td.code_name, ''), '') AS transaction_direction,
+            COALESCE(NULLIF(cur.code_name, ''), '') AS currency,
+            COALESCE(sc.client_name, '') AS client_name, COALESCE(sp.project_name, '') AS project_name,
+            COALESCE(sba.account_name, '') AS bank_account_name, COALESCE(scd.card_name, '') AS card_name,
+            COALESCE(swt.team_name, '') AS team_name, COALESCE(ue.employee_name, '') AS employee_name,
+            COALESCE(NULLIF(sc.client_name, ''), '') AS client_id, COALESCE(NULLIF(sp.project_name, ''), '') AS project_id,
+            COALESCE(NULLIF(sba.account_name, ''), '') AS bank_account_id, COALESCE(NULLIF(scd.card_name, ''), '') AS card_id,
+            COALESCE(NULLIF(swt.team_name, ''), '') AS team_id, COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id
+            FROM {$this->table} t
+            LEFT JOIN system_codes bu ON bu.is_active = 1 AND bu.code_group = 'BUSINESS_UNIT' AND bu.code = t.business_unit
+            LEFT JOIN system_codes td ON td.is_active = 1 AND td.code_group = 'TRANSACTION_DIRECTION' AND td.code = t.transaction_direction
+            {$operationJoin}
+            LEFT JOIN system_codes cur ON cur.is_active = 1 AND cur.code_group = 'CURRENCY' AND cur.code = t.currency
+            LEFT JOIN system_clients sc ON t.client_id = sc.id LEFT JOIN system_projects sp ON t.project_id = sp.id
+            LEFT JOIN system_bank_accounts sba ON t.bank_account_id = sba.id LEFT JOIN system_cards scd ON t.card_id = scd.id
+            LEFT JOIN system_work_teams swt ON t.team_id = swt.id LEFT JOIN user_employees ue ON t.employee_id = ue.id
+            WHERE t.deleted_at IS NOT NULL ORDER BY t.deleted_at DESC, t.transaction_date DESC");
+        return $this->stripHeaderTaxTypeRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    public function getDeletedIds(): array
+    {
+        $stmt = $this->db->query("SELECT id FROM {$this->table} WHERE deleted_at IS NOT NULL");
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
     public function insert(array $data): bool
     {
         $allowed = [
@@ -528,7 +606,6 @@ class TransactionModel
             'transaction_note',
             'transaction_memo',
             'status',
-            'match_status',
             'created_at',
             'created_by',
             'updated_at',
@@ -581,7 +658,6 @@ class TransactionModel
             'transaction_final_amount',
             'transaction_description',
             'status',
-            'match_status',
             'transaction_note',
             'transaction_memo',
             'updated_at',
@@ -650,20 +726,6 @@ class TransactionModel
         ");
 
         return $stmt->execute([':id' => $id]);
-    }
-
-    public function updateSortNo(string $id, string|int $newSortNo): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET sort_no = :sort_no
-            WHERE id = :id
-        ");
-
-        return $stmt->execute([
-            ':sort_no' => (int) $newSortNo,
-            ':id' => $id,
-        ]);
     }
 
     private function filterData(array $data, array $allowed): array

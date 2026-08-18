@@ -67,31 +67,21 @@ export function createBrandFormModule({
     }
 
     async function refreshAll() {
-        loadAll();
-        tableModule.loadExistingFiles();
+        const rows = await tableModule.loadExistingFiles();
+        renderActiveAssets(rows);
     }
 
-    function loadAll() {
-        Object.keys(assets).forEach(loadAsset);
-    }
-
-    function loadAsset(type) {
-        const config = assets[type];
-        const image = window.jQuery(config.preview);
-
-        window.jQuery.post(api.ACTIVE, { asset_type: type }, (response) => {
+    function renderActiveAssets(rows = []) {
+        Object.entries(assets).forEach(([type, config]) => {
+            const image = window.jQuery(config.preview);
+            const active = rows.find((row) => row.asset_type === type && Number(row.is_active) === 1);
             removeEmptyMessage(image);
-
-            if (!response?.success || !response?.data?.url) {
+            if (!active?.url) {
                 image.hide().attr('src', '');
                 showEmptyMessage(image, config.emptyText);
                 return;
             }
-
-            image.attr('src', response.data.url).show();
-        }, 'json').fail(() => {
-            image.hide().attr('src', '');
-            showEmptyMessage(image, '자산 정보를 불러오지 못했습니다.');
+            image.attr('src', active.url).show();
         });
     }
 
@@ -225,6 +215,6 @@ export function createBrandFormModule({
 
     return {
         bindEvents,
-        loadAll,
+        renderActiveAssets,
     };
 }

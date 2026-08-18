@@ -1,4 +1,3 @@
-// /assets/js/pages/layout/sidebar.js
 (function () {
 
     'use strict';
@@ -34,10 +33,6 @@
 
         applyRouteContext(sidebar);
 
-        /* ===============================
-           SIDEBAR ACCORDION MENU
-        =============================== */
-
         sidebar.addEventListener('click', function(e){
 
             if(!sidebar.contains(e.target)) return;
@@ -71,10 +66,6 @@
             }
 
         });
-
-        /* ===============================
-           SIDEBAR COLLAPSE BUTTON
-        =============================== */
 
         if(!toggleBtn) return;
 
@@ -132,7 +123,6 @@
     function routeMenuId(currentPath){
         const groups = [
             ['/ledger/settings', 'menu-ledger-basic'],
-            ['/ledger/accounts', 'menu-ledger-basic'],
             ['/ledger/opening-balances', 'menu-ledger-basic'],
             ['/ledger/data', 'menu-ledger-data'],
             ['/ledger/transactions', 'menu-ledger-voucher'],
@@ -161,7 +151,6 @@
 
     function canonicalLedgerPath(path){
         const aliases = {
-            '/ledger/accounts': '/ledger/settings/accounts',
             '/ledger/opening-balances': '/ledger/settings/opening-balances',
             '/ledger/data': '/ledger/data/list',
             '/ledger/transactions': '/ledger/transactions/input',
@@ -228,8 +217,7 @@
         window.__erpSidebarLayoutSync = true;
 
         const sidebar = document.querySelector('.sidebar');
-        const mainContent = document.querySelector('.main-content');
-        const duration = 360;
+        const duration = 220;
         let finished = false;
 
         const completeLayoutSync = () => {
@@ -241,7 +229,6 @@
                 layoutSyncCleanup = null;
             }
 
-            adjustAllDataTables();
             fireLayoutResize();
 
             window.setTimeout(() => {
@@ -252,18 +239,12 @@
         const onTransitionEnd = (event) => {
             const propertyName = String(event?.propertyName || '').trim();
 
-            if(event?.target === sidebar && propertyName === 'width'){
-                completeLayoutSync();
-                return;
-            }
-
-            if(event?.target === mainContent && (propertyName === 'width' || propertyName === 'margin-left')){
+            if(event?.target === sidebar && propertyName === 'transform'){
                 completeLayoutSync();
             }
         };
 
         sidebar?.addEventListener('transitionend', onTransitionEnd);
-        mainContent?.addEventListener('transitionend', onTransitionEnd);
 
         layoutAnimTimer = setTimeout(() => {
             completeLayoutSync();
@@ -271,7 +252,6 @@
 
         layoutSyncCleanup = () => {
             sidebar?.removeEventListener('transitionend', onTransitionEnd);
-            mainContent?.removeEventListener('transitionend', onTransitionEnd);
 
             if(layoutAnimTimer){
                 clearTimeout(layoutAnimTimer);
@@ -294,30 +274,7 @@
         }
     }
 
-    function adjustAllDataTables(){
-
-        if(!window.jQuery) return;
-
-        const $ = window.jQuery;
-
-        if(!$.fn.DataTable) return;
-
-        const tables = $.fn.dataTable.tables({ visible: true, api: true });
-        if(!tables?.every) return;
-
-        tables.every(function () {
-            const table = this;
-            if (table?.__dtTableSettings?.refreshLayout) {
-                table.__dtTableSettings.refreshLayout({ draw: true });
-                return;
-            }
-
-            table.columns.adjust().draw(false);
-        });
-    }
-
     function fireLayoutResize(){
-        window.dispatchEvent(new Event('resize'));
         document.dispatchEvent(new CustomEvent('sidebar:toggled'));
     }
 

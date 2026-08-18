@@ -19,6 +19,41 @@
     min-height:0;
 }
 
+#coverModal .ui-form-card + .ui-form-card {
+  margin-top: 1rem;
+}
+
+#coverModal .cover-system-info-grid {
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px 16px;
+}
+
+#coverModal .cover-system-info-field {
+    min-width:0;
+    display:grid;
+    grid-template-columns:92px minmax(0, 1fr);
+    gap:8px;
+    align-items:start;
+}
+
+#coverModal .cover-system-info-label {
+    color:var(--color-text-muted, #667085);
+    font-size:.82rem;
+}
+
+#coverModal .cover-system-info-value {
+    min-width:0;
+    overflow-wrap:anywhere;
+    font-size:.86rem;
+}
+
+@media (max-width: 767.98px) {
+    #coverModal .cover-system-info-grid {
+        grid-template-columns:1fr;
+    }
+}
+
 
 
 .cover-page .page-header,

@@ -1,19 +1,10 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Calendar/ExportService.php'
 namespace App\Services\Calendar;
 
 use PDO;
 use Core\LoggerFactory;
 use App\Services\Calendar\QueryService;
 
-/**
- * =========================================================
- * CalendarExportService
- * - 캘린더 데이터 "내보내기 전용"
- * - Excel / CSV / (PDF 예정)
- * - ❌ CalDAV 직접 호출 없음
- * =========================================================
- */
 class ExportService
 {
     private readonly PDO $pdo;
@@ -29,10 +20,6 @@ class ExportService
 
         $this->logger = LoggerFactory::getLogger('service-calendar.CalendarExportService');
     }
-
-    /* =========================================================
-     * Excel Export
-     * ========================================================= */
 
     public function exportExcel(string $dept, ?string $from, ?string $to): array
     {
@@ -55,9 +42,6 @@ class ExportService
         ];
     }
 
-    /* =========================================================
-     * CSV Export
-     * ========================================================= */
 
     public function exportCsv(string $dept, ?string $from, ?string $to): string
     {
@@ -76,10 +60,6 @@ class ExportService
 
         return $csv;
     }
-
-    /* =========================================================
-     * Row Mapping
-     * ========================================================= */
 
     private function mapEventToRow(array $ev): array
     {

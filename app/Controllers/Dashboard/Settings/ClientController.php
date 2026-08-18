@@ -1,10 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ClientController.php'
-// 시스템설정 > 기준정보 관리 > 거래처 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\ClientService;
 use Core\DbPdo;
+use Core\Session;
 
 class ClientController
 {
@@ -18,6 +17,7 @@ class ClientController
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $filters = [];
@@ -39,8 +39,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 목록 조회 실패',
-                'error'   => $e->getMessage(),
+                'message' => '거래처 목록 조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -79,8 +78,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 조회 실패',
-                'error'   => $e->getMessage(),
+                'message' => '거래처 조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -133,8 +131,7 @@ class ClientController
             echo json_encode([
                 'success' => false,
                 'data'    => [],
-                'message' => '검색 실패',
-                'error'   => $e->getMessage(),
+                'message' => '검색 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -202,8 +199,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 삭제 실패',
-                'error'   => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -224,8 +220,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '휴지통 조회 실패',
-                'error'   => $e->getMessage(),
+                'message' => '휴지통 조회 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -252,8 +247,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 복원 실패',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -281,8 +275,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 복원 실패',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -299,8 +292,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '전체 복원 실패',
-                'error'   => $e->getMessage(),
+                'message' => '복구 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -327,8 +319,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '영구삭제 실패',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -356,8 +347,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 영구삭제 실패',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -374,8 +364,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '전체 영구삭제 실패',
-                'error'   => $e->getMessage(),
+                'message' => '영구삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -405,7 +394,7 @@ class ClientController
             $this->service->downloadMigrationTemplate($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
-            echo '양식 다운로드 실패: ' . $e->getMessage();
+            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }
@@ -431,8 +420,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '엑셀 업로드 실패',
-                'error'   => $e->getMessage(),
+                'message' => '엑셀 업로드 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -446,7 +434,7 @@ class ClientController
             $this->service->downloadMigrationExcel($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
-            echo '엑셀 다운로드 실패: ' . $e->getMessage();
+            echo '엑셀 다운로드 중 오류가 발생했습니다.';
             exit;
         }
     }

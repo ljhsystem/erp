@@ -4,6 +4,7 @@ namespace App\Services\System;
 
 use PDO;
 use App\Models\System\BankAccountModel;
+use App\Repositories\System\BankAccountDependencyRepository;
 use App\Services\File\FileService;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
@@ -54,6 +55,7 @@ class BankAccountService
     private PDO $pdo;
     private BankAccountModel $model;
     private FileService $fileService;
+    private BankAccountDependencyRepository $dependencyRepository;
     private $logger;
 
     public function __construct(PDO $pdo)
@@ -61,6 +63,7 @@ class BankAccountService
         $this->pdo    = $pdo;
         $this->model  = new BankAccountModel($pdo);
         $this->fileService = new FileService($pdo);
+        $this->dependencyRepository = new BankAccountDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.BankAccountService');
 
         $this->logger->info('BankAccountService initialized');
@@ -180,6 +183,13 @@ class BankAccountService
         $id = trim((string)($data['id'] ?? ''));
         $mode = $id === '' ? 'CREATE' : 'UPDATE';
         $isCreate = ($mode === 'CREATE');
+        $validationMessage = $this->validateSaveData($data);
+        if ($validationMessage !== '') {
+            return ['success' => false, 'message' => $validationMessage];
+        }
+
+        $uploadedPath = null;
+        $obsoletePath = null;
 
         $this->logger->info('save() called', [
             'mode' => $mode,
@@ -188,39 +198,32 @@ class BankAccountService
         ]);
 
         try {
+            $file = $files['bank_file'] ?? null;
+            if ($file) {
+                $this->assertUploadOk($file, '통장사본');
+            }
+
+            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                $upload = $this->fileService->uploadBankCopy($file);
+                if (empty($upload['success']) || empty($upload['db_path'])) {
+                    throw new \RuntimeException('통장사본 업로드 실패');
+                }
+                $uploadedPath = (string) $upload['db_path'];
+            }
+
             $this->pdo->beginTransaction();
 
             if (!$isCreate) {
                 $before = $this->model->getById($id);
                 if (!$before) {
-                    throw new \Exception('Account not found.');
+                    throw new \DomainException('계좌 정보를 찾을 수 없습니다.');
                 }
 
-                if (!empty($data['delete_bank_file']) && $data['delete_bank_file'] == '1') {
-                    if (!empty($before['bank_file'])) {
-                        $this->fileService->delete($before['bank_file']);
-                    }
-                    $data['bank_file'] = null;
-                } else {
-                    $data['bank_file'] = $before['bank_file'] ?? null;
-                }
-
-                $file = $files['bank_file'] ?? null;
-                if ($file) {
-                    $this->assertUploadOk($file, 'bank copy');
-                }
-
-                if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-                    $upload = $this->fileService->uploadBankCopy($file);
-                    if (!$upload['success']) {
-                        throw new \Exception($upload['message'] ?? 'Bank copy upload failed.');
-                    }
-
-                    if (!empty($before['bank_file']) && $before['bank_file'] !== ($upload['db_path'] ?? null)) {
-                        $this->fileService->delete($before['bank_file']);
-                    }
-
-                    $data['bank_file'] = $upload['db_path'];
+                $existingPath = trim((string) ($before['bank_file'] ?? ''));
+                $deleteExisting = (string) ($data['delete_bank_file'] ?? '0') === '1';
+                $data['bank_file'] = $uploadedPath ?: ($deleteExisting ? null : ($existingPath ?: null));
+                if ($existingPath !== '' && ($deleteExisting || ($uploadedPath !== null && $uploadedPath !== $existingPath))) {
+                    $obsoletePath = $existingPath;
                 }
 
                 $data['updated_by'] = $actor;
@@ -228,31 +231,21 @@ class BankAccountService
                 unset($updateData['id']);
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('Failed to update bank account.');
+                    throw new \RuntimeException('계좌 수정 DB 처리 실패');
                 }
 
                 $this->pdo->commit();
+                $this->cleanupCommittedFile($obsoletePath, '교체된 통장사본');
 
                 return [
                     'success' => true,
                     'id' => $id,
                     'sort_no' => $before['sort_no'] ?? null,
-                    'message' => 'Update completed.'
+                    'message' => '계좌 정보를 수정했습니다.'
                 ];
             }
 
-            $file = $files['bank_file'] ?? null;
-            if ($file) {
-                $this->assertUploadOk($file, 'bank copy');
-            }
-
-            if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-                $upload = $this->fileService->uploadBankCopy($file);
-                if (!$upload['success']) {
-                    throw new \Exception($upload['message'] ?? 'Bank copy upload failed.');
-                }
-                $data['bank_file'] = $upload['db_path'];
-            }
+            $data['bank_file'] = $uploadedPath;
 
             $newId = UuidHelper::generate();
             $newSortNo = SequenceHelper::next('system_bank_accounts', 'sort_no');
@@ -265,7 +258,7 @@ class BankAccountService
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('Failed to create bank account.');
+                throw new \RuntimeException('계좌 등록 DB 처리 실패');
             }
 
             $this->pdo->commit();
@@ -274,13 +267,14 @@ class BankAccountService
                 'success' => true,
                 'id' => $newId,
                 'sort_no' => $newSortNo,
-                'message' => 'Create completed.'
+                'message' => '계좌를 등록했습니다.'
             ];
         }
         catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            $this->cleanupCompensatingFile($uploadedPath);
 
             $this->logger->error('save() failed', [
                 'error' => $e->getMessage(),
@@ -289,8 +283,53 @@ class BankAccountService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e instanceof \DomainException
+                    ? $e->getMessage()
+                    : '계좌 저장 중 오류가 발생했습니다.',
             ];
+        }
+    }
+
+    private function validateSaveData(array &$data): string
+    {
+        $data['account_name'] = trim((string) ($data['account_name'] ?? ''));
+        if ($data['account_name'] === '') {
+            return '계좌명은 필수입니다.';
+        }
+        if (mb_strlen($data['account_name'], 'UTF-8') > 150) {
+            return '계좌명은 150자 이하로 입력해 주세요.';
+        }
+
+        foreach (['bank_name' => 100, 'account_number' => 100, 'account_holder' => 100, 'account_type' => 50] as $key => $limit) {
+            $data[$key] = trim((string) ($data[$key] ?? ''));
+            if (mb_strlen($data[$key], 'UTF-8') > $limit) {
+                return '계좌 입력값이 허용 길이를 초과했습니다.';
+            }
+        }
+
+        $data['currency'] = strtoupper(trim((string) ($data['currency'] ?? 'KRW'))) ?: 'KRW';
+        if (!preg_match('/^[A-Z]{3}$/', $data['currency'])) {
+            return '통화 코드는 3자리 영문으로 입력해 주세요.';
+        }
+        if ($data['account_number'] !== '' && !preg_match('/^\d+$/', $data['account_number'])) {
+            return '계좌번호는 숫자만 입력해 주세요.';
+        }
+
+        $data['is_active'] = (string) ($data['is_active'] ?? '1') === '0' ? 0 : 1;
+        return '';
+    }
+
+    private function cleanupCompensatingFile(?string $path): void
+    {
+        if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
+            $this->logger->warning('신규 통장사본 보상 삭제 실패', ['path' => $path]);
+        }
+    }
+
+    private function cleanupCommittedFile(?string $path, string $context): void
+    {
+        if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
+            $this->logger->warning($context . ' 정리 실패', ['path' => $path]);
         }
     }
 
@@ -326,7 +365,7 @@ class BankAccountService
 
             return [
                 'success' => $ok,
-                'message' => $ok ? '삭제 완료' : '삭제 실패'
+                'message' => $ok ? '삭제했습니다.' : '삭제 중 오류가 발생했습니다.'
             ];
         } catch (\Throwable $e) {
             $this->logger->error('delete() failed', [
@@ -336,7 +375,7 @@ class BankAccountService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '삭제 중 오류가 발생했습니다.'
             ];
         }
     }
@@ -365,7 +404,7 @@ class BankAccountService
 
             return [
                 'success' => $ok,
-                'message' => $ok ? '복원 완료' : '복원 실패'
+                'message' => $ok ? '복원했습니다.' : '복구 중 오류가 발생했습니다.'
             ];
         } catch (\Throwable $e) {
             $this->logger->error('restore() failed', [
@@ -375,7 +414,7 @@ class BankAccountService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '복구 중 오류가 발생했습니다.'
             ];
         }
     }
@@ -390,7 +429,7 @@ class BankAccountService
         ]);
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'No ids provided.'];
+            return ['success' => false, 'message' => '복구할 계좌를 선택해 주세요.'];
         }
 
         $this->pdo->beginTransaction();
@@ -408,7 +447,7 @@ class BankAccountService
 
             return [
                 'success' => true,
-                'message' => "Restore completed ({$success} items)."
+                'message' => "계좌 {$success}건을 복원했습니다."
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -419,7 +458,7 @@ class BankAccountService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '복구 중 오류가 발생했습니다.'
             ];
         }
     }
@@ -448,7 +487,7 @@ class BankAccountService
 
             return [
                 'success' => true,
-                'message' => "Restore all completed ({$success} items)."
+                'message' => "계좌 {$success}건을 복원했습니다."
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -459,155 +498,125 @@ class BankAccountService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '복구 중 오류가 발생했습니다.'
             ];
         }
     }
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purge() called', [
-            'id' => $id,
-            'actorType' => $actorType,
-            'actor' => $actor
-        ]);
-
-        $item = $this->model->getById($id);
-        if (!$item) {
-            return [
-                'success' => false,
-                'message' => 'Account not found.'
-            ];
+        $result = $this->purgeAccounts([$id]);
+        if (($result['deleted_count'] ?? 0) === 0) {
+            $result['success'] = false;
         }
-
-        $this->pdo->beginTransaction();
-
-        try {
-            if (!empty($item['bank_file'])) {
-                $this->fileService->delete($item['bank_file']);
-            }
-
-            if (!$this->model->hardDeleteById($id)) {
-                throw new \Exception('Failed to delete account from database.');
-            }
-
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => 'Purge completed.'
-            ];
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purge() failed', [
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Purge failed.'
-            ];
-        }
+        return $result;
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purgeBulk() called', [
-            'ids' => $ids,
-            'actor' => $actor
-        ]);
-
-        if (empty($ids)) {
-            return ['success' => false, 'message' => 'No ids provided.'];
-        }
-
-        $this->pdo->beginTransaction();
-
-        try {
-            $success = 0;
-
-            foreach ($ids as $id) {
-                $item = $this->model->getById($id);
-                if (!$item) {
-                    continue;
-                }
-
-                if (!empty($item['bank_file'])) {
-                    $this->fileService->delete($item['bank_file']);
-                }
-
-                if ($this->model->hardDeleteById($id)) {
-                    $success++;
-                }
-            }
-
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "Purge completed ({$success} items)."
-            ];
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purgeBulk() failed', [
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
+        return $this->purgeAccounts($ids);
     }
 
     public function purgeAll(string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
+        return $this->purgeAccounts(array_column($this->model->getDeleted(), 'id'));
+    }
 
-        $this->logger->info('purgeAll() called', [
-            'actor' => $actor
-        ]);
+    private function purgeAccounts(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn($id): string => trim((string) $id),
+            $ids
+        ))));
+        if ($ids === []) {
+            return $this->purgeResult(0, 0, []);
+        }
+
+        $deletedCount = 0;
+        $blocked = [];
+        $filesToDelete = [];
 
         $this->pdo->beginTransaction();
-
         try {
-            $rows = $this->model->getDeleted();
-            $success = 0;
-
-            foreach ($rows as $row) {
-                if (!empty($row['bank_file'])) {
-                    $this->fileService->delete($row['bank_file']);
+            foreach ($ids as $id) {
+                $account = $this->model->getById($id);
+                if (!$account || empty($account['deleted_at'])) {
+                    $blocked[] = ['id' => $id, 'references' => ['휴지통에 없는 계좌']];
+                    continue;
                 }
 
-                if ($this->model->hardDeleteById($row['id'])) {
-                    $success++;
+                $references = $this->dependencyRepository->findReferences($id);
+                if ($references !== []) {
+                    $blocked[] = [
+                        'id' => $id,
+                        'references' => array_column($references, 'label'),
+                    ];
+                    continue;
                 }
+
+                if (!$this->model->hardDeleteById($id)) {
+                    throw new \RuntimeException('계좌 영구삭제 DB 처리 실패');
+                }
+
+                if (!empty($account['bank_file'])) {
+                    $filesToDelete[] = (string) $account['bank_file'];
+                }
+                $deletedCount++;
             }
 
             $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => "Purge all completed ({$success} items)."
-            ];
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-
-            $this->logger->error('purgeAll() failed', [
-                'error' => $e->getMessage()
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            $this->logger->error('purgeAccounts() failed', [
+                'ids' => $ids,
+                'exception' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '영구삭제 중 오류가 발생했습니다.',
+                'deleted_count' => 0,
+                'skipped_count' => count($ids),
+                'blocked' => [],
+                'data' => ['deleted_count' => 0, 'skipped_count' => count($ids), 'blocked' => []],
             ];
         }
+
+        foreach ($filesToDelete as $path) {
+            $this->cleanupCommittedFile($path, '영구삭제된 계좌 통장사본');
+        }
+
+        return $this->purgeResult($deletedCount, count($blocked), $blocked);
+    }
+
+    private function purgeResult(int $deletedCount, int $skippedCount, array $blocked): array
+    {
+        if ($deletedCount === 0 && $skippedCount > 0) {
+            $labels = array_values(array_unique(array_merge(...array_column($blocked, 'references'))));
+            $summary = $labels === [] ? '' : ' 참조 업무: ' . implode(', ', $labels) . '.';
+            $message = '다른 업무에서 사용 중인 계좌이므로 영구삭제할 수 없습니다.' . $summary;
+        } elseif ($skippedCount > 0) {
+            $message = "계좌 {$deletedCount}건을 영구삭제했고, 사용 중인 {$skippedCount}건은 유지했습니다.";
+        } elseif ($deletedCount > 0) {
+            $message = "계좌 {$deletedCount}건을 영구삭제했습니다.";
+        } else {
+            $message = '영구삭제할 계좌가 없습니다.';
+        }
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'deleted_count' => $deletedCount,
+            'skipped_count' => $skippedCount,
+            'blocked' => $blocked,
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped_count' => $skippedCount,
+                'blocked' => $blocked,
+            ],
+        ];
     }
 
     public function reorder(array $changes): bool
@@ -741,31 +750,6 @@ class BankAccountService
         }
 
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
-
-        $spreadsheet = IOFactory::load($filePath);
-        $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
-        if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
-        $header = array_map(fn($v) => trim((string)$v), array_shift($rows));
-        $map = array_flip($header);
-        $count = 0;
-        foreach ($rows as $row) {
-            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) { continue; }
-            $payload = [
-                'account_name' => trim((string)($row[$map['계좌명'] ?? -1] ?? '')),
-                'bank_name' => trim((string)($row[$map['은행명'] ?? -1] ?? '')),
-                'account_number' => trim((string)($row[$map['계좌번호'] ?? -1] ?? '')),
-                'account_holder' => trim((string)($row[$map['예금주'] ?? -1] ?? '')),
-                'account_type' => trim((string)($row[$map['계좌유형'] ?? -1] ?? '')),
-                'currency' => trim((string)($row[$map['통화'] ?? -1] ?? 'KRW')) ?: 'KRW',
-                'is_active' => trim((string)($row[$map['상태'] ?? -1] ?? '사용')) === '미사용' ? 0 : 1,
-                'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
-                'memo' => trim((string)($row[$map['메모'] ?? -1] ?? '')),
-            ];
-            if ($payload['account_name'] === '') { continue; }
-            $result = $this->save($payload, 'SYSTEM');
-            if (!empty($result['success'])) { $count++; }
-        }
-        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
     public function downloadExcel(?string $columnsCsv = null): void
@@ -835,7 +819,22 @@ class BankAccountService
 
         $selectedColumns = [];
         foreach ($selectedKeys as $key) {
-            $selectedColumns[] = $columnsByKey[$key];
+            $column = $columnsByKey[$key];
+            if ($type === 'template' && empty($column['allow_upload'])) {
+                continue;
+            }
+            $selectedColumns[] = $column;
+        }
+
+        if ($selectedColumns === []) {
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($type === 'template' && empty($column['allow_upload'])) {
+                    continue;
+                }
+                if (!empty($column['required']) || !empty($column[$type . '_default'])) {
+                    $selectedColumns[] = $column;
+                }
+            }
         }
 
         return $this->decorateColumns($selectedColumns);
@@ -1068,9 +1067,6 @@ class BankAccountService
     private function parseExcelActiveValue(mixed $value): int
     {
         $normalized = mb_strtolower(trim((string) $value), 'UTF-8');
-        return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
-
-        $normalized = strtolower(trim((string)$value));
         return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }
 }

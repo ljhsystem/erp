@@ -96,6 +96,18 @@ export function formatNumber(value) {
     return `${parts.sign}${integer}.${parts.decimalPart}`;
 }
 
+export function rateToPercent(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const number = Number(value);
+    return Number.isFinite(number) ? Number((number * 100).toFixed(10)) : value;
+}
+
+export function percentToRate(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const number = Number(value);
+    return Number.isFinite(number) ? Number((number / 100).toFixed(12)) : value;
+}
+
 export function bindNumberInput(input, options = {}) {
     if (!input || input.dataset.numberFormatBound === 'true') {
         return input;

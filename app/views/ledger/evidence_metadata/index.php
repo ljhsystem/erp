@@ -23,7 +23,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/evidenceMetadata.js'
                 <option value="import_type">자료유형</option>
                 <option value="source_table">원본테이블</option>
                 <option value="evidence_type">증빙유형</option>
-                <option value="process_role">처리역할</option>
             ';
             include PROJECT_ROOT . '/app/views/components/ui-search.php';
 
@@ -56,31 +55,22 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/evidenceMetadata.js'
                         <h6>증빙유형 설정</h6>
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label" for="evidenceMetadataImportTypeDisplay">자료유형</label>
+                                <label class="form-label" for="evidenceMetadataImportTypeDisplay">자료유형(import_type) <span class="text-danger">*</span></label>
                                 <input type="hidden" name="import_type" id="evidenceMetadataImportType">
                                 <input type="text" class="form-control form-control-sm" id="evidenceMetadataImportTypeDisplay" readonly aria-readonly="true">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="evidenceMetadataSourceTable">원본테이블</label>
+                                <label class="form-label" for="evidenceMetadataSourceTable">원본테이블 <span class="text-danger">*</span></label>
                                 <input type="hidden" name="source_table" id="evidenceMetadataSourceTable">
                                 <input type="text" class="form-control form-control-sm" id="evidenceMetadataSourceTableDisplay" readonly aria-readonly="true">
                                 <div class="form-text">자료유형과 실제 DB 구조를 기준으로 자동 추천됩니다.</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="evidenceMetadataEvidenceType">증빙유형</label>
+                                <label class="form-label" for="evidenceMetadataEvidenceType">사용영역(evidence_type) <span class="text-danger">*</span></label>
                                 <select class="form-select form-select-sm" name="evidence_type" id="evidenceMetadataEvidenceType" required>
                                     <option value="DATA">자료증빙</option>
                                     <option value="FUND">자금증빙</option>
                                     <option value="BOTH">자료·자금 공통</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="evidenceMetadataProcessRole">처리역할</label>
-                                <select class="form-select form-select-sm" name="process_role" id="evidenceMetadataProcessRole" required>
-                                    <option value="TRANSACTION_SSOT">거래 생성</option>
-                                    <option value="REPORT_SSOT">신고 생성</option>
-                                    <option value="TRANSACTION_REPORT_SSOT">거래·신고 생성</option>
-                                    <option value="REFERENCE">참조자료</option>
                                 </select>
                             </div>
                         </div>
@@ -128,7 +118,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/evidenceMetadata.js'
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
                 <div class="modal-body">
-                    <label class="form-label" for="evidencePolicyTypeSelect">등록할 자료유형</label>
+                    <label class="form-label" for="evidencePolicyTypeSelect">등록할 자료유형(import_type) <span class="text-danger">*</span></label>
                     <select class="form-select form-select-sm" id="evidencePolicyTypeSelect"></select>
                 </div>
                 <div class="modal-footer">
@@ -147,12 +137,12 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/evidenceMetadata.js'
     $listUrl = '/api/ledger/evidence-metadata/trash';
     $restoreUrl = '/api/ledger/evidence-metadata/restore';
     $deleteUrl = '/api/ledger/evidence-metadata/purge';
-    $deleteAllUrl = '/api/ledger/evidence-metadata/purge-all';
+    $deleteAllUrl = '';
+    $enableDeleteAll = false;
     $tableHead = '
         <th>자료유형</th>
         <th>원본테이블</th>
         <th>증빙유형</th>
-        <th>처리역할</th>
         <th>삭제일시</th>
         <th>삭제자</th>
         <th width="150">작업</th>

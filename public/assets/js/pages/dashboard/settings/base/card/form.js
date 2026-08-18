@@ -3,6 +3,7 @@ export function createCardFormModule({
     initNumberInputs,
     openClientQuickCreate,
     API,
+    confirmDialog,
 }) {
     let todayPicker = null;
     let selectInitialized = false;
@@ -13,9 +14,7 @@ export function createCardFormModule({
             window.AppCore.notify(type, message);
             return;
         }
-        if (type === 'error') {
-            alert(message);
-        }
+        window.AppCore?.notify?.(type, message);
     };
 
     function escapeHtml(value) {
@@ -338,8 +337,13 @@ export function createCardFormModule({
         resetCardImageUI();
     }
 
-    function markCardFileDeleted() {
-        if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
+    async function markCardFileDeleted() {
+        if (!await confirmDialog({
+            title: '카드 이미지 삭제',
+            message: '카드 이미지를 삭제하시겠습니까?',
+            confirmText: '삭제',
+            confirmClass: 'btn-danger',
+        })) return;
 
         const input = getCardFileInputEl();
         const del = getDeleteCardFileEl();

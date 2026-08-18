@@ -3,6 +3,7 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\CodeService;
 use Core\DbPdo;
+use Core\Session;
 
 class CodeController
 {
@@ -13,20 +14,10 @@ class CodeController
         $this->service = new CodeService(DbPdo::conn());
     }
 
-    public function redirectBaseInfoApi(): void
-    {
-        $uri = $_SERVER['REQUEST_URI'] ?? '/api/settings/system/code/list';
-        $target = str_replace('/api/settings/base-info/code', '/api/settings/system/code', $uri);
-
-        if (!headers_sent()) {
-            header('Location: ' . $target, true, 307);
-        }
-        exit;
-    }
-
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
+        Session::write();
 
         try {
             $codeGroup = trim((string)($_GET['code_group'] ?? ''));
@@ -61,7 +52,6 @@ class CodeController
             echo json_encode([
                 'success' => false,
                 'message' => '기준정보 목록 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -98,6 +88,26 @@ class CodeController
             'success' => true,
             'data' => $this->service->getGroups(),
         ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    public function apiReferences(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        $id = trim((string) ($_GET['id'] ?? ''));
+        if ($id === '') {
+            echo json_encode(['success' => false, 'message' => '코드 정보를 찾을 수 없습니다.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        try {
+            echo json_encode($this->service->referenceStatus($id), JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable) {
+            echo json_encode([
+                'success' => false,
+                'message' => '참조 상태를 확인할 수 없습니다.',
+            ], JSON_UNESCAPED_UNICODE);
+        }
         exit;
     }
 
@@ -164,95 +174,10 @@ class CodeController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '기준정보 삭제 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
+                'message' => '삭제 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
 
-        exit;
-    }
-
-    public function apiTrashList(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        try {
-            $rows = $this->service->getTrashList();
-            echo json_encode([
-                'success' => true,
-                'data' => $rows,
-            ], JSON_UNESCAPED_UNICODE);
-        } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'data' => [],
-                'message' => '휴지통 목록 조회 중 오류가 발생했습니다.',
-                'error' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
-
-        exit;
-    }
-
-    public function apiRestore(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        $id = $_POST['id'] ?? null;
-        if (!$id) {
-            echo json_encode(['success' => false, 'message' => 'ID가 없습니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
-        echo json_encode($this->service->restore((string)$id, 'USER'), JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    public function apiRestoreBulk(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
-        echo json_encode($this->service->restoreBulk($input['ids'] ?? [], 'USER'), JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    public function apiRestoreAll(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        echo json_encode($this->service->restoreAll('USER'), JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    public function apiPurge(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        $id = $_POST['id'] ?? null;
-        if (!$id) {
-            echo json_encode(['success' => false, 'message' => 'ID가 없습니다.'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
-        echo json_encode($this->service->purge((string)$id, 'USER'), JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    public function apiPurgeBulk(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
-        echo json_encode($this->service->purgeBulk($input['ids'] ?? [], 'USER'), JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    public function apiPurgeAll(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        echo json_encode($this->service->purgeAll('USER'), JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -260,59 +185,14 @@ class CodeController
     {
         header('Content-Type: application/json; charset=UTF-8');
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
-        $this->service->reorder($input['changes'] ?? []);
-
-        echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?: [];
+            $this->service->reorder($input['changes'] ?? [], 'USER');
+            echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable) {
+            echo json_encode(['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.'], JSON_UNESCAPED_UNICODE);
+        }
         exit;
     }
 
-    public function apiDownloadTemplate(): void
-    {
-        try {
-            $this->service->downloadMigrationTemplate($_GET['columns'] ?? null);
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            echo '양식 다운로드 실패: ' . $e->getMessage();
-            exit;
-        }
-    }
-
-    public function apiDownloadExcel(): void
-    {
-        try {
-            $this->service->downloadMigrationExcel($_GET['columns'] ?? null);
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            echo '다운로드 실패: ' . $e->getMessage();
-            exit;
-        }
-    }
-
-    public function apiExcelUpload(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        try {
-            if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => '업로드할 엑셀 파일을 선택하세요.',
-                ], JSON_UNESCAPED_UNICODE);
-                exit;
-            }
-
-            $result = $this->service->saveFromMigrationExcelFile($_FILES['excel']['tmp_name']);
-
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => '엑셀 업로드에 실패했습니다.',
-                'error' => $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
-        }
-
-        exit;
-    }
 }

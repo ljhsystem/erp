@@ -3,13 +3,17 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { bindModalCardCollapses } from '/public/assets/js/common/modal-card-collapse.js';
+import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
 export function createCardModalModule({
     API,
     AdminPicker,
     formatAmount,
+    formatDateDisplay,
     formModule,
     state,
+    confirmDialog,
 }) {
     let cardPolicyBound = false;
 
@@ -187,6 +191,7 @@ export function createCardModalModule({
         if (!modalEl) return;
 
         state.cardModal = new bootstrap.Modal(modalEl, { focus: false });
+        bindModalCardCollapses(modalEl, { resetOnShow: true });
 
         const excelEl = document.getElementById('cardExcelModal');
         if (excelEl) {
@@ -210,8 +215,7 @@ export function createCardModalModule({
     }
 
     async function fetchCardDetail(cardId) {
-        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(cardId)}`);
-        const json = await res.json();
+        const json = await window.AppAjax.fetchJson(`${API.DETAIL}?id=${encodeURIComponent(cardId)}`);
 
         if (!json.success || !json.data) {
             throw new Error(json.message || '카드 상세 조회에 실패했습니다.');
@@ -222,6 +226,7 @@ export function createCardModalModule({
 
     function openCreateModal() {
         formModule.resetCardForm();
+        renderCardSystemInfo({});
         window.isNewCard = true;
         formModule.setModalTitle('카드 신규 등록');
         applyCardModalPolicyLabels(document);
@@ -285,7 +290,38 @@ export function createCardModalModule({
         setSelect2Initial('#cardClientSelect', data.client_id, data.client_name);
         setSelect2Initial('#cardAccountSelect', data.account_id, data.account_name);
         formModule.renderCardFile(data);
+        renderCardSystemInfo(data);
         applyCardModalPolicyLabels(document);
+    }
+
+    function renderCardSystemInfo(data = {}) {
+        const container = document.getElementById('cardSystemInfoFields');
+        if (!container) return;
+
+        const fields = [
+            ['id', 'ID'],
+            ['sort_no', '순번'],
+            ['created_at', '생성일시', 'datetime'],
+            ['created_by_name', '생성자'],
+            ['updated_at', '수정일시', 'datetime'],
+            ['updated_by_name', '수정자'],
+            ['deleted_at', '삭제일시', 'datetime'],
+            ['deleted_by_name', '삭제자'],
+        ];
+
+        container.replaceChildren(...fields.map(([key, labelText, type]) => {
+            const item = document.createElement('div');
+            item.className = 'card-system-info-field';
+            const label = document.createElement('span');
+            label.className = 'card-system-info-label';
+            label.textContent = labelText;
+            const value = document.createElement('span');
+            value.className = 'card-system-info-value';
+            const raw = type === 'datetime' ? formatDateDisplay(data[key]) : data[key];
+            value.textContent = raw === null || raw === undefined ? '' : String(raw);
+            item.append(label, value);
+            return item;
+        }));
     }
 
     function setSelect2Initial(selector, id, text) {
@@ -334,48 +370,39 @@ export function createCardModalModule({
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
 
-            $.ajax({
-                url: API.SAVE,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-            })
-                .done((res) => {
-                    if (!res.success) {
-                        formModule.notify('error', res.message || '저장에 실패했습니다.');
-                        return;
-                    }
-
+            void window.AppAjax.fetchJson(API.SAVE, { method: 'POST', body: formData })
+                .then(() => {
                     state.cardModal?.hide();
                     getTable()?.ajax.reload(null, false);
                     formModule.notify('success', '저장되었습니다.');
                 })
-                .fail(() => {
-                    formModule.notify('error', '서버 오류가 발생했습니다.');
+                .catch((error) => {
+                    formModule.notify('error', error.message || '저장 중 오류가 발생했습니다.');
                 })
-                .always(() => {
+                .finally(() => {
                     if (btn) btn.disabled = false;
                 });
         });
 
-        $('#btnDeleteCard').off('click').on('click', () => {
+        $('#btnDeleteCard').off('click').on('click', async () => {
             const id = formModule.getIdEl()?.value || '';
-            if (!id || !confirm('삭제하시겠습니까?')) return;
+            if (!id || !await confirmDialog({
+                title: '카드 삭제',
+                message: '카드를 휴지통으로 이동하시겠습니까?',
+                confirmText: '삭제',
+                confirmClass: 'btn-danger',
+            })) return;
 
-            $.post(API.DELETE, { id })
-                .done((res) => {
-                    if (res.success) {
-                        formModule.notify('success', '삭제했습니다.');
-                        getTable()?.ajax.reload(null, false);
-                        state.cardModal?.hide();
-                    } else {
-                        formModule.notify('error', res.message || '삭제에 실패했습니다.');
-                    }
-                })
-                .fail(() => {
-                    formModule.notify('error', '서버 오류가 발생했습니다.');
+            try {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '카드를 휴지통으로 이동 중' }, async () => {
+                    await window.AppAjax.postForm(API.DELETE, { id });
+                    formModule.notify('success', '삭제했습니다.');
+                    await new Promise(resolve => getTable()?.ajax.reload(() => resolve(), false));
+                    state.cardModal?.hide();
                 });
+            } catch (error) {
+                formModule.notify('error', error.message || '삭제 중 오류가 발생했습니다.');
+            }
         });
     }
 

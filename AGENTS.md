@@ -225,14 +225,17 @@ const mergedDefaultColDef = {
 ### 7. DB 네이밍 규칙
 
 - 시스템/기준정보 테이블은 `system_*`을 사용한다.
-- 사용자/조직정보 테이블은 `user_*`을 사용한다.
+- 인증 사용자와 전사 공용 직원·조직 마스터는 `user_*`을 사용한다.
+- 대외기관업무의 페이지 소유 업무 테이블은 `institution_{page_domain}_*`을 사용한다.
+- 대외기관업무 하위 테이블은 부모 페이지의 복수형 도메인 접두사를 유지한다. 예: `institution_employment_contracts_*`, `institution_personnel_actions_*`, `institution_job_assignments_*`, `institution_attendance_*`.
+- 계약·발령·배치·근태의 거래·이력·스냅샷 테이블을 `user_*`으로 신규 생성하지 않는다.
 - 인증/권한 테이블은 `auth_*`을 사용한다.
 - 회계 테이블은 `ledger_*`을 사용한다.
 - 증빙 본문 테이블은 `ledger_evidence_*`를 사용한다.
 - 증빙 payload는 `ledger_evidence_payloads`를 사용한다.
 - 증빙 처리 상태는 `ledger_evidence_processing`을 사용한다.
 - 증빙 링크는 `ledger_evidence_links`를 사용한다.
-- 생성센터 처리 item은 `ledger_processing_items`를 사용한다.
+- 폐기된 생성센터 processing 테이블과 증빙 Split 구조를 신규 코드에서 다시 만들거나 참조하지 않는다.
 - 로그 테이블은 `{domain}_logs` 형식을 사용한다.
 - 이력 테이블은 `{domain}_histories` 형식을 사용한다.
 - 중간 매핑 테이블은 `{source}_{target}_links` 또는 `{domain}_links` 형식을 사용한다.
@@ -846,6 +849,39 @@ UI 구현 원칙
 - 동일 역할 UI를 화면마다 다른 구조와 명칭으로 다시 만들지 않는다.
 - 공용 UI 확장이 가능하면 신규 구현보다 공용 확장을 우선한다.
 
+### 21-3. 목록형 화면(List Page) 표준 규칙
+
+- 신규 화면 개발 전 목록형 화면인지 개별업무형 화면인지 먼저 판정한다.
+- 거래처, 프로젝트, 직원, 부서, 직책, 역할, 계정과목, 보조계정, 계좌, 카드, 증빙원본, 거래입력, 전표입력, 근로계약, 인사발령, 근태, 휴가, 성과평가, 보상, 소득자료, 기준·요율, 신고이력 및 앞으로 추가되는 모든 목록형 관리화면에 적용한다.
+- 목록형 화면은 `페이지 제목 → 우측 공용 버튼 → 공용 SearchForm → 공용 DataTable → 공용 Pagination` 순서를 따른다.
+- 목록형 화면에서 개별 HTML table, 개별 검색영역, 개별 페이징을 구현하지 않는다.
+- 검색조건은 업무별로 구성할 수 있으나 레이아웃과 동작은 기존 공용 `SearchForm`을 사용한다.
+- 공용 SearchForm의 검색, 초기화, Enter 검색, Select2, 날짜범위, 코드검색, 검색조건 저장 기능을 우선 사용하며 전용 SearchForm을 만들지 않는다.
+- 목록 데이터는 공용 `createDataTable`을 사용하고 서버 검색, 서버 정렬, 서버 페이징, Empty State, Loading, 행 선택, 더블클릭, 컬럼폭, 컬럼고정, 페이지당 건수, 컬럼설정, 정렬상태 유지 기능을 재사용한다.
+- 목록형 화면의 휴지통, 순서변경, 상태변경, Excel, 출력, 삭제, 복원, 권한체크, Action 버튼은 기존 공용 기능을 우선 사용한다.
+- 신규 목록형 화면 설계 전 공용 SearchForm, DataTable, 휴지통, 순서변경, Excel, Action의 사용 가능 여부를 조사한다.
+- Dashboard, Workspace, 상세입력, 전표작성, 거래작성, Wizard, Calendar, Chart, Kanban은 목록형 화면 예외로 업무 특성에 맞는 개별 UI를 구현할 수 있다.
+- 신규 화면 완료 보고에는 목록형 여부, 공용 SearchForm, 공용 DataTable, 공용 휴지통, 공용 순서변경, 공용 Action 사용 여부와 전용 구현 제거 여부를 자체 검수한다.
+- 목록형 표준을 적용할 수 없는 예외는 구현 전에 사유와 영향 범위를 보고한다.
+
+### 21-1. 공용 Select2 입력 규칙
+
+- 공용 Select2의 미선택 상태는 빈 값(`value=""`)을 사용하고 화면과 실제 드롭다운 첫 선택 항목에 `선택(없음)`을 제공한다. 사용자가 이 항목을 다시 선택해 값을 명시적으로 비울 수 있어야 한다.
+- 옵션 순서는 `선택(없음)` → 업무 목록 → `+ 추가` 순서를 유지한다.
+- 실제 퀵 등록 모달과 저장 경로가 있는 항목만 `+ 추가`를 활성화하고, 지원하지 않는 항목은 마지막 옵션을 비활성으로 표시한다.
+- View 또는 partial에 업무값을 `selected`로 지정하거나 `프로젝트 선택`, `카드 선택` 같은 화면별 기본 placeholder를 두지 않는다.
+- 신규 입력은 빈 값으로 시작하고, 수정 화면은 서버에서 조회한 기존값이 있을 때만 해당 옵션을 선택한다.
+- 화면별 옵션 조립으로 공용 없음/추가 옵션을 중복 생성하지 않는다.
+
+### 21-2. 테이블설정·엑셀관리 SSOT 규칙
+
+- 테이블설정은 테이블 표시 순서, 사용 컬럼명, 모달 필드 순서와 표시명, 필수·선택 표시, 증빙상태 판정의 SSOT다.
+- 테이블과 모달의 코드관리·기초정보 참조값 및 Actor는 저장 ID가 아니라 해당 참조 도메인의 설정된 표시명으로 출력한다.
+- 참조 ID는 DB 저장과 API 식별에만 사용하고, 일반 테이블 셀·모달 입력값·엑셀 표시값에 그대로 노출하지 않는다.
+- 참조 표시명은 서버의 표준 `*_name` 필드 또는 공용 Actor/참조 표시 구조를 사용하며 JS에서 ID를 임의 해석하지 않는다.
+- 엑셀관리 컬럼설정은 업로드 양식의 포함 여부·순서·필수구분과 다운로드 표시 여부·순서의 SSOT다.
+- 엑셀 업로드 저장 검증은 엑셀관리 설정을 사용하고, 모달 저장 검증과 증빙상태 판정은 테이블설정을 사용한다.
+- 테이블설정과 엑셀관리의 필수구분을 서로 대체하거나 혼용하지 않는다.
 ### 22. DecisionLog 운영 규칙
 
 `DecisionLog.md`는 작업 로그가 아니라 결정 문서다.
@@ -1412,3 +1448,55 @@ php -l 확인
 - 비교 대상 화면
 - 발견한 차이
 - 차이를 어떻게 수정했는지
+## Evidence Selection 아키텍처 규칙
+
+- Evidence Body는 증빙원본 SSOT이다.
+- 증빙원본은 조회, 수정, 상태, Validation, 연결정보만 담당한다. 폐기된 Split 기능과 대체 Split SSOT를 만들지 않는다.
+- 거래입력은 신규 거래와 증빙 참조 거래 생성을 담당하며 `TransactionCrudService`로 저장한다.
+- 전표입력은 신규 전표와 증빙 참조 전표 생성을 담당하며 `VoucherService`로 저장한다.
+- 증빙 연결은 `EvidenceLinkModel`과 `ledger_evidence_links`만 사용한다.
+- 거래·전표 직접 FK, 직접 연결 테이블, 화면 전용 연결 저장 로직을 금지한다.
+- `EvidenceLinkModel`은 연결 조회·저장·삭제·복구·중복 방지만 담당하며 저장, 추천, Validation, workflow를 담당하지 않는다.
+- Evidence Selection Module은 프로젝트 공용 증빙 선택 모듈이다. 증빙·자료유형 검색, 다중선택, 연결상태 표시, `(import_type, evidence_id)` 반환까지만 담당하며 저장, 추천, Validation, workflow를 수행하지 않는다.
+- REVIEWED·POSTED 검증은 `전표 → 연결 증빙 → EvidenceLinkModel → 동일 증빙의 활성 거래` 경로만 허용한다.
+- 생성센터와 Split은 제거된 레거시이며 신규 설계·기능·공용화의 기준으로 사용하지 않는다.
+- 증빙 참조 흐름은 Evidence Body → `ledger_evidence_links` → 거래·전표 순서만 사용한다.
+
+### 33. 신규 DB 구조 사전승인 규칙
+
+- Table, Column, View, Trigger, Procedure, Function, Event, FK, UNIQUE, 핵심 CHECK, 데이터 Backfill, 운영 DB Migration 실행은 사용자 사전 승인 없이 생성·변경하지 않는다.
+- 승인 전에는 다음 20개 항목을 보고한다.
+  1. 실제 업무 문제
+  2. 사용자 업무 시나리오
+  3. 현재 SSOT
+  4. 기존 구조로 해결할 수 없는 이유
+  5. 신규 구조의 독립 책임
+  6. 저장값과 파생값 구분
+  7. 대안 설계 비교
+  8. 화면·API·권한 흐름
+  9. Controller→Service→Model 구조
+  10. DDL 초안
+  11. FK·INDEX·UNIQUE·CHECK
+  12. 생성·수정·삭제·복원 생명주기
+  13. 감사이력 정책
+  14. 예상 데이터 규모
+  15. Migration 및 Rollback
+  16. 기존 데이터 Backfill
+  17. 삭제 시 영향
+  18. 생성하지 않을 경우 실제 장애
+  19. 기술부채
+  20. 최종 권고
+- 미래 가능성, 개발 편의, 임시 fallback, legacy 호환만을 이유로 신규 DB 구조를 만들지 않는다.
+- 기능 확정 전 선제 Migration, 사용자 화면·업무 흐름 없는 DB 선생성, 기존 SSOT 복제, 파생값 영구 저장을 금지한다.
+- 조사 단계에서 테이블을 만들거나 Git 미등록 상태에서 운영 DB를 먼저 변경하지 않는다.
+- 작업 순서는 `업무 요구사항 조사 → 기존 SSOT 조사 → 대안 비교 → 사용자 보고 → 사용자 승인 → DDL·Migration 작성 → 코드 구현 → 정적·통합 검증 → Git 등록 → 승인된 Migration 실행 → 운영 데이터 검증`을 따른다.
+
+### 34. 자사계좌 내부이체 판정 규칙
+
+- 내부이체는 별도 링크 테이블을 사용하지 않고 `ledger_evidence_bank_transaction → ledger_evidence_links → ledger_vouchers → ledger_voucher_lines → ledger_voucher_line_refs → system_bank_accounts` 경로로만 판정한다.
+- 활성 `BANK_TRANSACTION` 증빙이 정확히 2건이고 한 건은 출금, 한 건은 입금이며 금액이 정확히 같고 서로 다른 자사계좌여야 한다.
+- 실제 DB canonical 계좌 참조는 `ledger_voucher_line_refs.ref_target = 'ACCOUNT'`다. 삭제된 `BANK_ACCOUNT` 표현이나 호환 fallback을 도입하지 않는다.
+- 출금계좌 `ACCOUNT` 참조는 동일 금액의 대변 라인, 입금계좌 참조는 동일 금액의 차변 라인과 각각 정확히 일치해야 한다.
+- 추가 은행 증빙 또는 추가 자사계좌 참조 라인이 있거나 관계가 모호하면 내부이체로 판정하지 않는다.
+- 삭제·역분개 전표와 `draft`, `review_requested`, `deleted` 상태는 제외하고 `REVIEWED`, `POSTED`, `CLOSED`만 확정 내부이체로 인정한다.
+- 적요, 계정명, 거래명, 날짜 근접성, 금액 유사성만으로 내부이체를 추론하지 않는다.

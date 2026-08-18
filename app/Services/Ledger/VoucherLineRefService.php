@@ -50,7 +50,7 @@ class VoucherLineRefService
         return array_map(function (array $line): array {
             $refs = array_map(static function (array $ref): array {
                 return [
-                    'ref_type' => (string) ($ref['ref_target'] ?? $ref['ref_type'] ?? ''),
+                    'ref_target' => (string) ($ref['ref_target'] ?? ''),
                     'ref_id' => (string) ($ref['ref_id'] ?? ''),
                 ];
             }, is_array($line['refs'] ?? null) ? $line['refs'] : []);
@@ -79,7 +79,6 @@ class VoucherLineRefService
             $label = $this->resolveRefLabel($row);
             $refs[] = [
                 'ref_target' => $refTarget,
-                'ref_type' => $refTarget,
                 'ref_id' => $refId,
                 'line_ref_target' => $refTarget,
                 'line_ref_id' => $refId,

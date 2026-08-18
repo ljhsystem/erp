@@ -1,5 +1,25 @@
 import { actorColumn } from '/public/assets/js/common/actor.js';
+import { formatAmount } from '/public/assets/js/common/format.js';
 import { manageButtonRenderer } from '/public/assets/js/common/table/renderers/index.js';
+
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+}[char]));
+const notify = (type, message) => window.notify?.(type, message);
+const renderTransactionStatus = (value) => {
+    const requested = String(value || 'draft').toLowerCase();
+    const status = ['draft', 'completed', 'closed', 'cancelled'].includes(requested) ? requested : 'draft';
+    const labels = { draft: '임시저장', completed: '완료', closed: '마감', cancelled: '취소' };
+    return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
+};
+const renderLineStatus = (_value, _type, row = {}) => {
+    const status = String(row.transaction_line_status || 'NONE').toUpperCase();
+    const count = Number(row.transaction_line_count || 0);
+    const incomplete = Number(row.transaction_line_incomplete_count || 0);
+    if (status === 'COMPLETE') return `<span class="badge text-bg-success">완성 ${count}</span>`;
+    if (status === 'INCOMPLETE') return `<span class="badge text-bg-warning" title="보완 필요 ${incomplete}건">미완성 ${count}</span>`;
+    return '<span class="badge text-bg-secondary" title="거래 화면에서 거래내역을 추가해 주세요.">내역 없음</span>';
+};
 
 export function registerTable(ctx) {
     const {
@@ -22,7 +42,7 @@ export function registerTable(ctx) {
                 if (typeof options.render === 'function') {
                     return options.render(value);
                 }
-                return ctx.escapeHtml(value || '');
+                return escapeHtml(value || '');
             },
         });
 
@@ -33,7 +53,7 @@ export function registerTable(ctx) {
             visible,
             defaultContent: 0,
             render(value) {
-                return ctx.escapeHtml(ctx.formatAmount(value || 0));
+                return escapeHtml(formatAmount(value || 0));
             },
         });
 
@@ -53,17 +73,22 @@ export function registerTable(ctx) {
                 if (type !== 'display') {
                     return '';
                 }
-                return manageButtonRenderer(row, { escapeHtml: ctx.escapeHtml });
+                return manageButtonRenderer(row, { escapeHtml });
             },
         });
 
         return [
             {
-                title: '<i class="bi bi-arrows-move"></i>',
-                className: 'reorder-handle no-colvis text-center no-export',
+                data: null,
+                settingsKey: '__reorder',
+                __dtColumnKind: 'virtual',
+                title: '<i class="bi bi-arrows-move" aria-hidden="true"></i>',
+                className: 'reorder-handle no-sort no-colvis text-center no-export',
+                headerClassName: 'reorder-handle no-sort no-colvis text-center no-export',
                 orderable: false,
                 searchable: false,
-                defaultContent: '<i class="bi bi-list"></i>',
+                defaultContent: '',
+                render: (_value, type) => type === 'display' ? '<i class="bi bi-list" aria-hidden="true"></i>' : '',
             },
             textColumn('sort_no', '순번', {
                 visible: true,
@@ -76,17 +101,17 @@ export function registerTable(ctx) {
                 data: 'client_name',
                 title: '거래처',
                 render(data, type, row) {
-                    return ctx.escapeHtml(data || row.client_name || '-');
+                    return escapeHtml(data || row.client_name || '-');
                 },
             },
             textColumn('project_id', '프로젝트ID', { visible: false }),
             {
                 data: 'project_name',
-                title: '?熬곣뫁夷??釉띾콦',
+                title: '프로젝트',
                 defaultContent: '',
                 visible: false,
                 render(data, type, row) {
-                    return ctx.escapeHtml(data || row.project_name || '-');
+                    return escapeHtml(data || row.project_name || '-');
                 },
             },
             amountColumn('transaction_foreign_amount', '\uC678\uD654\uAE08\uC561', true),
@@ -100,7 +125,7 @@ export function registerTable(ctx) {
                 title: '\uAC70\uB798\uB77C\uC778\uC0C1\uD0DC',
                 className: 'text-center text-nowrap',
                 visible: true,
-                render: ctx.renderLineStatus,
+                render: renderLineStatus,
             },
             {
                 data: 'description',
@@ -108,23 +133,13 @@ export function registerTable(ctx) {
                 className: '',
                 defaultContent: '',
                 render(data) {
-                    return ctx.escapeHtml(data || '');
-                },
-            },
-            {
-                data: 'match_status',
-                title: '\uC804\uD45C\uC5F0\uACB0',
-                className: 'text-center',
-                visible: true,
-                defaultContent: 'none',
-                render(data) {
-                    return ctx.renderMatchStatus(data);
+                    return escapeHtml(data || '');
                 },
             },
             textColumn('status', '\uAC70\uB798\uC0C1\uD0DC', {
                 visible: true,
                 className: 'text-center',
-                render: ctx.renderTransactionStatus,
+                render: renderTransactionStatus,
             }),
             textColumn('note', '\uBE44\uACE0'),
             textColumn('memo', '\uBA54\uBAA8'),
@@ -142,7 +157,7 @@ export function registerTable(ctx) {
                 searchable: false,
                 defaultContent: '',
                 render(data) {
-                    return ctx.escapeHtml(data || '');
+                    return escapeHtml(data || '');
                 },
             },
             manageColumn(),
@@ -157,15 +172,31 @@ export function registerTable(ctx) {
         const info = ctx.transactionTable.page.info();
         ctx.countEl.textContent = `총 ${info.recordsDisplay || 0}건`;
     }
-    function initTransactionTable() {
+    async function initTransactionTable() {
         if (ctx.transactionTable || !window.jQuery?.fn?.DataTable) {
             return Boolean(ctx.transactionTable);
         }
 
-        ctx.transactionTable = createDataTable({
+        ctx.transactionTable = await createDataTable({
             tableSelector: '#transaction-table',
             api: ctx.API.list,
+            serverSide: true,
             columns: buildTransactionDataColumns(),
+            ajaxData(request) {
+                const order = Array.isArray(request?.order) ? request.order[0] : null;
+                const columnIndex = Number(order?.column);
+                const column = Number.isInteger(columnIndex) && columnIndex >= 0
+                    ? request?.columns?.[columnIndex]
+                    : null;
+
+                return {
+                    ...request,
+                    sort_field: String(column?.data || '').trim(),
+                    sort_direction: String(order?.dir || '').trim().toLowerCase() === 'asc'
+                        ? 'asc'
+                        : 'desc',
+                };
+            },
             tableSettings: {
                 enabled: true,
                 pageKey: 'ledger.transaction',
@@ -178,22 +209,17 @@ export function registerTable(ctx) {
             },
             buttons: [
                 {
-                    text: '엑셀관리',
-                    className: 'btn btn-success btn-sm',
-                    action: () => ctx.openHeaderExcelManager?.(),
-                },
-                {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
                     action: openTrashModal,
                 },
                 {
-                    text: '거래등록',
+                    text: '신규등록',
                     className: 'btn btn-warning btn-sm',
                     action: () => void ctx.openCreateModal(),
                 },
             ],
-            defaultOrder: [[1, 'asc']],
+            defaultOrder: [['sort_no', 'asc']],
             pageLength: 100,
             searchTableId: 'transaction',
             deleteApi: ctx.API.remove,
@@ -202,14 +228,17 @@ export function registerTable(ctx) {
         bindRowReorder(ctx.transactionTable, {
             api: ctx.API.reorder,
             onSuccess() {
-                ctx.notify('success', '순서가 변경되었습니다.');
+                notify('success', '순서가 변경되었습니다.');
+                const columns = ctx.transactionTable?.settings?.()?.[0]?.aoColumns || [];
+                const sortNoIndex = columns.findIndex((column) => column?.data === 'sort_no');
+                if (sortNoIndex >= 0) {
+                    ctx.transactionTable.order([[sortNoIndex, 'asc']]).draw(false);
+                    return;
+                }
                 ctx.transactionTable?.ajax.reload(null, false);
             },
             onError(json) {
-                ctx.notify(
-                    'error',
-                    json?.message || '순서 변경에 실패했습니다.'
-                );
+                notify('error', json?.message || '정렬 저장 중 오류가 발생했습니다.');
                 ctx.transactionTable?.ajax.reload(null, false);
             },
         });
@@ -233,11 +262,12 @@ export function registerTable(ctx) {
         ctx.transactionTable?.ajax?.reload(null, false);
     }
 
-    function openTrashModal() {
+    async function openTrashModal() {
+        await ctx.ensureTrashManager?.();
         const trashModal = document.getElementById('transactionTrashModal');
 
         if (!trashModal) {
-            ctx.notify('warning', '\uAC70\uB798 \uD734\uC9C0\uD1B5 \uBAA8\uB2EC\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
+            notify('warning', '\uAC70\uB798 \uD734\uC9C0\uD1B5 \uBAA8\uB2EC\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
             return;
         }
 

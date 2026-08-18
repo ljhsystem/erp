@@ -1,6 +1,8 @@
 <?php
 namespace App\Controllers\System;
 
+use App\Services\Auth\AuthSessionService;
+
 class ErrorController
 {
     private function render(int $code, string $message)
@@ -20,6 +22,7 @@ class ErrorController
             'code'    => $code,
             'message' => $message
         ];
+        $isLoggedIn = (new AuthSessionService())->isAuthenticated();
 
         require PROJECT_ROOT . '/app/views/errors/errors.php';
     }

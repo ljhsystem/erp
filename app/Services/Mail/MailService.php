@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Mail/MailService.php'
 namespace App\Services\Mail;
 
 use App\Services\Mail\Mailer;
@@ -17,7 +16,7 @@ class MailService
     public function __construct()
     {
         $this->mailer = new Mailer();
-        $this->logger = LoggerFactory::getLogger('service-mail.MailService');    
+        $this->logger = LoggerFactory::getLogger('service-mail.MailService');
     }
 
     public function sendAdminApprovalMail(array $data)

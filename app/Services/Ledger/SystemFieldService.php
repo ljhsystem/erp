@@ -2,6 +2,7 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\EvidenceSchemaModel;
 use PDO;
 
 class SystemFieldService
@@ -17,8 +18,6 @@ class SystemFieldService
         'raw_json',
         'mapped_payload_json',
         'evidence_status',
-        'transaction_status',
-        'voucher_status',
         'review_status',
         'error_message',
         'latest_imported_at',
@@ -33,7 +32,6 @@ class SystemFieldService
     ];
 
     private const FORMAT_HIDDEN_FIELDS = [
-        'evidence_sort_no',
         'client_id',
         'client_name_ko',
         'client_name_en',
@@ -288,8 +286,11 @@ class SystemFieldService
         ['value' => 'foreign_city_name', 'label' => '외화거래도시명', 'group' => '카드 외화 후보(JSON)'],
     ];
 
+    private EvidenceSchemaModel $schemaModel;
+
     public function __construct(private PDO $pdo)
     {
+        $this->schemaModel = new EvidenceSchemaModel($pdo);
     }
 
     public function targetTableForDataType(string $dataType): string
@@ -385,17 +386,8 @@ class SystemFieldService
             'bank_account_name',
             'card_name',
         ];
-        $stmt = $this->pdo->prepare("
-            SELECT COLUMN_NAME, COLUMN_COMMENT, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            ORDER BY ORDINAL_POSITION ASC
-        ");
-        $stmt->execute([':table_name' => $tableName]);
-
         $rows = array_values(array_filter(
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            $this->schemaModel->columns($tableName),
             static fn(array $row): bool => !in_array((string) $row['COLUMN_NAME'], self::AUTO_MANAGED_COLUMNS, true)
                 && !in_array((string) $row['COLUMN_NAME'], self::FORMAT_HIDDEN_FIELDS, true)
                 && !in_array((string) $row['COLUMN_NAME'], self::FORMAT_DEPRECATED_FIELDS, true)
@@ -675,7 +667,6 @@ class SystemFieldService
             'ledger_evidence_tax_invoice_manual' => '세금계산서매입매출(수기)원본',
             'ledger_evidence_cash_receipt' => '현금영수증 원본',
             'ledger_evidence_card_hometax' => '카드 원본',
-            'ledger_data_evidences' => '통합증빙 원본컬럼',
             'ledger_evidence_bank' => '입출금(은행)원본',
         ];
         $labels['ledger_evidence_card_statement'] = '카드(카드사)원본';
@@ -700,7 +691,6 @@ class SystemFieldService
             return '?멸툑怨꾩궛?쒕ℓ?낅ℓ異??섍린)?먮낯';
         }
         return match ($tableName) {
-            'ledger_data_evidences' => '통합증빙 원본컬럼',
             'ledger_evidence_bank' => '입출금(은행)원본',
             default => $tableName,
         };
@@ -725,12 +715,6 @@ class SystemFieldService
             return self::originalFieldGroupLabel($dataType);
         }
 
-        if ($tableName === 'ledger_data_evidences' && in_array($columnName, ['currency'], true)) {
-            return '기준정보';
-        }
-        if ($tableName === 'ledger_data_evidences') {
-            return self::originalFieldGroupLabel($dataType);
-        }
         if ($tableName === 'ledger_evidence_bank') {
             return self::originalFieldGroupLabel($dataType);
         }
@@ -1198,20 +1182,7 @@ class SystemFieldService
     private function columnInfo(string $tableName, string $columnName): array
     {
         try {
-            $stmt = $this->pdo->prepare("
-                SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION, COLUMN_COMMENT
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                  AND COLUMN_NAME = :column_name
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':table_name' => $tableName,
-                ':column_name' => $columnName,
-            ]);
-
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            return $this->schemaModel->columnInfo($tableName, $columnName);
         } catch (\Throwable) {
             return [];
         }
@@ -1220,42 +1191,7 @@ class SystemFieldService
     private function columnExists(string $tableName, string $columnName): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
-                SELECT 1
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                  AND COLUMN_NAME = :column_name
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':table_name' => $tableName,
-                ':column_name' => $columnName,
-            ]);
-
-            return (bool) $stmt->fetchColumn();
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    private function indexExists(string $tableName, string $indexName): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare("
-                SELECT 1
-                FROM information_schema.STATISTICS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                  AND INDEX_NAME = :index_name
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':table_name' => $tableName,
-                ':index_name' => $indexName,
-            ]);
-
-            return (bool) $stmt->fetchColumn();
+            return $this->schemaModel->columnExists($tableName, $columnName);
         } catch (\Throwable) {
             return false;
         }

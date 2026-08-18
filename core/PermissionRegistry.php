@@ -3,6 +3,7 @@
 
 namespace Core;
 
+use App\Services\Auth\PermissionService;
 use Core\LoggerFactory;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\SequenceHelper;
@@ -118,19 +119,11 @@ class PermissionRegistry
         ]);
 
         $systemActor = ActorHelper::system('자동');
+        $permissionService = new PermissionService($pdo);
 
-        $supportsPageKey = self::hasAuthPermissionsPageKey($pdo);
+        $supportsPageKey = self::hasAuthPermissionsPageKey($permissionService);
         $pageKeyResolver = $supportsPageKey ? new PageKeyResolver($pdo) : null;
-        $selectColumns = 'id, permission_key, permission_name, description, category, created_by, updated_by';
-        if ($supportsPageKey) {
-            $selectColumns .= ', page_key';
-        }
-
-        $stmt = $pdo->query("
-            SELECT {$selectColumns}
-            FROM auth_permissions
-        ");
-        $existingRows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $existingRows = $permissionService->getRegistrySyncRows($supportsPageKey);
         $existingMap = [];
         foreach ($existingRows as $row) {
             $existingMap[(string)$row['permission_key']] = $row;
@@ -143,7 +136,7 @@ class PermissionRegistry
                 : null;
 
             if (isset($existingMap[$key])) {
-                if (self::syncExistingPermission($pdo, $existingMap[$key], $perm, $systemActor, $supportsPageKey, $pageKey)) {
+                if (self::syncExistingPermission($permissionService, $existingMap[$key], $perm, $systemActor, $supportsPageKey, $pageKey)) {
                     $updateCount++;
                 }
                 continue;
@@ -159,46 +152,14 @@ class PermissionRegistry
                     'sort_no' => $sortNo
                 ]);
 
-                if ($supportsPageKey) {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO auth_permissions
-                        (id, sort_no, permission_key, permission_name, description, category, page_key, is_active, created_by, updated_by)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ");
-
-                    $stmt->execute([
-                        $uuid,
-                        $sortNo,
-                        $perm['key'],
-                        $perm['permission_name'],
-                        $perm['permission_description'],
-                        $perm['category'],
-                        $pageKey,
-                        1,
-                        $systemActor,
-                        $systemActor,
-                    ]);
-                    $insertCount++;
-                } else {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO auth_permissions
-                        (id, sort_no, permission_key, permission_name, description, category, is_active, created_by, updated_by)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ");
-
-                    $stmt->execute([
-                        $uuid,
-                        $sortNo,
-                        $perm['key'],
-                        $perm['permission_name'],
-                        $perm['permission_description'],
-                        $perm['category'],
-                        1,
-                        $systemActor,
-                        $systemActor,
-                    ]);
-                    $insertCount++;
-                }
+                $permissionService->insertRegistryPermission([
+                    'id' => $uuid, 'sort_no' => $sortNo, 'permission_key' => $perm['key'],
+                    'permission_name' => $perm['permission_name'], 'description' => $perm['permission_description'],
+                    'category' => $perm['category'], 'page_key' => $pageKey, 'is_active' => 1,
+                    'created_by' => $systemActor, 'updated_by' => $systemActor,
+                ], $supportsPageKey);
+                $permissionService->grantPermissionToRoleKey($uuid, 'super_admin', $systemActor);
+                $insertCount++;
 
                 self::$logger->info('권한 DB INSERT 성공', [
                     'key' => $perm['key'],
@@ -214,7 +175,7 @@ class PermissionRegistry
 
         $normalizeSummary = ['duration_ms' => 0];
         if ($insertCount > 0 || $updateCount > 0) {
-            $normalizeSummary = self::normalizeRegisteredSortNo($pdo, $systemActor);
+            $normalizeSummary = self::normalizeRegisteredSortNo($permissionService, $systemActor);
         }
         $syncDurationMs = self::elapsedMilliseconds($syncStartedAt);
 
@@ -242,7 +203,7 @@ class PermissionRegistry
      * 이미 존재하는 권한의 표시 정보와 시스템 액터 기록을 보정한다.
      */
     private static function syncExistingPermission(
-        \PDO $pdo,
+        PermissionService $permissionService,
         array $row,
         array $perm,
         string $systemActor,
@@ -250,8 +211,7 @@ class PermissionRegistry
         ?string $pageKey = null
     ): bool
     {
-        $fields = [];
-        $params = [];
+        $changes = [];
 
         $syncMap = [
             'permission_name' => $perm['permission_name'] ?? $perm['name'] ?? null,
@@ -261,38 +221,28 @@ class PermissionRegistry
 
         foreach ($syncMap as $column => $value) {
             if ((string)($row[$column] ?? '') !== (string)($value ?? '')) {
-                $fields[] = "{$column} = ?";
-                $params[] = $value;
+                $changes[$column] = $value;
             }
         }
 
         if ($supportsPageKey && (string)($row['page_key'] ?? '') !== (string)($pageKey ?? '')) {
-            $fields[] = 'page_key = ?';
-            $params[] = $pageKey;
+            $changes['page_key'] = $pageKey;
         }
 
         if (empty($row['created_by']) || $row['created_by'] === 'SYSTEM') {
-            $fields[] = 'created_by = ?';
-            $params[] = $systemActor;
+            $changes['created_by'] = $systemActor;
         }
 
-        if (empty($row['updated_by']) || $row['updated_by'] === 'SYSTEM' || $fields) {
-            $fields[] = 'updated_at = NOW()';
-            $fields[] = 'updated_by = ?';
-            $params[] = $systemActor;
+        if (empty($row['updated_by']) || $row['updated_by'] === 'SYSTEM' || $changes) {
+            $changes['updated_at'] = true;
+            $changes['updated_by'] = $systemActor;
         }
 
-        if (!$fields) {
+        if (!$changes) {
             return false;
         }
 
-        $params[] = $row['id'];
-        $stmt = $pdo->prepare("
-            UPDATE auth_permissions
-            SET " . implode(', ', $fields) . "
-            WHERE id = ?
-        ");
-        $stmt->execute($params);
+        $permissionService->updateRegistryPermission((string) $row['id'], $changes);
 
         return true;
     }
@@ -300,14 +250,10 @@ class PermissionRegistry
     /**
      * 라우터에 등록된 권한 순서 기준으로 순번을 1부터 정규화한다.
      */
-    private static function normalizeRegisteredSortNo(\PDO $pdo, string $systemActor): array
+    private static function normalizeRegisteredSortNo(PermissionService $permissionService, string $systemActor): array
     {
         $startedAt = hrtime(true);
-        $rows = $pdo->query("
-            SELECT id, permission_key, sort_no
-            FROM auth_permissions
-            ORDER BY sort_no ASC, permission_key ASC
-        ")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $rows = $permissionService->getRegistrySortRows();
 
         if (!$rows) {
             return [
@@ -353,54 +299,23 @@ class PermissionRegistry
         }
 
         $ids = array_column($changes, 'id');
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $tempOffset = max(count($rows), 1) + 1000000;
-
-        $temp = $pdo->prepare("
-            UPDATE auth_permissions
-            SET sort_no = sort_no + {$tempOffset},
-                updated_at = NOW(),
-                updated_by = ?
-            WHERE id IN ({$placeholders})
-        ");
-        $temp->execute(array_merge([$systemActor], $ids));
-
-        foreach (array_chunk($changes, 200) as $chunk) {
-            $ids = array_column($chunk, 'id');
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-            $caseParts = [];
-            $params = [];
-            foreach ($chunk as $row) {
-                $caseParts[] = 'WHEN ? THEN ?';
-                $params[] = $row['id'];
-                $params[] = $row['sort_no'];
-            }
-
-            $final = $pdo->prepare("
-                UPDATE auth_permissions
-                SET sort_no = CASE id " . implode(' ', $caseParts) . " END,
-                    updated_at = NOW(),
-                    updated_by = ?
-                WHERE id IN ({$placeholders})
-            ");
-            $final->execute(array_merge($params, [$systemActor], $ids));
-        }
+        $permissionService->offsetSortNumbers($ids, $tempOffset, $systemActor);
+        $permissionService->applySortNumbers($changes, $systemActor);
 
         return [
             'duration_ms' => self::elapsedMilliseconds($startedAt),
         ];
     }
 
-    private static function hasAuthPermissionsPageKey(\PDO $pdo): bool
+    private static function hasAuthPermissionsPageKey(PermissionService $permissionService): bool
     {
         if (self::$authPermissionsHasPageKey !== null) {
             return self::$authPermissionsHasPageKey;
         }
 
         try {
-            $stmt = $pdo->query("SHOW COLUMNS FROM auth_permissions LIKE 'page_key'");
-            self::$authPermissionsHasPageKey = (bool)($stmt->fetch(\PDO::FETCH_ASSOC) ?: false);
+            self::$authPermissionsHasPageKey = $permissionService->supportsPageKey();
         } catch (\Throwable $e) {
             self::$authPermissionsHasPageKey = false;
         }

@@ -5,6 +5,7 @@ namespace App\Controllers\System;
 use App\Services\Auth\AuthSessionService;
 use App\Services\System\NotificationService;
 use Core\DbPdo;
+use Core\Session;
 use PDO;
 
 class NotificationController
@@ -22,16 +23,14 @@ class NotificationController
     {
         $this->jsonResponse(function (): array {
             $userId = $this->currentUserId();
-            $notifications = $this->service->getNotifications($userId, 20);
-            $unreadCount = count(array_filter(
-                $notifications,
-                static fn(array $row): bool => (int) ($row['is_read'] ?? 0) === 0
-            ));
+            Session::write();
+            $feed = $this->service->getNavigationFeed($userId, 20);
 
             return [
                 'success' => true,
-                'data' => $notifications,
-                'unread_count' => $unreadCount,
+                'data' => $feed['notifications'],
+                'unread_count' => $feed['unread_count'],
+                'approval_pending_count' => $feed['approval_pending_count'],
             ];
         });
     }

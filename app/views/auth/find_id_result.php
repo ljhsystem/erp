@@ -27,36 +27,9 @@ if (!$name || !$email) {
     <div class="login-box">
       <h3 class="text-center fw-bold mb-3">🔎 아이디 찾기 결과</h3>
 
-      <?php
-      $found = false;
-      $username = '';
-
-      try {
-        $db = \Core\Database::getInstance();
-        $conn = $db->getConnection();
-
-        $stmt = $conn->prepare("
-              SELECT a.username
-              FROM auth_users AS a
-              INNER JOIN user_employees AS p ON a.id = p.user_id
-              WHERE p.employee_name = ? AND a.email = ?
-              LIMIT 1
-          ");
-        $stmt->execute([$name, $email]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($row) {
-          $found = true;
-          $username = htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8');
-        }
-      } catch (Exception $e) {
-        echo '<div class="alert alert-danger text-center">DB 오류: ' . htmlspecialchars($e->getMessage()) . '</div>';
-      }
-      ?>
-
       <?php if ($found): ?>
         <div class="alert alert-success text-center">
-          <strong>아이디:</strong> <?= $username ?>
+          <strong>아이디:</strong> <?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>
         </div>
       <?php else: ?>
         <div class="alert alert-warning text-center">

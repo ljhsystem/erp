@@ -35,7 +35,7 @@ export function createEvidenceExcelModule({
         resetPreparedColumns();
     }
 
-    function ensureEvidenceExcelManagerCore(type = state.currentType) {
+    async function ensureEvidenceExcelManagerCore(type = state.currentType) {
         if (!state.refs.excelForm) {
             return null;
         }
@@ -48,7 +48,7 @@ export function createEvidenceExcelModule({
 
         if (!state.excelManagerSettingsCore || state.excelManagerSettingsCore.domain !== settingsDomain) {
             state.excelManagerSettingsCore?.destroy?.();
-            state.excelManagerSettingsCore = createExcelManagerSettingsCore({
+            state.excelManagerSettingsCore = await createExcelManagerSettingsCore({
                 domain: settingsDomain,
                 userSettingPageKey: settingsDomain,
                 formSelector: '#dataExcelForm',
@@ -57,7 +57,7 @@ export function createEvidenceExcelModule({
             return state.excelManagerSettingsCore;
         }
 
-        state.excelManagerSettingsCore.reload?.();
+        await state.excelManagerSettingsCore.reload?.();
         return state.excelManagerSettingsCore;
     }
 
@@ -77,14 +77,12 @@ export function createEvidenceExcelModule({
         state.refs.excelForm.dataset.uploadUrl = API.upload;
         state.refs.excelForm.dataset.importType = state.currentType || '';
 
-        const excelManagerCore = ensureEvidenceExcelManagerCore(state.currentType);
-
         const subtitle = state.refs.excelModal?.querySelector('.excel-modal-subtitle');
         if (subtitle) {
             subtitle.textContent = `${config.label} / 자료유형 기준`;
         }
 
-        const disabled = !state.currentType || !excelManagerCore;
+        const disabled = !state.currentType;
 
         const templateBtn = state.refs.excelModal?.querySelector('.btn-template-download');
         if (templateBtn) {
@@ -104,8 +102,20 @@ export function createEvidenceExcelModule({
         }
     }
 
+    async function prepareExcelManager(config = currentConfig()) {
+        syncExcelManager(config);
+        const excelManagerCore = await ensureEvidenceExcelManagerCore(state.currentType);
+        const disabled = !state.currentType || !excelManagerCore;
+        state.refs.excelModal?.querySelectorAll('.btn-template-download, .btn-download-all, .btn-upload-excel')
+            .forEach((button) => {
+                button.disabled = disabled;
+            });
+        return excelManagerCore;
+    }
+
     return {
         bindExcelEvents,
         syncExcelManager,
+        prepareExcelManager,
     };
 }

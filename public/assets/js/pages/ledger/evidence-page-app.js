@@ -1,5 +1,5 @@
 import { createDataTable } from '/public/assets/js/common/table/data-table.js';
-import { readDataTableSettingsState, resolveDataTableColumnDisplayName, resolveDataTableColumnRequirementPolicy } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { fetchDataTableMetaColumns, readDataTableSettingsState, resolveDataTableColumnDisplayName, resolveDataTableColumnRequirementPolicy } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import {
@@ -9,22 +9,16 @@ import {
     formatPhone,
     parseNumber as parseCommonNumber,
 } from '/public/assets/js/common/format.js';
-import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
-import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
-import { EVIDENCE_REF_PICKERS, evidenceRefPickerForColumnLike, initEvidenceRefSelect } from '/public/assets/js/pages/ledger/shared/evidence-ref-picker.js';
 import { createEvidenceStatusModule } from '/public/assets/js/pages/ledger/evidence-list/status.js';
 import { createEvidenceSearchModule } from '/public/assets/js/pages/ledger/evidence-list/search.js';
 import { createEvidenceTableModule } from '/public/assets/js/pages/ledger/evidence-list/table.js';
-import { createEvidenceUploadModule } from '/public/assets/js/pages/ledger/evidence-list/upload.js';
 import { createEvidenceExcelModule } from '/public/assets/js/pages/ledger/evidence-list/excel.js';
-import { createEvidenceModalModule } from '/public/assets/js/pages/ledger/evidence-list/modal.js';
-import { createEvidenceSplitModule } from '/public/assets/js/pages/ledger/evidence-list/split.js';
-import { createEvidenceChildModule } from '/public/assets/js/pages/ledger/evidence-list/child.js';
-import '/public/assets/js/components/trash-manager.js';
-import '/public/assets/js/components/excel-manager.js';
 
 export function bootEvidencePage(options = {}) {
+    const createExcelManagerSettingsCoreLazy = async (...args) => {
+        const module = await import('/public/assets/js/components/excel-manager/index.js');
+        return module.createExcelManagerSettingsCore(...args);
+    };
     const API = {
         seedRows: '/api/import/evidences',
         fields: '/api/import/fields',
@@ -38,9 +32,6 @@ export function bootEvidencePage(options = {}) {
         reorder: '/api/import/evidences/reorder',
         saveSeedRow: '/api/import/evidence/save',
         createEvidence: '/api/import/evidence/create',
-        splitChild: '/api/import/evidence/split-child',
-        updateProcessingChild: '/api/import/evidence/processing-child/update',
-        deleteProcessingChild: '/api/import/evidence/processing-child/delete',
         bulkSaveSeedRows: '/api/import/evidences/bulk-save',
         clientSearch: '/api/settings/base-info/client/search-picker',
         clientDetail: '/api/settings/base-info/client/detail',
@@ -188,24 +179,13 @@ export function bootEvidencePage(options = {}) {
                         ? row.sort_target_keys.map((value) => String(value || '').trim()).filter(Boolean)
                         : [],
                     transactionWorkflowRequired: row?.transaction_workflow_required !== false,
+                    readOnly: row?.read_only === true,
+                    excelManagerMode: String(row?.excel_manager_mode || row?.excelManagerMode || 'custom').trim() || 'custom',
+                    excelManagerDomain: String(row?.excel_manager_domain || row?.excelManagerDomain || '').trim(),
                     sourceKeyAliases: row?.source_key_aliases && typeof row.source_key_aliases === 'object'
                         ? { ...row.source_key_aliases }
                         : {},
                     modalPreset: String(row?.modal_preset || row?.modalPreset || 'default').trim() || 'default',
-                    splitKeyAliases: row?.split_key_aliases && typeof row.split_key_aliases === 'object'
-                        ? { ...row.split_key_aliases }
-                        : {},
-                    splitValueFallbacks: row?.split_value_fallbacks && typeof row.split_value_fallbacks === 'object'
-                        ? Object.fromEntries(
-                            Object.entries(row.split_value_fallbacks).map(([key, values]) => [
-                                String(key || '').trim(),
-                                Array.isArray(values) ? values.map((value) => String(value || '').trim()).filter(Boolean) : [],
-                            ])
-                        )
-                        : {},
-                    splitAllowedAmountKeys: Array.isArray(row?.split_allowed_amount_keys)
-                        ? row.split_allowed_amount_keys.map((value) => String(value || '').trim()).filter(Boolean)
-                        : [],
                     deprecatedFormatFields: Array.isArray(row?.deprecated_format_fields)
                         ? row.deprecated_format_fields.map((value) => String(value || '').trim()).filter(Boolean)
                         : [],
@@ -237,7 +217,16 @@ export function bootEvidencePage(options = {}) {
         return evidenceTypePolicy(raw)?.code || raw;
     }
 
-    const SERVER_TYPE_POLICIES = normalizeEvidenceTypePolicies(readEvidenceTypePolicies());
+    const suppliedPolicies = Array.isArray(options.evidenceTypePolicies) ? options.evidenceTypePolicies : [];
+    const normalizedPolicies = normalizeEvidenceTypePolicies(suppliedPolicies.length > 0 ? suppliedPolicies : readEvidenceTypePolicies());
+    const fallbackPolicies = options.editorOnly === true
+        ? []
+        : normalizeEvidenceTypePolicies([{
+            code: options.initialType || 'BANK_TRANSACTION',
+            label: options.initialTypeLabel || options.initialType || '증빙원본',
+            page_ready: true,
+        }]);
+    const SERVER_TYPE_POLICIES = normalizedPolicies.length > 0 ? normalizedPolicies : fallbackPolicies;
     const SERVER_TYPE_POLICY_MAP = new Map(SERVER_TYPE_POLICIES.map((policy) => [policy.code, policy]));
     const SERVER_TYPE_ALIAS_MAP = new Map(
         SERVER_TYPE_POLICIES.flatMap((policy) => (policy.aliases || []).map((alias) => [alias, policy]))
@@ -306,6 +295,8 @@ export function bootEvidencePage(options = {}) {
     );
 
     const evidenceFieldOptionsCache = new Map();
+    let evidenceRefPickerForColumnLikeRuntime = () => null;
+    const evidenceModalFieldOptionsCache = new Map();
 
     const BANK_CODE_PICKERS = {
         business_unit: {
@@ -716,6 +707,73 @@ export function bootEvidencePage(options = {}) {
         return data;
     }
 
+    async function loadEvidenceModalFieldOptions(type) {
+        const normalizedType = normalizeEvidenceType(type || '');
+        const domain = evidenceMetaDomain(normalizedType);
+        if (!normalizedType || !domain) return [];
+        if (evidenceModalFieldOptionsCache.has(domain)) {
+            return evidenceModalFieldOptionsCache.get(domain) || [];
+        }
+
+        let data = [];
+        try {
+            const response = await fetch(`${API.dataTableColumns}?domain=${encodeURIComponent(domain)}`, {
+                credentials: 'include',
+            });
+            const json = await response.json().catch(() => ({}));
+            data = response.ok && json?.success && Array.isArray(json.data) ? json.data : [];
+        } catch (_error) {
+            data = [];
+        }
+
+        const columns = data
+            .map((column, index) => {
+                const key = String(column?.key || column?.value || '').trim();
+                if (!key) return null;
+                return {
+                    value: key,
+                    label: String(column?.label || column?.title || key).trim() || key,
+                    group: '',
+                    table: String(column?.table || '').trim(),
+                    column: key,
+                    data_type: String(column?.data_type || 'varchar').trim().toLowerCase(),
+                    is_nullable: String(column?.is_nullable || 'YES').trim().toUpperCase(),
+                    ordinal_position: Number(column?.ordinal_position || column?.settings_order || index + 1) || (index + 1),
+                };
+            })
+            .filter(Boolean)
+            .sort((left, right) => left.ordinal_position - right.ordinal_position);
+
+        evidenceModalFieldOptionsCache.set(domain, columns);
+        return columns;
+    }
+
+    function mergeEvidenceModalFieldOptions(sourceOptions = [], databaseOptions = []) {
+        if (!Array.isArray(databaseOptions) || databaseOptions.length === 0) {
+            return Array.isArray(sourceOptions) ? sourceOptions : [];
+        }
+
+        const sourceByKey = new Map(
+            (Array.isArray(sourceOptions) ? sourceOptions : [])
+                .map((field) => [String(field?.value || field?.column || '').trim(), field])
+                .filter(([key]) => key !== '')
+        );
+
+        return databaseOptions.map((databaseField) => {
+            const key = String(databaseField.value || databaseField.column || '').trim();
+            const sourceField = sourceByKey.get(key) || {};
+            return {
+                ...databaseField,
+                ...sourceField,
+                value: key,
+                column: key,
+                table: databaseField.table || sourceField.table || '',
+                ordinal_position: databaseField.ordinal_position,
+                data_type: databaseField.data_type || sourceField.data_type || 'varchar',
+                is_nullable: databaseField.is_nullable || sourceField.is_nullable || 'YES',
+            };
+        });
+    }
     function fieldOptionToModalColumn(field = {}, index = 0) {
         const key = String(field.value || field.column || '').trim();
         if (!key) return null;
@@ -793,8 +851,14 @@ export function bootEvidencePage(options = {}) {
             return state.activeFormat;
         }
 
-        const fieldOptions = await loadEvidenceFieldOptions(normalizedType);
-        state.activeFormat = buildActiveFormatFromFieldOptions(normalizedType, fieldOptions);
+        const [fieldOptions, databaseOptions] = await Promise.all([
+            loadEvidenceFieldOptions(normalizedType),
+            loadEvidenceModalFieldOptions(normalizedType),
+        ]);
+        state.activeFormat = buildActiveFormatFromFieldOptions(
+            normalizedType,
+            mergeEvidenceModalFieldOptions(fieldOptions, databaseOptions)
+        );
         return state.activeFormat;
     }
 
@@ -1162,6 +1226,10 @@ export function bootEvidencePage(options = {}) {
         if (status === 'CORRECTION_REQUIRED' || status === 'NOT_READY' || status === 'REVIEW_REQUIRED') {
             return '\uBCF4\uC815\uD544\uC694';
         }
+        if (status === 'DELETED') return '\uC0AD\uC81C';
+        if (status === 'ERROR') return '\uC624\uB958';
+        if (status === 'ACTIVE') return '\uD65C\uC131';
+        if (status === 'PROCESSED' || status === 'USED') return '\uCC98\uB9AC\uC644\uB8CC';
         return valueText(value);
     }
 
@@ -1300,7 +1368,7 @@ export function bootEvidencePage(options = {}) {
     }
 
     function businessRefPickerForColumn(column = {}) {
-        return evidenceRefPickerForColumnLike({
+        return evidenceRefPickerForColumnLikeRuntime({
             ...column,
             key: editFieldKey(column),
         });
@@ -1342,7 +1410,6 @@ export function bootEvidencePage(options = {}) {
     }
 
     function requirementStar(column = {}) {
-        if (editFieldKey(column) === 'raw_balance_amount') return '';
         const mode = requirementMode(column);
         if (mode === 1) return '<span class="evidence-required-star">*</span>';
         if (mode === 2) return '<span class="evidence-optional-star">*</span>';
@@ -1386,9 +1453,16 @@ export function bootEvidencePage(options = {}) {
         return json;
     }
 
-    function showModal(id) {
+    async function showModal(id) {
         const modal = document.getElementById(id);
         if (!modal) return;
+        if (id === 'dataExcelModal') {
+            loadOptionalStyle('/public/assets/css/components/spreadsheet.css');
+            loadOptionalStyle('/public/assets/css/components/excel-manager.css');
+            await import('/public/assets/js/components/excel-manager.js');
+            await ensureUploadEvents();
+            await prepareExcelManager();
+        }
         const frame = modal.querySelector('iframe[data-src]');
         if (frame && !frame.getAttribute('src')) {
             frame.setAttribute('src', frame.dataset.src || '');
@@ -1396,8 +1470,19 @@ export function bootEvidencePage(options = {}) {
         bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
     }
 
-    function openEvidenceTrash() {
+    function loadOptionalStyle(href) {
+        if (document.querySelector(`link[data-optional-style="${href}"]`)) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.optionalStyle = href;
+        document.head.appendChild(link);
+    }
+
+    async function openEvidenceTrash() {
         if (!state.refs.trashModal) return;
+        loadOptionalStyle('/public/assets/css/components/trash-manager.css');
+        await import('/public/assets/js/components/trash-manager.js');
         const selectedLabel = state.refs.typeSelect?.selectedOptions?.[0]?.textContent?.trim() || currentConfig()?.label || '\uc99d\ube59';
         state.refs.trashModal.dataset.listUrl = `${API.trash}?import_type=${encodeURIComponent(state.currentType)}`;
         state.refs.trashModal.dataset.importType = state.currentType;
@@ -1469,10 +1554,9 @@ export function bootEvidencePage(options = {}) {
         evidenceTypePolicy,
         defaultEvidenceTypeCode,
         escapeHtml,
-        initCodeSelectControls,
     });
 
-    const { processStatus, renderSeedStatus, renderTransactionStatus, renderVoucherStatus, renderReviewStatus, renderRecommendStatus, renderUserModified, renderWorkflowStatus, renderTransactionWorkflowStatus, renderVoucherWorkflowStatus, updateSummary, renderFieldBadge, compareFieldDisplayOrder, infoColumnTone } = createEvidenceStatusModule({
+    const { processStatus, updateSummary, renderFieldBadge, compareFieldDisplayOrder, infoColumnTone } = createEvidenceStatusModule({
         state,
         escapeHtml,
         badge,
@@ -1485,10 +1569,10 @@ export function bootEvidencePage(options = {}) {
         evidenceTypePolicy,
     });
 
-    const { bindExcelEvents, syncExcelManager } = createEvidenceExcelModule({
+    const { bindExcelEvents, syncExcelManager, prepareExcelManager } = createEvidenceExcelModule({
         state,
         API,
-        createExcelManagerSettingsCore,
+        createExcelManagerSettingsCore: createExcelManagerSettingsCoreLazy,
         evidenceFieldOptionsCache,
         fieldOptionToModalColumn,
         sortEvidenceExcelColumns,
@@ -1503,120 +1587,122 @@ export function bootEvidencePage(options = {}) {
         evidenceMetaDomain,
     });
 
-        const { renderEditInput, editableColumnsForRow, toggleBulkField, clearEditPickerLayers, bindDateEditInput, editInputByKey, saveBulkEdit, saveEditingRow, openEvidenceEditModalLatest, openEvidenceNewModalLatest } = createEvidenceModalModule({
-        state,
-        API,
-        notify,
-        updateSummary,
-        refreshEvidenceTypeCounts,
-        ensureActiveFormat,
-        selectedTypeLabel,
-        evidenceTypeDisplayName,
-        normalizedStatus,
-        escapeHtml,
-        valueText,
-        mapped,
-        firstPayloadText,
-        renderFieldBadge,
-        requirementStar,
-        compareFieldDisplayOrder,
-        isDeprecatedFormatColumn,
-        infoColumnTone,
-        editFieldKey,
-        resolveEditFieldKey,
-        editInputType,
-        editFieldValue,
-        businessRefPickerForColumn,
-        bankCodePickerForColumn,
-        codeValueForField,
-        codeDisplayName,
-        isDateTimeColumn,
-        normalizeDateInputValue,
-        formatNumber,
-        formatBizNumber,
-        formatPhone,
-        parseCommonNumber,
-        bindCommonNumberInput,
-        formatPickerDateTime,
-        formatPickerDate,
-        applyDateToPicker,
-        AdminPicker,
-        EVIDENCE_REF_PICKERS,
-        initEvidenceRefSelect,
-        initCodeSelectControls,
-        selectValueForSave,
-        selectTextForSave,
-        validateBusinessProjectRule,
-        evidenceStatusTableSettingsStorageKey,
-        readDataTableSettingsState,
-        resolveDataTableColumnDisplayName,
-        resolveDataTableColumnRequirementPolicy,
-        normalizeEvidenceType,
-        evidenceTypePolicy,
-        defaultEvidenceTypeCode,
-        evidenceMetaDomain,
-    });
+    let evidenceModalApi = null;
+    let evidenceModalApiPromise = null;
 
-    const { splitModalColumns, splitCellHtml, bindSplitModalHorizontalWheel, bindSplitModalInputs, splitChildFromRow, splitMissingRequiredForRow, openProcessingSplitModal } = createEvidenceSplitModule({
-        state,
-        API,
-        notify,
-        updateSummary,
-        escapeHtml,
-        mapped,
-        valueText,
-        compareFormatColumns,
-        editFieldKey,
-        editFieldValue,
-        editableColumnsForRow,
-        renderEditInput,
-        renderFieldBadge,
-        isAmountColumn,
-        infoColumnTone,
-        editInputType,
-        requirementMode,
-        requirementStar,
-        businessRefPickerForColumn,
-        bankCodePickerForColumn,
-        DISPLAY_CODE_FIELDS,
-        codeValueForField,
-        normalizeCodeKey,
-        CODE_NAME_ALIASES,
-        codeDisplayName,
-        normalizeTimeInputValue,
-        explicitDateTimeValueForColumn,
-        normalizeDateInputValue,
-        isDateTimeColumn,
-        formatNumber,
-        amount,
-        firstPayloadText,
-        bindCommonNumberInput,
-        bindDateEditInput,
-        initEvidenceRefSelect,
-        initCodeSelectControls,
-        selectValueForSave,
-        selectTextForSave,
-        businessProjectRuleMessage,
-        pad2,
-        AdminPicker,
-        evidenceTypePolicy,
-    });
+    async function ensureEvidenceModalApi() {
+        if (evidenceModalApi) return evidenceModalApi;
+        if (!evidenceModalApiPromise) {
+            evidenceModalApiPromise = Promise.all([
+                import('/public/assets/js/pages/ledger/evidence-list/modal.js'),
+                import('/public/assets/js/common/picker/admin_picker.js'),
+                import('/public/assets/js/pages/ledger/shared/evidence-ref-picker.js'),
+                import('/public/assets/js/pages/dashboard/settings/system/code-select.js'),
+            ]).then(([modalModule, pickerModule, refPickerModule, codeSelectModule]) => {
+                evidenceRefPickerForColumnLikeRuntime = refPickerModule.evidenceRefPickerForColumnLike;
+                codeSelectModule.onCodeOptionsLoaded((options) => {
+                    state.codeOptions = { ...(options || {}) };
+                    state.codeOptions.IMPORT_TYPE = (state.codeOptions.IMPORT_TYPE || [])
+                        .map((row) => ({ ...row, code: normalizeEvidenceType(row.code || row.value) }))
+                        .filter((row) => row.code && !row.code.startsWith('__'))
+                        .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
+                });
+                evidenceModalApi = modalModule.createEvidenceModalModule({
+                    state,
+                    API,
+                    notify,
+                    updateSummary,
+                    refreshEvidenceTypeCounts,
+                    ensureActiveFormat,
+                    selectedTypeLabel,
+                    evidenceTypeDisplayName,
+                    normalizedStatus,
+                    businessEvidenceStatusText,
+                    escapeHtml,
+                    valueText,
+                    mapped,
+                    firstPayloadText,
+                    renderFieldBadge,
+                    requirementStar,
+                    compareFieldDisplayOrder,
+                    infoColumnTone,
+                    editFieldKey,
+                    resolveEditFieldKey,
+                    editInputType,
+                    editFieldValue,
+                    businessRefPickerForColumn,
+                    bankCodePickerForColumn,
+                    codeValueForField,
+                    codeDisplayName,
+                    isDateTimeColumn,
+                    normalizeDateInputValue,
+                    formatNumber,
+                    formatBizNumber,
+                    formatPhone,
+                    parseCommonNumber,
+                    bindCommonNumberInput,
+                    formatPickerDateTime,
+                    formatPickerDate,
+                    applyDateToPicker,
+                    AdminPicker: pickerModule.AdminPicker,
+                    EVIDENCE_REF_PICKERS: refPickerModule.EVIDENCE_REF_PICKERS,
+                    initEvidenceRefSelect: refPickerModule.initEvidenceRefSelect,
+                    initCodeSelectControls: codeSelectModule.initCodeSelectControls,
+                    selectValueForSave,
+                    selectTextForSave,
+                    validateBusinessProjectRule,
+                    evidenceStatusTableSettingsStorageKey,
+                    readDataTableSettingsState,
+                    resolveDataTableColumnDisplayName,
+                    resolveDataTableColumnRequirementPolicy,
+                    normalizeEvidenceType,
+                    evidenceTypePolicy,
+                    defaultEvidenceTypeCode,
+                    evidenceMetaDomain,
+                });
+                return evidenceModalApi;
+            });
+        }
+        return evidenceModalApiPromise;
+    }
 
-    const { bindUploadEvents } = createEvidenceUploadModule({
-        state,
-        API,
-        MAX_EXCEL_UPLOAD_BYTES,
-        notify,
-        updateSummary,
-        refreshEvidenceTypeCounts,
-        evidenceStatusTableSettingsStorageKey,
-        readDataTableSettingsState,
-        normalizeEvidenceType,
-        defaultEvidenceTypeCode,
-        evidenceMetaDomain,
-    });
+    const editInputByKey = (...args) => evidenceModalApi?.editInputByKey(...args) || null;
+    const toggleBulkField = (...args) => evidenceModalApi?.toggleBulkField(...args);
+    const clearEditPickerLayers = (...args) => evidenceModalApi?.clearEditPickerLayers(...args);
+    const saveBulkEdit = async (...args) => (await ensureEvidenceModalApi()).saveBulkEdit(...args);
+    const saveEditingRow = async (...args) => (await ensureEvidenceModalApi()).saveEditingRow(...args);
+    const openEvidenceEditModalLatest = async (...args) => (await ensureEvidenceModalApi()).openEvidenceEditModalLatest(...args);
+    const openEvidenceNewModalLatest = async (...args) => (await ensureEvidenceModalApi()).openEvidenceNewModalLatest(...args);
 
-    const { rowDataFromTableNode, rebuildTable } = createEvidenceTableModule({
+    let uploadEventsPromise = null;
+    async function ensureUploadEvents() {
+        if (!uploadEventsPromise) {
+            uploadEventsPromise = import('/public/assets/js/pages/ledger/evidence-list/upload.js')
+                .then(({ createEvidenceUploadModule }) => {
+                    const uploadApi = createEvidenceUploadModule({
+                        state,
+                        API,
+                        MAX_EXCEL_UPLOAD_BYTES,
+                        notify,
+                        updateSummary,
+                        refreshEvidenceTypeCounts,
+                        currentStatusColumnPolicy: () => {
+                            const normalizedType = normalizeEvidenceType(state.currentType || defaultEvidenceTypeCode());
+                            const userSettingPageKey = evidenceMetaDomain(normalizedType);
+                            return readDataTableSettingsState(evidenceStatusTableSettingsStorageKey(normalizedType), {
+                                metaDomain: userSettingPageKey,
+                                userSettingPageKey,
+                            }) || {};
+                        },
+                    });
+                    uploadApi.bindUploadEvents();
+                    return uploadApi;
+                });
+        }
+        return uploadEventsPromise;
+    }
+
+    const { rebuildTable } = createEvidenceTableModule({
         state,
         API,
         SearchForm,
@@ -1627,6 +1713,7 @@ export function bootEvidencePage(options = {}) {
         defaultEvidenceTypeCode,
         evidenceMetaDomain,
         evidenceMetaColumnsCache,
+        fetchDataTableMetaColumns,
         valueText,
         formatNumber,
         escapeHtml,
@@ -1651,7 +1738,6 @@ export function bootEvidencePage(options = {}) {
         compareFieldDisplayOrder,
         compareFormatColumns,
         formatEvidenceColumnDisplayLabel,
-        ensureActiveFormat,
         formatValue,
         isAmountColumn,
         isDateColumn,
@@ -1662,42 +1748,16 @@ export function bootEvidencePage(options = {}) {
         evidenceStatusTableSettingsStorageKey,
         handleEvidenceStatusTableOrderChange,
         refreshEvidenceTypeCounts,
-        updateTrashButtonState,
         openEvidenceNewModalLatest,
-        openEvidenceTrash,
+        openEvidenceTrash: () => {
+            void openEvidenceTrash().catch((error) => notify('error', error.message));
+        },
         renderEvidenceTypeTabs,
-        showModal,
+        showModal: (id) => {
+            void showModal(id).catch((error) => notify('error', error.message));
+        },
         syncExcelManager,
-        renderSeedStatus,
-        renderTransactionStatus,
-        renderVoucherStatus,
-        renderReviewStatus,
-        renderRecommendStatus,
-        renderUserModified,
-        renderWorkflowStatus,
-        renderTransactionWorkflowStatus,
-        renderVoucherWorkflowStatus,
         readDataTableSettingsState,
-    });
-
-    const { bindProcessingChildEvents } = createEvidenceChildModule({
-        state,
-        API,
-        notify,
-        updateSummary,
-        escapeHtml,
-        mapped,
-        splitModalColumns,
-        requirementStar,
-        splitCellHtml,
-        bindSplitModalInputs,
-        bindSplitModalHorizontalWheel,
-        splitMissingRequiredForRow,
-        splitChildFromRow,
-        businessProjectRuleMessage,
-        rowDataFromTableNode,
-        openProcessingSplitModal,
-        openEvidenceEditModalLatest,
     });
 
     function bindEvents() {
@@ -1754,7 +1814,9 @@ export function bootEvidencePage(options = {}) {
             runTypeChange(nextType);
         });
 
-        state.refs.trashBtn?.addEventListener('click', openEvidenceTrash);
+        state.refs.trashBtn?.addEventListener('click', () => {
+            void openEvidenceTrash().catch((error) => notify('error', error.message));
+        });
         state.refs.editSaveBtn?.addEventListener('click', () => {
             void saveEditingRow().catch((error) => notify('error', error.message));
         });
@@ -1768,6 +1830,25 @@ export function bootEvidencePage(options = {}) {
         });
 
         const evidenceTableEl = document.getElementById('evidenceStatusTable');
+        const evidenceRowFromNode = (rowNode) => {
+            if (!rowNode || !state.table?.row) return null;
+            return state.table.row(rowNode).data() || null;
+        };
+        evidenceTableEl?.addEventListener('dblclick', (event) => {
+            if (event.target.closest('a, button, input, select, textarea, .dt-select-column')) return;
+            const row = evidenceRowFromNode(event.target.closest('tr'));
+            if (row) {
+                void openEvidenceEditModalLatest(row).catch((error) => notify('error', error.message));
+            }
+        });
+        evidenceTableEl?.addEventListener('click', (event) => {
+            const editButton = event.target.closest('.evidence-edit-row-btn');
+            if (!editButton) return;
+            const row = evidenceRowFromNode(editButton.closest('tr'));
+            if (row) {
+                void openEvidenceEditModalLatest(row).catch((error) => notify('error', error.message));
+            }
+        });
         evidenceTableEl?.addEventListener('datatable:selection-changed', (event) => {
             state.selectedIds = new Set((event.detail?.ids || []).map((id) => String(id)));
         });
@@ -1775,8 +1856,6 @@ export function bootEvidencePage(options = {}) {
             markTrashButtonHasData(event.detail?.ids?.length || 1);
             void updateTrashButtonState();
         });
-        bindProcessingChildEvents(evidenceTableEl);
-
         document.addEventListener('trash:changed', (event) => {
             if (event.detail?.type === 'evidenceStatus') {
                 state.table?.ajax.reload(() => updateSummary(state.lastRows), false);
@@ -1826,17 +1905,53 @@ export function bootEvidencePage(options = {}) {
         `;
     };
 
-    onCodeOptionsLoaded((options) => {
-        state.codeOptions = { ...(options || {}) };
-        state.codeOptions.IMPORT_TYPE = (state.codeOptions.IMPORT_TYPE || [])
-            .map((row) => ({ ...row, code: normalizeEvidenceType(row.code || row.value) }))
-            .filter((row) => row.code && !row.code.startsWith('__'))
-            .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
-    });
+    if (options.editorOnly === true) {
+        if (state.refs.editModal?.parentElement !== document.body) {
+            document.body.appendChild(state.refs.editModal);
+        }
+        state.currentType = normalizeEvidenceType(options.initialType || '') || defaultEvidenceTypeCode();
+        state.refs.editSaveBtn?.addEventListener('click', () => {
+            void saveEditingRow().catch((error) => notify('error', error.message));
+        });
+        state.refs.editModal?.addEventListener('hidden.bs.modal', () => clearEditPickerLayers());
+
+        const ready = loadDisplayCodeOptions().catch(() => {});
+        return {
+            async open({ import_type: importType = '', evidence_id: evidenceId = '' } = {}) {
+                if (SERVER_TYPE_POLICIES.length === 0) {
+                    notify('warning', '증빙원본 자료유형 정책을 불러오지 못했습니다.');
+                    return;
+                }
+                const normalizedType = normalizeEvidenceType(importType) || state.currentType || defaultEvidenceTypeCode();
+                const normalizedId = String(evidenceId || '').trim();
+                if (!normalizedType || !normalizedId) {
+                    notify('warning', '수정할 증빙원본을 확인할 수 없습니다.');
+                    return;
+                }
+
+                if (state.refs.editModal) {
+                    document.body.appendChild(state.refs.editModal);
+                }
+                await ready;
+                state.currentType = normalizedType;
+                state.activeFormat = null;
+                const query = new URLSearchParams({ id: normalizedId, import_type: normalizedType });
+                const response = await fetch(`${API.seedRows}?${query.toString()}`);
+                const json = await response.json().catch(() => ({}));
+                const row = Array.isArray(json.data)
+                    ? (json.data.find((item) => String(item.id || item.evidence_id || '') === normalizedId) || json.data[0])
+                    : null;
+                if (!response.ok || json.success === false || !row) {
+                    notify('warning', '수정할 증빙원본을 불러오지 못했습니다.');
+                    return;
+                }
+                await openEvidenceEditModalLatest(row);
+            },
+        };
+    }
 
     bindEvents();
     if (!initialPageReady) {
-        setPageLoadingState(true);
         state.currentType = normalizeEvidenceType(state.initialType || state.fixedType || state.currentType || '') || defaultEvidenceTypeCode();
         filterEvidenceTypeSelect();
         if (state.refs.typeSelect && state.currentType) {
@@ -1854,20 +1969,19 @@ export function bootEvidencePage(options = {}) {
             });
         return;
     }
-    setPageLoadingState(true);
     initTypeSelect()
         .then(async () => {
-            await refreshEvidenceTypeCounts();
             syncTypeControls();
             if (!currentPageReady()) {
                 renderEvidenceTypeTabs();
+                void refreshEvidenceTypeCounts().catch(() => {});
                 return;
             }
             bindExcelEvents();
-            bindUploadEvents();
-            await loadDisplayCodeOptions();
-            syncTypeControls();
-            return rebuildTable();
+            const tableReady = rebuildTable();
+            void refreshEvidenceTypeCounts().catch(() => {});
+            void tableReady.then(() => loadDisplayCodeOptions()).catch(() => {});
+            return tableReady;
         })
         .catch((error) => {
             console.error(error);
@@ -1878,7 +1992,6 @@ export function bootEvidencePage(options = {}) {
                 return;
             }
             bindExcelEvents();
-            bindUploadEvents();
             void rebuildTable().catch((rebuildError) => notify('error', rebuildError.message));
         })
         .finally(() => {

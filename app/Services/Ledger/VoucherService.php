@@ -3,43 +3,64 @@
 namespace App\Services\Ledger;
 
 use App\Models\Ledger\VoucherLineModel;
+use App\Models\Ledger\VoucherLineRefModel;
+use App\Models\Ledger\EvidenceLinkModel;
+use App\Models\Ledger\EvidenceReferenceModel;
+use App\Models\Ledger\EvidenceSchemaModel;
+use App\Models\Ledger\ChartAccountModel;
+use App\Models\Ledger\JournalRuleModel;
+use App\Models\Ledger\SubAccountPolicyModel;
 use App\Models\Ledger\VoucherModel;
+use App\Repositories\Ledger\EvidenceSourceRepository;
+use App\Services\Funds\PaymentObligationService;
 use App\Services\Auth\AuthSessionService;
 use App\Services\System\NotificationService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\RefTypeHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
-
-class VoucherValidationException extends \RuntimeException
-{
-    public function __construct(string $message, private readonly string $validationType)
-    {
-        parent::__construct($message);
-    }
-
-    public function getValidationType(): string
-    {
-        return $this->validationType;
-    }
-}
 
 class VoucherService
 {
-    private const SOURCE_TYPE_VALUES = ['TAX', 'HOMETAX', 'CARD', 'CARD_COMPANY', 'BANK', 'SHOPPING', 'TRADE', 'IMPORT', 'MANUAL', 'TRANSACTION', 'SYSTEM'];
+    private const SOURCE_TYPE_VALUES = ['TAX', 'HOMETAX', 'CARD', 'CARD_COMPANY', 'BANK', 'SHOPPING', 'TRADE', 'IMPORT', 'MANUAL', 'SYSTEM'];
 
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
+    private VoucherLineRefModel $voucherLineRefModel;
     private VoucherLineRefService $voucherLineRefService;
     private NotificationService $notificationService;
+    private EvidenceLinkModel $evidenceLinkModel;
+    private EvidenceSourceRepository $evidenceSourceRepository;
+    private EvidenceReferenceModel $evidenceReferenceModel;
+    private EvidenceSchemaModel $evidenceSchemaModel;
+    private ChartAccountModel $chartAccountModel;
+    private SubAccountPolicyModel $subAccountPolicyModel;
+    private PaymentObligationService $paymentObligationService;
+    private JournalRuleModel $journalRuleModel;
+    private JournalLearningFeedbackService $learningFeedbackService;
+    private VoucherPostingValidationService $postingValidationService;
+    private $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->voucherModel = new VoucherModel($pdo);
         $this->voucherLineModel = new VoucherLineModel($pdo);
+        $this->voucherLineRefModel = new VoucherLineRefModel($pdo);
         $this->voucherLineRefService = new VoucherLineRefService($pdo);
         $this->notificationService = new NotificationService($pdo);
+        $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
+        $this->evidenceSourceRepository = new EvidenceSourceRepository($pdo);
+        $this->evidenceReferenceModel = new EvidenceReferenceModel($pdo);
+        $this->evidenceSchemaModel = new EvidenceSchemaModel($pdo);
+        $this->chartAccountModel = new ChartAccountModel($pdo);
+        $this->subAccountPolicyModel = new SubAccountPolicyModel($pdo);
+        $this->paymentObligationService = new PaymentObligationService($pdo);
+        $this->journalRuleModel = new JournalRuleModel($pdo);
+        $this->learningFeedbackService = new JournalLearningFeedbackService($pdo);
+        $this->postingValidationService = new VoucherPostingValidationService($pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger.VoucherService');
     }
 
     public function save(array $data): array
@@ -50,7 +71,9 @@ class VoucherService
         $status = VoucherStatus::DRAFT;
         $sourceType = strtoupper(trim((string) ($data['source_type'] ?? 'MANUAL')));
         $lines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
+        $linkedEvidences = $this->normalizeLinkedEvidences($data['linked_evidences'] ?? []);
         $existingVoucher = $voucherId !== '' ? $this->voucherModel->getById($voucherId) : null;
+        $previousEvidences = $voucherId !== '' ? $this->evidenceLinkModel->getVoucherEvidences($voucherId) : [];
         $this->traceVoucherPayload('save.input', [
             'voucher_id' => $voucherId,
             'voucher_date' => $voucherDate,
@@ -123,13 +146,15 @@ class VoucherService
                     'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
                     'line_no' => $line['line_no'],
                     'voucher_id' => $voucherId,
-                    'processing_item_id' => $line['processing_item_id'] ?? null,
                     'account_id' => $line['account_id'],
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
                     'line_summary' => $line['line_summary'],
                     'journal_rule_id' => $line['journal_rule_id'] ?? null,
                     'is_user_modified' => !empty($line['is_user_modified']) ? 1 : 0,
+                    'recommended_account_id' => $line['recommended_account_id'] ?? null,
+                    'recommended_line_type' => $line['recommended_line_type'] ?? null,
+                    'recommended_amount' => $line['recommended_amount'] ?? null,
                     'created_at' => $timestamp,
                     'created_by' => $actor,
                     'updated_at' => $timestamp,
@@ -147,6 +172,8 @@ class VoucherService
             }
 
             $this->voucherLineRefService->replaceForVoucherLines($savedLines, $actor, $timestamp);
+            $this->evidenceLinkModel->replaceVoucherEvidences($voucherId, $linkedEvidences);
+            $this->recordVoucherEvidenceActions($voucherId, $previousEvidences, $linkedEvidences);
             $this->tracePersistedVoucherLines('save.persisted', $voucherId);
             $this->refreshVoucherHeaderSummary($voucherId, $actor, $timestamp);
 
@@ -164,6 +191,63 @@ class VoucherService
 
             throw $e;
         }
+    }
+
+    private function recordVoucherEvidenceActions(string $voucherId, array $previous, array $current): void
+    {
+        $previousMap = [];
+        foreach ($previous as $evidence) {
+            $previousMap[strtoupper((string) ($evidence['import_type'] ?? '')) . ':' . (string) ($evidence['evidence_id'] ?? '')] = $evidence;
+        }
+        $currentMap = [];
+        foreach ($current as $evidence) {
+            $key = strtoupper((string) ($evidence['import_type'] ?? '')) . ':' . (string) ($evidence['evidence_id'] ?? '');
+            $currentMap[$key] = $evidence;
+            if (isset($previousMap[$key])) continue;
+        }
+        foreach ($previousMap as $key => $evidence) {
+            if (isset($currentMap[$key])) continue;
+        }
+    }
+
+    private function normalizeLinkedEvidences(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        if (!is_array($value)) {
+            throw new VoucherValidationException('연결 증빙 형식이 올바르지 않습니다.', 'evidence');
+        }
+
+        $normalized = [];
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                throw new VoucherValidationException('연결 증빙 형식이 올바르지 않습니다.', 'evidence');
+            }
+            $importType = strtoupper(trim((string) ($row['import_type'] ?? '')));
+            $evidenceId = trim((string) ($row['evidence_id'] ?? ''));
+            if ($importType === '' || $evidenceId === '') {
+                throw new VoucherValidationException('연결 증빙의 자료유형과 증빙 ID가 필요합니다.', 'evidence');
+            }
+            $key = $importType . "\0" . $evidenceId;
+            if (isset($normalized[$key])) {
+                continue;
+            }
+            $source = $this->evidenceSourceRepository->find($importType, $evidenceId);
+            if (!$source) {
+                throw new VoucherValidationException('존재하지 않거나 삭제된 증빙은 연결할 수 없습니다.', 'evidence');
+            }
+            $policyType = strtoupper(trim((string) ($source['evidence_type'] ?? '')));
+            if (!in_array($policyType, ['DATA', 'FUND', 'BOTH'], true)) {
+                throw new VoucherValidationException('증빙정책에서 전표 연결이 허용되지 않은 증빙입니다.', 'evidence');
+            }
+            $normalized[$key] = [
+                'import_type' => $importType,
+                'evidence_id' => $evidenceId,
+            ];
+        }
+
+        return array_values($normalized);
     }
 
     public function reorder(array $changes): bool
@@ -229,7 +313,6 @@ class VoucherService
             if (!$this->voucherModel->softDelete($voucherId, $actor)) {
                 throw new \RuntimeException('전표를 삭제하지 못했습니다.');
             }
-
             $this->pdo->commit();
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -253,9 +336,8 @@ class VoucherService
             $this->pdo->beginTransaction();
 
             if (!$this->voucherModel->restore($voucherId, $actor)) {
-                throw new \RuntimeException('?꾪몴瑜?蹂듭썝?섏? 紐삵뻽?듬땲??');
+                throw new \RuntimeException('전표를 복원하지 못했습니다.');
             }
-
             $this->pdo->commit();
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -311,7 +393,12 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        $voucher = $this->voucherModel->getById($voucherId);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+        $voucher = $this->voucherModel->getByIdForUpdate($voucherId);
         if (!$voucher || !empty($voucher['deleted_at'])) {
             throw new \RuntimeException('전표를 찾을 수 없습니다.');
         }
@@ -319,18 +406,13 @@ class VoucherService
         $currentStatus = VoucherStatus::normalize($voucher['status'] ?? null, '');
 
         $allowedNext = [
-            VoucherStatus::DRAFT => VoucherStatus::REVIEW_REQUESTED,
-            VoucherStatus::REVIEW_REQUESTED => VoucherStatus::REVIEWED,
-            VoucherStatus::REVIEWED => VoucherStatus::POSTED,
-            VoucherStatus::POSTED => VoucherStatus::CLOSED,
+            VoucherStatus::DRAFT => [VoucherStatus::REVIEW_REQUESTED],
+            VoucherStatus::REVIEW_REQUESTED => [VoucherStatus::DRAFT, VoucherStatus::REVIEWED],
+            VoucherStatus::REVIEWED => [VoucherStatus::REVIEW_REQUESTED, VoucherStatus::POSTED],
         ];
 
-        if (($allowedNext[$currentStatus] ?? null) !== $nextStatus) {
+        if (!in_array($nextStatus, $allowedNext[$currentStatus] ?? [], true)) {
             throw new \RuntimeException('현재 상태에서는 요청한 상태로 변경할 수 없습니다.');
-        }
-
-        if (false) {
-            $this->validationError('필수값이 입력되지 않았습니다.', 'source_type');
         }
 
         $lines = $this->getPersistedVoucherLinesForValidation($voucherId);
@@ -358,6 +440,9 @@ class VoucherService
 
         $this->validateVoucherBalance($lines);
         $this->validateVoucherSubAccountPolicies($lines);
+        if ($nextStatus === VoucherStatus::POSTED) {
+            $this->postingValidationService->validate($voucherId, $lines);
+        }
 
         $payload = [
             'status'     => $nextStatus,
@@ -365,17 +450,88 @@ class VoucherService
             'updated_by' => ActorHelper::user(),
         ];
 
-        $updated = $this->voucherModel->update($voucherId, $payload);
+            $updated = $this->voucherModel->update($voucherId, $payload);
+            if (!$updated) {
+                throw new \RuntimeException('전표 상태 변경에 실패했습니다.');
+            }
 
-        if (!$updated) {
-            throw new \RuntimeException('전표 상태 변경에 실패했습니다.');
+            $paymentObligations = null;
+            if ($currentStatus === VoucherStatus::REVIEWED && $nextStatus === VoucherStatus::POSTED) {
+                $postedVoucher = $this->voucherModel->getById($voucherId) ?: $voucher;
+                $paymentObligations = $this->paymentObligationService->synchronizeOnFirstPosting(
+                    $postedVoucher,
+                    (string) $payload['updated_by']
+                );
+                $feedbackEvents = $this->learningFeedbackService->recordPostedEvents(
+                    $voucherId,
+                    (string) $payload['updated_by']
+                );
+            }
+
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+
+            $ruleUsageUpdated = 0;
+            $ruleUsageUpdateFailed = false;
+            $feedbackProjection = null;
+            $feedbackProjectionFailed = false;
+            if ($currentStatus === VoucherStatus::REVIEWED && $nextStatus === VoucherStatus::POSTED) {
+                try {
+                    $feedbackProjection = $this->learningFeedbackService->synchronizeProjections();
+                } catch (\Throwable $e) {
+                    $feedbackProjectionFailed = true;
+                    $this->logger->error('전표 승인 후 학습 Projection 반영에 실패했습니다.', [
+                        'voucher_id' => $voucherId,
+                        'event_ids' => $feedbackEvents['event_ids'] ?? [],
+                        'projection_type' => 'RECENT_AND_CLIENT',
+                        'exception' => $e::class,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                $ruleIds = [];
+                try {
+                    $ruleIds = $this->journalRuleModel->confirmedUsageRuleIds($voucherId);
+                    $ruleUsageUpdated = $this->journalRuleModel->recordConfirmedUsage(
+                        $voucherId,
+                        (string) $payload['updated_by']
+                    );
+                    if ($ruleUsageUpdated !== count($ruleIds)) {
+                        $ruleUsageUpdateFailed = true;
+                        $this->logger->warning('전표 승인 후 분개규칙 사용량 반영 건수가 일치하지 않습니다.', [
+                            'voucher_id' => $voucherId,
+                            'rule_ids' => $ruleIds,
+                            'updated_count' => $ruleUsageUpdated,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    $ruleUsageUpdateFailed = true;
+                    $this->logger->error('전표 승인 후 분개규칙 사용량 반영에 실패했습니다.', [
+                        'voucher_id' => $voucherId,
+                        'rule_ids' => $ruleIds,
+                        'exception' => $e::class,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return [
+                'success' => true,
+                'id' => $voucherId,
+                'status' => $nextStatus,
+                'payment_obligations' => $paymentObligations,
+                'rule_usage_updated' => $ruleUsageUpdated,
+                'rule_usage_update_failed' => $ruleUsageUpdateFailed,
+                'feedback_event_count' => count($feedbackEvents['created_ids'] ?? []),
+                'feedback_projection' => $feedbackProjection,
+                'feedback_projection_failed' => $feedbackProjectionFailed,
+            ];
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
         }
-
-        return [
-            'success' => true,
-            'id'      => $voucherId,
-            'status'  => $nextStatus,
-        ];
     }
     public function confirm(string $voucherId): array
     {
@@ -383,19 +539,6 @@ class VoucherService
 
         if ($voucherId === '') {
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
-        }
-
-        $voucher = $this->voucherModel->getById($voucherId);
-        if (!$voucher || !empty($voucher['deleted_at'])) {
-            throw new \RuntimeException('전표를 찾을 수 없습니다.');
-        }
-
-        if (VoucherStatus::isReviewRequested($voucher['status'] ?? null)) {
-            return [
-                'success' => true,
-                'id' => $voucherId,
-                'status' => VoucherStatus::REVIEW_REQUESTED,
-            ];
         }
 
         return $this->updateStatus($voucherId, VoucherStatus::REVIEW_REQUESTED);
@@ -414,32 +557,7 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        $voucher = $this->voucherModel->getById($voucherId);
-        if (!$voucher || !empty($voucher['deleted_at'])) {
-            throw new \RuntimeException('전표를 찾을 수 없습니다.');
-        }
-
-        $currentStatus = VoucherStatus::normalize($voucher['status'] ?? null, '');
-        if ($currentStatus !== VoucherStatus::REVIEW_REQUESTED) {
-            throw new \RuntimeException('확정(confirmed) 상태의 전표만 확정을 취소할 수 있습니다.');
-        }
-
-        $updated = $this->voucherModel->update($voucherId, [
-            'status' => VoucherStatus::DRAFT,
-            'reject_reason' => null,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'updated_by' => ActorHelper::user(),
-        ]);
-
-        if (!$updated) {
-            throw new \RuntimeException('전표 확정 취소에 실패했습니다.');
-        }
-
-        return [
-            'success' => true,
-            'id' => $voucherId,
-            'status' => VoucherStatus::DRAFT,
-        ];
+        return $this->updateStatus($voucherId, VoucherStatus::DRAFT);
     }
 
     public function cancelReviewRequest(string $voucherId): array
@@ -454,19 +572,6 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        $voucher = $this->voucherModel->getById($voucherId);
-        if (!$voucher || !empty($voucher['deleted_at'])) {
-            throw new \RuntimeException('전표를 찾을 수 없습니다.');
-        }
-
-        if (VoucherStatus::isReviewed($voucher['status'] ?? null)) {
-            return [
-                'success' => true,
-                'id' => $voucherId,
-                'status' => VoucherStatus::REVIEWED,
-            ];
-        }
-
         return $this->updateStatus($voucherId, VoucherStatus::REVIEWED);
     }
 
@@ -478,37 +583,13 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        $voucher = $this->voucherModel->getById($voucherId);
-        if (!$voucher || !empty($voucher['deleted_at'])) {
-            throw new \RuntimeException('전표를 찾을 수 없습니다.');
-        }
-
-        $currentStatus = VoucherStatus::normalize($voucher['status'] ?? null, '');
-        if ($currentStatus !== VoucherStatus::REVIEWED) {
-            throw new \RuntimeException('검토완료(reviewed) 상태의 전표만 검토완료를 취소할 수 있습니다.');
-        }
-
-        $updated = $this->voucherModel->update($voucherId, [
-            'status' => VoucherStatus::REVIEW_REQUESTED,
-            'updated_at' => date('Y-m-d H:i:s'),
-            'updated_by' => ActorHelper::user(),
-        ]);
-
-        if (!$updated) {
-            throw new \RuntimeException('전표 검토완료 취소에 실패했습니다.');
-        }
-
-        return [
-            'success' => true,
-            'id' => $voucherId,
-            'status' => VoucherStatus::REVIEW_REQUESTED,
-        ];
+        return $this->updateStatus($voucherId, VoucherStatus::REVIEW_REQUESTED);
     }
 
     public function post(string $voucherId): array
     {
         $result = $this->updateStatus($voucherId, VoucherStatus::POSTED);
-        $this->createVoucherNotification($voucherId, 'approve', '전표 승인', '전표가 승인되었습니다.');
+        $this->createVoucherNotification($voucherId, 'post', '전표 전기완료', '전표가 전기완료되었습니다.');
 
         return $result;
     }
@@ -528,7 +609,7 @@ class VoucherService
         }
 
         if (!VoucherStatus::isPosted($original['status'] ?? null)) {
-            throw new \RuntimeException('전표승인(posted) 상태의 전표만 역분개 전표를 생성할 수 있습니다.');
+            throw new \RuntimeException('전표승인 상태의 전표만 취소전표를 생성할 수 있습니다.');
         }
 
         if ((int) ($original['is_reversal'] ?? 0) === 1) {
@@ -611,7 +692,6 @@ class VoucherService
                     'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
                     'line_no' => $index + 1,
                     'voucher_id' => $newVoucherId,
-                    'processing_item_id' => $this->nullableString($line['processing_item_id'] ?? null),
                     'account_id' => (string) ($line['account_id'] ?? ''),
                     'debit' => number_format((float) ($line['credit'] ?? 0), 2, '.', ''),
                     'credit' => number_format((float) ($line['debit'] ?? 0), 2, '.', ''),
@@ -674,7 +754,12 @@ class VoucherService
             throw new \RuntimeException('반려 사유를 입력해 주세요.');
         }
 
-        $voucher = $this->voucherModel->getById($voucherId);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+        $voucher = $this->voucherModel->getByIdForUpdate($voucherId);
         if (!$voucher || !empty($voucher['deleted_at'])) {
             throw new \RuntimeException('전표를 찾을 수 없습니다.');
         }
@@ -682,7 +767,7 @@ class VoucherService
         $currentStatus = VoucherStatus::normalize($voucher['status'] ?? null, '');
 
         if ($currentStatus !== VoucherStatus::REVIEW_REQUESTED) {
-            throw new \RuntimeException('확정(confirmed) 상태의 전표만 반려할 수 있습니다.');
+            throw new \RuntimeException('검토요청 상태의 전표만 반려할 수 있습니다.');
         }
 
         $updated = $this->voucherModel->update($voucherId, [
@@ -694,6 +779,16 @@ class VoucherService
 
         if (!$updated) {
             throw new \RuntimeException('전표 반려 처리에 실패했습니다.');
+        }
+
+        if ($ownsTransaction) {
+            $this->pdo->commit();
+        }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
         }
 
         $this->createVoucherNotification(
@@ -857,7 +952,6 @@ class VoucherService
 
             $normalized[] = [
                 'line_no' => $lineNo,
-                'processing_item_id' => trim((string) ($line['processing_item_id'] ?? '')) ?: null,
                 'account_id' => (string) $account['id'],
                 'account_name' => (string) $account['account_name'],
                 'refs' => $refs,
@@ -868,6 +962,11 @@ class VoucherService
                 'line_summary' => $lineSummary,
                 'journal_rule_id' => trim((string) ($line['journal_rule_id'] ?? '')) ?: null,
                 'is_user_modified' => !empty($line['is_user_modified']) ? 1 : 0,
+                'recommended_account_id' => trim((string) ($line['recommended_account_id'] ?? '')) ?: null,
+                'recommended_line_type' => in_array(strtoupper(trim((string) ($line['recommended_line_type'] ?? ''))), ['DEBIT', 'CREDIT'], true)
+                    ? strtoupper(trim((string) $line['recommended_line_type'])) : null,
+                'recommended_amount' => ($line['recommended_amount'] ?? null) !== null
+                    ? number_format($this->parseAmount($line['recommended_amount']), 2, '.', '') : null,
             ];
             $lineNo++;
         }
@@ -926,24 +1025,12 @@ class VoucherService
 
     private function validateVoucherSubAccountPolicies(array $lines): void
     {
-        $policyColumns = ['ref_target', 'is_required'];
-        if ($this->hasColumn('ledger_accounts_sub', 'sub_code')) {
-            $policyColumns[] = 'sub_code';
-        }
-
-        $policyStmt = $this->pdo->prepare("
-            SELECT " . implode(', ', $policyColumns) . "
-            FROM ledger_accounts_sub
-            WHERE account_id = :account_id
-        ");
-
+        $policiesByAccount = $this->subAccountPolicyModel->getGroupedByAccountIds(array_column($lines, 'account_id'));
         foreach ($lines as $line) {
             $accountId = (string) $line['account_id'];
             $accountName = trim((string) ($line['account_name'] ?? $accountId));
             $refs = is_array($line['refs'] ?? null) ? $line['refs'] : [];
-
-            $policyStmt->execute([':account_id' => $accountId]);
-            $policies = $policyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $policies = $policiesByAccount[$accountId] ?? [];
 
             $requiredTypes = [];
             foreach ($policies as $policy) {
@@ -963,7 +1050,7 @@ class VoucherService
 
             $selectedMap = [];
             foreach ($refs as $ref) {
-                $refType = $this->normalizeRefTypeAlias((string) ($ref['ref_target'] ?? $ref['ref_type'] ?? ''));
+                $refType = $this->normalizeRefTypeAlias((string) ($ref['ref_target'] ?? ''));
                 $refId = trim((string) ($ref['ref_id'] ?? ''));
                 if ($refType !== '' && $refId !== '') {
                     $selectedMap[$refType] = true;
@@ -1057,7 +1144,6 @@ class VoucherService
             'EMPLOYEE' => 'user_employees',
             'CARD' => 'system_cards',
             'BANK', 'BANK_ACCOUNT' => 'system_bank_accounts',
-            'TRANSACTION' => 'ledger_transactions',
             'VOUCHER' => 'ledger_vouchers',
             'CONTRACT' => null,
             'ORDER' => null,
@@ -1097,14 +1183,16 @@ class VoucherService
 
     private function existsById(string $table, string $id): bool
     {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
-            throw new \InvalidArgumentException('Invalid table name.');
-        }
-
-        $stmt = $this->pdo->prepare("SELECT 1 FROM {$table} WHERE id = :id LIMIT 1");
-        $stmt->execute([':id' => $id]);
-
-        return (bool) $stmt->fetchColumn();
+        return match ($table) {
+            'ledger_accounts' => $this->chartAccountModel->getById($id) !== null,
+            'ledger_vouchers' => $this->voucherModel->getById($id) !== null,
+            'system_clients' => $this->evidenceReferenceModel->resolveId('CLIENT', $id) === $id,
+            'system_projects' => $this->evidenceReferenceModel->resolveId('PROJECT', $id) === $id,
+            'user_employees' => $this->evidenceReferenceModel->resolveId('EMPLOYEE', $id) === $id,
+            'system_bank_accounts' => $this->evidenceReferenceModel->resolveId('ACCOUNT', $id) === $id,
+            'system_cards' => $this->evidenceReferenceModel->resolveId('CARD', $id) === $id,
+            default => throw new \InvalidArgumentException('Invalid table name.'),
+        };
     }
 
     private function validationError(string $message, string $validationType): never
@@ -1117,9 +1205,9 @@ class VoucherService
 
         if (!VoucherStatus::isEditable($status)) {
             $messages = [
-                VoucherStatus::REVIEW_REQUESTED => '확정(confirmed) 상태의 전표는 수정할 수 없습니다. 확정을 취소한 후 수정해 주세요.',
+                VoucherStatus::REVIEW_REQUESTED => '검토요청 상태의 전표는 수정할 수 없습니다. 검토요청을 취소한 후 수정해 주세요.',
                 VoucherStatus::REVIEWED => '검토완료(reviewed) 상태의 전표는 수정할 수 없습니다.',
-                VoucherStatus::POSTED => '승인(posted) 상태의 전표는 수정할 수 없습니다.',
+                VoucherStatus::POSTED => '전표승인 상태의 전표는 수정할 수 없습니다.',
                 VoucherStatus::CLOSED => '마감(closed) 상태의 전표는 수정할 수 없습니다.',
                 VoucherStatus::DELETED => '삭제된 전표는 수정할 수 없습니다.',
             ];
@@ -1176,7 +1264,7 @@ class VoucherService
             }
 
             foreach (is_array($line['refs'] ?? null) ? $line['refs'] : [] as $ref) {
-                $refTarget = strtoupper(trim((string) ($ref['ref_target'] ?? $ref['ref_type'] ?? '')));
+                $refTarget = strtoupper(trim((string) ($ref['ref_target'] ?? '')));
                 $refId = trim((string) ($ref['ref_id'] ?? ''));
                 if ($refId === '') {
                     continue;
@@ -1281,7 +1369,7 @@ class VoucherService
             $refs = [];
             foreach (is_array($line['refs'] ?? null) ? $line['refs'] : [] as $ref) {
                 $refs[] = [
-                    'ref_target' => (string) ($ref['ref_target'] ?? $ref['ref_type'] ?? ''),
+                    'ref_target' => (string) ($ref['ref_target'] ?? ''),
                     'ref_id' => (string) ($ref['ref_id'] ?? ''),
                 ];
             }
@@ -1317,25 +1405,7 @@ class VoucherService
 
     private function nextVoucherNo(string $voucherDate): string
     {
-        $dateKey = preg_replace('/[^0-9]/', '', $voucherDate) ?: date('Ymd');
-        $prefix = substr($dateKey, 0, 8);
-
-        $stmt = $this->pdo->prepare("
-            SELECT voucher_no
-            FROM ledger_vouchers
-            WHERE voucher_no LIKE :prefix
-            ORDER BY voucher_no DESC
-            LIMIT 1
-        ");
-        $stmt->execute([':prefix' => $prefix . '-%']);
-
-        $latest = (string) ($stmt->fetchColumn() ?: '');
-        $next = 1;
-        if (preg_match('/-(\d+)$/', $latest, $matches)) {
-            $next = ((int) $matches[1]) + 1;
-        }
-
-        return sprintf('%s-%04d', $prefix, $next);
+        return $this->voucherModel->nextVoucherNo($voucherDate);
     }
 
     private function createVoucherNotification(
@@ -1384,65 +1454,8 @@ class VoucherService
 
     private function resolveAccount(string $accountValue): ?array
     {
-        $stmt = $this->pdo->prepare("
-            SELECT
-                id,
-                account_code,
-                COALESCE(NULLIF(account_name, ''), NULLIF(account_code, ''), id) AS account_name
-            FROM ledger_accounts
-            WHERE deleted_at IS NULL
-              AND (id = :id_value OR account_code = :code_value)
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':id_value' => $accountValue,
-            ':code_value' => $accountValue,
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return $row ?: null;
+        return $this->chartAccountModel->resolveByIdOrCode($accountValue);
     }
-    private function hasColumn(string $table, string $column): bool
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
-            throw new \InvalidArgumentException('Invalid table or column name.');
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = DATABASE()
-              AND table_name = :table_name
-              AND column_name = :column_name
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':table_name' => $table,
-            ':column_name' => $column,
-        ]);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
-    private function hasTable(string $table): bool
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
-            throw new \InvalidArgumentException('Invalid table name.');
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = DATABASE()
-              AND table_name = :table_name
-            LIMIT 1
-        ");
-        $stmt->execute([':table_name' => $table]);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
     private function parseAmount(mixed $value): float
     {
         $cleaned = preg_replace('/[^0-9.\-]/', '', str_replace(',', '', (string) ($value ?? '')));

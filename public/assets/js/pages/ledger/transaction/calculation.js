@@ -13,7 +13,6 @@ export function registerCalculation(ctx) {
             foreign_amount: '',
             amount: '',
             supply_amount: 0,
-            tax_type: ctx.defaultLineTaxTypeLabel(),
             description: '',
         };
     }
@@ -31,6 +30,7 @@ export function registerCalculation(ctx) {
         const lineKey = String(item.__line_key || item.id || `line-${Date.now()}-${++ctx.settlementLineKeySeed}`);
 
         return {
+            evidence_identity: item.evidence_identity || null,
             __item_id: String(item.id || ''),
             __line_key: lineKey,
             item_date: item.item_date || document.getElementById('transaction_date')?.value || ctx.today(),
@@ -49,13 +49,13 @@ export function registerCalculation(ctx) {
                 : ctx.numberValue(item.foreign_amount),
             amount: ctx.numberValue(item.amount ?? item.supply_amount ?? item.item_supply_amount ?? 0),
             supply_amount: ctx.numberValue(item.supply_amount ?? item.item_supply_amount ?? 0),
-            tax_type: ctx.taxTypeLabelFromCode(item.tax_type || item.item_tax_type || ctx.defaultLineTaxTypeCode()),
             description: item.description || item.item_description || '',
         };
     }
 
     function normalizeSettlement(row = {}) {
         return {
+            evidence_identity: row.evidence_identity || null,
             settlement_type: ctx.settlementTypeLabelFromCode(row.settlement_type || 'VAT'),
             amount_sign: ctx.amountSignLabelFromCode(row.amount_sign || 'PLUS'),
             amount: row.amount === undefined || row.amount === null || row.amount === ''
@@ -82,7 +82,6 @@ export function registerCalculation(ctx) {
         const supply = foreignMode
             ? Math.round(foreignAmount * exchangeRate)
             : Math.round(quantity * unitPrice);
-        const taxType = ctx.normalizeTaxTypeCode(row.tax_type || ctx.defaultLineTaxTypeCode());
         const enteredAmount = ctx.numberValue(row.amount);
         const amount = quantity > 0 && (unitPrice !== 0 || foreignAmount !== 0)
             ? supply
@@ -94,7 +93,6 @@ export function registerCalculation(ctx) {
         row.foreign_amount = foreignMode ? foreignAmount : '';
         row.amount = amount;
         row.supply_amount = row.amount;
-        row.tax_type = ctx.taxTypeLabelFromCode(taxType);
         return row;
     }
 

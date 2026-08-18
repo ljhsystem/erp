@@ -42,7 +42,6 @@ final class VoucherStatus
         self::REVIEW_REQUESTED,
         self::REVIEWED,
         self::POSTED,
-        self::CLOSED,
     ];
 
     private const TRANSITIONS = [

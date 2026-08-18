@@ -4,11 +4,13 @@ namespace App\Services\Auth;
 use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
 use App\Models\Auth\UserModel;
+use App\Repositories\Auth\UserPermissionRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\ConfigHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
+use Core\Database;
 use PDO;
 
 class PermissionService
@@ -17,16 +19,20 @@ class PermissionService
     private PermissionModel $permModel;
     private RolePermissionModel $rolePermModel;
     private UserModel $userModel;
+    private UserPermissionRepository $userPermissionRepository;
     private $logger;
     private array $cache = [];
     private array $userCache = [];
+    private array $effectivePermissionKeyCache = [];
 
-    public function __construct(PDO $pdo)
+    public function __construct(?PDO $pdo = null)
     {
+        $pdo = $pdo ?? Database::getInstance()->getConnection();
         $this->pdo = $pdo;
         $this->permModel = new PermissionModel($pdo);
         $this->rolePermModel = new RolePermissionModel($pdo);
         $this->userModel = new UserModel($pdo);
+        $this->userPermissionRepository = new UserPermissionRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-auth.PermissionService');
     }
 
@@ -38,6 +44,18 @@ class PermissionService
     public function getList(array $filters = []): array
     {
         return $this->getAll($filters);
+    }
+
+    public function supportsPageKey(): bool { return $this->permModel->supportsPageKey(); }
+    public function getRegistrySyncRows(bool $withPageKey): array { return $this->permModel->getRegistrySyncRows($withPageKey); }
+    public function insertRegistryPermission(array $data, bool $withPageKey): bool { return $this->permModel->insertRegistryPermission($data, $withPageKey); }
+    public function updateRegistryPermission(string $id, array $changes): bool { return $this->permModel->updateRegistryPermission($id, $changes); }
+    public function getRegistrySortRows(): array { return $this->permModel->getRegistrySortRows(); }
+    public function offsetSortNumbers(array $ids, int $offset, string $actor): void { $this->permModel->offsetSortNumbers($ids, $offset, $actor); }
+    public function applySortNumbers(array $changes, string $actor): void { $this->permModel->applySortNumbers($changes, $actor); }
+    public function grantPermissionToRoleKey(string $permissionId, string $roleKey, string $actor): void
+    {
+        $this->rolePermModel->grantPermissionToRoleKey($permissionId, $roleKey, $actor);
     }
 
     public function create(array $data): array
@@ -84,9 +102,7 @@ class PermissionService
         try {
             $this->pdo->beginTransaction();
 
-            $mappingCountStmt = $this->pdo->prepare('SELECT COUNT(*) FROM auth_role_permissions WHERE permission_id = ?');
-            $mappingCountStmt->execute([$id]);
-            $deletedRolePermissionCount = (int) $mappingCountStmt->fetchColumn();
+            $deletedRolePermissionCount = $this->rolePermModel->countByPermission($id);
 
             if (!$this->rolePermModel->clearPermission($id)) {
                 throw new \RuntimeException('삭제 중 오류가 발생했습니다.');
@@ -132,21 +148,23 @@ class PermissionService
             return $this->cache[$cacheKey];
         }
 
-        if (ConfigHelper::get('IsDevelopment') === true) {
-            return $this->cache[$cacheKey] = true;
-        }
-
         try {
             $user = $this->getUser($userId);
 
-            if (!$user || empty($user['role_id'])) {
+            if (!$user || (int) ($user['approved'] ?? 0) !== 1 || (int) ($user['is_active'] ?? 0) !== 1
+                || empty($user['role_id'])) {
                 return $this->cache[$cacheKey] = false;
             }
 
-            $result = $this->rolePermModel->roleHasPermission(
-                $user['role_id'],
-                $permissionKey
-            );
+            if (!$this->rolePermModel->isRoleActive((string) $user['role_id'])) {
+                return $this->cache[$cacheKey] = false;
+            }
+
+            if ($this->isDevelopmentBypassAllowed()) {
+                return $this->cache[$cacheKey] = true;
+            }
+
+            $result = isset($this->getEffectivePermissionKeySet($userId)[$permissionKey]);
 
             return $this->cache[$cacheKey] = $result;
         } catch (\Throwable $e) {
@@ -160,6 +178,46 @@ class PermissionService
         }
     }
 
+    public function resolvePermission(string $userId, string $permissionKey): array
+    {
+        $permissionKey = strtolower(trim($permissionKey));
+        $user = $this->getUser($userId);
+        $base = ['role_allowed' => false, 'user_allowed' => false, 'permission_mode' => null, 'effective_allowed' => false];
+        if (!$user || (int) ($user['approved'] ?? 0) !== 1 || (int) ($user['is_active'] ?? 0) !== 1
+            || empty($user['role_id']) || !$this->rolePermModel->isRoleActive((string) $user['role_id'])) return $base;
+        $permission = $this->permModel->getByKey($permissionKey);
+        if (!$permission || (int) ($permission['is_active'] ?? 0) !== 1) return $base;
+        $roleAllowed = $this->rolePermModel->roleHasPermission((string) $user['role_id'], $permissionKey);
+        $context = $this->userPermissionRepository->userContext($userId);
+        $mode = (string) ($context['permission_mode'] ?? 'ROLE');
+        $userAllowed = in_array((string) $permission['id'], $this->userPermissionRepository->userPermissionIds($userId), true);
+        $effective = $mode === 'ROLE' ? $roleAllowed : ($mode === 'EXTEND' ? ($roleAllowed || $userAllowed) : ($mode === 'REPLACE' && $userAllowed));
+        return [
+            'role_allowed' => $roleAllowed,
+            'user_allowed' => $userAllowed,
+            'permission_mode' => $mode,
+            'effective_allowed' => $effective,
+        ];
+    }
+
+    public function getEffectivePermissionSet(string $userId): array
+    {
+        return $this->userPermissionRepository->effectivePermissionSet($userId);
+    }
+
+    private function getEffectivePermissionKeySet(string $userId): array
+    {
+        if (!isset($this->effectivePermissionKeyCache[$userId])) {
+            $keys = array_values($this->getEffectivePermissionSet($userId));
+            $this->effectivePermissionKeyCache[$userId] = array_fill_keys(array_map(
+                static fn(string $key): string => strtolower(trim($key)),
+                $keys
+            ), true);
+        }
+
+        return $this->effectivePermissionKeyCache[$userId];
+    }
+
     private function getUser(string $userId)
     {
         if (!isset($this->userCache[$userId])) {
@@ -167,6 +225,12 @@ class PermissionService
         }
 
         return $this->userCache[$userId];
+    }
+
+    private function isDevelopmentBypassAllowed(): bool
+    {
+        $environment = strtolower(trim((string) getenv('APP_ENV')));
+        return ConfigHelper::get('IsDevelopment') === true && $environment === 'development';
     }
 
     public function reorder(array $changes): bool

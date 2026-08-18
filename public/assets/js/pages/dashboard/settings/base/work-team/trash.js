@@ -40,7 +40,7 @@ export function createWorkTeamTrashModule({ api, escapeHtml, reloadTable }) {
 
             detailBox.innerHTML = `
                 <div class="p-3">
-                    <h6 class="mb-3">팀관리 상세</h6>
+                    <h6 class="mb-3">팀 상세</h6>
                     <div><b>팀명</b> ${escapeHtml(data.team_name ?? '')}</div>
                     <div><b>팀장</b> ${escapeHtml(data.team_leader_client_name ?? '')}</div>
                     <div><b>상태</b> ${Number(data.is_active) === 1 ? '사용' : '미사용'}</div>

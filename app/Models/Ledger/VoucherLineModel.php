@@ -101,50 +101,6 @@ class VoucherLineModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function getProcessingItemIdsByVoucherId(string $voucherId): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT processing_item_id
-            FROM {$this->table}
-            WHERE voucher_id = :voucher_id
-              AND processing_item_id IS NOT NULL
-        ");
-        $stmt->execute([':voucher_id' => $voucherId]);
-
-        return array_values(array_filter(array_map(
-            static fn(array $row): string => trim((string) ($row['processing_item_id'] ?? '')),
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-        )));
-    }
-
-    public function hasActiveVoucherForProcessingItem(string $processingItemId, string $excludeVoucherId = ''): bool
-    {
-        $processingItemId = trim($processingItemId);
-        if ($processingItemId === '') {
-            return false;
-        }
-
-        $excludeSql = $excludeVoucherId !== '' ? 'AND v.id <> :exclude_voucher_id' : '';
-        $params = [':processing_item_id' => $processingItemId];
-        if ($excludeVoucherId !== '') {
-            $params[':exclude_voucher_id'] = $excludeVoucherId;
-        }
-
-        $stmt = $this->db->prepare("
-            SELECT 1
-            FROM {$this->table} l
-            INNER JOIN ledger_vouchers v
-                ON v.id = l.voucher_id
-               AND v.deleted_at IS NULL
-            WHERE l.processing_item_id = :processing_item_id
-              {$excludeSql}
-            LIMIT 1
-        ");
-        $stmt->execute($params);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
     public function searchLineSummaryTexts(string $keyword, int $limit = 10): array
     {
         $limit = max(1, min($limit, 20));
@@ -175,13 +131,15 @@ class VoucherLineModel
             'sort_no',
             'line_no',
             'voucher_id',
-            'processing_item_id',
             'account_id',
             'debit',
             'credit',
             'line_summary',
             'journal_rule_id',
             'is_user_modified',
+            'recommended_account_id',
+            'recommended_line_type',
+            'recommended_amount',
             'created_at',
             'created_by',
             'updated_at',
@@ -214,13 +172,15 @@ class VoucherLineModel
         $allowed = [
             'voucher_id',
             'line_no',
-            'processing_item_id',
             'account_id',
             'debit',
             'credit',
             'line_summary',
             'journal_rule_id',
             'is_user_modified',
+            'recommended_account_id',
+            'recommended_line_type',
+            'recommended_amount',
             'updated_at',
             'updated_by',
         ];
