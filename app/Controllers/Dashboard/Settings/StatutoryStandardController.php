@@ -41,7 +41,7 @@ class StatutoryStandardController
         ]);
     }
 
-    public function apiList(): void { $this->respond(fn(): array => $this->service->list($_GET)); }
+    public function apiList(): void { $this->respond(fn(): array => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { $this->respond(fn(): array => $this->service->detail((string) ($_GET['id'] ?? ''))); }
     public function apiOptions(): void { $this->respond(fn(): array => $this->service->options()); }
     public function apiSave(): void

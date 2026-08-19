@@ -3,7 +3,7 @@
 global $router;
 
 $regularEmploymentIncomeRoutes = [
-    ['GET','/api/institution/income-data/regular-employment/list','apiList','list','목록조회',['view']],
+    ['POST','/api/institution/income-data/regular-employment/list','apiList','list','목록조회',['view']],
     ['GET','/api/institution/income-data/regular-employment/detail','apiDetail','detail','상세조회',['view']],
     ['GET','/api/institution/income-data/regular-employment/eligible-employees','apiEligibleEmployees','eligible_employees','대상직원조회',['view']],
     ['POST','/api/institution/income-data/regular-employment/save','apiSave','save','저장',['save']],
@@ -11,9 +11,9 @@ $regularEmploymentIncomeRoutes = [
     ['POST','/api/institution/income-data/regular-employment/withdraw','apiWithdraw','withdraw','기안회수',['save']],
     ['POST','/api/institution/income-data/regular-employment/delete','apiDelete','delete','삭제',['delete']],
 ];
-foreach($regularEmploymentIncomeRoutes as[$method,$url,$action,$suffix,$permissionName,$permissions]){$router->{strtolower($method)}($url,'RegularEmploymentIncomeController@'.$action,['key'=>'api.institution.income_data.regular_employment.'.$suffix,'page'=>'상용근로소득','page_description'=>'귀속월별 상용근로소득 작성·결재·회계연결','permission_name'=>$permissionName,'permission_description'=>'상용근로소득 '.$permissionName,'name'=>'상용근로소득 '.$permissionName,'description'=>'대외기관업무 > 소득자료관리 > 상용근로소득 > '.$permissionName,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET']);}
+foreach($regularEmploymentIncomeRoutes as[$method,$url,$action,$suffix,$permissionName,$permissions]){$router->{strtolower($method)}($url,'RegularEmploymentIncomeController@'.$action,['key'=>'api.institution.income_data.regular_employment.'.$suffix,'page'=>'상용근로소득','page_description'=>'귀속월별 상용근로소득 작성·결재·회계연결','permission_name'=>$permissionName,'permission_description'=>'상용근로소득 '.$permissionName,'name'=>'상용근로소득 '.$permissionName,'description'=>'대외기관업무 > 소득자료관리 > 상용근로소득 > '.$permissionName,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET'&&$action!=='apiList']);}
 
-$employmentRuleRoutes=[['GET','/api/institution/human-resources/employment-rules/list','apiList','view'],['GET','/api/institution/human-resources/employment-rules/detail','apiDetail','detail'],['GET','/api/institution/human-resources/employment-rules/history','apiHistory','history'],['GET','/api/institution/human-resources/employment-rules/options','apiOptions','options'],['POST','/api/institution/human-resources/employment-rules/save','apiSave','save'],['POST','/api/institution/human-resources/employment-rules/revise','apiRevise','revise'],['POST','/api/institution/human-resources/employment-rules/submit','apiSubmit','submit'],['POST','/api/institution/human-resources/employment-rules/withdraw','apiWithdraw','withdraw'],['POST','/api/institution/human-resources/employment-rules/activate','apiActivate','activate'],['POST','/api/institution/human-resources/employment-rules/delete','apiDelete','delete'],['GET','/api/institution/human-resources/employment-rules/excel','apiExcel','excel']];foreach($employmentRuleRoutes as[$m,$u,$a,$k])$router->{strtolower($m)}($u,'EmploymentRuleController@'.$a,['key'=>'api.institution.human_resources.employment_rules.'.$k,'page'=>'취업규칙·인사규정','page_description'=>'회사 정책 및 개정 관리','permission_name'=>$k,'permission_description'=>'취업규칙 '.$k,'name'=>'취업규칙 '.$k,'description'=>'취업규칙 '.$k,'category'=>'대외기관업무','auth'=>true,'permissions'=>[$k],'log'=>$m!=='GET']);
+$employmentRuleRoutes=[['POST','/api/institution/human-resources/employment-rules/list','apiList','view'],['GET','/api/institution/human-resources/employment-rules/detail','apiDetail','detail'],['GET','/api/institution/human-resources/employment-rules/history','apiHistory','history'],['GET','/api/institution/human-resources/employment-rules/options','apiOptions','options'],['POST','/api/institution/human-resources/employment-rules/save','apiSave','save'],['POST','/api/institution/human-resources/employment-rules/revise','apiRevise','revise'],['POST','/api/institution/human-resources/employment-rules/submit','apiSubmit','submit'],['POST','/api/institution/human-resources/employment-rules/withdraw','apiWithdraw','withdraw'],['POST','/api/institution/human-resources/employment-rules/activate','apiActivate','activate'],['POST','/api/institution/human-resources/employment-rules/delete','apiDelete','delete'],['GET','/api/institution/human-resources/employment-rules/excel','apiExcel','excel']];foreach($employmentRuleRoutes as[$m,$u,$a,$k])$router->{strtolower($m)}($u,'EmploymentRuleController@'.$a,['key'=>'api.institution.human_resources.employment_rules.'.$k,'page'=>'취업규칙·인사규정','page_description'=>'회사 정책 및 개정 관리','permission_name'=>$k,'permission_description'=>'취업규칙 '.$k,'name'=>'취업규칙 '.$k,'description'=>'취업규칙 '.$k,'category'=>'대외기관업무','auth'=>true,'permissions'=>[$k],'log'=>$m!=='GET'&&$a!=='apiList']);
 
 $qualificationEducationRoutes = [
  ['GET','/api/institution/human-resources/qualification-education/options','apiOptions','options','선택옵션조회',['view']],
@@ -35,7 +35,7 @@ $qualificationEducationRoutes = [
 foreach($qualificationEducationRoutes as[$method,$url,$action,$suffix,$permissionName,$permissions]){$router->{strtolower($method)}($url,'QualificationEducationController@'.$action,['key'=>'api.institution.human_resources.qualification_education.'.$suffix,'page'=>'자격·교육관리','page_description'=>'직원 자격·교육·만료·갱신 관리','permission_name'=>$permissionName,'permission_description'=>'자격·교육관리 '.$permissionName,'name'=>'자격·교육관리 '.$permissionName,'description'=>'대외기관업무 > 인사·노무관리 > 자격·교육관리 > '.$permissionName,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET']);}
 
 $jobAssignmentRoutes = [
-    ['GET', '/api/institution/human-resources/job-assignment/list', 'apiList', 'list', '목록조회', ['view']],
+    ['POST', '/api/institution/human-resources/job-assignment/list', 'apiList', 'list', '목록조회', ['view']],
     ['GET', '/api/institution/human-resources/job-assignment/detail', 'apiDetail', 'detail', '상세조회', ['view']],
     ['GET', '/api/institution/human-resources/job-assignment/options', 'apiOptions', 'options', '입력옵션조회', ['view']],
     ['POST', '/api/institution/human-resources/job-assignment/history-save', 'apiHistorySave', 'history_save', '과거직무이력등록', ['save']],
@@ -45,9 +45,9 @@ $jobAssignmentRoutes = [
 ];
 
 $attendanceRoutes = [
-    ['GET','/api/institution/human-resources/attendance/daily-list','apiDailyList','daily_list','목록조회',['view']],
-    ['GET','/api/institution/human-resources/attendance/monthly-list','apiMonthlyList','monthly_list','월별조회',['view']],
-    ['GET','/api/institution/human-resources/attendance/exception-list','apiExceptionList','exception_list','이상근태조회',['view']],
+    ['POST','/api/institution/human-resources/attendance/daily-list','apiDailyList','daily_list','목록조회',['view']],
+    ['POST','/api/institution/human-resources/attendance/monthly-list','apiMonthlyList','monthly_list','월별조회',['view']],
+    ['POST','/api/institution/human-resources/attendance/exception-list','apiExceptionList','exception_list','이상근태조회',['view']],
     ['GET','/api/institution/human-resources/attendance/detail','apiDetail','detail','상세조회',['view']],
     ['GET','/api/institution/human-resources/attendance/closure-histories','apiClosureHistories','closure_histories','마감이력조회',['view']],
     ['GET','/api/institution/human-resources/attendance/options','apiOptions','options','선택옵션조회',['view']],
@@ -79,7 +79,7 @@ foreach($attendanceRoutes as [$method,$url,$action,$suffix,$permissionName,$perm
     $router->{strtolower($method)}($url,'AttendanceController@'.$action,[
         'key'=>'api.institution.human_resources.attendance.'.$suffix,'page'=>'근태관리','page_description'=>'실제 출퇴근·일별 근태·월 마감 관리',
         'permission_name'=>$permissionName,'permission_description'=>'근태 '.$permissionName,'name'=>'근태 '.$permissionName,
-        'description'=>'대외기관업무 > 인사·노무관리 > 근태관리 > '.$permissionName,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET',
+        'description'=>'대외기관업무 > 인사·노무관리 > 근태관리 > '.$permissionName,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET'&&!str_ends_with($action,'List'),
     ]);
 }
 foreach ($jobAssignmentRoutes as [$method, $url, $action, $suffix, $permissionName, $permissions]) {
@@ -88,12 +88,12 @@ foreach ($jobAssignmentRoutes as [$method, $url, $action, $suffix, $permissionNa
         'page' => '직무·배치관리', 'page_description' => '직원 직무·배치 현재상태 및 기간이력 조회',
         'permission_name' => $permissionName, 'permission_description' => '직무·배치 ' . $permissionName,
         'name' => '직무·배치 ' . $permissionName, 'description' => '대외기관업무 > 인사·노무관리 > 직무·배치관리 > ' . $permissionName,
-        'category' => '대외기관업무', 'auth' => true, 'permissions' => $permissions, 'log' => $method !== 'GET',
+        'category' => '대외기관업무', 'auth' => true, 'permissions' => $permissions, 'log' => $method !== 'GET' && $action !== 'apiList',
     ]);
 }
 
 $personnelActionRoutes = [
-    ['GET', '/api/institution/human-resources/personnel-action/list', 'apiList', 'list', '목록조회', ['view']],
+    ['POST', '/api/institution/human-resources/personnel-action/list', 'apiList', 'list', '목록조회', ['view']],
     ['GET', '/api/institution/human-resources/personnel-action/detail', 'apiDetail', 'detail', '상세조회', ['view']],
     ['GET', '/api/institution/human-resources/personnel-action/options', 'apiOptions', 'options', '입력옵션조회', ['view']],
     ['POST', '/api/institution/human-resources/personnel-action/save', 'apiSave', 'save', '저장', ['save']],
@@ -114,12 +114,12 @@ foreach ($personnelActionRoutes as [$method,$url,$action,$suffix,$permissionName
         'page'=>'인사발령관리','page_description'=>'인사발령 기안·결재·적용 관리',
         'permission_name'=>$permissionName,'permission_description'=>'인사발령 '.$permissionName,
         'name'=>'인사발령 '.$permissionName,'description'=>'대외기관업무 > 인사·노무관리 > 인사발령관리 > '.$permissionName,
-        'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET',
+        'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$method!=='GET'&&$action!=='apiList',
     ]);
 }
 
 $employmentContractRoutes = [
-    ['GET', '/api/institution/human-resources/employment-contract/list', 'apiList', 'list', '목록조회', ['view']],
+    ['POST', '/api/institution/human-resources/employment-contract/list', 'apiList', 'list', '목록조회', ['view']],
     ['GET', '/api/institution/human-resources/employment-contract/detail', 'apiDetail', 'detail', '상세조회', ['view']],
     ['GET', '/api/institution/human-resources/employment-contract/options', 'apiOptions', 'options', '입력옵션조회', ['view']],
     ['POST', '/api/institution/human-resources/employment-contract/save', 'apiSave', 'save', '저장', ['save']],
@@ -146,6 +146,6 @@ foreach ($employmentContractRoutes as [$method, $url, $action, $suffix, $permiss
         'category' => '대외기관업무',
         'auth' => true,
         'permissions' => $permissions,
-        'log' => $method !== 'GET',
+        'log' => $method !== 'GET' && $action !== 'apiList',
     ]);
 }

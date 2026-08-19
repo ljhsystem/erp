@@ -81,6 +81,7 @@ class TransactionController
 
     public function apiList(): void
     {
+        $_GET = \Core\Helpers\DataTableRequestHelper::input();
         Session::write();
         $this->json(function (): array {
             $filters = [];
@@ -172,6 +173,7 @@ class TransactionController
 
     public function apiEvidenceSearch(): void
     {
+        $_GET = \Core\Helpers\DataTableRequestHelper::input();
         Session::write();
         $this->json(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));

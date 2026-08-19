@@ -2540,7 +2540,7 @@ export async function createDataTable(config) {
         ...(api ? {
             ajax: {
             url: api,
-            type: 'GET',
+            type: serverSide === true ? 'POST' : 'GET',
             cache: false,
             data: function (request) {
                 if (typeof ajaxData === 'function') {

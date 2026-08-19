@@ -48,7 +48,7 @@ class PersonalExpenseController
         ]);
     }
 
-    public function apiList(): void { $this->respond(fn () => $this->service->list($_GET)); }
+    public function apiList(): void { $this->respond(fn () => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { $this->respond(fn () => $this->service->detail(trim((string) ($_GET['id'] ?? '')))); }
     public function apiSave(): void { $this->respond(fn () => $this->service->save($this->input())); }
     public function apiTrashList(): void { $this->respond(fn () => $this->service->trashList()); }

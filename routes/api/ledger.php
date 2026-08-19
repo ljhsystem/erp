@@ -710,7 +710,7 @@ $router->post('/api/ledger/sub-account/delete', 'SubChartAccountController@apiDe
     'log' => true,
 ]);
 
-$router->get('/api/ledger/voucher/list', 'VoucherController@apiList', [
+$router->post('/api/ledger/voucher/list', 'VoucherController@apiList', [
     'key' => 'api.ledger.voucher.list',
     'page' => '전표입력',
     'page_description' => '전표 입력 관리',
@@ -721,7 +721,7 @@ $router->get('/api/ledger/voucher/list', 'VoucherController@apiList', [
     'category' => '회계관리 > 전표관리',
     'auth' => true,
     'permissions' => ['view'],
-    'log' => true,
+    'log' => false,
 ]);
 
 $router->get('/api/ledger/voucher/detail', 'VoucherController@apiDetail', [
@@ -766,7 +766,7 @@ $router->get('/api/ledger/voucher/search', 'VoucherController@apiSearch', [
     'log' => false,
 ]);
 
-$router->get('/api/ledger/voucher/evidence-search', 'VoucherController@apiEvidenceSearch', [
+$router->post('/api/ledger/voucher/evidence-search', 'VoucherController@apiEvidenceSearch', [
     'key' => 'api.ledger.voucher.evidence_search',
     'page' => '전표입력',
     'page_description' => '전표 입력 관리',
@@ -1051,7 +1051,7 @@ $router->post('/api/ledger/voucher/purge-all', 'VoucherController@apiPurgeAll', 
     'log' => true,
 ]);
 
-$router->get('/api/ledger/transaction/list', 'TransactionController@apiList', [
+$router->post('/api/ledger/transaction/list', 'TransactionController@apiList', [
     'key' => 'api.ledger.transaction.list',
     'page' => '거래입력',
     'page_description' => '거래 입력 관리',
@@ -1093,7 +1093,7 @@ $router->get('/api/ledger/transaction/detail', 'TransactionController@apiDetail'
     'log' => false,
 ]);
 
-$router->get('/api/ledger/transaction/evidence-search', 'TransactionController@apiEvidenceSearch', [
+$router->post('/api/ledger/transaction/evidence-search', 'TransactionController@apiEvidenceSearch', [
     'key' => 'api.ledger.transaction.evidence_search',
     'page' => '거래입력',
     'page_description' => '거래입력 자료증빙 조회',
@@ -1264,7 +1264,7 @@ $router->get('/api/funds/daily-report/excel', 'DailyFundsReportController@apiExc
     'skip_permission' => true, 'log' => false,
 ]);
 
-$router->get('/api/funds/payment-schedule/list', 'PaymentScheduleController@apiList', [
+$router->post('/api/funds/payment-schedule/list', 'PaymentScheduleController@apiList', [
     'key' => 'api.ledger.funds.payment_schedule.list',
     'page' => '지급예정현황', 'page_description' => '지급예정현황 관리',
     'permission_name' => '조회', 'permission_description' => '지급예정현황 조회',

@@ -6,7 +6,7 @@ class RegularEmploymentIncomeController
     private PDO$pdo;private RegularEmploymentIncomeService$service;
     public function __construct(?PDO$pdo=null){$this->pdo=$pdo??DbPdo::conn();$this->service=new RegularEmploymentIncomeService($this->pdo);}
     public function webIndex():void{ob_start();require PROJECT_ROOT.'/app/views/institution/regular-employment-income/index.php';$content=ob_get_clean();(new LayoutController($this->pdo))->render(['pageTitle'=>'상용근로소득','content'=>$content,'pageStyles'=>$pageStyles??'','pageScripts'=>$pageScripts??'']);}
-    public function apiList():void{$this->respond(fn()=>$this->service->page($_GET));}
+    public function apiList():void{$this->respond(fn()=>$this->service->page(\Core\Helpers\DataTableRequestHelper::input()));}
     public function apiDetail():void{$this->respond(fn()=>$this->service->detail(trim((string)($_GET['id']??''))));}
     public function apiEligibleEmployees():void{$this->respond(fn()=>$this->service->eligibleEmployees(trim((string)($_GET['income_year_month']??''))));}
     public function apiSave():void{$this->respond(fn()=>$this->service->save($this->input()));}

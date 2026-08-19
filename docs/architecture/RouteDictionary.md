@@ -1,5 +1,10 @@
 # Route Dictionary
 
+## 2026-08-19 DataTables server-side 목록 transport
+
+- 공용 `createDataTable({ serverSide: true })`가 호출하는 목록 Route는 POST body 조회로 통일한다. 근로계약, 직무·배치, 인사발령, 근태, 취업규칙, 상용근로소득, 결재함, 개인경비, 법정기준, 증빙원본, 거래, 전표, 거래·전표 증빙검색, 지급예정 목록이 대상이다.
+- 같은 도메인의 detail, options, search-picker, metadata, trash, Excel 다운로드 등 짧고 단순한 읽기 Route는 GET을 유지한다. 목록 POST는 상태 변경 Route가 아니다.
+
 ## 2026-08-11 코드관리 단순화
 
 - 코드관리 API는 `list`, `detail`, `groups`, `save`, `delete`, `reorder`만 유지한다. `delete`는 참조 무결성 확인 후 즉시 영구삭제하며 휴지통·복구·purge·Excel Route는 제공하지 않는다.

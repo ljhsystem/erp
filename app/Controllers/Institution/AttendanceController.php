@@ -14,9 +14,9 @@ class AttendanceController
     private PDO $db; private AttendanceService $service;
     public function __construct(?PDO $pdo=null){$this->db=$pdo??DbPdo::conn();$this->service=new AttendanceService($this->db);}
     public function webIndex(): void{$attendanceOptions=$this->service->options()['data'];$capabilities=$this->capabilities();ob_start();require PROJECT_ROOT.'/app/views/institution/attendance/index.php';$content=ob_get_clean();(new LayoutController($this->db))->render(['pageTitle'=>'근태관리','content'=>$content,'pageStyles'=>$pageStyles??'','pageScripts'=>$pageScripts??'']);}
-    public function apiDailyList(): void{$this->respond(fn()=>$this->service->dailyList($_GET,$this->scope()));}
-    public function apiMonthlyList(): void{$this->respond(fn()=>$this->service->monthlyList($_GET,$this->scope()));}
-    public function apiExceptionList(): void{$this->respond(fn()=>$this->service->exceptionList($_GET,$this->scope()));}
+    public function apiDailyList(): void{$this->respond(fn()=>$this->service->dailyList(\Core\Helpers\DataTableRequestHelper::input(),$this->scope()));}
+    public function apiMonthlyList(): void{$this->respond(fn()=>$this->service->monthlyList(\Core\Helpers\DataTableRequestHelper::input(),$this->scope()));}
+    public function apiExceptionList(): void{$this->respond(fn()=>$this->service->exceptionList(\Core\Helpers\DataTableRequestHelper::input(),$this->scope()));}
     public function apiDetail(): void{$this->respond(function(){ $employee=(string)($_GET['employee_id']??'');$scope=$this->scope();if($scope!==null&&$employee!==$scope)throw new \RuntimeException('다른 직원의 근태를 조회할 수 없습니다.');return $this->service->detail($employee,(string)($_GET['work_date']??''));});}
     public function apiClosureHistories(): void{$this->respond(fn()=>$this->service->histories((string)($_GET['closure_id']??''),$this->scope()));}
     public function apiScope(): void{$this->respond(fn()=>['success'=>true,'data'=>['employee_id'=>$this->scope()]]);}

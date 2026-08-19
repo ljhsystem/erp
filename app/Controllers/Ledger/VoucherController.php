@@ -70,6 +70,7 @@ class VoucherController
 
     public function apiList(): void
     {
+        $_GET = \Core\Helpers\DataTableRequestHelper::input();
         Session::write();
         $this->jsonResponse(function (): array {
             $filters = [];
@@ -193,6 +194,7 @@ class VoucherController
 
     public function apiEvidenceSearch(): void
     {
+        $_GET = \Core\Helpers\DataTableRequestHelper::input();
         $this->jsonResponse(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));
             $evidenceType = strtoupper(trim((string) ($_GET['evidence_type'] ?? 'ALL')));

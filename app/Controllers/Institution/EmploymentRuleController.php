@@ -34,7 +34,7 @@ class EmploymentRuleController
         ]);
     }
 
-    public function apiList(): void { $this->respond(fn() => $this->service->list($_GET)); }
+    public function apiList(): void { $this->respond(fn() => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { $this->respond(fn() => $this->service->detail((string) ($_GET['id'] ?? ''))); }
     public function apiHistory(): void { $this->respond(fn() => $this->service->history((string) ($_GET['rule_id'] ?? ''))); }
     public function apiOptions(): void { $this->respond(fn() => $this->service->options()); }

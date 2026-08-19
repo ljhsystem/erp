@@ -16,7 +16,7 @@ class JobAssignmentController
     private JobAssignmentService $service;
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? DbPdo::conn(); $this->service = new JobAssignmentService($this->db); }
     public function webIndex(): void { $capabilities = $this->capabilities(); ob_start(); require PROJECT_ROOT . '/app/views/institution/job-assignment/index.php'; $content = ob_get_clean(); (new LayoutController($this->db))->render(['pageTitle' => '직무·배치관리', 'content' => $content, 'pageStyles' => $pageStyles ?? '', 'pageScripts' => $pageScripts ?? '']); }
-    public function apiList(): void { Session::write(); $this->respond(fn() => $this->service->list($_GET)); }
+    public function apiList(): void { Session::write(); $this->respond(fn() => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { Session::write(); $this->respond(fn() => $this->service->detail(trim((string) ($_GET['employee_id'] ?? '')))); }
     public function apiOptions(): void { Session::write(); $this->respond(fn() => ['success' => true, 'data' => $this->service->options()]); }
     public function apiHistorySave(): void { $this->respond(fn() => $this->service->saveHistory($this->input())); }

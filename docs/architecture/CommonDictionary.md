@@ -1,5 +1,11 @@
 # Common Dictionary
 
+## 2026-08-19 DataTables server-side POST 요청 계약
+
+- `createDataTable()`은 `serverSide: true`일 때 DataTables의 `columns[]`, `order[]`, `search`, `draw`, `start`, `length`와 화면 검색조건을 공용 AJAX의 form-urlencoded POST body로 전송한다. 화면별 method 지정은 금지하며, 일반 client-side 목록은 기존 GET을 유지한다.
+- `DataTableRequestHelper::input()`은 짧은 URL scope와 PHP가 파싱한 POST body를 병합하되 body를 우선한다. server-side 목록 Controller의 단일 입력 경계이며 JSON 재파싱이나 GET 실패 후 POST 재시도를 만들지 않는다.
+- 대형 목록 문제를 웹서버 URI 제한 확대로 해결하지 않는다. 신규 server-side 목록은 공용 계약을 사용하고 48열 이상 payload의 HTTP 414 회귀를 검사한다. 조회용 POST는 상태 변경이 아니며 저장·수정·삭제 API와 분리한다.
+
 ## 2026-08-13 DataTable 레이아웃 폭 안정화
 
 - `bindDataTableContainerResize(table)`: DataTable이 실제 배치된 폭 Scope를 `ResizeObserver`로 관찰하고, 연속 폭 변경이 120ms 동안 안정된 뒤 `refreshDataTableLayout()`을 한 번만 실행한다. 좌측 사이드바 전환 완료 시 `sidebar:toggled` 이벤트로 최종 폭을 즉시 재검증한다. `window.resize`, `visualViewport.resize`, 사이드바 직접 `columns.adjust()`를 중복 실행하지 않는다.

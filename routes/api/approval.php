@@ -17,7 +17,7 @@ $router->post('/api/auth/approval/approve', 'UserApprovalController@apiApprove',
 ]);
 
 $approvalInboxRoutes = [
-    ['GET', '/api/approval/inbox/list', 'apiList', 'list', '목록조회', 'view'],
+    ['POST', '/api/approval/inbox/list', 'apiList', 'list', '목록조회', 'view'],
     ['GET', '/api/approval/inbox/detail', 'apiDetail', 'detail', '상세조회', 'view'],
     ['POST', '/api/approval/inbox/act', 'apiAct', 'act', '결재처리', 'save'],
 ];
@@ -33,12 +33,12 @@ foreach ($approvalInboxRoutes as [$method, $url, $action, $keySuffix, $permissio
         'category' => '전자결재',
         'auth' => true,
         'permissions' => [$permission],
-        'log' => $method !== 'GET',
+        'log' => $method !== 'GET' && $action !== 'apiList',
     ]);
 }
 
 $personalExpenseRoutes = [
-    ['GET', '/api/approval/personal-expense/list', 'apiList', 'list', '목록조회', 'view'],
+    ['POST', '/api/approval/personal-expense/list', 'apiList', 'list', '목록조회', 'view'],
     ['GET', '/api/approval/personal-expense/detail', 'apiDetail', 'detail', '상세조회', 'view'],
     ['POST', '/api/approval/personal-expense/save', 'apiSave', 'save', '저장', 'save'],
     ['POST', '/api/approval/personal-expense/reorder', 'apiReorder', 'reorder', '정렬저장', 'save'],
@@ -61,6 +61,6 @@ foreach ($personalExpenseRoutes as [$method, $url, $action, $keySuffix, $permiss
         'key' => 'api.approval.personal-expense.' . $keySuffix, 'page' => '개인경비 신청', 'page_description' => '개인경비 신청 및 결재',
         'permission_name' => $permissionName, 'permission_description' => '개인경비 ' . $permissionName,
         'name' => '개인경비 ' . $permissionName, 'description' => '전자결재 > 개인경비 신청 > ' . $permissionName,
-        'category' => '전자결재', 'auth' => true, 'permissions' => [$permission], 'log' => $method !== 'GET',
+        'category' => '전자결재', 'auth' => true, 'permissions' => [$permission], 'log' => $method !== 'GET' && $action !== 'apiList',
     ]);
 }

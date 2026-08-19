@@ -157,7 +157,7 @@ $router->get('/api/import/batches', 'EvidenceUploadController@apiBatchList', [
     'log' => false,
 ]);
 
-$router->get('/api/import/evidences', 'EvidenceListController@apiList', [
+$router->post('/api/import/evidences', 'EvidenceListController@apiList', [
     'key' => 'api.import.evidences',
     'page' => '증빙원본',
     'page_description' => '증빙원본 관리',

@@ -9,6 +9,12 @@
   - Migration constraint: unique-index migration aborts when pre-existing duplicate keys exist. It does not delete, merge, or rewrite existing evidence rows; collision review and any backfill require a separate approved data operation.
 # Decision Log
 
+## 2026-08-19 DataTables server-side 전송 방식
+
+- DataTables server-side 목록은 전체 열·정렬·검색 구조 때문에 URL 길이가 데이터와 화면 구성에 비례하므로 공용 `createDataTable()`에서 form-urlencoded POST body를 기본 계약으로 사용한다. 웹서버 URI 한도 증가는 배포 환경마다 재발하고 애플리케이션 원인을 남기므로 선택하지 않는다.
+- POST는 목록 조회의 transport일 뿐 업무 mutation이 아니다. detail, options, picker, metadata와 같은 짧은 읽기 API는 GET을 유지하고, 화면별 method override와 GET 실패 후 POST 재시도는 허용하지 않는다.
+- 서버는 공용 `DataTableRequestHelper`에서 짧은 URL scope와 POST body를 한 번 병합한다. 기존 draw·start·length·columns·order·search 및 커스텀 검색조건과 응답의 recordsTotal·recordsFiltered 계약은 변경하지 않는다.
+
 ## 2026-08-18 — 직무·배치 기준일 Resolver와 직원 1행 Projection
 
 - Current Master는 오늘 현재 캐시이고, 과거·미래 재현은 기간이력과 명시적 `as_of_date`를 사용한다.

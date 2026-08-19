@@ -14,7 +14,7 @@ class PersonnelActionController
     private PersonnelActionService $service;
     public function __construct(?PDO $pdo=null){$this->pdo=$pdo??DbPdo::conn();$this->service=new PersonnelActionService($this->pdo);}
     public function webIndex(): void { ob_start();require PROJECT_ROOT.'/app/views/institution/personnel-action/index.php';$content=ob_get_clean();(new LayoutController($this->pdo))->render(['pageTitle'=>'인사발령관리','content'=>$content,'pageStyles'=>$pageStyles??'','pageScripts'=>$pageScripts??'']); }
-    public function apiList(): void {$this->respond(fn()=>$this->service->list($_GET));}
+    public function apiList(): void {$this->respond(fn()=>$this->service->list(\Core\Helpers\DataTableRequestHelper::input()));}
     public function apiOptions(): void {$this->respond(fn()=>$this->service->modalOptions());}
     public function apiDetail(): void {$this->respond(fn()=>$this->service->detail(trim((string)($_GET['id']??''))));}
     public function apiSave(): void {$this->respond(fn()=>$this->service->save($this->input()));}

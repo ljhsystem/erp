@@ -3,7 +3,7 @@
 global $router;
 
 $statutoryStandardRoutes = [
-    ['GET', 'list', 'apiList', 'view', 'view'],
+    ['POST', 'list', 'apiList', 'view', 'view'],
     ['GET', 'detail', 'apiDetail', 'detail', 'detail'],
     ['GET', 'options', 'apiOptions', 'view', 'options'],
     ['POST', 'save', 'apiSave', 'save', 'save'],
@@ -30,7 +30,7 @@ foreach ($statutoryStandardRoutes as [$method, $suffix, $action, $permission, $r
             'category' => '설정 > 기준관리',
             'auth' => true,
             'permissions' => [$permission],
-            'log' => $method !== 'GET',
+            'log' => $method !== 'GET' && $action !== 'apiList',
         ]
     );
 }

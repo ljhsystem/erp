@@ -72,6 +72,7 @@ class EvidenceListController
 
     public function apiList(): void
     {
+        $_GET = \Core\Helpers\DataTableRequestHelper::input();
         Session::write();
         $result = $this->evidenceGenerationService()->seedRows($_GET);
 

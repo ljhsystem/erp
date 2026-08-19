@@ -36,12 +36,13 @@ class PaymentScheduleController
 
     public function apiList(): void
     {
+        $input = \Core\Helpers\DataTableRequestHelper::input();
         try {
-            $this->json($this->service->list($_GET));
+            $this->json($this->service->list($input));
         } catch (\Throwable) {
             http_response_code(500);
             $this->json([
-                'draw' => (int) ($_GET['draw'] ?? 0),
+                'draw' => (int) ($input['draw'] ?? 0),
                 'recordsTotal' => 0,
                 'recordsFiltered' => 0,
                 'data' => [],

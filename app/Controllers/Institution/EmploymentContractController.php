@@ -32,7 +32,7 @@ class EmploymentContractController
         ]);
     }
 
-    public function apiList(): void { $this->respond(fn(): array => $this->service->list($_GET)); }
+    public function apiList(): void { $this->respond(fn(): array => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { $this->respond(fn(): array => $this->service->detail($this->queryId())); }
     public function apiOptions(): void { $this->respond(fn(): array => ['success'=>true,'data'=>$this->service->formOptions()]); }
     public function apiSave(): void { $this->respond(fn(): array => $this->service->save($this->input())); }

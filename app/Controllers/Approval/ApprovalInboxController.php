@@ -33,7 +33,7 @@ class ApprovalInboxController
 
     public function apiList(): void
     {
-        $this->respond(fn(): array => $this->service->list($_GET), '결재함을 조회할 수 없습니다.');
+        $this->respond(fn(): array => $this->service->list(\Core\Helpers\DataTableRequestHelper::input()), '결재함을 조회할 수 없습니다.');
     }
 
     public function apiDetail(): void
