@@ -436,6 +436,7 @@
 - `opening_date`는 선택 회계연도의 전년도 12월 31일로 서버가 확정한다.
 - 동일 회사·회계연도 및 동일 전표의 중복 연결은 UNIQUE로 차단한다.
 - 기초금액 전표의 계정별 보조원장은 `ledger_voucher_line_refs`를 재사용한다.
+- `20260904_06`은 `개인(REPLACE)` 권한 사용자가 기존 기초금액 WEB 권한을 가진 경우 신규 API 11개의 `auth_user_permissions` 연결을 보존한다. 신규 테이블은 만들지 않는다.
 
 - `system_statutory_standard_supersessions`: `system_statutory_standards` Revision 사이의 불변 선형 정정·대체 관계를 보존한다. `predecessor_revision_id`와 `successor_revision_id`는 각각 UNIQUE이며 원 Revision FK를 변경하지 않는다. 동일 Type·정책 구성요소·고용형태·업무 Scope·추가 Dimension만 연결할 수 있다.
 - 자기참조·분기·병합·cycle 차단, 확정 Standard·Source의 UPDATE/DELETE 금지, 동시성 잠금은 명시적 Application Service가 담당한다. 계산정책 정정은 신규 Revision·신규 Source INSERT와 Supersession 관계 INSERT만 허용하며 DB Trigger를 사용하지 않는다.

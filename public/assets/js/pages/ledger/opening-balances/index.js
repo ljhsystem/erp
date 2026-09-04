@@ -113,7 +113,6 @@ async function reload() { table?.ajax.reload(null, false); }
 
 document.addEventListener('DOMContentLoaded', async () => {
     modal = bootstrap.Modal.getOrCreateInstance($('#openingBalanceModal'));
-    await loadOptions();
     table = await createDataTable({ tableSelector: '#opening-balance-table', api: API.LIST, columns: [
         { data: 'fiscal_year', title: '회계연도' }, { data: 'company_name', title: '회사' }, { data: 'opening_date', title: '기준일' },
         { data: 'voucher_no', title: '기초전표' }, { data: 'debit_total', title: '차변합계', className: 'text-end', render: money },
@@ -123,6 +122,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableSettings: { pageKey: 'ledger.settings.opening_balances', tableKey: 'opening-balance-table', metaDomain: 'opening-balance', tableLabel: '기초금액', title: '기초금액 테이블 설정', defaultVisibleColumns: ['fiscal_year','company_name','opening_date','voucher_no','debit_total','credit_total','status','updated_by_name'] },
         buttons: [{ text: '신규등록', className: 'btn btn-warning btn-sm', action: () => { resetForm(); modal.show(); } }]
     });
+    try {
+        await loadOptions();
+    } catch (error) {
+        notify('error', `기초금액 선택자료를 불러오지 못했습니다. ${error.message}`);
+    }
     $('#opening-balance-table tbody').addEventListener('dblclick', (event) => { const row = event.target.closest('tr'); const data = table.row(row).data(); if (data?.id) openDetail(data.id).catch((error) => notify('error', error.message)); });
     $('#btnAddOpeningLine').addEventListener('click', () => addLine()); $('#openingYear').addEventListener('input', syncDate);
     $('#btnSaveOpening').addEventListener('click', async () => { try { const json = await post(API.SAVE, payload()); notify('success', json.message); await reload(); await openDetail(json.data.id); } catch (error) { notify('error', error.message); } });
