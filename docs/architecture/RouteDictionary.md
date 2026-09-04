@@ -599,5 +599,24 @@
 - `DAILY_WORK_REPORT`, `PAYROLL_WITHHOLDING` 요청은 Canonical URL로 전환한다.
 # 2026-09-03 법정기준 Revision 정정 API
 
+## 2026-09-04 기초금액 Route
+
+| Key | URL | 책임 |
+|---|---|---|
+| `web.ledger.settings.opening_balances` | `GET /ledger/settings/opening-balances` | 기초금액 목록·작성·상태관리 화면 |
+| `api.ledger.opening_balance.list` | `GET /api/ledger/opening-balance/list` | 회사·회계연도별 기초금액 목록 |
+| `api.ledger.opening_balance.detail` | `GET /api/ledger/opening-balance/detail` | 기초전표 Line 포함 상세 |
+| `api.ledger.opening_balance.options` | `GET /api/ledger/opening-balance/options` | 회사 선택지 |
+| `api.ledger.opening_balance.save` | `POST /api/ledger/opening-balance/save` | 관계행과 DRAFT 기초전표 원자적 저장 |
+| `api.ledger.opening_balance.delete` | `POST /api/ledger/opening-balance/delete` | DRAFT 관계행·전표 삭제 |
+| `api.ledger.opening_balance.request_review` | `POST /api/ledger/opening-balance/request-review` | 검토요청 |
+| `api.ledger.opening_balance.cancel_review` | `POST /api/ledger/opening-balance/cancel-review` | 검토요청 취소 |
+| `api.ledger.opening_balance.review` | `POST /api/ledger/opening-balance/review` | 검토완료 |
+| `api.ledger.opening_balance.cancel_reviewed` | `POST /api/ledger/opening-balance/cancel-reviewed` | 검토완료 취소 |
+| `api.ledger.opening_balance.post` | `POST /api/ledger/opening-balance/post` | 장부 전기 |
+| `api.ledger.opening_balance.reverse` | `POST /api/ledger/opening-balance/reverse` | 전기된 기초전표의 취소전표 생성 |
+
+- 제거된 중복 경로 `/ledger/opening-balances`와 권한 `web.ledger.opening_balances`는 재도입하지 않는다.
+
 - `POST /api/settings/statutory-standards/correct-revision` (`api.settings.statutory_standards.correct_revision`): 기존 Revision을 변경하지 않고 신규 정정 Revision과 Supersession 관계를 원자적으로 생성한다. 법정기준 저장 권한을 재사용한다.
 - `GET /api/settings/statutory-standards/revision-chain` (`api.settings.statutory_standards.revision_chain`): 지정 Revision의 원본·후속 정정 chain을 조회한다. 법정기준 상세 권한을 재사용한다.

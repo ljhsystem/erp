@@ -477,5 +477,12 @@
 
 ## Main/Settings architecture audit (2026-09-04)
 
+## 2026-09-04 기초금액 공용자산 재사용
+
+- 목록은 공용 `createDataTable`과 공용 TableSettings Modal을 사용한다.
+- 수정자 표시는 공용 `actorColumn()`을 사용하고 Actor Token을 화면에서 해석하지 않는다.
+- 계정 선택지는 기존 `GET /api/ledger/account/posting`을 재사용하며 별도 계정 API를 만들지 않는다.
+- 신규 공용 함수·공용 UI 컴포넌트는 추가하지 않았다.
+
 - `tools/audit_main_settings_architecture.php`: Main 설정 영역의 Controller·Service·Model·View·JS를 일괄 검사하는 구조 완료 게이트다. 계층 외 SQL, Service 외 로그, 파일 크기 상한, 공용 DataTable 우회, 브라우저 저장소 업무상태, 문자열 코드 실행, 제거된 alias 파일·Route 재도입을 실패로 판정한다.
 - `public/assets/js/pages/main/settings/organization/permission-assignment/ui-helpers.js`: 권한 검색 문자열 생성, Permission source 우선순위, 트리 하위 항목 표시 정렬을 담당하는 실제 ES module이다. 권한부여 entry JS가 동일 순수 함수를 중복 소유하지 않는다.

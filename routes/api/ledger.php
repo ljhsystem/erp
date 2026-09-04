@@ -2,6 +2,40 @@
 
 global $router;
 
+$router->get('/api/ledger/opening-balance/list', 'OpeningBalanceController@apiList', [
+    'key'=>'api.ledger.opening_balance.list','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'조회','permission_description'=>'기초금액 조회','name'=>'기초금액 조회','description'=>'회계관리 > 기초정보관리 > 기초금액 > 조회','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+$router->get('/api/ledger/opening-balance/detail', 'OpeningBalanceController@apiDetail', [
+    'key'=>'api.ledger.opening_balance.detail','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'상세조회','permission_description'=>'기초금액 상세조회','name'=>'기초금액 상세조회','description'=>'회계관리 > 기초정보관리 > 기초금액 > 상세조회','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+$router->get('/api/ledger/opening-balance/options', 'OpeningBalanceController@apiOptions', [
+    'key'=>'api.ledger.opening_balance.options','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'선택목록조회','permission_description'=>'기초금액 선택목록조회','name'=>'기초금액 선택목록조회','description'=>'회계관리 > 기초정보관리 > 기초금액 > 선택목록조회','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+$router->post('/api/ledger/opening-balance/save', 'OpeningBalanceController@apiSave', [
+    'key'=>'api.ledger.opening_balance.save','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'저장','permission_description'=>'기초금액 등록 및 수정','name'=>'기초금액 저장','description'=>'회계관리 > 기초정보관리 > 기초금액 > 저장','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['save'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/delete', 'OpeningBalanceController@apiDelete', [
+    'key'=>'api.ledger.opening_balance.delete','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'삭제','permission_description'=>'기초금액 삭제','name'=>'기초금액 삭제','description'=>'회계관리 > 기초정보관리 > 기초금액 > 삭제','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['delete'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/request-review', 'OpeningBalanceController@apiRequestReview', [
+    'key'=>'api.ledger.opening_balance.request_review','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'검토요청','permission_description'=>'기초금액 검토요청','name'=>'기초금액 검토요청','description'=>'회계관리 > 기초정보관리 > 기초금액 > 검토요청','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['save'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/cancel-review', 'OpeningBalanceController@apiCancelReview', [
+    'key'=>'api.ledger.opening_balance.cancel_review','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'검토요청취소','permission_description'=>'기초금액 검토요청취소','name'=>'기초금액 검토요청취소','description'=>'회계관리 > 기초정보관리 > 기초금액 > 검토요청취소','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['save'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/review', 'OpeningBalanceController@apiReview', [
+    'key'=>'api.ledger.opening_balance.review','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'검토완료','permission_description'=>'기초금액 검토완료','name'=>'기초금액 검토완료','description'=>'회계관리 > 기초정보관리 > 기초금액 > 검토완료','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['approve'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/cancel-reviewed', 'OpeningBalanceController@apiCancelReviewed', [
+    'key'=>'api.ledger.opening_balance.cancel_reviewed','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'검토완료취소','permission_description'=>'기초금액 검토완료취소','name'=>'기초금액 검토완료취소','description'=>'회계관리 > 기초정보관리 > 기초금액 > 검토완료취소','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['approve'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/post', 'OpeningBalanceController@apiPost', [
+    'key'=>'api.ledger.opening_balance.post','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'전기','permission_description'=>'기초금액 전기','name'=>'기초금액 전기','description'=>'회계관리 > 기초정보관리 > 기초금액 > 전기','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['approve'],'log'=>true,
+]);
+$router->post('/api/ledger/opening-balance/reverse', 'OpeningBalanceController@apiReverse', [
+    'key'=>'api.ledger.opening_balance.reverse','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'취소전표생성','permission_description'=>'기초금액 취소전표 생성','name'=>'기초금액 취소전표생성','description'=>'회계관리 > 기초정보관리 > 기초금액 > 취소전표생성','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['approve'],'log'=>true,
+]);
+
 $router->get('/api/funds/bank-transactions', 'BankTransactionReportController@apiList', [
     'key' => 'api.funds.bank_transactions.list',
     'page' => '계좌별거래내역',

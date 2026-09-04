@@ -809,6 +809,12 @@ This section preserves the older evidence-service split reference in readable fo
 - `ApprovalDocumentSummaryResolver`: 기존 상용·일용 요약에 사업소득 귀속연월·소득자 지급 건수·총지급액 요약을 추가해 결재함에서 UUID 대신 업무 제목과 금액을 표시한다.
 # 2026-09-03 법정기준 Revision Supersession
 
+## 2026-09-04 기초금액 Service
+
+- `OpeningBalanceService`: 회사·회계연도별 기초금액 문서의 저장, 검토요청, 검토완료, 전기, 삭제 및 취소전표 생성을 조정한다. 금액 원본과 상태전이는 `VoucherService`를 재사용하며 관계행과 전표 저장을 하나의 DB Transaction으로 묶는다.
+- `OpeningBalanceModel`: `ledger_opening_balances` 단일 저장소 CRUD와 기초전표 Header·Line 조회를 담당한다. 업무검증과 로그는 수행하지 않는다.
+- `VoucherService`: 호출자가 시작한 DB Transaction이 있으면 소유권을 침범하지 않고 참여한다. 독립 호출일 때만 직접 Begin·Commit·Rollback하여 기초금액 관계행과 전표의 원자성을 보장한다.
+
 - `StatutoryStandardService`: 확정 Revision 직접 수정을 금지하고 `createRevisionCorrection()`에서 신규 Revision·Source·Supersession 관계를 하나의 DB Transaction으로 생성한다. `revisionChain()`은 관리화면 감사 Projection을 제공한다.
 - `StatutoryStandardResolver`: 기준일과 동일 Scope의 기간 후보 중 유효한 descendant가 존재하는 ancestor를 제외하고 최종 leaf 1건만 반환한다. 0건은 `POLICY_NOT_FOUND`, 복수 독립 leaf는 `AMBIGUOUS_POLICY`이며 생성시각·ID·수정시각 fallback은 사용하지 않는다.
 - `StatutoryStandardSupersessionModel`: 불변 선형 관계 INSERT와 연결 chain 조회를 담당한다.

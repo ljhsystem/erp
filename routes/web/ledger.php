@@ -30,7 +30,7 @@ $router->get('/ledger/settings/accounts', 'ChartAccountController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/settings/opening-balances', 'LedgerController@webPlaceholder', [
+$router->get('/ledger/settings/opening-balances', 'OpeningBalanceController@index', [
     'key' => 'web.ledger.settings.opening_balances',
     'page' => '기초금액',
     'page_description' => '기초금액 관리',
@@ -241,20 +241,6 @@ $router->get('/ledger/funds/account-transactions', 'BankTransactionReportControl
     'log' => false,
 ]);
 
-
-$router->get('/ledger/opening-balances', 'PlaceholderController@index', [
-    'key' => 'web.ledger.opening_balances',
-    'page' => '기초금액',
-    'page_description' => '기초금액 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '기초금액 화면 조회',
-    'name' => '기초금액',
-    'description' => '회계관리 > 기초정보관리 > 기초금액',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
 
 $router->get('/ledger/book/journal', 'PlaceholderController@index', [
     'key' => 'web.ledger.book.journal',

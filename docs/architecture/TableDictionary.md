@@ -427,6 +427,16 @@
 - Forward Migration `20260903_21_remove_business_income_other_deduction`은 운영 사업소득 자료 0건을 Preflight한 뒤 Header·Item·Evidence의 기타공제 컬럼 5개를 제거하고 계산 Line을 총지급·사업소득세·개인지방소득세로 제한한다. Trigger나 데이터 보정 DML은 만들지 않는다.
 # 2026-09-03 법정기준 Revision Supersession SSOT
 
+## 2026-09-04 기초금액 SSOT
+
+| Table | Grain | 책임 |
+|---|---|---|
+| `ledger_opening_balances` | 회사 × 회계연도 1건 | 회계연도 시작 직전 기준일과 기초전표의 일대일 연결을 보존한다. 계정별 차변·대변 금액은 별도 중복 테이블을 만들지 않고 `ledger_vouchers`·`ledger_voucher_lines`를 원본으로 사용한다. |
+
+- `opening_date`는 선택 회계연도의 전년도 12월 31일로 서버가 확정한다.
+- 동일 회사·회계연도 및 동일 전표의 중복 연결은 UNIQUE로 차단한다.
+- 기초금액 전표의 계정별 보조원장은 `ledger_voucher_line_refs`를 재사용한다.
+
 - `system_statutory_standard_supersessions`: `system_statutory_standards` Revision 사이의 불변 선형 정정·대체 관계를 보존한다. `predecessor_revision_id`와 `successor_revision_id`는 각각 UNIQUE이며 원 Revision FK를 변경하지 않는다. 동일 Type·정책 구성요소·고용형태·업무 Scope·추가 Dimension만 연결할 수 있다.
 - 자기참조·분기·병합·cycle 차단, 확정 Standard·Source의 UPDATE/DELETE 금지, 동시성 잠금은 명시적 Application Service가 담당한다. 계산정책 정정은 신규 Revision·신규 Source INSERT와 Supersession 관계 INSERT만 허용하며 DB Trigger를 사용하지 않는다.
 # Trigger 제거 정책 (2026-09-03)

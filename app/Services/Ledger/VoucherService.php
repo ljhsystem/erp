@@ -100,8 +100,11 @@ class VoucherService
         $timestamp = date('Y-m-d H:i:s');
         $companyId = $this->resolveSingleCompanyId();
 
+        $ownsTransaction = !$this->pdo->inTransaction();
         try {
-            $this->pdo->beginTransaction();
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
 
             if ($voucherId === '') {
                 $voucherId = UuidHelper::generate();
@@ -192,7 +195,9 @@ class VoucherService
             $this->tracePersistedVoucherLines('save.persisted', $voucherId);
             $this->refreshVoucherHeaderSummary($voucherId, $actor, $timestamp);
 
-            $this->pdo->commit();
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
 
             return [
                 'success' => true,
@@ -200,7 +205,7 @@ class VoucherService
                 'voucher_id' => $voucherId,
             ];
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
 
@@ -335,15 +340,20 @@ class VoucherService
 
         $actor = ActorHelper::user();
 
+        $ownsTransaction = !$this->pdo->inTransaction();
         try {
-            $this->pdo->beginTransaction();
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
 
             if (!$this->voucherModel->softDelete($voucherId, $actor)) {
                 throw new \RuntimeException('전표를 삭제하지 못했습니다.');
             }
-            $this->pdo->commit();
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
 

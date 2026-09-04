@@ -9,7 +9,6 @@ $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $segments = $uri === '' ? [] : explode('/', $uri);
 $section = $segments[0] ?? '';
 $navigationPathAliases = [
-    '/ledger/opening-balances' => '/ledger/settings/opening-balances',
     '/ledger/data' => '/ledger/data/list',
     '/ledger/transactions' => '/ledger/transactions/input',
     '/ledger/transactions/create' => '/ledger/transactions/input',
@@ -20,7 +19,7 @@ $navigationPathAliases = [
 $activePath = $navigationPathAliases[$currentPath] ?? $currentPath;
 
 $menuRoutes = [
-    'menu-ledger-basic' => ['/ledger/settings', '/ledger/opening-balances'],
+    'menu-ledger-basic' => ['/ledger/settings'],
     'menu-ledger-data' => ['/ledger/data'],
     'menu-ledger-voucher' => ['/ledger/transactions', '/ledger/transaction', '/ledger/vouchers', '/ledger/journal'],
     'menu-ledger-funds' => ['/ledger/funds'],

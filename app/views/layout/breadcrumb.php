@@ -33,7 +33,6 @@ $pageMap = [
     '/ledger/settings/journal-rules' => ['items' => ['회계관리', '기초정보관리', '분개규칙']],
     '/ledger/data/evidence-metadata' => ['items' => ['회계관리', '자료관리', '증빙정책']],
     '/ledger/settings/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
-    '/ledger/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
     '/ledger/data/upload' => ['items' => ['회계관리', '자료관리', '자료업로드']],
     '/ledger/data/list' => ['items' => ['회계관리', '자료관리', '증빙원본']],
     '/ledger/data/bank-transactions' => ['items' => ['회계관리', '자료관리', '입출금(은행)']],

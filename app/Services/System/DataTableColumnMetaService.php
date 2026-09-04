@@ -67,6 +67,7 @@ class DataTableColumnMetaService
         'transaction-settlement' => ['composite' => 'transaction-settlement'],
         'voucher' => ['composite' => 'voucher'],
         'voucher-header' => ['table' => 'ledger_vouchers'],
+        'opening-balance' => ['table' => 'ledger_opening_balances'],
         'voucher-evidence-selection' => ['composite' => 'voucher-evidence-selection'],
         'transaction-evidence-selection' => ['composite' => 'voucher-evidence-selection'],
         'ledger-journal-rule' => ['table' => 'ledger_journal_rules'],
