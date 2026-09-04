@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { preparePeriodRenewalDraft } from '../public/assets/js/pages/dashboard/settings/statutory-standards/period-renewal.js';
+import { preparePeriodRenewalDraft } from '../public/assets/js/pages/main/settings/statutory-standards/period-renewal.js';
 
-const pageSource = fs.readFileSync(new URL('../public/assets/js/pages/dashboard/settings/statutory-standards/index.js', import.meta.url), 'utf8');
-const viewSource = fs.readFileSync(new URL('../app/views/dashboard/settings/statutory-standards/standards.php', import.meta.url), 'utf8');
+const pageSource = fs.readFileSync(new URL('../public/assets/js/pages/main/settings/statutory-standards/index.js', import.meta.url), 'utf8');
+const viewSource = fs.readFileSync(new URL('../app/views/main/settings/statutory-standards/standards.php', import.meta.url), 'utf8');
 const resolverSource = fs.readFileSync(new URL('../app/Services/System/StatutoryStandardResolver.php', import.meta.url), 'utf8');
 const modelSource = fs.readFileSync(new URL('../app/Models/System/StatutoryStandardModel.php', import.meta.url), 'utf8');
 const serviceSource = fs.readFileSync(new URL('../app/Services/System/StatutoryStandardService.php', import.meta.url), 'utf8');

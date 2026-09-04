@@ -62,20 +62,18 @@ class TemplateService
 
     public function create(array $data): array
     {
+        return $this->logged('APPROVAL_TEMPLATE_CREATE', 'create', [], fn(): array => $this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
+    {
         $validation = $this->validatePayload($data, false);
         if (!$validation['success']) {
             return $validation;
         }
         $data = $validation['data'];
         $data['is_active'] = 0;
-        $this->logger->info('[Template Create] 입력', $data);
-
         if ($this->model->existsName($data['template_name'], $data['document_type'])) {
-
-            $this->logger->warning('[Template Create] 중복 발견', [
-                'template_name' => $data['template_name'],
-                'document_type' => $data['document_type']
-            ]);
 
             return [
                 'success' => false,
@@ -89,11 +87,6 @@ class TemplateService
         $data['created_by'] = ActorHelper::user();
         $data['updated_by'] = $data['created_by'];
 
-        $this->logger->info('[Template Create] 생성 진행', [
-            'id'  => $id,
-            'key' => $key
-        ]);
-
         $ok = $this->model->create($id, $key, $data);
 
         return [
@@ -104,6 +97,11 @@ class TemplateService
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->logged('APPROVAL_TEMPLATE_UPDATE', 'update', ['template_id' => $id], fn(): array => $this->updateInternal($id, $data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         $existing = $this->model->getById($id);
         if (!$existing) {
@@ -116,19 +114,7 @@ class TemplateService
         $data = $validation['data'];
         $data['updated_by'] = ActorHelper::user();
 
-        $this->logger->info('[Template Update] 요청', [
-            'id'            => $id,
-            'template_name' => $data['template_name'],
-            'document_type' => $data['document_type']
-        ]);
-
         if ($this->model->existsName($data['template_name'], $data['document_type'], $id)) {
-
-            $this->logger->warning('[Template Update] 중복 발견', [
-                'id'            => $id,
-                'template_name' => $data['template_name'],
-                'document_type' => $data['document_type']
-            ]);
 
             return [
                 'success' => false,
@@ -151,17 +137,16 @@ class TemplateService
         }
         $ok = $this->model->update($id, $data);
 
-        $this->logger->info('[Template Update] 완료', [
-            'id'      => $id,
-            'success' => $ok
-        ]);
-
         return ['success' => $ok];
     }
 
     public function delete(string $id): array
     {
-        $this->logger->info('[Template Delete] 요청', ['id' => $id]);
+        return $this->logged('APPROVAL_TEMPLATE_DELETE', 'delete', ['template_id' => $id], fn(): array => $this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $existing = $this->model->getById($id);
         if (!$existing) {
             return ['success' => false, 'message' => '결재템플릿을 찾을 수 없습니다.'];
@@ -189,7 +174,6 @@ class TemplateService
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('[Template Delete] 실패', ['id' => $id, 'error' => $e->getMessage()]);
             return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
@@ -259,6 +243,11 @@ class TemplateService
 
     public function reorder(array $changes): bool
     {
+        return $this->logged('APPROVAL_TEMPLATE_REORDER', 'reorder', ['change_count' => count($changes)], fn(): bool => $this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
+    {
         if (!$changes) {
             return true;
         }
@@ -316,6 +305,20 @@ class TemplateService
             }
 
             throw $e;
+        }
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        try {
+            $result = $operation();
+            $blocked = $result === false || (is_array($result) && array_key_exists('success', $result) && !$result['success']);
+            $this->logger->{$blocked ? 'warning' : 'info'}($blocked ? '결재양식 업무 처리가 차단되었습니다.' : '결재양식 업무 처리를 완료했습니다.', ['event_code' => $eventCode . ($blocked ? '_BLOCKED' : ''), 'result' => $blocked ? 'BLOCKED' : 'SUCCESS', 'service' => self::class, 'action' => $action] + $context);
+            return $result;
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            $this->logger->warning('결재양식 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('결재양식 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
         }
     }
 }

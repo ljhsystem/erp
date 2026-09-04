@@ -101,6 +101,57 @@
     color: #b91c1c;
 }
 
+#transactionModal .transaction-status-confirmation {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 0 18px;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+#transactionModal .transaction-status-confirmation-label {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    float: none;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+#transactionModal .transaction-status-options {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+#transactionModal .transaction-status-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+#transactionModal .transaction-status-confirmation[data-status="completed"] label:has(input:checked) {
+    color: #047857;
+}
+
+#transactionModal .transaction-status-confirmation[data-status="draft"] label:has(input:checked),
+#transactionModal .transaction-status-confirmation[data-status="closed"] label:has(input:checked) {
+    color: #92400e;
+}
+
+#transactionModal .transaction-status-confirmation[data-status="cancelled"] label:has(input:checked) {
+    color: #b91c1c;
+}
+
 .modal#transactionEvidenceSearchModal,
 .modal.show#transactionEvidenceSearchModal {
     z-index: 30040 !important;
@@ -108,6 +159,14 @@
 
 .modal-backdrop.transaction-evidence-search-backdrop {
     z-index: 30035 !important;
+}
+
+body:has(#transactionEvidenceSearchModal.show) #dtColumnSettingsModal.show {
+    z-index: 30060 !important;
+}
+
+body:has(#transactionEvidenceSearchModal.show):has(#dtColumnSettingsModal.show) .modal-backdrop.show:last-of-type {
+    z-index: 30055 !important;
 }
 
 #transactionEvidenceSearchModal .modal-dialog {
@@ -141,14 +200,15 @@
     display: flex;
     min-height: 0;
     flex-direction: column;
+    gap: 0;
     overflow: hidden;
-    isolation: isolate;
 }
 
 #transactionEvidenceSearchModal .transaction-evidence-table-wrap {
     min-width: 0;
     flex: 1 1 auto;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 #transactionEvidenceSearchModal .dataTables_wrapper {
@@ -156,35 +216,39 @@
     display: flex;
     width: 100%;
     min-height: 0;
-    height: 100%;
+    height: auto;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
 }
 
 #transactionEvidenceSearchModal .dataTables_wrapper .dt-top {
-    position: static !important;
-    top: auto !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 4;
     flex: 0 0 auto;
     justify-content: space-between !important;
     margin: 0;
     padding-top: 0;
-    z-index: 3;
+    padding-bottom: 8px;
     background: #fff;
 }
 
 #transactionEvidenceSearchModal .dataTables_wrapper .dataTables_filter { margin-right: auto; }
 #transactionEvidenceSearchModal .dataTables_wrapper .dataTables_filter input { width: min(420px, 45vw); }
-#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scroll { position: relative; z-index: 1; display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: hidden; }
-#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHead { position: relative !important; top: auto !important; z-index: 2 !important; display: block !important; flex: 0 0 auto; visibility: visible !important; background: #fff; }
-#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollBody { position: relative; z-index: 1; min-height: 0; max-height: none !important; flex: 1 1 auto; overflow: auto !important; }
-#transactionEvidenceSearchModal .dataTables_wrapper .dt-bottom { position: relative; z-index: 3; flex: 0 0 auto; margin-top: 8px; background: #fff; }
-#transactionEvidenceSearchModal #transaction_evidence_search_table { min-width: 1080px; }
-#transactionEvidenceSearchModal .dataTables_scrollHeadInner,
-#transactionEvidenceSearchModal .dataTables_scrollHeadInner table,
-#transactionEvidenceSearchModal .dataTables_scrollBody table {
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scroll { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHead { position: static !important; top: auto !important; display: block !important; flex: 0 0 auto; visibility: visible !important; }
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollBody { min-height: 0; max-height: none !important; flex: 1 1 auto; overflow-x: hidden !important; overflow-y: auto !important; }
+#transactionEvidenceSearchModal .dataTables_wrapper .dt-bottom { flex: 0 0 auto; margin-top: 8px; }
+#transactionEvidenceSearchModal #transaction_evidence_search_table {
     width: 100% !important;
-    min-width: 1080px;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    table-layout: fixed;
 }
+#transactionEvidenceSearchModal #transaction_evidence_search_table thead th { position: sticky; top: var(--transaction-evidence-toolbar-height, 42px); z-index: 3; background: #eef3f9; }
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHead,
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHeadInner { width: 100% !important; overflow: hidden !important; }
+#transactionEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHeadInner table { width: 100% !important; min-width: 0 !important; table-layout: fixed; }
 #transactionEvidenceSearchModal table.dataTable tbody td { height: 42px; vertical-align: middle; }
 #transactionEvidenceSearchModal .dt-row-select:disabled {
     border-color: #cbd5e1;
@@ -192,7 +256,7 @@
     opacity: 1;
     cursor: not-allowed;
 }
-#transactionEvidenceSearchModal .transaction-evidence-summary-cell { min-width: 260px; max-width: 420px; }
+#transactionEvidenceSearchModal .transaction-evidence-summary-cell { min-width: 0; max-width: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 @media (max-width: 767.98px) {
     #transactionEvidenceSearchModal .modal-dialog {

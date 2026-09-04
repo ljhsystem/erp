@@ -47,6 +47,13 @@ class RegisterController
 
         $result = $this->registerService->register($input, $_FILES);
 
+        if (!empty($result['success'])) {
+            $this->authSessionService->setFlash(
+                'register_message',
+                (string) ($result['message'] ?? '회원가입 요청이 저장되었습니다.')
+            );
+        }
+
         if ($isJson) {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -54,8 +61,7 @@ class RegisterController
         }
 
         if (!empty($result['success'])) {
-            $this->authSessionService->setFlash('register_message', (string)($result['message'] ?? '회원가입이 완료되었습니다.'));
-            header('Location: /register_success');
+            header('Location: ' . ($result['redirect'] ?? '/register_success'));
             exit;
         }
 

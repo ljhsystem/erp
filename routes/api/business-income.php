@@ -1,0 +1,29 @@
+<?php
+
+global $router;
+
+$routes=[
+    ['POST','list','apiList',['view'],false],
+    ['GET','detail','apiDetail',['view'],false],
+    ['GET','options','apiOptions',['view'],false],
+    ['POST','calculate','apiCalculate',['save'],false],
+    ['GET','preflight','apiPreflight',['view'],false],
+    ['POST','save','apiSave',['save'],true],
+    ['POST','submit','apiSubmit',['save'],true],
+    ['POST','withdraw','apiWithdraw',['save'],true],
+    ['POST','delete','apiDelete',['delete'],true],
+    ['GET','trash','apiTrashList',['view'],false],
+    ['POST','restore','apiRestore',['save'],true],
+    ['POST','purge','apiPurge',['delete'],true],
+    ['GET','template','apiTemplate',['view'],false],
+    ['POST','excel','apiExcel',['view'],false],
+    ['POST','excel-upload-preview','apiExcelUploadPreview',['save'],false],
+];
+foreach($routes as[$method,$suffix,$action,$permissions,$log]){
+    $router->{strtolower($method)}('/api/institution/income-data/business-income/'.$suffix,'BusinessIncomeController@'.$action,[
+        'key'=>'api.institution.income_data.business_income.'.str_replace('-','_',$suffix),
+        'page_key'=>'web.institution.income_data.business_income','page'=>'사업소득','page_description'=>'사업소득 작성·계산·결재 관리',
+        'permission_name'=>$suffix,'permission_description'=>'사업소득 '.$suffix,'name'=>'사업소득 '.$suffix,
+        'description'=>'대외기관업무 > 소득자료관리 > 사업소득 > '.$suffix,'category'=>'대외기관업무','auth'=>true,'permissions'=>$permissions,'log'=>$log,
+    ]);
+}

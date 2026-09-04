@@ -1,6 +1,7 @@
 <?php
 namespace App\Services\System;
 
+use App\Services\Concerns\LogsServiceOperations;
 use App\Models\System\WorkTeamModel;
 use App\Models\System\ClientModel;
 use App\Repositories\System\WorkTeamDependencyRepository;
@@ -21,9 +22,11 @@ use PDO;
 
 class WorkTeamService
 {
+    use LogsServiceOperations;
     private const COLUMN_DEFINITIONS = [
         ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
         ['key' => 'team_name', 'label' => '팀명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'business_unit', 'label' => '사업구분', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
         ['key' => 'team_leader_client_name', 'label' => '팀장', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true, 'source_key' => 'team_leader_client_name'],
         ['key' => 'team_leader_client_id', 'label' => '팀장 거래처 ID', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => true, 'source_key' => 'team_leader_client_id'],
         ['key' => 'note', 'label' => '비고', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
@@ -39,6 +42,7 @@ class WorkTeamService
 
     private const SAMPLE_ROW = [
         'team_name' => '시공팀',
+        'business_unit' => 'CONSTRUCTION',
         'team_leader_client_name' => '홍길동 거래처',
         'team_leader_client_id' => 'client-sample-id',
         'note' => '현장 작업팀',
@@ -66,7 +70,7 @@ class WorkTeamService
         try {
             return $this->model->getList($filters);
         } catch (\Throwable $e) {
-            $this->logger->error('getList() failed', ['error' => $e->getMessage()]);
+            $this->logger->error('작업팀 목록 조회에 실패했습니다.', ['event_code' => 'WORK_TEAM_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return [];
         }
     }
@@ -76,12 +80,17 @@ class WorkTeamService
         try {
             return $this->model->getById($id);
         } catch (\Throwable $e) {
-            $this->logger->error('getById() failed', ['id' => $id, 'error' => $e->getMessage()]);
+            $this->logger->error('작업팀 상세 조회에 실패했습니다.', ['event_code' => 'WORK_TEAM_DETAIL_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return null;
         }
     }
 
     public function save(array $data, string $actorType = 'USER'): array
+    {
+        return $this->loggedTeamMutation('작업팀 저장','WORK_TEAM_SAVE','save',fn():array=>$this->saveInternal($data,$actorType));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -152,8 +161,6 @@ class WorkTeamService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('save() failed', ['error' => $e->getMessage()]);
-
             return [
                 'success' => false,
                 'message' => '저장 중 오류가 발생했습니다.',
@@ -162,6 +169,11 @@ class WorkTeamService
     }
 
     public function delete(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedTeamMutation('작업팀 삭제','WORK_TEAM_DELETE','delete',fn():array=>$this->deleteInternal($id,$actorType));
+    }
+
+    private function deleteInternal(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -172,7 +184,6 @@ class WorkTeamService
 
             return ['success' => $this->model->deleteById($id, $actor)];
         } catch (\Throwable $e) {
-            $this->logger->error('delete() failed', ['id' => $id, 'error' => $e->getMessage()]);
             return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
@@ -182,12 +193,17 @@ class WorkTeamService
         try {
             return $this->model->getDeleted();
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() failed', ['error' => $e->getMessage()]);
+            $this->logger->error('삭제된 작업팀 목록 조회에 실패했습니다.', ['event_code' => 'WORK_TEAM_TRASH_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return [];
         }
     }
 
     public function restore(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedTeamMutation('작업팀 복구','WORK_TEAM_RESTORE','restore',fn():array=>$this->restoreInternal($id,$actorType));
+    }
+
+    private function restoreInternal(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -200,6 +216,11 @@ class WorkTeamService
 
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->loggedTeamMutation('작업팀 일괄복구','WORK_TEAM_RESTORE_BULK','restore-bulk',fn():array=>$this->restoreBulkInternal($ids,$actorType));
+    }
+
+    private function restoreBulkInternal(array $ids, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
         $count = 0;
         try {
@@ -211,27 +232,46 @@ class WorkTeamService
             return ['success' => true, 'message' => "복원 완료 ({$count}건)"];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            $this->logger->error('restoreBulk() failed', ['error' => $e->getMessage()]);
             return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
     }
 
     public function restoreAll(string $actorType = 'USER'): array
     {
+        return $this->loggedTeamMutation('작업팀 전체복구','WORK_TEAM_RESTORE_ALL','restore-all',fn():array=>$this->restoreAllInternal($actorType));
+    }
+
+    private function restoreAllInternal(string $actorType = 'USER'): array
+    {
         return $this->restoreBulk(array_column($this->model->getDeleted(), 'id'), $actorType);
     }
 
     public function purge(string $id): array
+    {
+        return $this->loggedTeamMutation('작업팀 영구삭제','WORK_TEAM_PURGE','purge',fn():array=>$this->purgeInternal($id));
+    }
+
+    private function purgeInternal(string $id): array
     {
         return $this->purgeTeams([$id]);
     }
 
     public function purgeBulk(array $ids): array
     {
+        return $this->loggedTeamMutation('작업팀 일괄 영구삭제','WORK_TEAM_PURGE_BULK','purge-bulk',fn():array=>$this->purgeBulkInternal($ids));
+    }
+
+    private function purgeBulkInternal(array $ids): array
+    {
         return $this->purgeTeams($ids);
     }
 
     public function purgeAll(): array
+    {
+        return $this->loggedTeamMutation('작업팀 전체 영구삭제','WORK_TEAM_PURGE_ALL','purge-all',fn():array=>$this->purgeAllInternal());
+    }
+
+    private function purgeAllInternal(): array
     {
         return $this->purgeBulk(array_column($this->model->getDeleted(), 'id'));
     }
@@ -262,7 +302,6 @@ class WorkTeamService
             $this->pdo->commit();
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            $this->logger->error('purgeTeams() failed', ['error' => $e->getMessage()]);
             return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
         }
 
@@ -275,6 +314,11 @@ class WorkTeamService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->runLoggedOperation($this->logger,'작업팀 정렬 저장','WORK_TEAM_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -302,6 +346,7 @@ class WorkTeamService
     private function normalize(array $data): array
     {
         $data['team_name'] = trim((string)($data['team_name'] ?? ''));
+        $data['business_unit'] = strtoupper(trim((string) ($data['business_unit'] ?? 'CONSTRUCTION')));
         $data['team_leader_client_id'] = $this->blankToNull($data['team_leader_client_id'] ?? null);
         $data['note'] = $this->blankToNull($data['note'] ?? null);
         $data['memo'] = $this->blankToNull($data['memo'] ?? null);
@@ -314,6 +359,11 @@ class WorkTeamService
     {
         $teamName = (string) ($data['team_name'] ?? '');
         if ($teamName === '') return '팀명은 필수입니다.';
+        $businessUnit = (string) ($data['business_unit'] ?? '');
+        if ($businessUnit === '') return '사업구분은 필수입니다.';
+        $statement = $this->pdo->prepare("SELECT COUNT(*) FROM system_codes WHERE code_group='BUSINESS_UNIT' AND code=:code AND is_active=1");
+        $statement->execute([':code' => $businessUnit]);
+        if ((int) $statement->fetchColumn() !== 1) return '사업구분을 확인해 주세요.';
         if (mb_strlen($teamName, 'UTF-8') > 100) return '팀명은 100자 이내로 입력하세요.';
         if (mb_strlen((string) ($data['note'] ?? ''), 'UTF-8') > 255) return '비고는 255자 이내로 입력하세요.';
         if (mb_strlen((string) ($data['memo'] ?? ''), 'UTF-8') > 65535) return '메모가 허용 길이를 초과했습니다.';
@@ -744,6 +794,12 @@ class WorkTeamService
     private function tableColumnDropdownOptions(string $table, string $column): array
     {
         return $table === 'system_clients' ? $this->clientModel->getActiveDropdownValues($column) : [];
+    }
+
+    private function loggedTeamMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 
     private function parseActiveValue(mixed $value): int

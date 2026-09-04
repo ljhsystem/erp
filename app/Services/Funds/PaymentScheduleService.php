@@ -8,8 +8,10 @@ use App\Models\Funds\PaymentScheduleModel;
 use App\Models\Ledger\EvidenceLinkModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
+use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class PaymentScheduleService
 {
@@ -25,6 +27,7 @@ class PaymentScheduleService
     private PaymentScheduleHistoryModel $histories;
     private BankPaymentEvidenceModel $bankEvidence;
     private EvidenceLinkModel $links;
+    private LoggerInterface $logger;
 
     public function __construct(private PDO $pdo)
     {
@@ -32,6 +35,7 @@ class PaymentScheduleService
         $this->histories = new PaymentScheduleHistoryModel($pdo);
         $this->bankEvidence = new BankPaymentEvidenceModel($pdo);
         $this->links = new EvidenceLinkModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-funds-payment-schedule');
     }
 
     public function create(array $input): array
@@ -513,12 +517,22 @@ class PaymentScheduleService
             $result = $callback();
             if ($ownsTransaction) {
                 $this->pdo->commit();
+                $this->logger->info('지급일정 변경이 완료되었습니다.',['event_code'=>'PAYMENT_SCHEDULE_CHANGED','result'=>'SUCCESS','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user()]);
             }
             return $result;
-        } catch (\Throwable $e) {
+        } catch (\PDOException $e) {
             if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            if($ownsTransaction)$this->logger->error('지급일정 변경에 실패했습니다.',['event_code'=>'PAYMENT_SCHEDULE_CHANGE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e]);
+            throw $e;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if($ownsTransaction)$this->logger->warning('지급일정 변경이 차단되었습니다.',['event_code'=>'PAYMENT_SCHEDULE_CHANGE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e]);
+            throw $e;
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if($ownsTransaction)$this->logger->error('지급일정 변경에 실패했습니다.',['event_code'=>'PAYMENT_SCHEDULE_CHANGE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e]);
             throw $e;
         }
     }

@@ -5,11 +5,8 @@ export function registerSelects(ctx) {
         return window.jQuery(ctx.modalEl);
     }
 
-    function mapSelect2Results(rows = [], mapper, emptyLabel = '선택(없음)') {
-        return [
-            { id: '', text: emptyLabel },
-            ...rows.map((row) => mapper(row)).filter((item) => item.id !== '' && item.text !== ''),
-        ];
+    function mapSelect2Results(rows = [], mapper) {
+        return rows.map((row) => mapper(row)).filter((item) => item.id !== '' && item.text !== '');
     }
 
     function setCodeSelectValue(selectId, value) {
@@ -29,7 +26,6 @@ export function registerSelects(ctx) {
 
         AdminPicker.select2Ajax(ctx.clientSelectEl, {
             url: ctx.API.clientSearch,
-            placeholder: '거래처 검색',
             allowClear: true,
             includeCommonAdd: true,
             minimumInputLength: 0,
@@ -121,7 +117,6 @@ export function registerSelects(ctx) {
 
         AdminPicker.select2Ajax(ctx.projectSelectEl, {
             url: ctx.API.projectSearch,
-            placeholder: '프로젝트 검색',
             allowClear: true,
             minimumInputLength: 0,
             dropdownParent: getDropdownParent(),
@@ -212,7 +207,6 @@ export function registerSelects(ctx) {
 
         AdminPicker.select2Ajax(ctx.teamSelectEl, {
             url: ctx.API.workTeamList,
-            placeholder: ctx.teamSelectEl.dataset.placeholder || '팀 검색',
             allowClear: true,
             minimumInputLength: 0,
             dropdownParent: getDropdownParent(),
@@ -242,7 +236,6 @@ export function registerSelects(ctx) {
     function initBankAccountSelect() {
         initReferenceAjaxSelect(ctx.bankAccountSelectEl, {
             url: ctx.API.bankAccountSearch,
-            placeholder: ctx.bankAccountSelectEl?.dataset?.placeholder || '계좌 검색',
             labelForRow: (row) => row.account_name || row.bank_account_name || row.name || '',
         });
     }
@@ -250,7 +243,6 @@ export function registerSelects(ctx) {
     function initCardSelect() {
         initReferenceAjaxSelect(ctx.cardSelectEl, {
             url: ctx.API.cardSearch,
-            placeholder: ctx.cardSelectEl?.dataset?.placeholder || '카드 검색',
             labelForRow: (row) => row.text || row.card_name || row.card_number || row.card_company_name || '',
         });
     }
@@ -258,7 +250,6 @@ export function registerSelects(ctx) {
     function initEmployeeSelect() {
         initReferenceAjaxSelect(ctx.employeeSelectEl, {
             url: ctx.API.employeeSearch,
-            placeholder: ctx.employeeSelectEl?.dataset?.placeholder || '직원 검색',
             labelForRow: (row) => row.text || row.employee_name || row.name || '',
         });
     }
@@ -291,19 +282,19 @@ export function registerSelects(ctx) {
     }
 
     function setBankAccountValue(value = '', text = '') {
-        setStaticSelectValue(ctx.bankAccountSelectEl, value, text, '계좌선택');
+        setStaticSelectValue(ctx.bankAccountSelectEl, value, text, '선택(없음)');
     }
 
     function setCardValue(value = '', text = '') {
-        setStaticSelectValue(ctx.cardSelectEl, value, text, '카드선택');
+        setStaticSelectValue(ctx.cardSelectEl, value, text, '선택(없음)');
     }
 
     function setTeamValue(value = '', text = '') {
-        setStaticSelectValue(ctx.teamSelectEl, value, text, '팀선택');
+        setStaticSelectValue(ctx.teamSelectEl, value, text, '선택(없음)');
     }
 
     function setEmployeeValue(value = '', text = '') {
-        setStaticSelectValue(ctx.employeeSelectEl, value, text, '직원선택');
+        setStaticSelectValue(ctx.employeeSelectEl, value, text, '선택(없음)');
     }
 
     Object.assign(ctx, { setCodeSelectValue, initClientSelect, clearClientSelect, setClientSelectValue, openTransactionClientQuickCreate, initProjectSelect, clearProjectSelect, setProjectSelectValue, initReferenceAjaxSelect, initTeamSelect, initBankAccountSelect, initCardSelect, initEmployeeSelect, setStaticSelectValue, setBankAccountValue, setCardValue, setTeamValue, setEmployeeValue });

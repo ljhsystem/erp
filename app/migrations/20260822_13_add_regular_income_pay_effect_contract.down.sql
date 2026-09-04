@@ -1,0 +1,13 @@
+ALTER TABLE institution_regular_employment_income_line_items
+  DROP CONSTRAINT chk_regular_income_pay_source_key,
+  DROP CONSTRAINT chk_regular_income_pay_business,
+  DROP CONSTRAINT chk_regular_income_pay_amount,
+  DROP CONSTRAINT chk_regular_income_pay_effect,
+  DROP INDEX uk_regular_income_line_source,
+  DROP COLUMN processed_by,
+  DROP COLUMN processed_at,
+  DROP COLUMN business_reason,
+  DROP COLUMN source_key,
+  DROP COLUMN source_reference_id,
+  DROP COLUMN business_source_code,
+  DROP COLUMN pay_effect_code;

@@ -363,6 +363,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             c.address,
             c.address_detail,
             c.client_type,
+            ct.code_name AS client_type_name,
             c.default_account_id,
             da.account_code AS default_account_code,
             da.account_name AS default_account_name,
@@ -374,6 +375,12 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         LEFT JOIN ledger_accounts da
             ON da.id = c.default_account_id
            AND da.deleted_at IS NULL
+
+        LEFT JOIN system_codes ct
+            ON ct.code_group = 'CLIENT_TYPE'
+           AND NULLIF(TRIM(c.client_type), '') IS NOT NULL
+           AND ct.code = c.client_type
+           AND ct.is_active = 1
 
         WHERE c.deleted_at IS NULL
     ";

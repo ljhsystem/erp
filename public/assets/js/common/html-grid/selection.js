@@ -96,10 +96,6 @@ export function createSelectionController(config = {}) {
     }
 
     function focusCell(rowIndex, columnKey) {
-        if (!isSelectionEnabled(api)) {
-            return { executed: false, reason: 'capability-blocked' };
-        }
-
         const rows = getRows();
         const normalizedRowIndex = normalizeIndex(rowIndex);
         const row = rows[normalizedRowIndex] || null;

@@ -518,6 +518,7 @@ body[data-density] textarea.form-control {
 }
 
 .select2-container {
+  min-width: 0;
   max-width: 100%;
   font-size: var(--font-size, 14px) !important;
 }
@@ -530,6 +531,8 @@ body[data-density] textarea.form-control {
 .select2-container--default .select2-selection--single,
 .select2-container--default .select2-selection--multiple {
   position: relative !important;
+  min-width: 0;
+  overflow: hidden;
   min-height: var(--row-height, 38px) !important;
   border: 1px solid #dee2e6 !important;
   border-radius: .375rem !important;
@@ -546,11 +549,17 @@ body[data-density] textarea.form-control {
 }
 
 .select2-container--default .select2-selection--single .select2-selection__rendered {
-  width: 100%;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 0 !important;
   color: var(--color-text, #212529) !important;
   line-height: 1.5 !important;
   font-size: var(--font-size, 14px) !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .select2-container--default .select2-selection--single .select2-selection__placeholder {
@@ -605,6 +614,8 @@ body[data-density] textarea.form-control {
 }
 
 .select2-dropdown {
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #dee2e6 !important;
   border-radius: .375rem !important;
   box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .08);
@@ -626,9 +637,13 @@ body[data-density] textarea.form-control {
 }
 
 .select2-results__option {
+  min-width: 0;
+  overflow: hidden;
   padding: var(--control-padding-y, 6px) var(--control-padding-x, 12px) !important;
   font-size: var(--font-size, 14px) !important;
   line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {

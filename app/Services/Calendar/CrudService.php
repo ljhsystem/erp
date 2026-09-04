@@ -316,7 +316,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                     SELECT id
-                    FROM dashboard_calendar_list
+                    FROM main_calendar_list
                     WHERE id = :id
                     AND type = 'calendar'
                     AND is_active = 1
@@ -337,7 +337,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                     SELECT id
-                    FROM dashboard_calendar_list
+                    FROM main_calendar_list
                     WHERE id = :id
                     AND type = 'calendar'
                     AND is_active = 1
@@ -738,7 +738,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                 SELECT *
-                FROM dashboard_calendar_events
+                FROM main_calendar_events
                 WHERE id = :id
                 AND is_active = 1
                 LIMIT 1
@@ -892,7 +892,7 @@ class CrudService
                 ]);
 
                 $fix = $this->pdo->prepare("
-                    UPDATE dashboard_calendar_events
+                    UPDATE main_calendar_events
                     SET href = :href
                     WHERE id = :id
                     LIMIT 1
@@ -1298,7 +1298,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                 SELECT *
-                FROM dashboard_calendar_events
+                FROM main_calendar_events
                 WHERE id = :id
                 AND synology_login_id = :synology
                 LIMIT 1
@@ -1369,7 +1369,7 @@ class CrudService
             }
 
             $stmt = $this->pdo->prepare("
-                UPDATE dashboard_calendar_events
+                UPDATE main_calendar_events
                 SET is_active = 0,
                     deleted_at = NOW(),
                     deleted_by = :user
@@ -1405,7 +1405,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                 SELECT href
-                FROM dashboard_calendar_list
+                FROM main_calendar_list
                 WHERE id = :id
                 AND type = 'task'
                 AND is_active = 1
@@ -1427,7 +1427,7 @@ class CrudService
             $calendarId = $this->hrefToId($collectionHref);
             $this->logger->debug('[CREATE TASK] Calendar ID: ' . $calendarId);
 
-            $stmt = $this->pdo->prepare("SELECT id FROM dashboard_calendar_list WHERE id = :id AND type = 'task' AND is_active = 1 LIMIT 1");
+            $stmt = $this->pdo->prepare("SELECT id FROM main_calendar_list WHERE id = :id AND type = 'task' AND is_active = 1 LIMIT 1");
             $stmt->execute([':id' => $calendarId]);
             if (!$stmt->fetch()) {
                 throw new \RuntimeException('task calendar not registered or inactive');
@@ -1573,7 +1573,7 @@ class CrudService
             $this->logger->debug('[UPDATE TASK] Calendar ID: ' . $calendarId);
 
             $stmt = $this->pdo->prepare("
-                SELECT * FROM dashboard_calendar_tasks
+                SELECT * FROM main_calendar_tasks
                 WHERE id = :id
                 AND synology_login_id = :synology_login_id
                 AND is_active = 1
@@ -1651,7 +1651,7 @@ class CrudService
                 $href = $realHref;
 
                 $fix = $this->pdo->prepare("
-                    UPDATE dashboard_calendar_tasks
+                    UPDATE main_calendar_tasks
                     SET href = :href
                     WHERE id = :id
                     LIMIT 1
@@ -1695,7 +1695,7 @@ class CrudService
                 );
 
                 $stmt2 = $this->pdo->prepare("
-                    SELECT * FROM dashboard_calendar_tasks
+                    SELECT * FROM main_calendar_tasks
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                     AND is_active = 1
@@ -1905,7 +1905,7 @@ class CrudService
             }
 
             if ($newEtag && $newEtag !== $etag) {
-                $fix = $this->pdo->prepare("UPDATE dashboard_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
+                $fix = $this->pdo->prepare("UPDATE main_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
                 $fix->execute([':etag' => $newEtag, ':id' => $id, ':calendar_id' => $calendarId]);
                 $this->logger->debug('[UPDATE TASK] ETag updated in DB');
             }
@@ -1954,7 +1954,7 @@ class CrudService
             [$userId, $synologyLoginId] = $this->resolveSyncIdentity();
 
             $stmt = $this->pdo->prepare("
-                SELECT * FROM dashboard_calendar_tasks
+                SELECT * FROM main_calendar_tasks
                 WHERE id = :id
                 AND calendar_id = :calendar_id
                 AND synology_login_id = :synology_login_id
@@ -2016,7 +2016,7 @@ class CrudService
                 );
 
                 $stmt2 = $this->pdo->prepare("
-                    SELECT * FROM dashboard_calendar_tasks
+                    SELECT * FROM main_calendar_tasks
                     WHERE id = :id
                     AND is_active = 1
                     LIMIT 1
@@ -2131,7 +2131,7 @@ class CrudService
             }
 
             if ($newEtag && $newEtag !== $etag) {
-                $fix = $this->pdo->prepare("UPDATE dashboard_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
+                $fix = $this->pdo->prepare("UPDATE main_calendar_tasks SET etag = :etag WHERE id = :id AND calendar_id = :calendar_id LIMIT 1");
                 $fix->execute([':etag' => $newEtag, ':id' => $id, ':calendar_id' => $calendarId]);
                 $this->logger->debug('[UPDATE TASK COMPLETE] ETag updated in DB');
             }
@@ -2189,7 +2189,7 @@ class CrudService
                 ?? throw new \RuntimeException('id required');
 
             $stmt = $this->pdo->prepare("
-                    SELECT * FROM dashboard_calendar_tasks
+                    SELECT * FROM main_calendar_tasks
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                     LIMIT 1
@@ -2209,7 +2209,7 @@ class CrudService
             $this->assertCalendarWritePermission($row['calendar_id']);
 
             $stmt = $this->pdo->prepare("
-                UPDATE dashboard_calendar_tasks
+                UPDATE main_calendar_tasks
                 SET is_active = 0,
                     deleted_at = NOW(),
                     deleted_by = :user
@@ -2269,7 +2269,7 @@ class CrudService
             ]);
 
             $stmt = $this->pdo->prepare("
-                    SELECT * FROM dashboard_calendar_tasks
+                    SELECT * FROM main_calendar_tasks
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                     LIMIT 1
@@ -2341,7 +2341,7 @@ class CrudService
             }
 
             $stmt = $this->pdo->prepare("
-                DELETE FROM dashboard_calendar_tasks
+                DELETE FROM main_calendar_tasks
                 WHERE id = :id
             ");
 
@@ -2407,7 +2407,7 @@ class CrudService
             $id = trim($id);
 
             $stmt = $this->pdo->prepare("
-                    SELECT * FROM dashboard_calendar_events
+                    SELECT * FROM main_calendar_events
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                     LIMIT 1
@@ -2432,7 +2432,7 @@ class CrudService
             $caldav->deleteObject($row['href'], $row['etag']);
 
             $stmt = $this->pdo->prepare("
-                    DELETE FROM dashboard_calendar_events
+                    DELETE FROM main_calendar_events
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                 ");
@@ -2512,7 +2512,7 @@ class CrudService
 
             $stmt = $this->pdo->prepare("
                     SELECT href
-                    FROM dashboard_calendar_tasks
+                    FROM main_calendar_tasks
                     WHERE id = :id
                     AND synology_login_id = :synology_login_id
                     LIMIT 1
@@ -2558,7 +2558,7 @@ class CrudService
                 $href = $realHref;
 
                 $fix = $this->pdo->prepare("
-                        UPDATE dashboard_calendar_tasks
+                        UPDATE main_calendar_tasks
                         SET href = :href
                         WHERE id = :id
                         LIMIT 1
@@ -2707,7 +2707,7 @@ class CrudService
 
         $stmt = $this->pdo->prepare("
             SELECT id, is_personal, owner_user_id
-            FROM dashboard_calendar_list
+            FROM main_calendar_list
             WHERE id = :id
             AND is_active = 1
             LIMIT 1

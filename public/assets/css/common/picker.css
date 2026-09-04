@@ -284,16 +284,59 @@
   flex: 1;
 }
 
+.picker-yearmonth-header{
+  display:grid;
+  grid-template-columns: 34px 1fr 34px;
+}
+
+.picker-year-title{
+  height:34px;
+  border:1px solid var(--p-soft);
+  border-radius:10px;
+  background:rgba(15,23,42,.03);
+  color:var(--p-text);
+  font-size:14px;
+  font-weight:900;
+  cursor:pointer;
+}
+
 .picker-yearmonth-header .picker-year{
   width: 100%;
 }
 
 .picker-yearmonth-grid{
   display:grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;
+}
+
+.picker-year-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+}
+
+.picker-year-cell{
+  min-height:42px;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:var(--p-text);
+  cursor:pointer;
+  font-size:12px;
+  font-weight:900;
+}
+
+.picker-year-cell:hover,
+.picker-year-cell.is-current-view{
+  background:var(--p-primary-soft);
+  border-color:rgba(59,130,246,.14);
+}
+
+.picker-year-cell.is-today{
+  box-shadow:inset 0 0 0 1.5px rgba(15,23,42,.22);
 }
 
 .picker-month-cell{
@@ -332,6 +375,8 @@
 ========================================================= */
 .picker-day:focus-visible,
 .picker-month-cell:focus-visible,
+.picker-year-cell:focus-visible,
+.picker-year-title:focus-visible,
 .picker-nav-btn:focus-visible,
 .picker-ym select:focus-visible,
 .picker-btn:focus-visible,
@@ -585,6 +630,52 @@
   border-radius: 8px;
 }
 
+.picker.is-day-of-month {
+  width: max(var(--picker-anchor-width, 240px), 280px);
+}
+
+.picker.is-day-of-month .admin-picker__panel {
+  padding: 10px;
+}
+
+.day-of-month-title {
+  padding: 2px 4px 10px;
+  color: var(--p-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.day-of-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.day-of-month-item {
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--p-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.day-of-month-item:hover,
+.day-of-month-item:focus-visible {
+  background: var(--p-primary-soft);
+  outline: none;
+}
+
+.day-of-month-item.is-active {
+  background: var(--p-primary);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(59,130,246,.25);
+}
+
 
 /* 리스트 아이템도 강제로 100% */
 .time-list,
@@ -660,7 +751,5 @@
 .picker-account .account-name {
   flex: 1;
 }
-
-
 
 

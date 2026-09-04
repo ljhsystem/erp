@@ -142,8 +142,8 @@ if (ctx.isReady) {
         if (!modalRuntimePromise) {
             modalRuntimePromise = Promise.all([
                 import('/public/assets/js/common/picker/admin_picker.js'),
-                import('/public/assets/js/pages/dashboard/settings/system/code-select.js'),
-                import('/public/assets/js/pages/dashboard/settings/base/client.js'),
+                import('/public/assets/js/pages/main/settings/system/code-select.js'),
+                import('/public/assets/js/pages/main/settings/base/client.js'),
                 import('/public/assets/js/pages/ledger/shared/utils.js'),
                 import('./runtime.js'),
                 import('./form.js'),

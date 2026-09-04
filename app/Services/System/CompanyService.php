@@ -5,17 +5,21 @@ namespace App\Services\System;
 use App\Models\System\CompanyModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class CompanyService
 {
     private readonly PDO $pdo;
     private CompanyModel $model;
+    private LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
         $this->model = new CompanyModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-system-company');
     }
 
     public function get(): array
@@ -57,16 +61,25 @@ class CompanyService
 
             $this->pdo->commit();
 
+            $this->logger->info('회사정보가 저장되었습니다.', [
+                'event_code'=>'COMPANY_SAVED','result'=>'SUCCESS','service'=>self::class,
+                'action'=>$exists?'update':'create','actor'=>$actor,'target_id'=>$exists['id']??$data['id'],
+            ]);
+
             return [
                 'success' => true,
                 'message' => $message,
             ];
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
+            if($this->pdo->inTransaction())$this->pdo->rollBack();
+            $this->logger->error('회사정보 저장에 실패했습니다.', [
+                'event_code'=>'COMPANY_SAVE_FAILED','result'=>'FAILED','service'=>self::class,
+                'action'=>'save','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e,
+            ]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '회사정보 저장 중 오류가 발생했습니다.',
             ];
         }
     }

@@ -1,5 +1,5 @@
 <?php include_once PROJECT_ROOT . '/app/views/ledger/evidence/partials/evidence_edit_modal.php'; ?>
-<?php include_once PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/work_team_modal.php'; ?>
+<?php include_once PROJECT_ROOT . '/app/views/main/settings/base-info/partials/work_team_modal.php'; ?>
 
 <div class="modal fade"
      id="journalModal"
@@ -244,7 +244,7 @@
     </div>
 </div>
 
-<div class="modal fade"
+<div class="modal"
      id="journalEvidenceSearchModal"
      tabindex="-1"
      aria-labelledby="journalEvidenceSearchModalLabel"
@@ -257,16 +257,29 @@
             </div>
             <div class="modal-body">
                 <div class="journal-evidence-table-wrap">
-                    <table id="journal_evidence_search_table" class="table table-sm align-middle nowrap w-100">
+                    <table id="journal_evidence_search_table" class="table table-sm align-middle w-100">
                         <thead>
                             <tr>
                                 <th>선택</th>
-                                <th>기준일</th>
-                                <th>증빙구분</th>
+                                <th>증빙 ID</th>
+                                <th>원천유형</th>
                                 <th>자료유형</th>
+                                <th>증빙구분</th>
+                                <th>기준일</th>
+                                <th>증빙상태</th>
+                                <th>사업구분</th>
+                                <th>거래구분</th>
+                                <th>업무유형</th>
                                 <th>거래처</th>
+                                <th>프로젝트</th>
+                                <th>직원</th>
+                                <th>계좌</th>
+                                <th>카드</th>
+                                <th>팀</th>
                                 <th>적요</th>
                                 <th>금액</th>
+                                <th>생성일시</th>
+                                <th>수정일시</th>
                                 <th>관리</th>
                             </tr>
                         </thead>

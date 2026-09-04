@@ -102,6 +102,7 @@ function buildLineRow(line = {}, rowIndex = 0, rowState = 'created') {
             line_no: Number(line.line_no || rowIndex + 1),
             account_id: String(line.account_id || line.account_code || '').trim(),
             refs: Array.isArray(line.refs) ? line.refs : [],
+            source_refs: Array.isArray(line.source_refs) ? line.source_refs : [],
             debit: String(line.debit ?? '0'),
             credit: String(line.credit ?? '0'),
             line_summary: String(line.line_summary || '').trim(),
@@ -163,7 +164,7 @@ function createOrderEditorFactory(bridge) {
         button.setAttribute('aria-label', '\uC21C\uC11C \uC774\uB3D9');
         button.setAttribute('title', '\uC21C\uC11C \uC774\uB3D9');
         button.dataset.rowId = String(context.row?.rowId || '');
-        button.innerHTML = '<i class="bi bi-grip-vertical" aria-hidden="true"></i>';
+        button.textContent = '\u283F';
         button.disabled = bridge.isReadOnly === true;
 
         const label = documentRef.createElement('span');
@@ -215,6 +216,8 @@ function createDeleteEditorFactory(bridge) {
         button.type = 'button';
         button.className = 'btn btn-link btn-sm btn-remove-line voucher-grid-delete-btn';
         button.textContent = '-\uC0AD\uC81C';
+        button.style.setProperty('white-space', 'nowrap', 'important');
+        button.style.setProperty('word-break', 'keep-all', 'important');
         button.disabled = bridge.isReadOnly === true;
 
         const handleClick = () => {
@@ -806,6 +809,7 @@ export function createVoucherLineGridBridge(ctx) {
         refsEditors: new Map(),
         isReadOnly: false,
         summaryRefreshFrame: 0,
+        layoutFrame: 0,
     };
 
     const schema = createVoucherLineGridSchema();
@@ -828,6 +832,68 @@ export function createVoucherLineGridBridge(ctx) {
 
     function getLineHost() {
         return ctx.lineGridHostEl || null;
+    }
+
+    const columnWidthPercentages = {
+        line_no: 6,
+        account_id: 22,
+        refs: 28,
+        debit: 10,
+        credit: 10,
+        line_summary: 18,
+        row_action: 6,
+    };
+
+    function applyVoucherGridLayout() {
+        const host = getLineHost();
+        if (!host) {
+            return;
+        }
+
+        host.style.setProperty('width', '100%', 'important');
+        host.style.setProperty('max-width', '100%', 'important');
+        host.style.setProperty('min-width', '0', 'important');
+        host.style.setProperty('overflow', 'hidden', 'important');
+
+        Object.entries(columnWidthPercentages).forEach(([columnKey, width]) => {
+            host.querySelectorAll(`[data-column-key="${columnKey}"]`).forEach((element) => {
+                element.style.setProperty('width', `${width}%`, 'important');
+                element.style.setProperty('min-width', '0', 'important');
+                element.style.setProperty('max-width', `${width}%`, 'important');
+            });
+        });
+
+        host.querySelectorAll('.html-grid-cell-content, .html-grid-cell-editor-slot').forEach((element) => {
+            element.style.setProperty('display', 'flex', 'important');
+            element.style.setProperty('align-items', 'center', 'important');
+            element.style.setProperty('width', '100%', 'important');
+            element.style.setProperty('max-width', '100%', 'important');
+            element.style.setProperty('min-width', '0', 'important');
+        });
+
+        host.querySelectorAll('.html-grid-cell-editor-slot').forEach((slot) => {
+            slot.style.setProperty('flex', '1 1 0', 'important');
+            Array.from(slot.children).forEach((element) => {
+                if (!element.matches('.voucher-grid-order-cell, .voucher-grid-delete-btn')) {
+                    element.style.setProperty('flex', '1 1 0', 'important');
+                    element.style.setProperty('width', '100%', 'important');
+                    element.style.setProperty('max-width', '100%', 'important');
+                    element.style.setProperty('min-width', '0', 'important');
+                }
+            });
+        });
+    }
+
+    function queueVoucherGridLayout() {
+        const host = getLineHost();
+        const view = host?.ownerDocument?.defaultView || window;
+        if (!host || bridge.layoutFrame) {
+            return;
+        }
+        bridge.layoutFrame = view.requestAnimationFrame(() => {
+            bridge.layoutFrame = 0;
+            applyVoucherGridLayout();
+        });
     }
     const columnState = createVoucherGridColumnState(ctx, getGrid);
     const normalizeColumnState = columnState.normalize;
@@ -956,6 +1022,7 @@ export function createVoucherLineGridBridge(ctx) {
             grid.setColumnState(normalizedState);
         }
         syncHeaderActionButton();
+        queueVoucherGridLayout();
         ctx.scheduleJournalModalLayoutUpdate?.();
     }
 
@@ -1035,19 +1102,23 @@ export function createVoucherLineGridBridge(ctx) {
         bridge.eventUnsubscribers.push(
             grid.on('row:added', () => {
                 queueSummaryRender();
+                queueVoucherGridLayout();
                 void refreshSubAccountColumnVisibility();
             }),
             grid.on('row:deleted', () => {
                 resequenceRows();
                 queueSummaryRender();
+                queueVoucherGridLayout();
                 void refreshSubAccountColumnVisibility();
             }),
             grid.on('row:moved', () => {
                 resequenceRows();
                 queueSummaryRender();
+                queueVoucherGridLayout();
             }),
             grid.on('row:updated', () => {
                 queueSummaryRender();
+                queueVoucherGridLayout();
                 void refreshSubAccountColumnVisibility();
             }),
             grid.on('cell:changed', () => {
@@ -1071,6 +1142,7 @@ export function createVoucherLineGridBridge(ctx) {
             grid.setColumnState(normalizeColumnState(ctx.state.lineGridColumnState));
         }
         syncHeaderActionButton();
+        queueVoucherGridLayout();
         applyReadOnlyState();
         ctx.scheduleJournalModalLayoutUpdate?.();
 
@@ -1200,6 +1272,7 @@ export function createVoucherLineGridBridge(ctx) {
                 const line = {
                     account_id: String(row?.values?.account_id || '').trim(),
                     refs: normalizeRefsValue(row?.values?.refs || []),
+                    source_refs: Array.isArray(row?.values?.source_refs) ? row.values.source_refs : [],
                     debit: normalizeAmount(ctx, row?.values?.debit ?? ''),
                     credit: normalizeAmount(ctx, row?.values?.credit ?? ''),
                     line_summary: String(row?.values?.line_summary || '').trim(),
@@ -1465,6 +1538,12 @@ export function createVoucherLineGridBridge(ctx) {
             const view = host?.ownerDocument?.defaultView || window;
             view.cancelAnimationFrame?.(bridge.summaryRefreshFrame);
             bridge.summaryRefreshFrame = 0;
+        }
+        if (bridge.layoutFrame) {
+            const host = getLineHost();
+            const view = host?.ownerDocument?.defaultView || window;
+            view.cancelAnimationFrame?.(bridge.layoutFrame);
+            bridge.layoutFrame = 0;
         }
         bridge.eventUnsubscribers = [];
         bridge.grid?.destroy?.();

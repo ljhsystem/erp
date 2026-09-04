@@ -12,13 +12,8 @@ class Crypto
 
     public function __construct()
     {
-        $security = ConfigHelper::get('Security', []);
-    
-        $this->key = $security['RRNKey'] ?? '';
-    
-        if (!$this->key) {
-            throw new \RuntimeException('RRN key not set in appsetting.json');
-        }
+        $credentialCode = trim((string) ConfigHelper::get('Security.RRNCredentialCode', ''));
+        $this->key = (new SecretResolver())->resolve($credentialCode, 'secret');
     
         $this->iv = substr(hash('sha256', 'rrn-fixed-iv', true), 0, 16);
     }

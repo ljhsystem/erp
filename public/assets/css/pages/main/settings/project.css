@@ -1,0 +1,279 @@
+/* 📄 /public/assets/css/pages/main/settings/project.css */
+
+/* ==============================
+   PAGE
+============================== */
+.project-page{
+    width:100%;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+/* ==============================
+   HEADER
+============================== */
+.project-page .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.project-page .page-header h5{
+    margin-bottom:0;
+}
+
+.project-count,
+.project-page .page-count{
+    display:inline-flex;
+    align-items:center;
+    font-size:1rem;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
+}
+
+.project-page #project-table_wrapper table.dataTable th,
+.project-page #project-table_wrapper table.dataTable td {
+    vertical-align: middle;
+}
+
+.project-page .project-active-toggle{
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.project-page .project-active-toggle:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.project-page .project-active-toggle:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.project-page .project-active-toggle:disabled{
+    cursor: wait;
+    opacity: .65;
+}
+
+.project-page .project-edit-btn{
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.project-page .project-edit-btn:hover,
+.project-page .project-edit-btn:focus{
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.project-page .project-edit-btn:active{
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}
+
+/* ==============================
+   MODAL
+============================== */
+#projectModal .modal-dialog{
+    width:min(1200px, 96vw);
+    max-width:96vw;
+    margin:1.25rem auto;
+}
+
+#projectModal .project-modal-content{
+    max-height:calc(100vh - 2.5rem);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+}
+
+#projectModal #project-edit-form{
+    min-height:0;
+    display:flex;
+    flex:1 1 auto;
+    flex-direction:column;
+}
+
+#projectModal .project-modal-body{
+    min-height:0;
+    flex:1 1 auto;
+    max-height:none;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+}
+
+/* ==============================
+   PROJECT ONLY (전용 UI)
+============================== */
+
+/* 카드 */
+.card{
+    border:1px solid #e1e6ef;
+    border-radius:10px;
+    background:#ffffff;
+    box-shadow:0 3px 8px rgba(0,0,0,.04);
+}
+
+.card-header{
+    background:#c5c5c5;
+    font-weight:600;
+    font-size:13px;
+}
+
+/* 파일 업로드 */
+.file-upload-box{
+    border:2px dashed #d0d5dd;
+    padding:15px;
+    text-align:center;
+    cursor:pointer;
+    border-radius:8px;
+}
+
+.file-upload-box.drag-over{
+    background:#f5f8ff;
+    border-color:#3b82f6;
+}
+
+/* 파일 리스트 */
+.file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:8px 12px;
+    background:#fff;
+}
+
+/* ==============================
+   PROJECT MODAL INPUT UX
+============================== */
+
+/* input 기본 */
+#projectModal .form-control,
+#projectModal .form-select{
+    border:1px solid #cfd6df;
+    border-radius:7px;
+    background-color:#ffffff;
+    transition:all .15s ease;
+}
+
+/* hover */
+#projectModal .form-control:hover,
+#projectModal .form-select:hover{
+    border-color:#9fb7e3;
+    background-color:#f9fbff;
+}
+
+/* focus */
+#projectModal .form-control:focus,
+#projectModal .form-select:focus{
+    border-color:#4c8df6;
+    background-color:#ffffff;
+    box-shadow:0 0 0 2px rgba(76,141,246,.15);
+}
+
+/* 버튼 */
+#projectModal .input-group .btn{
+    background:#f1f3f6;
+    border:1px solid #cfd6df;
+    color:#495057;
+    font-size:12px;
+    padding:3px 10px;
+    border-radius:6px;
+    transition:all .15s ease;
+}
+
+#projectModal .input-group .btn:hover{
+    background:#e7ecf3;
+}
+
+/* ==============================
+   TRASH (프로젝트 전용)
+============================== */
+.project-trash-layout{
+    position:relative;
+    height:420px;
+    overflow:hidden;
+}
+
+.project-trash-layout .trash-left{
+    height:100%;
+    overflow-y:auto;
+}
+
+.project-trash-layout.detail-open .trash-left{
+    width:calc(100% - 420px);
+}
+
+.project-trash-layout .trash-right{
+    position:absolute;
+    top:0;
+    right:0;
+    width:420px;
+    height:100%;
+    background:#fafafa;
+    border-left:1px solid #ddd;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+}
+
+.project-trash-layout .trash-right.open{
+    transform:translateX(0);
+}
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:900px){
+
+    #projectModal .modal-dialog{
+        max-width:98vw;
+        width:98vw;
+        margin:.5rem auto;
+    }
+
+    #projectModal .project-modal-content{
+        max-height:calc(100vh - 1rem);
+    }
+
+}
+.project-system-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+}
+
+.project-system-info-field {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 8px;
+}
+
+.project-system-info-label { color: var(--color-text-muted, #667085); font-size: .82rem; }
+.project-system-info-value { min-width: 0; overflow-wrap: anywhere; font-size: .86rem; }
+
+@media (max-width: 767.98px) {
+    .project-system-info-grid { grid-template-columns: 1fr; }
+}

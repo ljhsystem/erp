@@ -4,80 +4,64 @@ namespace App\Services\System;
 
 use App\Models\System\StatutoryStandardModel;
 use App\Models\System\StatutoryStandardSourceModel;
+use App\Models\System\StatutoryStandardSupersessionModel;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
+use Core\LoggerFactory;
 use PDO;
 
 class StatutoryStandardService
 {
+    use LogsServiceOperations;
     private const SOURCE_UPLOAD_POLICY_KEY = 'public_document';
+    private const INSURANCE_TYPES = ['NATIONAL_PENSION','HEALTH_INSURANCE','LONG_TERM_CARE','EMPLOYMENT_INSURANCE','INDUSTRIAL_ACCIDENT'];
 
     private StatutoryStandardModel $model;
     private StatutoryStandardSourceModel $sources;
+    private StatutoryStandardSupersessionModel $supersessions;
     private StatutoryStandardTemplateService $templates;
     private DataTableColumnMetaService $columnMeta;
+    private StatutoryStandardValueSummaryService $valueSummary;
     private FileService $files;
     private ?string $writeActor;
+    private $logger;
 
     public function __construct(private PDO $db, ?string $writeActor = null)
     {
         $this->writeActor = $writeActor;
         $this->model = new StatutoryStandardModel($db);
         $this->sources = new StatutoryStandardSourceModel($db);
+        $this->supersessions = new StatutoryStandardSupersessionModel($db);
         $this->templates = new StatutoryStandardTemplateService($db);
         $this->columnMeta = new DataTableColumnMetaService($db);
+        $this->valueSummary = new StatutoryStandardValueSummaryService();
         $this->files = new FileService($db);
+        $this->logger = LoggerFactory::getLogger('service-system-statutory-standard');
     }
 
     public function list(array $query): array
     {
         $page = $this->model->page($query);
-        $templates = [];
-        foreach ($this->templates->all() as $template) {
-            $templates[(string) ($template['code'] ?? '')] = $template;
-        }
+        $summaryFields = $this->templates->summaryFields();
         foreach ($page['rows'] as &$row) {
             $values = $this->decode((string) $row['value_data']);
-            $firstField = $templates[(string) ($row['standard_type_code'] ?? '')]['fields'][0] ?? null;
-            $row['value_summary'] = $this->listValueSummary($values, is_array($firstField) ? $firstField : null);
+            $type = (string)($row['standard_type_code'] ?? '');
+            $summaryKey = $this->templates->summaryFieldKey(
+                $type,
+                in_array($type, self::INSURANCE_TYPES, true) ? (string)($row['policy_component_code'] ?? '') : null,
+                in_array($type, self::INSURANCE_TYPES, true) ? (string)($row['employment_type_code'] ?? '') : null,
+                in_array($type, self::INSURANCE_TYPES, true) ? (string)($row['work_scope_code'] ?? '') : null
+            );
+            $firstField = $summaryFields[$summaryKey] ?? null;
+            $row += $this->valueSummary->project($row, $values, is_array($firstField) ? $firstField : null);
+            $row['standard_combination_name'] = $this->combinationName($row);
             unset($row['value_data']);
         }
         unset($row);
         return ['success' => true, 'data' => $page['rows'], 'draw' => (int) ($query['draw'] ?? 0),
             'recordsTotal' => $page['total'], 'recordsFiltered' => $page['filtered']];
-    }
-
-    private function listValueSummary(array $values, ?array $field): string
-    {
-        $fieldCode = (string) ($field['code'] ?? '');
-        $value = $fieldCode !== '' ? ($values[$fieldCode] ?? null) : null;
-        if ($value === null || $value === '') {
-            return '-';
-        }
-
-        $type = strtolower((string) ($field['type'] ?? ''));
-        if (in_array($type, ['matrix', 'bracket'], true)) {
-            $rowsKey = (string) ($field['object_storage']['rows_key'] ?? 'rows');
-            $rows = is_array($value) && array_is_list($value)
-                ? $value
-                : (is_array($value) && is_array($value[$rowsKey] ?? null) ? $value[$rowsKey] : []);
-            $name = trim((string) ($field['name'] ?? '')) ?: ($type === 'bracket' ? '구간' : '표');
-            return $name . ' ' . count($rows) . '건';
-        }
-        if ($type === 'rate' && is_numeric($value)) {
-            return rtrim(rtrim(number_format((float) $value * 100, 6, '.', ','), '0'), '.') . '%';
-        }
-        if ($type === 'amount' && is_numeric($value)) {
-            return number_format((float) $value, 0) . '원';
-        }
-        if ($type === 'number' && is_numeric($value)) {
-            return rtrim(rtrim(number_format((float) $value, 6, '.', ','), '0'), '.');
-        }
-        if (is_bool($value)) {
-            return $value ? '예' : '아니오';
-        }
-        return is_scalar($value) ? (string) $value : '-';
     }
 
     public function detail(string $id): array
@@ -90,7 +74,81 @@ class StatutoryStandardService
             throw new \RuntimeException('법정기준을 찾을 수 없습니다.');
         }
         $row['value_data'] = $this->decode((string) $row['value_data']);
+        $row['standard_combination_name'] = $this->combinationName($row);
         return ['success' => true, 'data' => $row];
+    }
+
+    public function revisionChain(string $id): array
+    {
+        if ($id === '') {
+            throw new \InvalidArgumentException('법정기준 Revision ID가 필요합니다.');
+        }
+        return ['success' => true, 'data' => $this->supersessions->chain($id)];
+    }
+
+    public function createRevisionCorrection(array $input, array $sourceFiles = []): array
+    {
+        return $this->loggedStandardMutation('법정기준 Revision 정정','STATUTORY_STANDARD_CORRECTION','correct',fn():array=>$this->createRevisionCorrectionInternal($input,$sourceFiles));
+    }
+
+    private function createRevisionCorrectionInternal(array $input, array $sourceFiles = []): array
+    {
+        $predecessorId = trim((string)($input['supersedes_revision_id'] ?? ''));
+        $reason = trim((string)($input['correction_reason'] ?? ''));
+        if ($predecessorId === '' || $reason === '') {
+            throw new \InvalidArgumentException('정정 대상 Revision과 정정 사유가 필요합니다.');
+        }
+        if (trim((string)($input['id'] ?? '')) !== '') {
+            throw new \InvalidArgumentException('Revision 정정은 기존 행 수정이 아니라 신규 Revision 생성으로 처리해야 합니다.');
+        }
+
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
+        try {
+            $predecessor = $this->model->detail($predecessorId, true);
+            if (!$predecessor) {
+                throw new \InvalidArgumentException('정정 대상 법정기준 Revision을 찾을 수 없습니다.');
+            }
+            $result = $this->saveInternal($input + ['_allow_supersession_overlap' => '1'], $sourceFiles);
+            $successorId = (string)($result['data']['id'] ?? '');
+            $this->supersessions->create(
+                $predecessorId,
+                $successorId,
+                $reason,
+                $this->writeActor ?? ActorHelper::user()
+            );
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+            return ['success' => true, 'data' => ['id' => $successorId], 'message' => 'Revision 정정을 등록했습니다.'];
+        } catch (\Throwable $exception) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    private function combinationName(array $row): string
+    {
+        $typeName = (string)($row['standard_type_name'] ?? $row['standard_type_code'] ?? '');
+        if (!in_array((string)($row['standard_type_code'] ?? ''), self::INSURANCE_TYPES, true)) return $typeName;
+        $component = (string)($row['policy_component_code'] ?? '');
+        $employment = (string)($row['employment_type_code'] ?? '');
+        $scope = (string)($row['work_scope_code'] ?? '');
+        $componentName = $component === 'PREMIUM' ? '보험료' : match ($employment) {
+            'REGULAR'=>'상용 가입자격',
+            'DAILY'=>$scope === 'CONSTRUCTION_SITE' ? '건설 일용 가입자격' : '일반 일용 가입자격',
+            default=>'가입자격',
+        };
+        $scopeName = match ($scope) {
+            'HEAD_OFFICE'=>'본사',
+            'CONSTRUCTION_SITE'=>'건설현장',
+            default=>'전체',
+        };
+        return $typeName . ' · ' . $componentName . ' · ' . $scopeName;
     }
 
     public function options(): array
@@ -111,6 +169,12 @@ class StatutoryStandardService
         return ['success' => true, 'data' => [
             'standardTypes' => $this->templates->all(),
             'roundingMethods' => $this->model->options('STATUTORY_ROUNDING_METHOD'),
+            'policyComponents' => $this->model->options('STATUTORY_POLICY_COMPONENT'),
+            'statutoryEmploymentTypes' => $this->model->options('STATUTORY_EMPLOYMENT_TYPE'),
+            'statutoryWorkScopes' => $this->model->options('STATUTORY_WORK_SCOPE'),
+            'periodStatuses' => StatutoryStandardPeriodStatusProjection::displayOptions(
+                $this->model->options('STATUTORY_STANDARD_PERIOD_STATUS')
+            ),
             'standardColumns' => $this->columnMeta->columnsForDomain('statutory-standard'),
             'sourceColumns' => $this->columnMeta->columnsForDomain('statutory-standard-source'),
             'sourceUploadPolicy' => $sourceUploadPolicy,
@@ -119,6 +183,8 @@ class StatutoryStandardService
 
     public function reorder(array $changes): array
     {
+        throw new \LogicException('확정된 법정기준 Revision의 순서는 변경할 수 없습니다.');
+        /*
         if ($changes === []) {
             throw new \InvalidArgumentException('변경할 순서 정보가 없습니다.');
         }
@@ -138,10 +204,13 @@ class StatutoryStandardService
             }
             throw $exception;
         }
+        */
     }
 
     public function deleteMany(array $ids): array
     {
+        return $this->loggedStandardMutation('법정기준 일괄삭제','STATUTORY_STANDARD_DELETE_MANY','delete-many',static function (): array { throw new \LogicException('확정된 법정기준 Revision은 삭제할 수 없습니다.'); });
+        /*
         $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
         if ($ids === []) {
             throw new \InvalidArgumentException('삭제할 법정기준을 선택해 주세요.');
@@ -178,18 +247,50 @@ class StatutoryStandardService
             }
         }
         return ['success' => true, 'data' => ['deleted_count' => count($ids), 'skipped_count' => 0], 'message' => '삭제되었습니다.'];
+        */
     }
 
     public function save(array $input, array $sourceFiles = []): array
     {
+        return $this->loggedStandardMutation('법정기준 저장','STATUTORY_STANDARD_SAVE','save',fn():array=>$this->saveInternal($input,$sourceFiles));
+    }
+
+    private function saveInternal(array $input, array $sourceFiles = []): array
+    {
         $id = trim((string) ($input['id'] ?? ''));
+        $allowSupersessionOverlap = $id === '' && (string)($input['_allow_supersession_overlap'] ?? '') === '1';
         $type = trim((string) ($input['standard_type_code'] ?? ''));
+        $component = $this->null(strtoupper(trim((string)($input['policy_component_code'] ?? ''))));
+        $employmentType = $this->null(strtoupper(trim((string)($input['employment_type_code'] ?? ''))));
+        $workScope = $this->null(strtoupper(trim((string)($input['work_scope_code'] ?? ''))));
+        if (in_array($type, self::INSURANCE_TYPES, true)) {
+            if ($component === null || $employmentType === null || $workScope === null) {
+                throw new \InvalidArgumentException('보험 법정기준의 정책 구성요소·고용형태·업무 Scope는 필수입니다.');
+            }
+            if (!$this->model->codeExists('STATUTORY_POLICY_COMPONENT', (string)$component)
+                || !$this->model->codeExists('STATUTORY_EMPLOYMENT_TYPE', (string)$employmentType)
+                || !$this->model->codeExists('STATUTORY_WORK_SCOPE', (string)$workScope)) {
+                throw new \InvalidArgumentException('보험 법정기준의 정책 구성요소·고용형태·업무 Scope가 올바르지 않습니다.');
+            }
+            $this->assertInsuranceDimensionCombination((string)$component, (string)$employmentType, (string)$workScope);
+        } else {
+            $component = $employmentType = $workScope = null;
+        }
+        $additionalDimensions = in_array($type, self::INSURANCE_TYPES, true)
+            ? $this->jsonInput($input['additional_dimension_data'] ?? [])
+            : [];
+        ksort($additionalDimensions, SORT_STRING);
+        $additionalDimensionJson = in_array($type, self::INSURANCE_TYPES, true)
+            ? json_encode($additionalDimensions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        $additionalDimensionKey = $additionalDimensionJson === null ? null : hash('sha256', $additionalDimensionJson);
         $from = trim((string) ($input['effective_from'] ?? ''));
         $to = $this->null((string) ($input['effective_to'] ?? ''));
-        $template = $this->templates->find($type);
+        $template = $this->templates->find($type, $component, $employmentType, $workScope);
         $requirementPolicy = $this->jsonInput($input['column_requirement_policy'] ?? []);
         $this->validatePhysicalRequired($input, $this->columnMeta->columnsForDomain('statutory-standard'), [
-            'standard_type_code', 'effective_from', 'effective_to', 'note',
+            'standard_type_code', 'policy_component_code', 'employment_type_code', 'work_scope_code',
+            'effective_from', 'effective_to', 'note',
         ], $requirementPolicy);
         if (!$this->isDate($from) || ($to !== null && !$this->isDate($to))) {
             throw new \InvalidArgumentException('날짜 형식이 올바르지 않습니다.');
@@ -199,7 +300,13 @@ class StatutoryStandardService
                 . $this->metaLabel('statutory-standard', 'effective_from') . '보다 빠를 수 없습니다.');
         }
         $values = $this->jsonInput($input['value_data'] ?? []);
+        if ($component === 'ELIGIBILITY') {
+            $values['insurance_type_code'] = $type;
+            $values['employment_type_code'] = $employmentType;
+            $values['work_scope_code'] = $workScope;
+        }
         $valueTemplate = $this->valueTemplate($template, $id);
+        $values = $this->normalizeNullableValues($valueTemplate, $values);
         $values = $this->normalizeRateValues($valueTemplate, $values);
         $values = $this->normalizeStructuredValues($valueTemplate, $values);
         $policyTemplate = ['fields' => (array) ($valueTemplate['calculation_policy']['fields'] ?? [])];
@@ -214,12 +321,15 @@ class StatutoryStandardService
         $this->validateValues($policyTemplate, $policyValues);
         $this->validateStructuredRelations($valueTemplate, $values);
         $this->validateAttendanceStandard($type, $values);
-        if (!empty($template['preserve_schema_in_value'])) {
+        if (!empty($template['preserve_schema_in_value']) && $component !== 'ELIGIBILITY') {
             $values['_schema'] = [
                 'version' => 1,
                 'fields' => $valueTemplate['fields'],
                 'calculation_policy' => ['fields' => $policyTemplate['fields']],
             ];
+        }
+        if ($component === 'ELIGIBILITY') {
+            (new \App\Services\Institution\InsuranceEligibilityPolicyValidator())->validate($values);
         }
         $this->validateSources($sourceRows);
         $uploadedPaths = [];
@@ -235,7 +345,13 @@ class StatutoryStandardService
                 foreach ($uploadedPaths as $path) {
                     $this->files->delete($path);
                 }
-                error_log('[StatutoryStandardService] source upload failed: ' . (string) ($upload['message'] ?? 'unknown'));
+                $this->logger->error('법정기준 근거자료 업로드에 실패했습니다.', [
+                    'event_code' => 'STATUTORY_STANDARD_SOURCE_UPLOAD_FAILED',
+                    'result' => 'FAILED',
+                    'service' => self::class,
+                    'action' => 'statutory_standard.source_upload',
+                    'error_code' => (string) ($upload['error_code'] ?? 'SOURCE_UPLOAD_FAILED'),
+                ]);
                 throw new \InvalidArgumentException('파일을 처리할 수 없습니다.');
             }
             $sourceRows[$index]['file_path'] = $upload['db_path'];
@@ -253,8 +369,8 @@ class StatutoryStandardService
             $this->db->beginTransaction();
         }
         try {
-            $overlaps = $this->model->overlappingPeriods($type, $from, $to, $id);
-            if ($overlaps !== []) {
+            $overlaps = $this->model->overlappingPeriods($type, $component, $employmentType, $workScope, $additionalDimensionKey, $from, $to, $id);
+            if ($overlaps !== [] && !$allowSupersessionOverlap) {
                 $hasOpenPeriod = false;
                 foreach ($overlaps as $overlap) {
                     if ($overlap['effective_to'] === null) {
@@ -270,6 +386,11 @@ class StatutoryStandardService
             }
             $data = [
                 'standard_type_code' => $type,
+                'policy_component_code' => $component,
+                'employment_type_code' => $employmentType,
+                'work_scope_code' => $workScope,
+                'additional_dimension_data' => $additionalDimensionJson,
+                'additional_dimension_key' => $additionalDimensionKey,
                 'effective_from' => $from,
                 'effective_to' => $to,
                 'value_data' => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -288,7 +409,7 @@ class StatutoryStandardService
                 if (!$existing) {
                     throw new \RuntimeException('수정할 법정기준을 찾을 수 없습니다.');
                 }
-                $this->assertAttendanceRevisionImmutable($existing, $data, $sourceRows);
+                throw new \InvalidArgumentException('확정된 법정기준 Revision은 직접 수정할 수 없습니다. Revision 정정을 등록해 주세요.');
                 $existingSources = [];
                 foreach ($existing['sources'] as $existingSource) {
                     $existingSources[(string) $existingSource['id']] = $existingSource;
@@ -329,8 +450,24 @@ class StatutoryStandardService
         return ['success' => true, 'data' => ['id' => $id], 'message' => '저장했습니다.'];
     }
 
+    private function assertInsuranceDimensionCombination(string $component, string $employmentType, string $workScope): void
+    {
+        $allowed = $component === 'PREMIUM'
+            ? [['ALL', 'ALL']]
+            : ($component === 'ELIGIBILITY' ? [
+                ['REGULAR', 'HEAD_OFFICE'],
+                ['DAILY', 'HEAD_OFFICE'],
+                ['DAILY', 'CONSTRUCTION_SITE'],
+            ] : []);
+        if (!in_array([$employmentType, $workScope], $allowed, true)) {
+            throw new \InvalidArgumentException('선택한 정책 구성요소에서 지원하지 않는 고용형태·업무 Scope 조합입니다.');
+        }
+    }
+
     public function delete(string $id): array
     {
+        return $this->loggedStandardMutation('법정기준 삭제','STATUTORY_STANDARD_DELETE','delete',static function (): array { throw new \LogicException('확정된 법정기준 Revision은 삭제할 수 없습니다.'); });
+        /*
         if ($id === '') {
             throw new \InvalidArgumentException('삭제할 법정기준 ID가 필요합니다.');
         }
@@ -361,6 +498,7 @@ class StatutoryStandardService
             }
         }
         return ['success' => true, 'message' => '영구삭제했습니다.'];
+        */
     }
 
     private function assertDeletable(array $detail): void
@@ -453,15 +591,27 @@ class StatutoryStandardService
         )];
     }
 
+    private function loggedStandardMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':'BLOCKED');
+    }
+
     private function validateValues(array $template, array $values): void
     {
-        $allowed = ['_schema' => true, 'calculation_policy' => true];
+        $allowed = [
+            '_schema'=>true,
+            'calculation_policy'=>true,
+            'insurance_type_code'=>true,
+            'employment_type_code'=>true,
+            'work_scope_code'=>true,
+        ];
         foreach ($template['fields'] as $field) {
             $key = (string) ($field['code'] ?? '');
-            if ($key !== '') {
-                $allowed[$key] = true;
-            }
-            $value = $values[$key] ?? null;
+            $path = (string)($field['value_path'] ?? $key);
+            $root = explode('.', $path, 2)[0] ?? '';
+            if ($root !== '') $allowed[$root] = true;
+            $value = $this->pathValue($values, $path);
             if ($key !== '' && !empty($field['required']) && ($value === null || $value === '' || $value === [])) {
                 throw new \InvalidArgumentException((string) ($field['name'] ?? $key) . ' 값이 필요합니다.');
             }
@@ -491,8 +641,7 @@ class StatutoryStandardService
             if ($type === 'rounding' && !$this->model->codeExists('STATUTORY_ROUNDING_METHOD', (string) $value)) {
                 throw new \InvalidArgumentException('끝수처리 방식이 올바르지 않습니다.');
             }
-            if ($type === 'select' && !in_array((string) $value,
-                array_map('strval', array_column((array) ($field['options'] ?? []), 'value')), true)) {
+            if ($type === 'select' && !$this->templates->isActiveSelectValue($field, (string)$value)) {
                 throw new \InvalidArgumentException((string) ($field['name'] ?? $key) . ' 선택값이 올바르지 않습니다.');
             }
             if ($type === 'boolean' && !is_bool($value)) {
@@ -680,7 +829,7 @@ class StatutoryStandardService
                     throw new \InvalidArgumentException(($index + 1) . '행 ' . ($column['name'] ?? $code) . ' 최댓값이 올바르지 않습니다.');
                 }
                 if (($column['type'] ?? '') === 'select' && $cell !== ''
-                    && !in_array((string) $cell, array_column((array) ($column['options'] ?? []), 'value'), true)) {
+                    && !$this->templates->isActiveSelectValue($column, (string)$cell)) {
                     throw new \InvalidArgumentException(($index + 1) . '행 ' . ($column['name'] ?? $code) . ' 선택값이 올바르지 않습니다.');
                 }
             }
@@ -737,13 +886,48 @@ class StatutoryStandardService
             if (!is_array($field) || ($field['type'] ?? '') !== 'rate') {
                 continue;
             }
-            $key = (string) ($field['code'] ?? '');
-            if ($key === '' || !array_key_exists($key, $values) || $values[$key] === '' || !is_numeric($values[$key])) {
+            $key = (string)($field['value_path'] ?? $field['code'] ?? '');
+            $value = $this->pathValue($values, $key);
+            if ($key === '' || $value === null || $value === '' || !is_numeric($value)) {
                 continue;
             }
-            $values[$key] = round((float) $values[$key], 12);
+            $this->setPathValue($values, $key, round((float)$value, 12));
         }
         return $values;
+    }
+
+    private function normalizeNullableValues(array $template, array $values): array
+    {
+        foreach ((array)($template['fields'] ?? []) as $field) {
+            if (empty($field['nullable'])) continue;
+            $path = (string)($field['value_path'] ?? $field['code'] ?? '');
+            if ($path !== '' && $this->pathValue($values, $path) === '') $this->setPathValue($values, $path, null);
+        }
+        return $values;
+    }
+
+    private function pathValue(array $values, string $path): mixed
+    {
+        $current = $values;
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($current) || !array_key_exists($segment, $current)) return null;
+            $current = $current[$segment];
+        }
+        return $current;
+    }
+
+    private function setPathValue(array &$values, string $path, mixed $value): void
+    {
+        $segments = explode('.', $path);
+        $current =& $values;
+        foreach ($segments as $index => $segment) {
+            if ($index === count($segments) - 1) {
+                $current[$segment] = $value;
+                return;
+            }
+            if (!isset($current[$segment]) || !is_array($current[$segment])) $current[$segment] = [];
+            $current =& $current[$segment];
+        }
     }
 
     private function validateSources(array $sources): void

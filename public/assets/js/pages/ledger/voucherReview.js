@@ -18,6 +18,31 @@ const VOUCHER_META_DOMAIN = 'voucher-header';
 const VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.vouchers.review.voucher-review-table.v1';
 const VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY = 'ledger.vouchers.review';
 const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
+const VOUCHER_REVIEW_ORDERABLE_FIELDS = new Set([
+    'sort_no',
+    'voucher_no',
+    'voucher_date',
+    'status',
+    'summary',
+    'summary_text',
+    'debit_total',
+    'credit_total',
+    'line_count',
+    'summary_account_id',
+    'summary_client_id',
+    'summary_project_id',
+    'summary_bank_account_id',
+    'summary_card_id',
+    'summary_employee_id',
+    'summary_line_summary',
+    'reject_reason',
+    'is_reversal',
+    'reversal_of',
+    'created_at',
+    'created_by',
+    'updated_at',
+    'updated_by',
+]);
 
 (async () => {
     const tableEl = document.getElementById('voucherReviewTable');
@@ -44,7 +69,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
     if (!tableEl || !window.jQuery?.fn?.DataTable) return;
 
     const API = {
-        list: '/api/ledger/voucher/list',
+        list: '/api/ledger/voucher/review-list',
         detail: '/api/ledger/voucher/detail',
         completeReview: '/api/ledger/voucher/complete-review',
         cancelCompleteReview: '/api/ledger/voucher/cancel-complete-review',
@@ -144,6 +169,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
                 sourceField: field,
                 title: String(meta?.label || field).trim() || field,
                 className: reviewColumnClassName(field),
+                orderable: VOUCHER_REVIEW_ORDERABLE_FIELDS.has(field),
                 widthResizable: true,
                 visible: meta?.settings_visible !== false,
                 defaultContent: '',
@@ -517,6 +543,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
             tableSelector: '#voucherReviewTable',
             api: API.list,
             serverSide: true,
+            orderableColumnKeys: Array.from(VOUCHER_REVIEW_ORDERABLE_FIELDS),
             ajaxData(request) {
                 return {
                     ...request,
@@ -538,7 +565,7 @@ const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
             dataSrc(json) {
                 return Array.isArray(json?.data) ? json.data : [];
             },
-            defaultOrder: [[0, 'desc']],
+            defaultOrder: [{ key: 'sort_no', dir: 'desc' }],
             pageLength: 100,
             selectable: false,
             showCopyButton: false,

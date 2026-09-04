@@ -1,5 +1,6 @@
 import { confirmDialog } from '/public/assets/js/common/confirm-dialog.js';
 import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
+import { findTrashButtons, markTrashButtonsHasData, setTrashButtonState } from './trash-button-state.js';
 
 (function () {
     'use strict';
@@ -225,7 +226,8 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
     onWindow('keydown', (event) => {
         if (event.key !== 'Escape') return;
 
-        const modal = document.querySelector('.modal.show');
+        const visibleModals = [...document.querySelectorAll('.modal.show')];
+        const modal = visibleModals.at(-1);
         if (!modal) return;
 
         const layout = modal.querySelector('.trash');
@@ -233,11 +235,24 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
         if (layout) layout.classList.remove('open');
         if (detail) detail.style.display = 'none';
+
+        if (modal.dataset.listUrl) {
+            closeTrashModal(modal);
+        }
     });
 
     onDocument('click', async (event) => {
         const modal = event.target.closest('.modal');
         if (!modal) return;
+
+        const closeControl = event.target.closest('[data-trash-close]');
+        if (closeControl && modal.dataset.listUrl) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeTrashModal(modal);
+            return;
+        }
+
         if (busyTrashModals.has(modal)) {
             event.preventDefault();
             event.stopPropagation();
@@ -270,7 +285,7 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '복원된 항목이 없습니다.',
                     countKey: 'restored_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             });
             return;
         }
@@ -292,15 +307,16 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '영구삭제된 항목이 없습니다.',
                     countKey: 'deleted_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             }, { deleteProgress: true, total: 1, title: '완전삭제 처리 중' });
             return;
         }
 
         if (event.target.closest('.btn-restore-selected')) {
+            if (!await hasActionableTrash(modal)) return;
             const ids = getSelectedIds(modal, 'restore');
             if (!ids.length) {
-                notify('warning', '선택된 항목이 없습니다.');
+                notify('info', '복원할 항목을 선택해 주세요.');
                 return;
             }
             if (!await confirmDialog({ title: '선택 복원', message: '선택 항목을 복원하시겠습니까?', confirmText: '복원', confirmClass: 'btn-success' })) return;
@@ -315,15 +331,16 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '복원된 항목이 없습니다.',
                     countKey: 'restored_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             });
             return;
         }
 
         if (event.target.closest('.btn-delete-selected')) {
+            if (!await hasActionableTrash(modal)) return;
             const ids = getSelectedIds(modal, 'delete');
             if (!ids.length) {
-                notify('warning', '선택된 항목이 없습니다.');
+                notify('info', '영구삭제할 항목을 선택해 주세요.');
                 return;
             }
             if (!await confirmDialog({ title: '선택 영구삭제', message: purgeConfirmMessage(modal, '선택 항목을 완전삭제합니다.'), confirmText: '영구삭제', confirmClass: 'btn-danger' })) return;
@@ -338,12 +355,13 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '영구삭제된 항목이 없습니다.',
                     countKey: 'deleted_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             }, { deleteProgress: true, total: ids.length, title: '선택 완전삭제 처리 중' });
             return;
         }
 
         if (event.target.closest('.btn-restore-all')) {
+            if (!await hasActionableTrash(modal)) return;
             if (!await confirmDialog({ title: '전체 복원', message: '전체 항목을 복원하시겠습니까?', confirmText: '복원', confirmClass: 'btn-success' })) return;
 
             await runTrashAction(modal, '전체 복원 처리 중입니다...', async () => {
@@ -356,12 +374,13 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '복원된 항목이 없습니다.',
                     countKey: 'restored_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             });
             return;
         }
 
         if (event.target.closest('.btn-delete-all')) {
+            if (!await hasActionableTrash(modal)) return;
             if (!await confirmDialog({ title: '전체 영구삭제', message: purgeConfirmMessage(modal, '휴지통의 전체 항목을 완전삭제합니다.'), confirmText: '영구삭제', confirmClass: 'btn-danger' })) return;
 
             const total = Math.max(1, modal.querySelectorAll('.trash-check').length);
@@ -375,7 +394,7 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
                     emptyMessage: '영구삭제된 항목이 없습니다.',
                     countKey: 'deleted_count',
                 });
-                await triggerChange(modal);
+                void triggerChange(modal);
             }, { deleteProgress: true, total, title: '전체 완전삭제 처리 중' });
         }
     });
@@ -469,7 +488,7 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
         }
 
         modal.classList.toggle('trash-action-busy', busy);
-        modal.querySelectorAll('button, .trash-check, .trash-check-all').forEach((node) => {
+        modal.querySelectorAll('button:not([data-trash-close]), .trash-check, .trash-check-all').forEach((node) => {
             node.disabled = busy;
             node.classList.toggle('disabled', busy);
             node.setAttribute('aria-disabled', busy ? 'true' : 'false');
@@ -478,12 +497,32 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 
     function closeTrashModal(modal) {
         if (!modal) return;
+        setTrashBusy(modal, false);
+
         const modalApi = window.bootstrap?.Modal;
-        if (modalApi?.getOrCreateInstance) {
-            modalApi.getOrCreateInstance(modal).hide();
-            return;
+        if (modalApi) {
+            try {
+                const instance = modalApi.getInstance?.(modal)
+                    || modalApi.getOrCreateInstance?.(modal, { backdrop: true, keyboard: true })
+                    || new modalApi(modal, { backdrop: true, keyboard: true });
+                instance.hide();
+                return;
+            } catch (error) {
+                console.error(error);
+            }
         }
-        modal.querySelector('[data-bs-dismiss="modal"]')?.click();
+
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
+        modal.removeAttribute('role');
+        document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.remove());
+        if (!document.querySelector('.modal.show')) {
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        }
     }
 
     async function runTrashAction(modal, message, callback, {
@@ -580,6 +619,15 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
         return loadTrash(modal);
     }
 
+    async function hasActionableTrash(modal) {
+        const listUrl = String(modal?.dataset?.listUrl || '').trim();
+        let rows = listUrl ? trashCacheMap.get(listUrl) : null;
+        if (!rows) rows = await preloadTrash(modal);
+        if (Array.isArray(rows) && rows.length > 0) return true;
+        notify('info', '휴지통에 처리할 항목이 없습니다.');
+        return false;
+    }
+
     function getSelectedIds(modal, mode) {
         const selector = mode === 'restore' ? '.btn-restore' : '.btn-purge';
         return [...modal.querySelectorAll('.trash-check:checked')]
@@ -600,41 +648,11 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
         }
     }
 
-    function markTrashButtonsHasData(count = 1) {
-        findTrashButtons().forEach((button) => {
-            setTrashButtonState(button, true, count);
-        });
-    }
-
     function updateTrashButtons(modal, rows = []) {
         const hasTrash = rows.length > 0;
         findTrashButtons(modal).forEach((button) => {
             setTrashButtonState(button, hasTrash, rows.length);
         });
-    }
-
-    function setTrashButtonState(button, hasTrash, count = 0) {
-        if (!button) return;
-        button.classList.toggle('btn-trash-has-data', hasTrash);
-        button.setAttribute('aria-label', hasTrash ? `휴지통 ${count}건` : '휴지통');
-        button.title = hasTrash ? `휴지통 ${count}건` : '휴지통';
-    }
-
-    function findTrashButtons(modal) {
-        const selectors = ['.dt-trash-btn', '[class*="trash-btn"]'];
-        if (modal?.id) {
-            selectors.push(`[data-bs-target="#${CSS.escape(modal.id)}"]`, `[data-trash-modal="#${CSS.escape(modal.id)}"]`);
-        }
-        if (modal?.dataset?.type) {
-            selectors.push(`.${CSS.escape(modal.dataset.type)}-trash-btn`);
-        }
-
-        const matches = Array.from(document.querySelectorAll(selectors.join(',')));
-        const fallbackMatches = Array.from(document.querySelectorAll('.dt-button, button, a')).filter((node) => {
-            return node instanceof HTMLElement && String(node.textContent || '').trim() === '휴지통';
-        });
-
-        return Array.from(new Set([...matches, ...fallbackMatches])).filter((node) => node instanceof HTMLElement);
     }
 
     function renderRows(tbody, data, modal) {

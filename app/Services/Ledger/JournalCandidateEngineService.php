@@ -18,7 +18,6 @@ class JournalCandidateEngineService
         $this->providers = $providers ?? [
             new JournalRuleCandidateProvider($repository),
             new JournalClientPatternCandidateProvider($repository),
-            new JournalRecentPatternCandidateProvider($repository),
             new JournalLearningCandidateProvider($repository),
         ];
     }
@@ -41,7 +40,11 @@ class JournalCandidateEngineService
                         'candidate_id' => $key,
                         'accounts' => ['debit' => $debit, 'credit' => $credit, 'vat' => trim((string) ($accounts['vat'] ?? ''))],
                         'signals' => [],
+                        'rule_bindings' => [],
                     ];
+                }
+                if (($candidate['source'] ?? '') === 'JOURNAL_RULE' && is_array($candidate['rule_bindings'] ?? null)) {
+                    $merged[$key]['rule_bindings'] = $candidate['rule_bindings'];
                 }
                 $merged[$key]['signals'][] = [
                     'source' => (string) ($candidate['source'] ?? ''),
@@ -59,6 +62,10 @@ class JournalCandidateEngineService
 
         $ranked = [];
         foreach ($merged as $candidate) {
+            $hasOfficialRule = in_array('JOURNAL_RULE', array_column($candidate['signals'], 'source'), true);
+            if (!$hasOfficialRule) {
+                continue;
+            }
             $candidateAccountIds = array_values(array_filter($candidate['accounts']));
             if (array_diff($candidateAccountIds, array_keys($usableAccountIds)) !== []) {
                 continue;
@@ -73,7 +80,7 @@ class JournalCandidateEngineService
             $candidate['score_components'] = $components;
             $candidate['reasons'] = $reasons;
             $candidate['source_types'] = array_values(array_unique(array_column($candidate['signals'], 'source')));
-            $candidate['lines'] = $this->lines($candidate['accounts'], $context);
+            $candidate['lines'] = $this->lines($candidate['accounts'], $context, $candidate['rule_bindings'] ?? []);
             $candidate['balanced'] = $this->balanced($candidate['lines']);
             if ($candidate['balanced']) {
                 $ranked[] = $candidate;
@@ -151,7 +158,7 @@ class JournalCandidateEngineService
         };
     }
 
-    private function lines(array $accounts, array $context): array
+    private function lines(array $accounts, array $context, array $ruleBindings = []): array
     {
         $total = abs((float) $context['total_amount']);
         $vat = $accounts['vat'] !== '' ? min($total, abs((float) $context['vat_amount'])) : 0.0;
@@ -159,22 +166,22 @@ class JournalCandidateEngineService
         $out = in_array($context['transaction_direction'], ['OUT', 'PURCHASE'], true);
         $lines = [];
         if ($out) {
-            $lines[] = $this->line('DEBIT', $accounts['debit'], $supply ?: $total, $context);
+            $lines[] = $this->line('DEBIT', $accounts['debit'], $supply ?: $total, $context, $ruleBindings['DEBIT'] ?? []);
             if ($vat > 0 && $accounts['vat'] !== '') {
-                $lines[] = $this->line('DEBIT', $accounts['vat'], $vat, $context);
+                $lines[] = $this->line('DEBIT', $accounts['vat'], $vat, $context, $ruleBindings['VAT'] ?? []);
             }
-            $lines[] = $this->line('CREDIT', $accounts['credit'], $total, $context);
+            $lines[] = $this->line('CREDIT', $accounts['credit'], $total, $context, $ruleBindings['CREDIT'] ?? []);
         } else {
-            $lines[] = $this->line('DEBIT', $accounts['debit'], $total, $context);
-            $lines[] = $this->line('CREDIT', $accounts['credit'], $supply ?: $total, $context);
+            $lines[] = $this->line('DEBIT', $accounts['debit'], $total, $context, $ruleBindings['DEBIT'] ?? []);
+            $lines[] = $this->line('CREDIT', $accounts['credit'], $supply ?: $total, $context, $ruleBindings['CREDIT'] ?? []);
             if ($vat > 0 && $accounts['vat'] !== '') {
-                $lines[] = $this->line('CREDIT', $accounts['vat'], $vat, $context);
+                $lines[] = $this->line('CREDIT', $accounts['vat'], $vat, $context, $ruleBindings['VAT'] ?? []);
             }
         }
         return $lines;
     }
 
-    private function line(string $side, string $accountId, float $amount, array $context): array
+    private function line(string $side, string $accountId, float $amount, array $context, array $ruleBinding = []): array
     {
         return [
             'line_type' => $side,
@@ -182,6 +189,9 @@ class JournalCandidateEngineService
             'debit' => $side === 'DEBIT' ? round($amount, 2) : 0,
             'credit' => $side === 'CREDIT' ? round($amount, 2) : 0,
             'summary' => $context['summary'],
+            'accounting_role_code' => (string) ($ruleBinding['accounting_role_code'] ?? ''),
+            'journal_rule_id' => (string) ($ruleBinding['id'] ?? ''),
+            'journal_rule_revision_no' => (int) ($ruleBinding['revision_no'] ?? 0),
         ];
     }
 
@@ -201,10 +211,15 @@ class JournalCandidateEngineService
             default => $direction,
         };
         return [
+            'company_id' => trim((string) ($input['company_id'] ?? '')),
             'business_unit' => strtoupper(trim((string) ($input['business_unit'] ?? 'HQ'))) ?: 'HQ',
             'operation_type' => strtoupper(trim((string) ($input['operation_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             'transaction_direction' => $direction,
             'import_type' => strtoupper(trim((string) ($input['import_type'] ?? $input['source_type'] ?? ''))),
+            'source_type' => strtoupper(trim((string) ($input['source_type'] ?? ''))),
+            'source_line_type' => strtoupper(trim((string) ($input['source_line_type'] ?? ''))),
+            'item_code' => strtoupper(trim((string) ($input['item_code'] ?? ''))),
+            'base_date' => trim((string) ($input['base_date'] ?? date('Y-m-d'))),
             'client_type' => strtoupper(trim((string) ($input['client_type'] ?? ''))),
             'client_id' => trim((string) ($input['client_id'] ?? '')),
             'project_id' => trim((string) ($input['project_id'] ?? '')),

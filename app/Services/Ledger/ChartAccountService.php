@@ -4,19 +4,22 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\ChartAccountModel;
 use App\Models\Ledger\SubChartAccountModel;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class ChartAccountService
 {
+    use LogsServiceOperations;
     private ChartAccountModel $model;
     private SubChartAccountModel $subAccountModel;
     private ChartAccountReferenceGuardService $referenceGuard;
     private CustomSubAccountService $customSubAccountService;
-    private $logger;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -25,7 +28,6 @@ class ChartAccountService
         $this->referenceGuard = new ChartAccountReferenceGuardService($pdo);
         $this->customSubAccountService = new CustomSubAccountService($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.ChartAccountService');
-        $this->logger->info('ChartAccountService initialized');
     }
 
     public function getAll(): array
@@ -33,8 +35,8 @@ class ChartAccountService
         try {
             return $this->model->getAll();
         } catch (\Throwable $e) {
-            $this->logger->error('getAll failed', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('계정과목 목록 조회에 실패했습니다.', [
+                'event_code'=>'LEDGER_ACCOUNT_LIST_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,
             ]);
 
             return [];
@@ -46,8 +48,8 @@ class ChartAccountService
         try {
             return $this->model->getTree();
         } catch (\Throwable $e) {
-            $this->logger->error('getTree failed', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('계정과목 계층 조회에 실패했습니다.', [
+                'event_code'=>'LEDGER_ACCOUNT_TREE_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,
             ]);
 
             return [];
@@ -59,9 +61,8 @@ class ChartAccountService
         try {
             return $this->model->getById($id);
         } catch (\Throwable $e) {
-            $this->logger->error('getById failed', [
-                'id' => $id,
-                'exception' => $e->getMessage(),
+            $this->logger->error('계정과목 상세 조회에 실패했습니다.', [
+                'event_code'=>'LEDGER_ACCOUNT_DETAIL_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,
             ]);
 
             return null;
@@ -73,9 +74,8 @@ class ChartAccountService
         try {
             return $this->model->getByAccountCode($accountCode);
         } catch (\Throwable $e) {
-            $this->logger->error('getByAccountCode failed', [
-                'account_code' => $accountCode,
-                'exception' => $e->getMessage(),
+            $this->logger->error('계정코드 조회에 실패했습니다.', [
+                'event_code'=>'LEDGER_ACCOUNT_CODE_LOOKUP_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,
             ]);
 
             return null;
@@ -156,6 +156,11 @@ class ChartAccountService
     }
 
     public function create(array $data): array
+    {
+        return $this->executeMutation('계정과목 생성', 'LEDGER_ACCOUNT_CREATE', 'create', fn(): array => $this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
     {
         try {
             $actor = ActorHelper::user();
@@ -247,11 +252,6 @@ class ChartAccountService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('create failed', [
-                'data' => $data,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '저장 중 오류가 발생했습니다.',
@@ -260,6 +260,11 @@ class ChartAccountService
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->executeMutation('계정과목 수정', 'LEDGER_ACCOUNT_UPDATE', 'update', fn(): array => $this->updateInternal($id, $data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         try {
             $data['updated_by'] = ActorHelper::user();
@@ -369,12 +374,6 @@ class ChartAccountService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('update failed', [
-                'id' => $id,
-                'data' => $data,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '계정 수정 오류가 발생했습니다.',
@@ -383,6 +382,11 @@ class ChartAccountService
     }
 
     public function updateStatus(string $id, int $isActive): array
+    {
+        return $this->executeMutation('계정과목 상태 변경', 'LEDGER_ACCOUNT_STATUS_UPDATE', 'update-status', fn(): array => $this->updateStatusInternal($id, $isActive));
+    }
+
+    private function updateStatusInternal(string $id, int $isActive): array
     {
         try {
             if (!$this->model->getById($id)) {
@@ -411,12 +415,6 @@ class ChartAccountService
                 'updated_ids' => $ids,
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('updateStatus failed', [
-                'id' => $id,
-                'is_active' => $isActive,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '수정 중 오류가 발생했습니다.',
@@ -425,6 +423,11 @@ class ChartAccountService
     }
 
     public function softDelete(string $id): array
+    {
+        return $this->executeMutation('계정과목 삭제', 'LEDGER_ACCOUNT_DELETE', 'delete', fn(): array => $this->softDeleteInternal($id));
+    }
+
+    private function softDeleteInternal(string $id): array
     {
         try {
             $actor = $this->currentActor();
@@ -455,11 +458,6 @@ class ChartAccountService
 
             return ['success' => true];
         } catch (\Throwable $e) {
-            $this->logger->error('softDelete failed', [
-                'id' => $id,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '계정과목 삭제 중 오류가 발생했습니다.',
@@ -469,14 +467,14 @@ class ChartAccountService
 
     public function restore(string $id): array
     {
-        $actor = $this->currentActor();
-        $success = $this->model->restore($id, $actor);
-        if ($success) {
-            $this->model->refreshHierarchyMetadata();
-            $this->model->refreshPostableFlags();
-        }
-
-        return ['success' => $success];
+        return $this->executeMutation('계정과목 복구', 'LEDGER_ACCOUNT_RESTORE', 'restore', function () use ($id): array {
+            $success = $this->model->restore($id, $this->currentActor());
+            if ($success) {
+                $this->model->refreshHierarchyMetadata();
+                $this->model->refreshPostableFlags();
+            }
+            return ['success' => $success, 'message' => $success ? '복구했습니다.' : '복구할 계정과목을 찾을 수 없습니다.'];
+        });
     }
 
     public function getTrashList(): array
@@ -501,6 +499,23 @@ class ChartAccountService
         } catch (\Throwable) {
             return ActorHelper::system('LEDGER_ACCOUNT');
         }
+    }
+
+    private function executeMutation(string $label, string $eventCode, string $action, callable $operation): array
+    {
+        return $this->runLoggedOperation(
+            $this->logger,
+            $label,
+            $eventCode,
+            $action,
+            [],
+            $operation,
+            'info',
+            false,
+            static fn(array $result): string => !empty($result['success'])
+                ? 'SUCCESS'
+                : (str_contains((string) ($result['message'] ?? ''), '오류') ? 'FAILED' : 'BLOCKED')
+        );
     }
 
     public function getTreeStructured(): array
@@ -554,23 +569,17 @@ class ChartAccountService
         }
         unset($row);
 
-        $this->logger->info('getList returned', [
-            'count' => count($rows),
-        ]);
-
         return $rows;
     }
 
     public function reorder(array $changes): void
     {
-        foreach ($changes as $row) {
-            $this->model->updateOrder(
-                $row['id'],
-                (int) $row['newSortNo']
-            );
-        }
-
-        $this->model->refreshHierarchyMetadata();
+        $this->runLoggedOperation($this->logger, '계정과목 정렬 저장', 'LEDGER_ACCOUNT_REORDER', 'reorder', ['change_count' => count($changes)], function () use ($changes): void {
+            foreach ($changes as $row) {
+                $this->model->updateOrder($row['id'], (int) $row['newSortNo']);
+            }
+            $this->model->refreshHierarchyMetadata();
+        }, 'info', false);
     }
 
     public function getDetailByAccountCode(string $accountCode): ?array
@@ -632,9 +641,8 @@ class ChartAccountService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('hardDeleteMany failed', [
-                'ids' => $targetIds,
-                'exception' => $e->getMessage(),
+            $this->logger->error('계정과목 영구삭제에 실패했습니다.', [
+                'event_code'=>'LEDGER_ACCOUNT_PURGE_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,
             ]);
             return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
         }

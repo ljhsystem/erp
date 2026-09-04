@@ -11,7 +11,7 @@ import {
 } from '/public/assets/js/common/format.js';
 import { createEvidenceStatusModule } from '/public/assets/js/pages/ledger/evidence-list/status.js';
 import { createEvidenceSearchModule } from '/public/assets/js/pages/ledger/evidence-list/search.js';
-import { createEvidenceTableModule } from '/public/assets/js/pages/ledger/evidence-list/table.js';
+import { createEvidenceTableModule } from '/public/assets/js/pages/ledger/evidence-list/table.js?v=evidence-origin-physical-columns-1';
 import { createEvidenceExcelModule } from '/public/assets/js/pages/ledger/evidence-list/excel.js';
 
 export function bootEvidencePage(options = {}) {
@@ -307,7 +307,7 @@ export function bootEvidencePage(options = {}) {
         operation_type: {
             codeGroup: 'OPERATION_TYPE',
             emptyLabel: '\uC5C5\uBB34\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
-            titles: ['\uC785\uCD9C\uAE08\uC720\uD615'],
+            titles: ['\uC5C5\uBB34\uC720\uD615'],
         },
         transaction_direction: {
             codeGroup: 'TRANSACTION_DIRECTION',
@@ -1220,16 +1220,12 @@ export function bootEvidencePage(options = {}) {
 
     function businessEvidenceStatusText(value = '') {
         const status = String(value || '').trim().toUpperCase();
-        if (status === 'COMPLETED' || status === 'READY' || status === 'VERIFY_ONLY') {
+        if (status === 'COMPLETED') {
             return '\uC644\uB8CC';
         }
-        if (status === 'CORRECTION_REQUIRED' || status === 'NOT_READY' || status === 'REVIEW_REQUIRED') {
+        if (status === 'CORRECTION_REQUIRED') {
             return '\uBCF4\uC815\uD544\uC694';
         }
-        if (status === 'DELETED') return '\uC0AD\uC81C';
-        if (status === 'ERROR') return '\uC624\uB958';
-        if (status === 'ACTIVE') return '\uD65C\uC131';
-        if (status === 'PROCESSED' || status === 'USED') return '\uCC98\uB9AC\uC644\uB8CC';
         return valueText(value);
     }
 
@@ -1252,14 +1248,11 @@ export function bootEvidencePage(options = {}) {
         }
 
         const lowerKey = String(key).toLowerCase();
-        if (lowerKey === 'created_by' || lowerKey === 'created_by_name') {
-            return 'created_by';
+        if (lowerKey.endsWith('_by_name')) {
+            return lowerKey.slice(0, -5);
         }
-        if (lowerKey === 'updated_by' || lowerKey === 'updated_by_name') {
-            return 'updated_by';
-        }
-        if (lowerKey === 'deleted_by' || lowerKey === 'deleted_by_name') {
-            return 'deleted_by';
+        if (lowerKey.endsWith('_by')) {
+            return lowerKey;
         }
         if (isDateColumn(column) || isTimeColumn(column)) {
             return key;
@@ -1332,9 +1325,15 @@ export function bootEvidencePage(options = {}) {
                 return `${valueText(dateValue)}${timeText !== '' ? ` ${timeText}` : ''}`;
             }
         }
-        const actorField = (key === 'created_by' || key === 'updated_by' || key === 'deleted_by');
+        const actorField = key.endsWith('_by');
         if (actorField) {
             return normalizeActorFieldValue(raw[`${key}_name`] ?? raw[key] ?? '');
+        }
+        const referenceDisplayField = key.endsWith('_id') && key !== 'id'
+            ? `${key.slice(0, -3)}_name`
+            : '';
+        if (referenceDisplayField !== '' && valueText(raw[referenceDisplayField]) !== '') {
+            return valueText(raw[referenceDisplayField]);
         }
         if (key === 'evidence_status') {
             return businessEvidenceStatusText(raw[key] ?? '');
@@ -1353,7 +1352,7 @@ export function bootEvidencePage(options = {}) {
 
     function editInputType(column = {}, value = '', row = {}) {
         const key = resolveEditFieldKey(column, row).toLowerCase();
-        if (key === 'created_by' || key === 'updated_by' || key === 'deleted_by') {
+        if (key.endsWith('_by')) {
             return 'text';
         }
         if (businessRefPickerForColumn(column)) return 'ref';
@@ -1527,7 +1526,7 @@ export function bootEvidencePage(options = {}) {
         const fallbackType = defaultEvidenceTypeCode();
         const resolvedType = normalizeEvidenceType(type || fallbackType) || fallbackType;
         const typeKey = String(resolvedType).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-        return `ledger.data.status.${typeKey}.evidence-status.db-physical.v3`;
+        return `ledger.data.status.${typeKey}.evidence-status.db-physical.v4`;
     }
 
     function handleEvidenceStatusTableOrderChange() {
@@ -1594,10 +1593,10 @@ export function bootEvidencePage(options = {}) {
         if (evidenceModalApi) return evidenceModalApi;
         if (!evidenceModalApiPromise) {
             evidenceModalApiPromise = Promise.all([
-                import('/public/assets/js/pages/ledger/evidence-list/modal.js'),
+                import('/public/assets/js/pages/ledger/evidence-list/modal.js?v=evidence-origin-physical-columns-1'),
                 import('/public/assets/js/common/picker/admin_picker.js'),
                 import('/public/assets/js/pages/ledger/shared/evidence-ref-picker.js'),
-                import('/public/assets/js/pages/dashboard/settings/system/code-select.js'),
+                import('/public/assets/js/pages/main/settings/system/code-select.js'),
             ]).then(([modalModule, pickerModule, refPickerModule, codeSelectModule]) => {
                 evidenceRefPickerForColumnLikeRuntime = refPickerModule.evidenceRefPickerForColumnLike;
                 codeSelectModule.onCodeOptionsLoaded((options) => {
@@ -1686,14 +1685,6 @@ export function bootEvidencePage(options = {}) {
                         notify,
                         updateSummary,
                         refreshEvidenceTypeCounts,
-                        currentStatusColumnPolicy: () => {
-                            const normalizedType = normalizeEvidenceType(state.currentType || defaultEvidenceTypeCode());
-                            const userSettingPageKey = evidenceMetaDomain(normalizedType);
-                            return readDataTableSettingsState(evidenceStatusTableSettingsStorageKey(normalizedType), {
-                                metaDomain: userSettingPageKey,
-                                userSettingPageKey,
-                            }) || {};
-                        },
                     });
                     uploadApi.bindUploadEvents();
                     return uploadApi;
@@ -1936,7 +1927,11 @@ export function bootEvidencePage(options = {}) {
                 state.currentType = normalizedType;
                 state.activeFormat = null;
                 const query = new URLSearchParams({ id: normalizedId, import_type: normalizedType });
-                const response = await fetch(`${API.seedRows}?${query.toString()}`);
+                const response = await fetch(API.seedRows, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    body: query.toString(),
+                });
                 const json = await response.json().catch(() => ({}));
                 const row = Array.isArray(json.data)
                     ? (json.data.find((item) => String(item.id || item.evidence_id || '') === normalizedId) || json.data[0])

@@ -10,6 +10,7 @@ use Core\Helpers\UuidHelper;
 use Core\Helpers\PermissionSourceHelper;
 use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class RolePermissionService
 {
@@ -24,6 +25,7 @@ class RolePermissionService
     private PermissionModel $permissionModel;
     private PageRegistryModel $pageRegistryModel;
     private UserPermissionRepository $userPermissionRepository;
+    private LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
@@ -32,6 +34,7 @@ class RolePermissionService
         $this->permissionModel = new PermissionModel($pdo);
         $this->pageRegistryModel = new PageRegistryModel($pdo);
         $this->userPermissionRepository = new UserPermissionRepository($pdo);
+        $this->logger = LoggerFactory::getLogger('service-auth-role-permission');
     }
 
     public function getPermissionsForRole(string $roleId): array
@@ -182,6 +185,11 @@ class RolePermissionService
 
     public function saveRolePermissions(string $roleId, array $selectedPermissionIds): array
     {
+        return $this->logged('ROLE_PERMISSION_SAVE', 'save', ['role_id' => $roleId, 'selected_count' => count($selectedPermissionIds)], fn(): array => $this->saveRolePermissionsInternal($roleId, $selectedPermissionIds));
+    }
+
+    private function saveRolePermissionsInternal(string $roleId, array $selectedPermissionIds): array
+    {
         $roleId = trim($roleId);
         $selectedPermissionIds = array_values(array_unique(array_filter(array_map(
             static fn($id): string => trim((string) $id),
@@ -236,17 +244,6 @@ class RolePermissionService
             if (!$outer) {
                 $this->pdo->commit();
             }
-            try {
-                LoggerFactory::getLogger('security')->info('Role permission set changed', [
-                    'role_id' => $roleId,
-                    'role_key' => $role['role_key'] ?? '',
-                    'before_permission_ids' => $assignedPermissionIds,
-                    'after_permission_ids' => $validPermissionIds,
-                    'actor' => $actor,
-                ]);
-            } catch (\Throwable $auditException) {
-                error_log('Role permission audit logging failed: ' . $auditException->getMessage());
-            }
             return [
                 'selected_count' => count($validPermissionIds),
                 'added_count' => $addedCount,
@@ -261,6 +258,11 @@ class RolePermissionService
     }
 
     public function reorderPermissions(array $changes): void
+    {
+        $this->logged('ROLE_PERMISSION_REORDER', 'reorder', ['change_count' => count($changes)], function () use ($changes): bool { $this->reorderPermissionsInternal($changes); return true; });
+    }
+
+    private function reorderPermissionsInternal(array $changes): void
     {
         if ($changes === []) {
             throw new \InvalidArgumentException('변경할 권한 순서가 없습니다.');
@@ -305,6 +307,13 @@ class RolePermissionService
 
             throw $e;
         }
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        try { $result = $operation(); $this->logger->warning('역할 권한 업무 처리를 완료했습니다.', ['event_code' => $eventCode, 'result' => 'SUCCESS', 'service' => self::class, 'action' => $action, 'actor' => ActorHelper::user()] + $context); return $result; }
+        catch (\InvalidArgumentException|\DomainException $exception) { $this->logger->warning('역할 권한 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'service' => self::class, 'action' => $action, 'actor' => ActorHelper::user(), 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception; }
+        catch (\Throwable $exception) { $this->logger->error('역할 권한 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'actor' => ActorHelper::user(), 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception; }
     }
 
     public function clearRole(string $roleId): bool

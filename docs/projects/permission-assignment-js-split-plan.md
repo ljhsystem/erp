@@ -2,7 +2,7 @@
 
 ## 대상
 
-- `public/assets/js/pages/dashboard/settings/organization/permission-assignment.js`
+- `public/assets/js/pages/main/settings/organization/permission-assignment.js`
 - 엔트리 파일은 테이블 설정 정책을 전용 ES 모듈로 분리하여 1,500라인 미만으로 정리했다.
 
 ## 원칙

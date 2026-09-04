@@ -5,15 +5,19 @@ namespace App\Services\Institution;
 use App\Repositories\Institution\PersonnelActionRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class PersonnelActionApplyService
 {
     private PersonnelActionRepository $repository;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->repository = new PersonnelActionRepository($pdo);
+        $this->logger = LoggerFactory::getLogger('service-institution-personnel-action-apply');
     }
 
     public function apply(string $actionId, ?string $actor = null): array
@@ -21,7 +25,7 @@ class PersonnelActionApplyService
         $actor ??= ActorHelper::user();
         $failedTargetId = null;
         try {
-            return $this->transaction(function () use ($actionId, $actor, &$failedTargetId): array {
+            $result=$this->transaction(function () use ($actionId, $actor, &$failedTargetId): array {
             $action = $this->repository->find($actionId, false, true);
             if (!$action) throw new \RuntimeException('인사발령을 찾을 수 없습니다.');
             PersonnelActionChangePolicy::assertSupportedActionType((string) $action['action_type_code']);
@@ -42,11 +46,12 @@ class PersonnelActionApplyService
             }
             $this->repository->completeAction($actionId, $actor);
             return ['applied' => true, 'already_applied' => false];
-            });
+            });$this->logger->info('인사발령 적용이 완료되었습니다.',['event_code'=>'PERSONNEL_ACTION_APPLIED','result'=>'SUCCESS','service'=>self::class,'action'=>'apply','actor'=>$actor,'target_id'=>$actionId,'already_applied'=>(bool)($result['already_applied']??false)]);return$result;
         } catch (\Throwable $exception) {
             if ($failedTargetId !== null && !$this->pdo->inTransaction()) {
                 $this->repository->updateTargetResult($failedTargetId, 'FAILED', mb_substr($exception->getMessage(), 0, 1000), $actor);
             }
+            $context=['event_code'=>$exception instanceof \PDOException?'PERSONNEL_ACTION_APPLY_FAILED':'PERSONNEL_ACTION_APPLY_BLOCKED','result'=>$exception instanceof \PDOException?'FAILED':'BLOCKED','service'=>self::class,'action'=>'apply','actor'=>$actor,'target_id'=>$actionId,'failed_target_id'=>$failedTargetId,'error_code'=>get_class($exception),'error'=>$exception];if($exception instanceof \PDOException)$this->logger->error('인사발령 적용에 실패했습니다.',$context);else$this->logger->warning('인사발령 적용이 차단되었습니다.',$context);
             throw $exception;
         }
     }

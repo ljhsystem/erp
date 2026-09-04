@@ -31,6 +31,9 @@ export function registerCalculation(ctx) {
 
         return {
             evidence_identity: item.evidence_identity || null,
+            regular_employment_income_line_item_id: item.regular_employment_income_line_item_id || null,
+            statutory_standard_revision_id: item.statutory_standard_revision_id || null,
+            calculation_basis_id: item.calculation_basis_id || null,
             __item_id: String(item.id || ''),
             __line_key: lineKey,
             item_date: item.item_date || document.getElementById('transaction_date')?.value || ctx.today(),
@@ -56,6 +59,9 @@ export function registerCalculation(ctx) {
     function normalizeSettlement(row = {}) {
         return {
             evidence_identity: row.evidence_identity || null,
+            regular_employment_income_line_item_id: row.regular_employment_income_line_item_id || null,
+            statutory_standard_revision_id: row.statutory_standard_revision_id || null,
+            calculation_basis_id: row.calculation_basis_id || null,
             settlement_type: ctx.settlementTypeLabelFromCode(row.settlement_type || 'VAT'),
             amount_sign: ctx.amountSignLabelFromCode(row.amount_sign || 'PLUS'),
             amount: row.amount === undefined || row.amount === null || row.amount === ''

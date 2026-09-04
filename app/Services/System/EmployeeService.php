@@ -7,7 +7,9 @@ use App\Models\User\EmployeeModel;
 use App\Models\Institution\QualificationModel;
 use App\Models\Institution\EducationModel;
 use App\Services\Institution\EmployeeHrBaselineService;
+use App\Services\Institution\SocialInsuranceService;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\ActorHelper;
@@ -16,6 +18,7 @@ use Core\LoggerFactory;
 
 class EmployeeService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private UserModel $users;
     private EmployeeModel $model;
@@ -38,20 +41,15 @@ class EmployeeService
         $this->hrBaseline = new EmployeeHrBaselineService($pdo);
         $this->logger     = LoggerFactory::getLogger('service-system.EmployeeService');
 
-        $this->logger->info('EmployeeService initialized');
     }
 
     public function getList(array $filters = []): array
     {
-        $this->logger->info('getList() called', [
-            'filters' => $filters
-        ]);
-
         try {
 
             $rows = $this->model->getList($filters);
 
-            $this->logger->info('getList() success', [
+            $this->logger->info('직원 목록을 조회했습니다.', [
                 'count' => count($rows)
             ]);
 
@@ -82,9 +80,10 @@ class EmployeeService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getList() failed', [
-                'filters'   => $filters,
-                'exception' => $e->getMessage()
+            $this->logger->error('직원 목록 조회에 실패했습니다.', [
+                'filter_keys' => array_keys($filters),
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [];
@@ -93,14 +92,14 @@ class EmployeeService
 
     public function getById(string $id): ?array
     {
-        $this->logger->info('getById() called', ['id' => $id]);
+        $this->logger->info('직원 상세를 조회합니다.', ['id' => $id]);
 
         try {
 
             $row = $this->model->getById($id);
 
             if (!$row) {
-                $this->logger->warning('getById() not found', ['id' => $id]);
+                $this->logger->warning('직원을 찾을 수 없습니다.', ['id' => $id]);
                 return null;
             }
 
@@ -112,10 +111,6 @@ class EmployeeService
 
                 $row['rrn'] = preg_replace('/\D+/', '', $rrn);
 
-                $this->logger->info('rrn decrypted', [
-                    'employee_id' => $id
-                ]);
-
             } else {
 
                 $row['rrn'] = '';
@@ -124,30 +119,32 @@ class EmployeeService
 
             $row['qualification_count'] = $this->qualifications->countByEmployee($id);
             $row['education_count'] = $this->educations->countByEmployee($id);
+            $row['social_insurance_summary']=(new SocialInsuranceService($this->pdo))->currentSummary($id);
 
             return $row;
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getById() exception', [
+            $this->logger->error('직원 상세 조회 중 예외가 발생했습니다.', [
                 'id'        => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return null;
         }
     }
 
-    public function searchPicker(string $q = '', int $limit = 20): array
+    public function searchPicker(string $q = '', int $limit = 20, bool $includeInactive = false): array
     {
-        $this->logger->info('searchPicker() called', [
+        $this->logger->info('직원 선택목록을 조회합니다.', [
             'q'     => $q,
             'limit' => $limit
         ]);
 
         try {
 
-            $rows = $this->model->searchPicker($q, $limit);
+            $rows = $this->model->searchPicker($q, $limit, $includeInactive);
 
             if (empty($rows)) {
                 return [];
@@ -162,10 +159,15 @@ class EmployeeService
                 if (!empty($row['department_name'])) {
                     $text .= ' (' . $row['department_name'] . ')';
                 }
+                if (!(int) ($row['is_active'] ?? 0)) {
+                    $text .= ' · 비활성';
+                }
 
                 $results[] = [
-                    'id'   => $row['id'],   // ?뵦 user_employees.id
-                    'text' => $text
+                    'id' => $row['id'],   // user_employees.id
+                    'text' => $text,
+                    'sort_no' => (int) ($row['sort_no'] ?? 0),
+                    'position_name' => trim((string) ($row['position_name'] ?? '')),
                 ];
             }
 
@@ -173,24 +175,35 @@ class EmployeeService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchPicker() failed', [
+            $this->logger->error('직원 선택목록 조회에 실패했습니다.', [
                 'q'         => $q,
                 'limit'     => $limit,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [];
         }
     }
 
+    public function representativeQualifications(string $employeeId): array
+    {
+        return $this->qualifications->eligibleRepresentativeQualifications($employeeId);
+    }
+
     public function save(array $data, string $actorType = 'USER', array $files = []): array
+    {
+        return $this->loggedEmployeeMutation('직원 저장','EMPLOYEE_SAVE','save',fn():array=>$this->saveInternal($data,$actorType,$files));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
 
         $employeeId = trim((string)($data['id'] ?? ''));
         $isCreate   = ($employeeId === '');
 
-        $this->logger->info('save() called', [
+        $this->logger->info('직원 저장을 시작합니다.', [
             'mode'       => $isCreate ? 'CREATE' : 'UPDATE',
             'employeeId' => $employeeId,
             'actor'      => $actor
@@ -341,22 +354,13 @@ class EmployeeService
             $deleteProfile      = ((string)($data['profile_image_delete'] ?? '0') === '1');
             $deleteRrnImage     = ((string)($data['rrn_image_delete'] ?? '0') === '1');
             $deleteBankFile     = ((string)($data['bank_file_delete'] ?? '0') === '1');
-            $deleteRepresentativeQualification = ((string)($data['representative_qualification_delete'] ?? '0') === '1');
-            $representativeQualificationName = trim((string)($data['representative_qualification_name'] ?? ''));
-            $representativeQualificationFile = $files['representative_qualification_file'] ?? null;
-            $hasRepresentativeQualificationUpload = $representativeQualificationFile && ($representativeQualificationFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
-
-            if ($deleteRepresentativeQualification && $hasRepresentativeQualificationUpload) {
-                return ['success' => false, 'message' => '대표 자격증 삭제와 업로드를 동시에 처리할 수 없습니다.'];
+            $representativeQualificationId = trim((string)($data['representative_qualification_id'] ?? ''));
+            if ($isCreate && $representativeQualificationId !== '') {
+                return ['success' => false, 'message' => '직원 등록 후 검증 완료된 자격을 대표자격으로 지정해 주세요.'];
             }
-            if (!$deleteRepresentativeQualification && $representativeQualificationName === '' && ($hasRepresentativeQualificationUpload || $currentRepresentativeQualification)) {
-                return ['success' => false, 'message' => '대표 자격증 이름을 입력해 주세요.'];
-            }
-            if (!$deleteRepresentativeQualification && !$currentRepresentativeQualification && $representativeQualificationName !== '' && !$hasRepresentativeQualificationUpload) {
-                return ['success' => false, 'message' => '대표 자격증 파일을 선택해 주세요.'];
-            }
-            if (!$deleteRepresentativeQualification && !$currentRepresentativeQualification && $representativeQualificationName === '' && $hasRepresentativeQualificationUpload) {
-                return ['success' => false, 'message' => '대표 자격증 이름을 입력해 주세요.'];
+            if (!$isCreate && $representativeQualificationId !== ''
+                && !$this->qualifications->eligibleRepresentativeQualification($employeeId, $representativeQualificationId)) {
+                return ['success' => false, 'message' => '해당 직원의 검증 완료된 유효 자격만 대표자격으로 지정할 수 있습니다.'];
             }
 
             if ($isCreate) {
@@ -447,18 +451,6 @@ class EmployeeService
                 }
             }
 
-            $uploadedRepresentativeQualification = null;
-            if ($hasRepresentativeQualificationUpload) {
-                $uploadedRepresentativeQualification = $this->fileService->uploadCertificate($representativeQualificationFile);
-                if (empty($uploadedRepresentativeQualification['success'])) {
-                    foreach (array_unique($uploadedNewFiles) as $path) {
-                        $this->fileService->delete($path);
-                    }
-                    return ['success' => false, 'message' => $uploadedRepresentativeQualification['message'] ?? '대표 자격증 업로드 실패'];
-                }
-                $uploadedNewFiles[] = $uploadedRepresentativeQualification['db_path'];
-            }
-
             $ownsTransaction = !$this->pdo->inTransaction();
             if ($ownsTransaction) {
                 $this->pdo->beginTransaction();
@@ -487,17 +479,6 @@ class EmployeeService
 
                     $this->hrBaseline->create($newEmployeeId, $employeeData, $actor);
 
-                    $this->persistRepresentativeQualification(
-                        $newEmployeeId,
-                        null,
-                        $representativeQualificationName,
-                        $uploadedRepresentativeQualification,
-                        $representativeQualificationFile,
-                        $deleteRepresentativeQualification,
-                        $actor,
-                        $deleteAfterCommit
-                    );
-
                     if ($ownsTransaction) {
                         $this->pdo->commit();
                     }
@@ -524,15 +505,9 @@ class EmployeeService
                     throw new \Exception('직원 수정 실패');
                 }
 
-                $this->persistRepresentativeQualification(
+                $this->model->updateRepresentativeQualificationId(
                     $employeeId,
-                    $currentRepresentativeQualification,
-                    $representativeQualificationName,
-                    $uploadedRepresentativeQualification,
-                    $representativeQualificationFile,
-                    $deleteRepresentativeQualification,
-                    $actor,
-                    $deleteAfterCommit
+                    $representativeQualificationId !== '' ? $representativeQualificationId : null
                 );
 
                 if ($ownsTransaction) {
@@ -562,9 +537,10 @@ class EmployeeService
             }
 
         } catch (\Throwable $e) {
-            $this->logger->error('save() failed', [
+            $this->logger->error('직원 저장에 실패했습니다.', [
                 'employeeId' => $employeeId,
-                'error'      => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -575,6 +551,11 @@ class EmployeeService
     }
 
     public function updateStatus(string $employeeId, bool $isActive): array
+    {
+        return $this->loggedEmployeeMutation('직원 상태 변경','EMPLOYEE_STATUS_UPDATE','update-status',fn():array=>$this->updateStatusInternal($employeeId,$isActive));
+    }
+
+    private function updateStatusInternal(string $employeeId, bool $isActive): array
     {
         $actor = ActorHelper::resolve('USER');
 
@@ -629,9 +610,14 @@ class EmployeeService
 
     public function purge(string $employeeId, string $actorType = 'USER'): array
     {
+        return $this->loggedEmployeeMutation('직원 영구삭제','EMPLOYEE_PURGE','purge',fn():array=>$this->purgeInternal($employeeId,$actorType));
+    }
+
+    private function purgeInternal(string $employeeId, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('purge() called', [
+        $this->logger->info('직원 영구삭제를 시작합니다.', [
             'employeeId' => $employeeId,
             'actor'      => $actor
         ]);
@@ -697,9 +683,6 @@ class EmployeeService
 
                 $this->fileService->delete($path);
 
-                $this->logger->info('file deleted', [
-                    'path' => $path
-                ]);
             }
 
             return [
@@ -708,9 +691,10 @@ class EmployeeService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('purge() failed', [
+            $this->logger->error('직원 영구삭제에 실패했습니다.', [
                 'employeeId' => $employeeId,
-                'error'      => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -722,10 +706,11 @@ class EmployeeService
 
     public function reorder(array $changes): bool
     {
-        $this->logger->info('reorder() called', [
-            'changes' => $changes
-        ]);
+        return $this->runLoggedOperation($this->logger,'직원 정렬 저장','EMPLOYEE_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
 
+    private function reorderInternal(array $changes): bool
+    {
         if (empty($changes)) {
             return true;
         }
@@ -772,7 +757,7 @@ class EmployeeService
                 $this->pdo->commit();
             }
 
-            $this->logger->info('reorder() success');
+            $this->logger->info('직원 정렬을 저장했습니다.');
 
             return true;
 
@@ -782,9 +767,10 @@ class EmployeeService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage(),
-                'changes' => $changes
+            $this->logger->error('직원 정렬 저장에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
+                'change_count' => count($changes)
             ]);
 
             throw $e;
@@ -818,96 +804,6 @@ class EmployeeService
     {
         $normalized = trim((string) $value);
         return $normalized === '' ? null : $normalized;
-    }
-
-    private function persistRepresentativeQualification(
-        string $employeeId,
-        ?array $current,
-        string $name,
-        ?array $uploaded,
-        ?array $uploadedFile,
-        bool $delete,
-        string $actor,
-        array &$deleteAfterCommit
-    ): void {
-        if ($delete) {
-            if (!$current) {
-                $this->model->updateRepresentativeQualificationId($employeeId, null);
-                return;
-            }
-
-            $this->model->updateRepresentativeQualificationId($employeeId, null);
-            $this->qualifications->softDelete((string)$current['id'], $actor);
-            $this->qualifications->audit($this->representativeQualificationAudit($current, null, 'DELETE', $actor));
-            if (!empty($current['attachment_path'])) {
-                $deleteAfterCommit[] = $current['attachment_path'];
-            }
-            return;
-        }
-
-        if (!$current && $name === '' && !$uploaded) {
-            return;
-        }
-
-        $now = date('Y-m-d H:i:s');
-        if (!$current) {
-            $data = [
-                'employee_id' => $employeeId,
-                'qualification_type_code' => 'OTHER',
-                'qualification_name' => $name,
-                'status_code' => 'PENDING_VERIFICATION',
-                'attachment_path' => $uploaded['db_path'],
-                'attachment_name' => (string)($uploadedFile['name'] ?? ''),
-                'note' => '직원관리 대표 자격증',
-                'request_key' => 'EMPLOYEE-REPRESENTATIVE-QUALIFICATION-' . UuidHelper::generate(),
-                'created_at' => $now,
-                'created_by' => $actor,
-                'updated_at' => $now,
-                'updated_by' => $actor,
-            ];
-            $qualificationId = $this->qualifications->create($data);
-            $after = $this->qualifications->detail($qualificationId);
-            $this->qualifications->audit($this->representativeQualificationAudit(null, $after, 'CREATE', $actor));
-            $this->model->updateRepresentativeQualificationId($employeeId, $qualificationId);
-            return;
-        }
-
-        if ($name === (string)$current['qualification_name'] && !$uploaded) {
-            return;
-        }
-
-        $update = [
-            'qualification_name' => $name,
-            'updated_at' => $now,
-            'updated_by' => $actor,
-        ];
-        if ($uploaded) {
-            $update['attachment_path'] = $uploaded['db_path'];
-            $update['attachment_name'] = (string)($uploadedFile['name'] ?? '');
-            if (!empty($current['attachment_path'])) {
-                $deleteAfterCommit[] = $current['attachment_path'];
-            }
-        }
-        $this->qualifications->update((string)$current['id'], $update);
-        $after = $this->qualifications->detail((string)$current['id']);
-        $this->qualifications->audit($this->representativeQualificationAudit($current, $after, 'UPDATE', $actor));
-    }
-
-    private function representativeQualificationAudit(?array $before, ?array $after, string $action, string $actor): array
-    {
-        $row = $after ?? $before;
-        return [
-            'target_id' => (string)$row['id'],
-            'employee_id' => (string)$row['employee_id'],
-            'action_type_code' => $action,
-            'source_type_code' => 'ADMIN',
-            'reason' => '직원관리 대표 자격증 ' . ($action === 'CREATE' ? '등록' : ($action === 'UPDATE' ? '수정' : '삭제')),
-            'request_key' => 'EMPLOYEE-REPRESENTATIVE-QUALIFICATION-AUDIT-' . UuidHelper::generate(),
-            'before_data' => $before ? json_encode($before, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-            'after_data' => $after ? json_encode($after, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-            'processed_by' => $actor,
-            'processed_at' => date('Y-m-d H:i:s'),
-        ];
     }
 
     private function validateRequiredFieldPolicies(
@@ -960,11 +856,7 @@ class EmployeeService
                     $current['bank_file'] ?? null,
                     (string)($data['bank_file_delete'] ?? '0') === '1'
                 ),
-                'representative_qualification_id' => $this->hasEmployeeUploadOrExisting(
-                    $files['representative_qualification_file'] ?? null,
-                    $currentRepresentativeQualification['attachment_path'] ?? null,
-                    (string)($data['representative_qualification_delete'] ?? '0') === '1'
-                ) && trim((string)($data['representative_qualification_name'] ?? $currentRepresentativeQualification['qualification_name'] ?? '')) !== '',
+                'representative_qualification_id' => trim((string)($data['representative_qualification_id'] ?? '')) !== '',
                 default => trim((string)($data[$key] ?? '')) !== '',
             };
 
@@ -979,6 +871,12 @@ class EmployeeService
     {
         $hasUpload = $file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
         return $hasUpload || (!$delete && trim((string)($existing ?? '')) !== '');
+    }
+
+    private function loggedEmployeeMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 
 

@@ -567,6 +567,11 @@
         }
 
         if (btn.classList.contains('btn-template-download')) {
+            if (typeof form.__excelProvider?.downloadTemplate === 'function') {
+                event.preventDefault();
+                await form.__excelProvider.downloadTemplate({ form, prepared: prepareExcelAction(form, 'template') });
+                return;
+            }
             if (form.dataset.templateUrl) {
                 const prepared = prepareExcelAction(form, 'template');
                 const url = appendPolicyQuery(
@@ -579,6 +584,11 @@
         }
 
         if (btn.classList.contains('btn-download-all')) {
+            if (typeof form.__excelProvider?.downloadData === 'function') {
+                event.preventDefault();
+                await form.__excelProvider.downloadData({ form, prepared: prepareExcelAction(form, 'download') });
+                return;
+            }
             if (form.dataset.downloadUrl) {
                 const prepared = prepareExcelAction(form, 'download');
                 const url = appendPolicyQuery(
@@ -611,6 +621,9 @@
         if (Object.keys(prepared.columnRequirementPolicy || {}).length > 0) {
             formData.set('column_requirement_policy', JSON.stringify(prepared.columnRequirementPolicy));
         }
+        if (typeof form.__excelProvider?.prepareUpload === 'function') {
+            await form.__excelProvider.prepareUpload({ form, formData, prepared });
+        }
         setModalBusy(modal, true);
         setUploadProgress(modal, {
             percent: 0,
@@ -622,6 +635,19 @@
         try {
             await new Promise((resolve) => requestAnimationFrame(resolve));
             const json = await uploadFormData(form.dataset.uploadUrl, formData, modal);
+
+            if (typeof form.__excelProvider?.handleUploadResponse === 'function') {
+                const handled = await form.__excelProvider.handleUploadResponse({ form, modal, response: json });
+                if (handled === true) {
+                    setUploadProgress(modal, {
+                        percent: 100,
+                        percentLabel: '100%',
+                        title: t('\uc5c5\ub85c\ub4dc Preview \uc644\ub8cc'),
+                        message: json.message || t('\uac80\uc99d\ud55c \uc790\ub8cc\ub97c \ud604\uc7ac \ubb38\uc11c\uc5d0 \ubc18\uc601\ud588\uc2b5\ub2c8\ub2e4.'),
+                    });
+                    return;
+                }
+            }
 
             if (json.success) {
                 setUploadProgress(modal, {

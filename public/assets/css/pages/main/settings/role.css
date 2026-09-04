@@ -1,0 +1,92 @@
+/* /public/assets/css/pages/main/settings/role.css */
+
+.role-page{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+.role-page .content-area{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:0;
+}
+
+.role-page .page-header,
+#role-main .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.role-page .role-active-toggle{
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.role-page .role-active-toggle:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.role-page .role-active-toggle:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.role-page .role-active-toggle:disabled{
+    cursor: wait;
+    opacity: .65;
+}
+
+.role-page .role-edit-btn{
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.role-page .role-edit-btn:hover,
+.role-page .role-edit-btn:focus{
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.role-page .role-edit-btn:active{
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}
+
+.role-system-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:12px 20px;
+}
+
+.role-system-info-field{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    gap:3px;
+}
+
+.role-system-info-label{
+    color:var(--color-text-muted);
+    font-size:.78rem;
+}
+
+.role-system-info-value{
+    overflow-wrap:anywhere;
+}

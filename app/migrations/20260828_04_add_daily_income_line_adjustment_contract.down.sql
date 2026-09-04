@@ -1,0 +1,15 @@
+ALTER TABLE institution_daily_employment_income_lines
+    DROP CONSTRAINT fk_daily_income_line_actual_source_code,
+    DROP CONSTRAINT fk_daily_income_line_statutory_source_code,
+    DROP CONSTRAINT ck_daily_income_line_non_negative_actual,
+    DROP CONSTRAINT ck_daily_income_line_adjustment_reason_required,
+    DROP CONSTRAINT ck_daily_income_line_adjustment_reason,
+    DROP CONSTRAINT ck_daily_income_line_scope,
+    DROP COLUMN processed_by,
+    DROP COLUMN processed_at,
+    DROP COLUMN actual_application_source_code_id,
+    DROP COLUMN statutory_calculation_source_code_id,
+    DROP COLUMN adjustment_reason,
+    DROP COLUMN adjustment_amount,
+    MODIFY COLUMN final_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    DROP COLUMN calculated_amount;

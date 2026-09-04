@@ -185,7 +185,11 @@ class TransactionController
             $orderField = match ($sortField) {
                 'display_amount' => 'display_amount',
                 'import_type', 'display_type' => 'import_type',
+                'source_type', 'evidence_status', 'business_unit', 'transaction_direction',
+                'operation_type', 'created_at', 'updated_at' => $sortField,
                 'client_name' => 'client_search_name',
+                'project_name' => 'project_search_name',
+                'employee_name' => 'employee_search_name',
                 'display_summary' => 'description',
                 default => 'standard_date',
             };
@@ -249,8 +253,11 @@ class TransactionController
                 }
             }
 
-            // 사용자 CRUD에서는 상태를 임의 전환하지 않는다. 승인 원천 업무는 Service를 직접 호출한다.
-            $payload['status'] = 'draft';
+            $requestedStatus = strtolower(trim((string) ($payload['status'] ?? 'draft')));
+            if (!in_array($requestedStatus, ['draft', 'completed'], true)) {
+                throw new \InvalidArgumentException('거래상태는 임시저장 또는 완료만 선택할 수 있습니다.');
+            }
+            $payload['status'] = $requestedStatus;
 
             return $this->service->save($payload, $_FILES);
         });

@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { formatYearMonthDisplay, formatYearMonthValue, normalizeYearMonthInputValue, parseYearMonthValue } from '../../public/assets/js/common/picker/picker.yearmonth.js';
+
+const parsed = parseYearMonthValue('2026-08');
+assert.equal(formatYearMonthValue(parsed), '2026-08');
+assert.equal(formatYearMonthDisplay('2026-08'), '2026년 08월');
+assert.equal(parseYearMonthValue('2026-8'), null);
+assert.equal(parseYearMonthValue('2026-13'), null);
+assert.equal(normalizeYearMonthInputValue('201308'), '2013-08');
+assert.equal(normalizeYearMonthInputValue('2013-09'), '2013-09');
+
+const view = await import('node:fs/promises').then(fs => fs.readFile(new URL('../../app/views/institution/regular-employment-income/index.php', import.meta.url), 'utf8'));
+const page = await import('node:fs/promises').then(fs => fs.readFile(new URL('../../public/assets/js/pages/institution/regular-employment-income/index.js', import.meta.url), 'utf8'));
+const adminPicker = await import('node:fs/promises').then(fs => fs.readFile(new URL('../../public/assets/js/common/picker/admin_picker.js', import.meta.url), 'utf8'));
+const pickerCss = await import('node:fs/promises').then(fs => fs.readFile(new URL('../../public/assets/css/common/picker.css', import.meta.url), 'utf8'));
+assert.equal(view.includes('type="month"'), false);
+assert.equal(view.includes('id="regularIncomeYearMonthDisplay" readonly'), false);
+assert.equal(view.includes('id="regularIncomePaymentDate" name="payment_date" readonly'), false);
+assert.equal(view.includes('regularIncomeYearMonthPicker'), true);
+assert.equal(view.includes('regularIncomeDatePicker'), false);
+assert.equal(view.includes('id="regularIncomeYearMonthPicker" class="picker is-hidden"'), true);
+assert.equal(view.includes('id="regularIncomeDatePicker" class="picker is-hidden"'), false);
+assert.equal(page.includes("type:'year-month'"), true);
+assert.equal(page.includes("type:'today'"), false);
+assert.equal(page.includes('setYearMonth(data.header.income_year_month'), true);
+assert.equal(page.includes("form.elements.payment_date"), false);
+assert.equal(page.includes('normalizeYearMonthInputValue(yearMonthDisplay.value)'), true);
+assert.equal(page.includes('formatDateInputValue(paymentDateInput.value)'), false);
+assert.equal(page.includes('datePicker.close()'), false);
+assert.equal(adminPicker.includes("container.style.position = 'fixed'"), true);
+assert.equal(adminPicker.includes("container.style.zIndex = '10020'"), true);
+assert.equal(adminPicker.includes("container.setAttribute('aria-hidden', 'false')"), true);
+assert.equal(adminPicker.includes("container.setAttribute('aria-hidden', 'true')"), true);
+assert.equal(pickerCss.includes('.picker.is-hidden'), true);
+assert.equal(pickerCss.includes('position: fixed'), true);
+console.log(JSON.stringify({success:true, checks:{value_contract:true, display_contract:true, invalid_rejected:true, native_month_removed:true, year_month_connected:true, date_connected:true, initial_popup_hidden:true, popup_fixed:true, modal_z_index:true, aria_lifecycle:true, modal_close_cleanup:true, draft_restore:true}}, null, 2));

@@ -1,13 +1,22 @@
 import { openDataTableColumnSettings } from './dataTableColumnSettings.js';
 import {
-    deleteSystemUserSettingsStorage,
     ensureSystemUserSettingsStorage,
     peekSystemUserSettingsStorage,
     readSystemUserSettingsStorage,
     writeSystemUserSettingsStorage,
 } from '../user-settings/systemUserSettingsStorage.js';
+import {
+    DATA_TABLE_COLUMN_WIDTH_DEFAULT,
+    isDataTableColumnWidthResizable,
+    resolveDataTableColumnWidthKey,
+} from './dataTableViewPolicy.js';
+import {
+    buildDataTableViewModalOptions,
+    buildNextDataTableViewState,
+} from './dataTableViewSettings.js';
 
 const SETTINGS_VERSION = 5;
+const SYSTEM_SELECTION_DISPLAY_NAME = '전체선택 체크박스(기능 고정)';
 const META_API_URL = '/api/settings/system/data-table-columns';
 const __dtMetaCache = new Map();
 const __dtMetaPending = new Map();
@@ -84,6 +93,51 @@ function normalizedDisplayName(value = '', fallback = '') {
     return text !== '' ? text : String(fallback || '').trim();
 }
 
+function normalizeBootstrapIconDisplayName(value = '') {
+    const tokens = String(value || '').trim().split(/\s+/).filter(Boolean);
+    const iconToken = tokens.find((token) => /^bi-[a-z0-9-]+$/i.test(token));
+    if (!iconToken || tokens.some((token) => token !== 'bi' && token !== iconToken)) return '';
+    return `bi ${iconToken.toLowerCase()}`;
+}
+
+function renderColumnDisplayName(value = '') {
+    const displayName = String(value || '').trim();
+    const iconClass = normalizeBootstrapIconDisplayName(displayName);
+    if (iconClass !== '') {
+        return `<i class="${iconClass}" aria-hidden="true"></i>`;
+    }
+    return displayName;
+}
+
+function systemColumnSourceName(key = '') {
+    return ({
+        __select: '체크박스',
+        __reorder: '드래그핸들',
+        __actions: '관리',
+    })[String(key || '').trim()] || '';
+}
+
+function resolveSystemColumnDefaultDisplayName(column = {}, key = '') {
+    const normalizedKey = String(key || '').trim();
+    if (normalizedKey === '__select') return SYSTEM_SELECTION_DISPLAY_NAME;
+    if (normalizedKey === '__actions') return '관리';
+    const iconClass = normalizeBootstrapIconDisplayName(
+        Array.from(String(column?.title || '').matchAll(/class=["']([^"']+)["']/gi))
+            .map((match) => match[1])
+            .find((className) => String(className).split(/\s+/).some((token) => /^bi-[a-z0-9-]+$/i.test(token)))
+        || ''
+    );
+    return iconClass || systemColumnSourceName(key);
+}
+
+function normalizeSystemColumnDisplayName(key = '', value = '', fallback = '') {
+    const normalizedKey = String(key || '').trim();
+    const normalizedValue = normalizedDisplayName(value, fallback);
+    if (normalizedKey !== '__actions') return normalizedValue;
+    const iconClass = normalizeBootstrapIconDisplayName(normalizedValue);
+    return ['bi bi-gear', 'bi bi-gear-fill'].includes(iconClass) ? '관리' : normalizedValue;
+}
+
 function normalizeMetaColumns(metaColumns = []) {
     return (Array.isArray(metaColumns) ? metaColumns : [])
         .map((column, index) => {
@@ -104,9 +158,14 @@ function normalizeMetaColumns(metaColumns = []) {
                 ordinal_position: Number(column?.ordinal_position || column?.settings_order || index + 1) || (index + 1),
                 source_ordinal_position: Number(column?.source_ordinal_position || column?.ordinal_position || index + 1) || (index + 1),
                 data_type: String(column?.data_type || '').trim(),
+                is_nullable: String(column?.is_nullable || 'YES').trim().toUpperCase() === 'NO' ? 'NO' : 'YES',
                 required: Boolean(column?.required),
                 settings_visible: column?.settings_visible !== false,
                 column_type: String(column?.column_type || 'physical').trim() || 'physical',
+                source_role: String(column?.source_role || '').trim(),
+                source_tables: Array.isArray(column?.source_tables) ? column.source_tables.map((value) => String(value || '').trim()).filter(Boolean) : [],
+                source_columns: Array.isArray(column?.source_columns) ? column.source_columns.map((value) => String(value || '').trim()).filter(Boolean) : [],
+                description: String(column?.description || '').trim(),
             };
         })
         .filter(Boolean)
@@ -207,6 +266,7 @@ export async function buildDataTableDefaultMetaEntries(config = {}, options = {}
                 column?.required ? COLUMN_REQUIREMENT_POLICY.REQUIRED : COLUMN_REQUIREMENT_POLICY.NONE
             ),
             ordinalPosition: Number(column?.ordinal_position || 0) || 0,
+            sourceOrdinalPosition: Number(column?.source_ordinal_position || column?.ordinal_position || 0) || 0,
             table: String(column?.table || '').trim(),
             tableComment: String(column?.table_comment || '').trim(),
             dataType: String(column?.data_type || '').trim(),
@@ -218,7 +278,6 @@ export async function buildDataTableDefaultMetaEntries(config = {}, options = {}
 function buildPhysicalMetaMap(metaColumns = []) {
     return new Map(
         metaColumns
-            .filter((column) => String(column?.column_type || 'physical') === 'physical')
             .map((column) => [column.key, column])
     );
 }
@@ -230,11 +289,21 @@ function buildMissingPhysicalColumns(columns = [], metaColumns = []) {
             .filter(Boolean)
     );
 
+    const sourceTables = new Set(
+        metaColumns
+            .map((column) => String(column?.table || '').trim())
+            .filter(Boolean)
+    );
+    const singlePhysicalSource = sourceTables.size === 1;
+
     return metaColumns
         .filter((column) => !usedKeys.has(column.key))
         .map((column) => ({
             key: column.key,
-            data: column.key,
+            settingsKey: column.key,
+            data: singlePhysicalSource
+                ? String(column?.source_column || column.key).trim()
+                : column.key,
             title: normalizeColumnLabel(column.key, column.label),
             visible: false,
             defaultContent: '',
@@ -250,7 +319,6 @@ function filterColumnsByPhysicalMeta(columns = [], metaColumns = []) {
 
     const physicalMetaKeys = new Set(
         metaColumns
-            .filter((column) => String(column?.column_type || 'physical').trim() === 'physical')
             .map((column) => String(column?.key || '').trim())
             .filter(Boolean)
     );
@@ -274,19 +342,9 @@ function filterColumnsByPhysicalMeta(columns = [], metaColumns = []) {
             return physicalMetaKeys.has(key);
         }
 
-        const looksLikePhysicalColumn = String(column?.defaultContent ?? '') === ''
-            && (
-                String(column?.data || '').trim() === key
-                || String(column?.name || '').trim() === key
-                || String(column?.settingsKey || '').trim() === key
-                || String(column?.sourceField || '').trim() === key
-            );
-
-        if (!looksLikePhysicalColumn) {
-            return true;
-        }
-
-        return physicalMetaKeys.has(key);
+        // 화면 전용 JOIN·Projection·관리 컬럼은 렌더링에는 유지하되,
+        // DB metadata가 없으므로 TableSettings 설정 대상에서는 제외한다.
+        return true;
     });
 }
 
@@ -302,6 +360,17 @@ function resolveColumnKey(column = {}, index = 0) {
     }
     if (typeof column.data === 'string' && column.data.trim() !== '') {
         return column.data.trim();
+    }
+    const classes = tokenizeClasses(column.className, column.headerClassName);
+    if (column.isSelectionColumn === true || classes.includes('dt-select-column')) {
+        return '__select';
+    }
+    if (classes.some((className) => ['reorder-handle', 'drag-handle', 'col-reorder'].includes(className))) {
+        return '__reorder';
+    }
+    const title = String(column.title || '').replace(/<[^>]*>/g, '').trim();
+    if (column.data == null && ['관리', '수정'].includes(title)) {
+        return '__actions';
     }
     return '';
 }
@@ -366,6 +435,25 @@ function buildColumnPolicyAliasMap(columns = []) {
     return aliasMap;
 }
 
+function buildPersistedColumnKeyAliasMap(columns = []) {
+    const aliasMap = new Map();
+
+    (Array.isArray(columns) ? columns : []).forEach((column) => {
+        const canonicalKey = String(column?.__dtSettingsKey || '').trim();
+        if (canonicalKey === '') return;
+
+        const aliases = Array.isArray(column?.settingsAliases) ? column.settingsAliases : [];
+        aliases.forEach((alias) => {
+            const key = String(alias || '').trim();
+            if (key !== '' && key !== canonicalKey && !aliasMap.has(key)) {
+                aliasMap.set(key, canonicalKey);
+            }
+        });
+    });
+
+    return aliasMap;
+}
+
 function firstPolicyValue(map = {}, keys = []) {
     for (const key of keys) {
         if (Object.prototype.hasOwnProperty.call(map, key)) {
@@ -393,6 +481,33 @@ function sortColumnsByDefaultOrder(columns = []) {
         .map(({ column }) => column);
 }
 
+function arrangeDefaultSettingsColumns(columns = []) {
+    const leadingKeys = ['__select', '__reorder'];
+    const leadingColumns = [];
+    const bodyColumns = [];
+    const actionColumns = [];
+
+    leadingKeys.forEach((key) => {
+        columns.forEach((column) => {
+            if (String(column?.__dtSettingsKey || '').trim() === key) {
+                leadingColumns.push(column);
+            }
+        });
+    });
+
+    columns.forEach((column) => {
+        const key = String(column?.__dtSettingsKey || '').trim();
+        if (leadingKeys.includes(key)) return;
+        if (key === '__actions') {
+            actionColumns.push(column);
+            return;
+        }
+        bodyColumns.push(column);
+    });
+
+    return [...leadingColumns, ...bodyColumns, ...actionColumns];
+}
+
 function composeDisplayColumnTitle(title = '', key = '') {
     const normalizedTitle = String(title || '').trim();
     const normalizedKey = String(key || '').trim();
@@ -406,6 +521,105 @@ function composeDisplayColumnTitle(title = '', key = '') {
 function isConfigurableColumn(column = {}) {
     const classes = tokenizeClasses(column.className, column.headerClassName);
     return !classes.includes('no-colvis');
+}
+
+function isSystemColumnKey(key = '') {
+    return ['__select', '__reorder', '__actions'].includes(String(key || '').trim());
+}
+
+function ensureRequiredSettingsVirtualColumns(columns = []) {
+    const copiedColumns = columns.map((column) => ({ ...column }));
+    const existingKeys = new Set(copiedColumns.map((column) => resolveColumnKey(column)));
+    const placeholders = [
+        {
+            key: '__select',
+            data: null,
+            settingsKey: '__select',
+            title: '<input type="checkbox" class="form-check-input" aria-label="전체 선택" disabled>',
+            settingsTitle: SYSTEM_SELECTION_DISPLAY_NAME,
+            visible: false,
+            width: '36px',
+            widthResizable: true,
+            className: 'select-checkbox text-center',
+            headerClassName: 'select-checkbox text-center',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            __dtColumnKind: 'virtual',
+            __dtVirtualType: 'system',
+            __dtSystemCapability: false,
+            __dtSettingsHideable: true,
+            __dtSettingsMovable: true,
+            render: () => '<input type="checkbox" class="form-check-input" aria-label="행 선택" disabled>',
+        },
+        {
+            key: '__reorder',
+            data: null,
+            settingsKey: '__reorder',
+            title: '<i class="bi bi-arrows-move" aria-hidden="true"></i>',
+            settingsTitle: '드래그핸들',
+            visible: false,
+            width: '36px',
+            widthResizable: true,
+            className: 'reorder-handle text-center',
+            headerClassName: 'dt-reorder-column text-center',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            __dtColumnKind: 'virtual',
+            __dtVirtualType: 'system',
+            __dtSystemCapability: false,
+            __dtSettingsHideable: true,
+            __dtSettingsMovable: true,
+            render: () => '<span class="dt-reorder-handle disabled" aria-label="드래그핸들 비활성" aria-disabled="true"><i class="bi bi-list" aria-hidden="true"></i></span>',
+        },
+        {
+            key: '__actions',
+            data: null,
+            settingsKey: '__actions',
+            title: '<i class="bi bi-gear" aria-hidden="true"></i>',
+            settingsTitle: '관리',
+            visible: false,
+            width: '56px',
+            widthResizable: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            __dtColumnKind: 'virtual',
+            __dtVirtualType: 'system',
+            __dtSystemCapability: false,
+            __dtSettingsHideable: true,
+            __dtSettingsMovable: true,
+            render: () => '<span class="text-muted" aria-label="관리 기능 비활성" aria-disabled="true"><i class="bi bi-gear" aria-hidden="true"></i></span>',
+        },
+    ];
+
+    placeholders.forEach((column) => {
+        if (!existingKeys.has(column.settingsKey)) {
+            copiedColumns.push(column);
+        }
+    });
+
+    return copiedColumns;
+}
+
+function normalizeSettingsVirtualType(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (['system', 'system_virtual'].includes(normalized)) return 'system';
+    if (['calculated', 'computed', 'formula'].includes(normalized)) return 'calculated';
+    return normalized !== '' ? 'other' : '';
+}
+
+function resolveSettingsVirtualType(column = {}, key = '') {
+    const explicitType = normalizeSettingsVirtualType(
+        column.settingsVirtualType
+        || column.virtualColumnType
+        || ''
+    );
+    if (explicitType !== '') return explicitType;
+    return isSystemColumnKey(key) ? 'system' : '';
 }
 
 function buildStorageKey(config = {}) {
@@ -432,13 +646,23 @@ function normalizeColumnDefinitions(columns = [], config = {}, metaColumns = [])
         const configurable = isConfigurableColumn(safeColumn);
         const hasStableKey = key !== '';
         const physicalMeta = hasStableKey ? physicalMetaByKey.get(key) : null;
+        const systemColumn = isSystemColumnKey(key);
+        const resolvedColumnKind = physicalMeta ? String(physicalMeta.column_type || 'physical').trim().toLowerCase() : 'virtual';
+        const declaredVirtualType = resolveSettingsVirtualType(safeColumn, key);
+        const virtualType = resolvedColumnKind === 'physical'
+            ? ''
+            : (declaredVirtualType || normalizeSettingsVirtualType(resolvedColumnKind) || 'other');
         const settingsConfigurable = hasStableKey
-            && (hasPhysicalMetaColumns ? Boolean(physicalMeta) : configurable);
+            && (hasPhysicalMetaColumns
+                ? Boolean(physicalMeta) || systemColumn || (configurable && declaredVirtualType !== '')
+                : configurable || systemColumn);
         const required = Boolean(physicalMeta?.required);
         const visible = settingsConfigurable
-            ? (defaultVisibleSet.size > 0
-                ? defaultVisibleSet.has(key)
-                : safeColumn.visible !== false)
+            ? (systemColumn
+                ? safeColumn.visible !== false
+                : (defaultVisibleSet.size > 0
+                    ? defaultVisibleSet.has(key)
+                    : safeColumn.visible !== false))
             : safeColumn.visible !== false;
         const defaultOrder = Number(
             physicalMeta?.ordinal_position
@@ -449,22 +673,37 @@ function normalizeColumnDefinitions(columns = [], config = {}, metaColumns = [])
             ?? safeColumn.ordinalPosition
             ?? (index + 1)
         );
-        const defaultDisplayName = physicalMeta
+        const defaultDisplayName = String(safeColumn.__dtDefaultDisplayName || '').trim() || (physicalMeta
             ? normalizeColumnLabel(key, String(physicalMeta.label || key))
-            : normalizeColumnLabel(key, resolveColumnTitle(safeColumn, index));
+            : (systemColumn
+                ? resolveSystemColumnDefaultDisplayName(safeColumn, key)
+                : normalizeColumnLabel(key, resolveColumnTitle(safeColumn, index))));
         const settingsTitle = defaultDisplayName;
         const sourceTitle = String(physicalMeta?.source_title || key).trim() || key;
 
         return {
             ...safeColumn,
+            widthResizable: systemColumn ? true : safeColumn.widthResizable,
             key,
             settingsTitle,
             __dtDefaultDisplayName: defaultDisplayName,
+            __dtDefaultHeaderTitle: safeColumn.__dtDefaultHeaderTitle ?? safeColumn.title ?? '',
             __dtSourceTitle: sourceTitle,
             __dtSettingsKey: key,
             __dtSettingsConfigurable: settingsConfigurable,
             __dtSettingsRequired: required,
-            __dtColumnKind: physicalMeta ? 'physical' : 'virtual',
+            __dtSettingsHideable: true,
+            __dtSettingsMovable: true,
+            __dtColumnKind: resolvedColumnKind,
+            __dtVirtualType: virtualType,
+            __dtSourceTable: String(physicalMeta?.table || '').trim(),
+            __dtTableComment: String(physicalMeta?.table_comment || '').trim(),
+            __dtSourceOrdinalPosition: Number(physicalMeta?.source_ordinal_position || physicalMeta?.ordinal_position || 0) || 0,
+            __dtMetaOrdinalPosition: Number(physicalMeta?.ordinal_position || 0) || 0,
+            __dtSourceRole: String(physicalMeta?.source_role || '').trim(),
+            __dtDataType: String(physicalMeta?.data_type || '').trim(),
+            __dtIsNullable: String(physicalMeta?.is_nullable || 'YES').trim(),
+            __dtWidthResizable: isDataTableColumnWidthResizable(safeColumn),
             defaultOrder,
             settingsOrder: defaultOrder,
             ordinal_position: defaultOrder,
@@ -474,8 +713,10 @@ function normalizeColumnDefinitions(columns = [], config = {}, metaColumns = [])
 }
 
 function defaultState(columns = [], config = {}) {
-    const configurableColumns = sortColumnsByDefaultOrder(
-        columns.filter((column) => column && column.__dtSettingsConfigurable)
+    const configurableColumns = arrangeDefaultSettingsColumns(
+        sortColumnsByDefaultOrder(
+            columns.filter((column) => column && column.__dtSettingsConfigurable)
+        )
     );
     const normalizedPageLength = Number(config.pageLength);
     const displayNameDefaults = config.defaultColumnDisplayName && typeof config.defaultColumnDisplayName === 'object'
@@ -511,16 +752,16 @@ function defaultState(columns = [], config = {}) {
             return acc;
         }, {}),
         columnRequirementPolicy: configurableColumns.reduce((acc, column) => {
-            const configuredPolicy = firstPolicyValue(requirementDefaults, resolveColumnPolicyKeys(column));
             if (column.__dtColumnKind === 'physical') {
                 acc[column.__dtSettingsKey] = normalizeRequirementPolicy(
-                    configuredPolicy !== undefined
-                        ? configuredPolicy
-                        : (column.__dtSettingsRequired ? COLUMN_REQUIREMENT_POLICY.REQUIRED : COLUMN_REQUIREMENT_POLICY.NONE)
+                    column.__dtSettingsRequired
+                        ? COLUMN_REQUIREMENT_POLICY.REQUIRED
+                        : COLUMN_REQUIREMENT_POLICY.NONE
                 );
                 return acc;
             }
 
+            const configuredPolicy = firstPolicyValue(requirementDefaults, resolveColumnPolicyKeys(column));
             acc[column.__dtSettingsKey] = normalizeRequirementPolicy(configuredPolicy);
             return acc;
         }, {}),
@@ -624,6 +865,35 @@ function buildUserSettingOptions(config = {}, settingType = 'TABLE') {
 }
 
 function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], resetOnColumnSchemaChange = false) {
+    const persistedKeyAliasMap = buildPersistedColumnKeyAliasMap(columns);
+    const canonicalKey = (key) => {
+        const normalized = String(key || '').trim();
+        return persistedKeyAliasMap.get(normalized) || normalized;
+    };
+    const canonicalizeKeys = (keys) => Array.from(new Set(
+        (Array.isArray(keys) ? keys : []).map(canonicalKey).filter(Boolean)
+    ));
+    const canonicalizeMap = (map) => Object.entries(map && typeof map === 'object' ? map : {})
+        .reduce((result, [key, value]) => {
+            result[canonicalKey(key)] = value;
+            return result;
+        }, {});
+    parsed = { ...parsed };
+    if (Object.prototype.hasOwnProperty.call(parsed, 'visibleColumns')) {
+        parsed.visibleColumns = canonicalizeKeys(parsed.visibleColumns);
+    }
+    if (Object.prototype.hasOwnProperty.call(parsed, 'columnOrder')) {
+        parsed.columnOrder = canonicalizeKeys(parsed.columnOrder);
+    }
+    if (Object.prototype.hasOwnProperty.call(parsed, 'columnDisplayName')) {
+        parsed.columnDisplayName = canonicalizeMap(parsed.columnDisplayName);
+    }
+    if (Object.prototype.hasOwnProperty.call(parsed, 'columnRequirementPolicy')) {
+        parsed.columnRequirementPolicy = canonicalizeMap(parsed.columnRequirementPolicy);
+    }
+    const hasPersistedColumnContract = [
+        'visibleColumns', 'columnOrder', 'columnDisplayName', 'columnRequirementPolicy',
+    ].some((key) => Object.prototype.hasOwnProperty.call(parsed, key));
     const orderSet = new Set(defaults.columnOrder || []);
     const parsedKeys = [
         ...(Array.isArray(parsed.columnOrder) ? parsed.columnOrder : []),
@@ -631,21 +901,17 @@ function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], res
         ...Object.keys(parsed.columnDisplayName && typeof parsed.columnDisplayName === 'object' ? parsed.columnDisplayName : {}),
         ...Object.keys(parsed.columnRequirementPolicy && typeof parsed.columnRequirementPolicy === 'object' ? parsed.columnRequirementPolicy : {}),
     ].map((key) => String(key || '').trim()).filter(Boolean);
+    const parsedContractKeySet = new Set(parsedKeys);
     if (resetOnColumnSchemaChange && parsedKeys.some((key) => !orderSet.has(key))) {
         parsed = {};
     }
     const availableKeySet = new Set(
         columns
+            .filter((column) => column?.__dtSettingsConfigurable)
             .map((column) => String(column.__dtSettingsKey || '').trim())
             .filter(Boolean)
     );
     const requiredSet = new Set(defaults.requiredColumns || []);
-    const knownConfiguredKeys = new Set([
-        ...(Array.isArray(parsed.columnOrder) ? parsed.columnOrder : []),
-        ...(Array.isArray(parsed.visibleColumns) ? parsed.visibleColumns : []),
-        ...Object.keys(parsed.columnDisplayName && typeof parsed.columnDisplayName === 'object' ? parsed.columnDisplayName : {}),
-        ...Object.keys(parsed.columnRequirementPolicy && typeof parsed.columnRequirementPolicy === 'object' ? parsed.columnRequirementPolicy : {}),
-    ].map((key) => String(key || '').trim()).filter((key) => key !== '' && orderSet.has(key)));
     const visibleSet = new Set(
         (parsed.visibleColumns || [])
             .map((key) => String(key || '').trim())
@@ -654,7 +920,7 @@ function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], res
 
     (defaults.requiredColumns || []).forEach((key) => visibleSet.add(key));
     (defaults.visibleColumns || []).forEach((key) => {
-        if (!knownConfiguredKeys.has(key)) {
+        if (!hasPersistedColumnContract || !parsedContractKeySet.has(key)) {
             visibleSet.add(key);
         }
     });
@@ -673,10 +939,20 @@ function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], res
     });
 
     const columnDisplayName = { ...(defaults.columnDisplayName || {}) };
+    const configurableByKey = new Map(columns
+        .filter((column) => column?.__dtSettingsConfigurable)
+        .map((column) => [String(column.__dtSettingsKey || '').trim(), column]));
     if (parsed.columnDisplayName && typeof parsed.columnDisplayName === 'object') {
         Object.entries(parsed.columnDisplayName).forEach(([key, value]) => {
             const normalizedKey = String(key || '').trim();
             if (!normalizedKey || !availableKeySet.has(normalizedKey)) {
+                return;
+            }
+            const savedDisplayName = String(value || '').trim();
+            const column = configurableByKey.get(normalizedKey);
+            const sourceColumn = String(column?.__dtSourceColumn || column?.source_column || '').trim();
+            if (column?.__dtColumnKind === 'physical'
+                && (savedDisplayName === normalizedKey || (sourceColumn !== '' && savedDisplayName === sourceColumn))) {
                 return;
             }
             columnDisplayName[normalizedKey] = normalizedDisplayName(value, columnDisplayName[normalizedKey] || normalizedKey);
@@ -688,6 +964,10 @@ function normalizeLoadedTableState(parsed = {}, defaults = {}, columns = [], res
         Object.entries(parsed.columnRequirementPolicy).forEach(([key, value]) => {
             const normalizedKey = String(key || '').trim();
             if (!normalizedKey || !availableKeySet.has(normalizedKey)) {
+                return;
+            }
+            if (normalizedKey === 'evidence_status') {
+                columnRequirementPolicy[normalizedKey] = COLUMN_REQUIREMENT_POLICY.NONE;
                 return;
             }
             columnRequirementPolicy[normalizedKey] = normalizeRequirementPolicy(value);
@@ -778,12 +1058,14 @@ async function loadState(config = {}, columns = [], preloaded = {}) {
             viewState: hasSettingStateChanged(savedViewState, normalizedViewState, 'VIEW')
                 ? saveSettingState(config, normalizedViewState, savedViewState, 'VIEW')
                 : normalizedViewState,
+            tableStateSource: loadedTableState && String(loadedTableState.updatedAt || '').trim() !== '' ? 'saved' : 'default',
         };
     } catch (error) {
         console.warn('[datatable-settings] load failed:', error);
         return {
             tableState: tableDefaults,
             viewState: viewDefaults,
+            tableStateSource: 'default',
         };
     }
 }
@@ -832,6 +1114,10 @@ function createPersistedStatePayload(state = {}, options = {}) {
             ? Object.entries(state.columnRequirementPolicy).reduce((acc, [key, value]) => {
                 const normalizedKey = String(key || '').trim();
                 if (!normalizedKey) {
+                    return acc;
+                }
+                if (normalizedKey === 'evidence_status') {
+                    acc[normalizedKey] = COLUMN_REQUIREMENT_POLICY.NONE;
                     return acc;
                 }
                 acc[normalizedKey] = normalizeRequirementPolicy(value);
@@ -912,12 +1198,6 @@ function reorderConfigurableColumns(columns = [], columnOrder = []) {
 
     const configurableColumns = columns.filter((column) => column && column.__dtSettingsConfigurable);
     const sortedConfigurable = configurableColumns.slice().sort((left, right) => {
-        const leftIsAction = String(left?.__dtSettingsKey || '') === '__actions';
-        const rightIsAction = String(right?.__dtSettingsKey || '') === '__actions';
-        if (leftIsAction !== rightIsAction) {
-            return leftIsAction ? 1 : -1;
-        }
-
         const leftIndex = orderMap.has(left.__dtSettingsKey) ? orderMap.get(left.__dtSettingsKey) : Number.MAX_SAFE_INTEGER;
         const rightIndex = orderMap.has(right.__dtSettingsKey) ? orderMap.get(right.__dtSettingsKey) : Number.MAX_SAFE_INTEGER;
         return leftIndex - rightIndex;
@@ -973,15 +1253,27 @@ function applyColumnPolicies(columns = [], state = {}) {
         }
 
         const key = String(column.__dtSettingsKey || '').trim();
-        const displayName = normalizedDisplayName(
+        const displayName = normalizeSystemColumnDisplayName(
+            key,
             displayNameMap[key],
             column.__dtDefaultDisplayName || column.settingsTitle || column.title || key
         );
         const requirementPolicy = normalizeRequirementPolicy(requirementPolicyMap[key]);
+        const defaultDisplayName = normalizedDisplayName(
+            column.__dtDefaultDisplayName,
+            column.settingsTitle || column.title || key
+        );
+        const originalHeaderTitle = String(column.__dtDefaultHeaderTitle || '');
+        const hasSystemHeaderControl = /<(?:i|input)\b/i.test(originalHeaderTitle);
+        const useOriginalSystemHeader = (key === '__select'
+            || (isSystemColumnKey(key) && displayName === defaultDisplayName && hasSystemHeaderControl))
+            && originalHeaderTitle !== '';
 
         return {
             ...column,
-            title: displayName || key,
+            title: useOriginalSystemHeader
+                ? column.__dtDefaultHeaderTitle
+                : renderColumnDisplayName(displayName || key),
             settingsTitle: displayName || key,
             __dtDisplayName: displayName || key,
             __dtRequirementPolicy: requirementPolicy,
@@ -989,63 +1281,78 @@ function applyColumnPolicies(columns = [], state = {}) {
     });
 }
 
-function moveActionColumnsToEnd(columns = []) {
-    const leadingColumns = [];
-    const actionColumns = [];
-
-    columns.forEach((column) => {
-        const copiedColumn = { ...column };
-        if (String(copiedColumn?.__dtSettingsKey || '').trim() === '__actions') {
-            actionColumns.push(copiedColumn);
-            return;
-        }
-
-        leadingColumns.push(copiedColumn);
-    });
-
-    return [...leadingColumns, ...actionColumns];
-}
-
-function moveColumnsImmediatelyBeforeActions(columns = [], keys = []) {
-    const trailingKeys = new Set((Array.isArray(keys) ? keys : [])
-        .map((key) => String(key || '').trim())
-        .filter(Boolean));
-    if (trailingKeys.size === 0) {
-        return moveActionColumnsToEnd(columns);
-    }
-
-    const leadingColumns = [];
-    const trailingColumns = [];
-    const actionColumns = [];
-    columns.forEach((column) => {
-        const copiedColumn = { ...column };
-        const key = String(copiedColumn?.__dtSettingsKey || copiedColumn?.settingsKey || '').trim();
-        if (key === '__actions') {
-            actionColumns.push(copiedColumn);
-        } else if (trailingKeys.has(key)) {
-            trailingColumns.push(copiedColumn);
-        } else {
-            leadingColumns.push(copiedColumn);
-        }
-    });
-    return [...leadingColumns, ...trailingColumns, ...actionColumns];
-}
-
 function currentEntries(context = {}) {
     const visibleSet = new Set(context.tableState?.visibleColumns || []);
+    const settingsColumns = normalizeColumnDefinitions(
+        ensureRequiredSettingsVirtualColumns(
+            Array.isArray(context.appliedColumns) ? context.appliedColumns : []
+        ),
+        context.config || {},
+        Array.isArray(context.metaColumns) ? context.metaColumns : []
+    );
+    const widths = context.viewState?.columnWidths && typeof context.viewState.columnWidths === 'object'
+        ? context.viewState.columnWidths
+        : {};
+    const tableColumnMap = new Map(
+        (Array.isArray(context.tableColumns) ? context.tableColumns : [])
+            .map((column) => [resolveDataTableColumnWidthKey(column), column])
+            .filter(([key]) => key !== '')
+    );
+    const sortMap = new Map(
+        (Array.isArray(context.viewState?.sortSettings) ? context.viewState.sortSettings.slice(0, 1) : [])
+            .map((item) => [String(item?.key || '').trim(), String(item?.dir || '').toLowerCase()])
+            .filter(([key, direction]) => key !== '' && ['asc', 'desc'].includes(direction))
+    );
 
-    return (context.appliedColumns || [])
+    return settingsColumns
         .filter((column) => column && typeof column === 'object')
         .filter((column) => column.__dtSettingsConfigurable)
-        .map((column) => ({
+        .map((column) => {
+            const actualColumn = tableColumnMap.get(column.__dtSettingsKey) || column;
+            const savedWidth = Number(widths[column.__dtSettingsKey]);
+            const configuredWidth = Number.parseFloat(actualColumn?.width);
+            const widthResizable = isDataTableColumnWidthResizable(actualColumn);
+            const defaultWidth = Number.isFinite(configuredWidth) && configuredWidth > 0
+                ? configuredWidth
+                : (widthResizable ? DATA_TABLE_COLUMN_WIDTH_DEFAULT : null);
+            const visible = visibleSet.has(column.__dtSettingsKey);
+            const width = visible && Number.isFinite(savedWidth) && savedWidth > 0
+                ? savedWidth
+                : (visible ? defaultWidth : null);
+            return {
             key: column.__dtSettingsKey,
-            sourceTitle: column.__dtSourceTitle || column.__dtSettingsKey,
+            sourceTitle: column.__dtColumnKind === 'physical'
+                ? (column.__dtSourceTitle || column.__dtSettingsKey)
+                : ({ __select: '체크박스', __reorder: '드래그핸들', __actions: '관리' }[column.__dtSettingsKey]
+                    || column.__dtSourceTitle || column.__dtSettingsKey),
             title: column.__dtDisplayName || column.__dtDefaultDisplayName || column.settingsTitle || column.__dtSettingsKey,
-            visible: visibleSet.has(column.__dtSettingsKey),
-            displayName: column.__dtDisplayName || column.__dtDefaultDisplayName || column.settingsTitle || column.__dtSettingsKey,
+            visible,
+            displayName: column.__dtSettingsKey === '__select'
+                ? SYSTEM_SELECTION_DISPLAY_NAME
+                : (column.__dtDisplayName || column.__dtDefaultDisplayName || column.settingsTitle || column.__dtSettingsKey),
+            displayNameEditable: column.__dtSettingsKey !== '__select',
             requirementPolicy: normalizeRequirementPolicy(column.__dtRequirementPolicy),
+            requirementPolicyEditable: !isSystemColumnKey(column.__dtSettingsKey),
+            columnType: String(column.__dtColumnKind || 'virtual'),
+            virtualType: String(column.__dtVirtualType || ''),
+            sourceTable: String(column.__dtSourceTable || ''),
+            tableComment: String(column.__dtTableComment || ''),
+            sourceOrdinalPosition: Number(column.__dtSourceOrdinalPosition || 0) || 0,
+            ordinalPosition: Number(column.__dtMetaOrdinalPosition || column.defaultOrder || 0) || 0,
+            sourceRole: String(column.__dtSourceRole || ''),
+            dataType: String(column.__dtDataType || ''),
+            isNullable: String(column.__dtIsNullable || 'YES'),
             required: false,
-        }));
+            hideable: column.__dtSettingsHideable !== false,
+            movable: column.__dtSettingsMovable !== false,
+            width: Number.isFinite(width) && width > 0 ? Math.round(width) : null,
+            defaultWidth: Number.isFinite(defaultWidth) && defaultWidth > 0 ? Math.round(defaultWidth) : null,
+            widthResizable,
+            sortDirection: sortMap.get(column.__dtSettingsKey) || '',
+            sortOrderable: actualColumn?.orderable !== false
+                && !['__select', '__reorder', '__actions'].includes(column.__dtSettingsKey),
+        };
+        });
 }
 
 export function applyVisibilityToTable(table, context = {}) {
@@ -1053,16 +1360,27 @@ export function applyVisibilityToTable(table, context = {}) {
     const actualColumns = Array.isArray(context.tableColumns) && context.tableColumns.length > 0
         ? context.tableColumns
         : (context.appliedColumns || []);
+    const dataTableColumns = table?.settings?.()?.[0]?.aoColumns || [];
+    const actualColumnByKey = new Map(
+        actualColumns
+            .map((column) => [String(column?.__dtSettingsKey || column?.settingsKey || '').trim(), column])
+            .filter(([key]) => key !== '')
+    );
 
-    actualColumns.forEach((column, index) => {
-        if (!column || typeof column !== 'object') {
+    dataTableColumns.forEach((dataTableColumn, index) => {
+        const runtimeKey = String(dataTableColumn?.mData || dataTableColumn?.sName || '').trim();
+        const fallbackColumn = actualColumns[index] || null;
+        const fallbackKey = String(fallbackColumn?.__dtSettingsKey || fallbackColumn?.settingsKey || '').trim();
+        const key = actualColumnByKey.has(runtimeKey) ? runtimeKey : fallbackKey;
+        const column = actualColumnByKey.get(key) || fallbackColumn;
+        if (!column || typeof column !== 'object' || key === '') {
             return;
         }
         if (!column.__dtSettingsConfigurable) {
             return;
         }
 
-        const shouldShow = visibleSet.has(column.__dtSettingsKey);
+        const shouldShow = visibleSet.has(key);
         table.column(index).visible(shouldShow, false);
     });
 
@@ -1114,24 +1432,25 @@ function buildSettingsTitle(context = {}) {
 }
 
 function buildSettingsSubtitle(context = {}) {
-    const tableSummaries = Array.from(new Set(
-        (Array.isArray(context.metaColumns) ? context.metaColumns : [])
-            .map((column) => {
-                const tableName = String(column?.table || '').trim();
-                if (tableName === '') {
-                    return '';
-                }
-
-                const tableComment = String(column?.table_comment || '').trim();
-                return tableComment !== ''
-                    ? `${tableComment} (${tableName})`
-                    : tableName;
-            })
-            .filter(Boolean)
-    ));
+    const tableCounts = new Map();
+    (Array.isArray(context.metaColumns) ? context.metaColumns : []).forEach((column) => {
+        const tableName = String(column?.table || '').trim();
+        if (tableName === '' || String(column?.column_type || 'physical') !== 'physical') return;
+        const current = tableCounts.get(tableName) || {
+            count: 0,
+            comment: String(column?.table_comment || '').trim(),
+        };
+        current.count += 1;
+        if (current.comment === '') current.comment = String(column?.table_comment || '').trim();
+        tableCounts.set(tableName, current);
+    });
+    const tableSummaries = Array.from(tableCounts, ([tableName, info], index) => {
+        const comment = info.comment !== '' && info.comment !== tableName ? ` / ${info.comment}` : '';
+        return `${index + 1}. ${tableName}${comment} (${info.count}개)`;
+    });
 
     if (tableSummaries.length > 0) {
-        return tableSummaries.join(', ');
+        return `테이블 ${tableSummaries.length}개\n${tableSummaries.join('\n')}`;
     }
 
     const tableLabel = String(
@@ -1158,21 +1477,19 @@ async function buildPreparedSettingsState(context = {}, options = {}) {
             && column?.visible === false
         )
     ));
-    const sourceColumns = metaColumns.length > 0
+    const baseSourceColumns = metaColumns.length > 0
         ? [...baseColumnsWithoutInjectedPhysical, ...buildMissingPhysicalColumns(baseColumnsWithoutInjectedPhysical, metaColumns)]
         : baseColumnsWithoutInjectedPhysical;
+    const sourceColumns = ensureRequiredSettingsVirtualColumns(baseSourceColumns);
     const normalizedColumns = normalizeColumnDefinitions(sourceColumns, baseConfig, metaColumns);
     const defaults = defaultTableState(normalizedColumns, baseConfig);
-    const appliedColumns = moveColumnsImmediatelyBeforeActions(
-        applyColumnPolicies(
-            applyVisibility(
-                reorderConfigurableColumns(normalizedColumns, defaults.columnOrder),
-                defaults.visibleColumns,
-                defaults.requiredColumns
-            ),
-            defaults
+    const appliedColumns = applyColumnPolicies(
+        applyVisibility(
+            reorderConfigurableColumns(normalizedColumns, defaults.columnOrder),
+            defaults.visibleColumns,
+            defaults.requiredColumns
         ),
-        baseConfig.columnsImmediatelyBeforeActions
+        defaults
     );
 
     return {
@@ -1188,28 +1505,50 @@ async function openSettings(table, context = {}) {
     context.metaColumns = preparedDefaults.metaColumns;
     context.originalColumns = preparedDefaults.originalColumns;
     const defaults = preparedDefaults.defaults;
+    const viewDefaults = defaultViewState(context.originalColumns || [], context.config || {});
+    const searchCapability = table?.__dtTableSettings?.searchFormCapability || null;
+    const currentViewState = table?.__dtTableSettings?.getCurrentViewState?.();
+    if (currentViewState && typeof currentViewState === 'object') {
+        context.viewState = {
+            ...(context.viewState || {}),
+            ...currentViewState,
+            columnWidths: { ...(currentViewState.columnWidths || context.viewState?.columnWidths || {}) },
+            sortSettings: Array.isArray(currentViewState.sortSettings)
+                ? currentViewState.sortSettings.map((item) => ({ ...item }))
+                : (context.viewState?.sortSettings || []),
+        };
+    }
 
     openDataTableColumnSettings({
         title: buildSettingsTitle(context),
         subtitle: buildSettingsSubtitle(context),
+        stateSource: context.tableStateSource || 'saved',
         entries: currentEntries(context),
         defaultEntries: currentEntries({
             ...context,
             tableState: defaults,
             appliedColumns: preparedDefaults.appliedColumns,
         }),
-        async restoreDefaults() {
-            await deleteSystemUserSettingsStorage(context.storageKey, buildUserSettingOptions(context.config, 'TABLE'));
-            const restored = await buildPreparedSettingsState(context, { forceRefresh: true });
-            context.metaColumns = restored.metaColumns;
-            context.originalColumns = restored.originalColumns;
+        ...buildDataTableViewModalOptions(context, table, viewDefaults),
+        async restoreDefaults(visibleEntries = []) {
+            const currentVisibility = new Map(
+                visibleEntries.map((entry) => [String(entry?.key || '').trim(), entry?.visible === true])
+            );
+            const restoredDefaults = await buildPreparedSettingsState(context, { forceRefresh: true });
+            context.metaColumns = restoredDefaults.metaColumns;
+            context.originalColumns = restoredDefaults.originalColumns;
             return currentEntries({
                 ...context,
-                tableState: restored.defaults,
-                appliedColumns: restored.appliedColumns,
-            });
+                tableState: restoredDefaults.defaults,
+                appliedColumns: restoredDefaults.appliedColumns,
+            }).map((entry) => ({
+                ...entry,
+                visible: currentVisibility.has(entry.key)
+                    ? currentVisibility.get(entry.key)
+                    : entry.visible,
+            }));
         },
-        onSave(entries) {
+        async onSave(entries, nextViewSettings = {}) {
             const existingRequiredColumns = Array.isArray(context.tableState?.requiredColumns)
                 ? [...context.tableState.requiredColumns]
                 : [];
@@ -1235,18 +1574,47 @@ async function openSettings(table, context = {}) {
                 }, {}),
             };
 
+            const { previousState: previousViewState, nextState: nextViewState } = buildNextDataTableViewState(
+                context,
+                entries,
+                nextViewSettings,
+                Boolean(searchCapability?.available)
+            );
+
+            const runtimeColumnKeys = new Set(
+                (Array.isArray(context.tableColumns) ? context.tableColumns : [])
+                    .map((column) => resolveDataTableColumnWidthKey(column))
+                    .filter(Boolean)
+            );
+            const unsupportedSystemKeys = new Set(
+                (Array.isArray(context.originalColumns) ? context.originalColumns : [])
+                    .filter((column) => column?.__dtSystemCapability === false)
+                    .map((column) => resolveDataTableColumnWidthKey(column))
+                    .filter(Boolean)
+            );
+            const previousVisibleSet = new Set(previousState.visibleColumns);
+            const nextVisibleSet = new Set(nextState.visibleColumns);
+            const unsupportedSystemVisibilityChanged = Array.from(unsupportedSystemKeys)
+                .some((key) => previousVisibleSet.has(key) !== nextVisibleSet.has(key));
+            const requiresRuntimeSchemaRebuild = nextState.visibleColumns
+                .some((key) => !runtimeColumnKeys.has(String(key || '').trim()))
+                || unsupportedSystemVisibilityChanged;
             const requiresReapply = orderChanged(context.tableState.columnOrder, nextState.columnOrder)
-                || mapChanged(context.tableState.columnDisplayName, nextState.columnDisplayName);
+                || mapChanged(context.tableState.columnDisplayName, nextState.columnDisplayName)
+                || requiresRuntimeSchemaRebuild;
             context.tableState = saveSettingState(context.config, nextState, context.tableState, 'TABLE');
-            context.appliedColumns = moveColumnsImmediatelyBeforeActions(
-                applyColumnPolicies(applyVisibility(
-                    reorderConfigurableColumns(context.originalColumns || [], context.tableState.columnOrder),
-                    context.tableState.visibleColumns,
-                    context.tableState.requiredColumns
-                ), context.tableState),
-                context.config?.columnsImmediatelyBeforeActions
-            ).map((column) => ({ ...column }));
+            context.viewState = saveSettingState(context.config, nextViewState, context.viewState, 'VIEW');
+            context.tableStateSource = 'saved';
+            context.appliedColumns = applyColumnPolicies(applyVisibility(
+                reorderConfigurableColumns(context.originalColumns || [], context.tableState.columnOrder),
+                context.tableState.visibleColumns,
+                context.tableState.requiredColumns
+            ), context.tableState).map((column) => ({ ...column }));
             dispatchDataTableSettingsUpdated(context);
+            table?.__dtTableSettings?.applyViewState?.({
+                previousState: previousViewState,
+                nextState: context.viewState,
+            });
 
             if (requiresReapply) {
                 const nextAppliedState = {
@@ -1257,7 +1625,7 @@ async function openSettings(table, context = {}) {
                 };
 
                 try {
-                    const handled = table?.__dtTableSettings?.applyState?.({
+                    const handled = await table?.__dtTableSettings?.applyState?.({
                         table,
                         context,
                         previousState,
@@ -1272,7 +1640,7 @@ async function openSettings(table, context = {}) {
                 }
 
                 try {
-                    const handled = context.config?.onOrderChange?.({
+                    const handled = await context.config?.onOrderChange?.({
                         table,
                         context,
                         previousState,
@@ -1362,20 +1730,18 @@ export async function prepareDataTableSettingsColumns(columns = [], config = nul
     };
     const metaColumns = await fetchDataTableMetaColumns(config);
     const filteredColumns = filterColumnsByPhysicalMeta(columns, metaColumns);
-    const sourceColumns = metaColumns.length > 0
+    const baseSourceColumns = metaColumns.length > 0
         ? [...filteredColumns, ...buildMissingPhysicalColumns(filteredColumns, metaColumns)]
         : filteredColumns;
+    const sourceColumns = ensureRequiredSettingsVirtualColumns(baseSourceColumns);
     const normalizedColumns = normalizeColumnDefinitions(sourceColumns, config, metaColumns);
     const loadedState = await loadState(config, normalizedColumns, preloaded);
     const tableState = loadedState.tableState;
     const viewState = loadedState.viewState;
     const orderedColumns = reorderConfigurableColumns(normalizedColumns, tableState.columnOrder);
-    const appliedColumns = moveColumnsImmediatelyBeforeActions(
-        applyColumnPolicies(
-            applyVisibility(orderedColumns, tableState.visibleColumns, tableState.requiredColumns),
-            tableState
-        ),
-        config.columnsImmediatelyBeforeActions
+    const appliedColumns = applyColumnPolicies(
+        applyVisibility(orderedColumns, tableState.visibleColumns, tableState.requiredColumns),
+        tableState
     );
 
     return {
@@ -1388,6 +1754,7 @@ export async function prepareDataTableSettingsColumns(columns = [], config = nul
             storageKey: buildStorageKey(config),
             tableState,
             viewState,
+            tableStateSource: loadedState.tableStateSource,
             metaColumns: metaColumns.map((column) => ({ ...column })),
             originalColumns: normalizedColumns.map((column) => ({ ...column })),
             appliedColumns: appliedColumns.map((column) => ({ ...column })),
@@ -1400,7 +1767,7 @@ export function attachDataTableSettings(table, context = null) {
         return;
     }
 
-    table.__dtTableSettings = {
+    const settingsApi = {
         storageKey: context.storageKey,
         getTableState: () => ({ ...(context.tableState || {}) }),
         getViewState: () => ({ ...(context.viewState || {}) }),
@@ -1408,7 +1775,14 @@ export function attachDataTableSettings(table, context = null) {
         updateViewState: (patch = {}) => updateDataTableViewState(context, patch),
         open: () => openSettings(table, context),
         applyState: null,
+        applyViewState: null,
+        searchFormCapability: null,
+        registerSearchFormCapability(capability = null) {
+            settingsApi.searchFormCapability = capability?.available === true ? capability : null;
+            return settingsApi.searchFormCapability;
+        },
     };
+    table.__dtTableSettings = settingsApi;
 
     ensureSettingsButton(table, context);
     normalizeSettingsTriggerUi(table);
@@ -1485,9 +1859,17 @@ export async function openStandaloneDataTableSettings(config = {}) {
         subtitle: String(config.subtitle || '컬럼 표시, 순서, 사용컬럼명, 필수구분을 설정합니다.'),
         entries,
         defaultEntries: defaults,
-        async restoreDefaults() {
-            await deleteSystemUserSettingsStorage(storageKey, settingsOptions);
-            return buildDataTableDefaultMetaEntries(config, { forceRefresh: true });
+        async restoreDefaults(visibleEntries = []) {
+            const currentVisibility = new Map(
+                visibleEntries.map((entry) => [String(entry?.key || '').trim(), entry?.visible === true])
+            );
+            const currentDefaults = await buildDataTableDefaultMetaEntries(config, { forceRefresh: true });
+            return currentDefaults.map((entry) => ({
+                ...entry,
+                visible: currentVisibility.has(entry.key)
+                    ? currentVisibility.get(entry.key)
+                    : entry.visible,
+            }));
         },
         onSave(nextEntries) {
             const nextState = {

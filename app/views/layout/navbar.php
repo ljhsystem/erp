@@ -42,7 +42,7 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
                 <span></span>
             </button>
 
-            <a class="navbar-brand top-nav-brand" href="/dashboard">
+            <a class="navbar-brand top-nav-brand" href="/main">
                 <?php if (!empty($mainLogoUrl)): ?>
                     <img src="<?= htmlspecialchars((string)$mainLogoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="SUKHYANG Logo" class="navbar-logo">
                 <?php endif; ?>

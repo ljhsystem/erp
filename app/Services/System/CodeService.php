@@ -2,18 +2,21 @@
 namespace App\Services\System;
 
 use App\Models\System\CodeModel;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class CodeService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private CodeModel $model;
     private CodeReferenceService $references;
-    private $logger;
+    private LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
@@ -28,7 +31,7 @@ class CodeService
         try {
             return $this->model->getList($filters);
         } catch (\Throwable $e) {
-            $this->logger->error('getList() failed', ['error' => $e->getMessage()]);
+            $this->logger->error('기준코드 목록 조회에 실패했습니다.', ['event_code' => 'SYSTEM_CODE_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return [];
         }
     }
@@ -44,9 +47,12 @@ class CodeService
         try {
             return $this->model->getOptionsByGroup($codeGroup);
         } catch (\Throwable $e) {
-            $this->logger->error('getOptionsByGroup() failed', [
+            $this->logger->error('기준코드 선택항목 조회에 실패했습니다.', [
+                'event_code' => 'SYSTEM_CODE_OPTIONS_FAILED',
+                'result' => 'FAILED',
                 'code_group' => $codeGroup,
-                'error' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
             return [];
         }
@@ -57,7 +63,7 @@ class CodeService
         try {
             return $this->model->getById($id);
         } catch (\Throwable $e) {
-            $this->logger->error('getById() failed', ['id' => $id, 'error' => $e->getMessage()]);
+            $this->logger->error('기준코드 상세 조회에 실패했습니다.', ['event_code' => 'SYSTEM_CODE_DETAIL_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return null;
         }
     }
@@ -67,12 +73,17 @@ class CodeService
         try {
             return $this->model->getGroups();
         } catch (\Throwable $e) {
-            $this->logger->error('getGroups() failed', ['error' => $e->getMessage()]);
+            $this->logger->error('기준코드 그룹 조회에 실패했습니다.', ['event_code' => 'SYSTEM_CODE_GROUPS_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return [];
         }
     }
 
     public function save(array $data, string $actorType = 'USER'): array
+    {
+        return $this->loggedMutation('기준코드 저장', 'SYSTEM_CODE_SAVE', 'save', fn(): array => $this->saveInternal($data, $actorType));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -155,13 +166,16 @@ class CodeService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('save() failed', ['error' => $e->getMessage()]);
-
             return ['success' => false, 'message' => $this->userMessage($e, '저장 중 오류가 발생했습니다.')];
         }
     }
 
     public function delete(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedMutation('기준코드 삭제', 'SYSTEM_CODE_DELETE', 'delete', fn(): array => $this->deleteInternal($id, $actorType));
+    }
+
+    private function deleteInternal(string $id, string $actorType = 'USER'): array
     {
         ActorHelper::resolve($actorType);
 
@@ -181,7 +195,6 @@ class CodeService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('delete() failed', ['id' => $id, 'error' => $e->getMessage()]);
             return ['success' => false, 'message' => $this->userMessage($e, '삭제 중 오류가 발생했습니다.')];
         }
     }
@@ -197,6 +210,11 @@ class CodeService
     }
 
     public function reorder(array $changes, string $actorType = 'USER'): bool
+    {
+        return $this->runLoggedOperation($this->logger, '기준코드 정렬 저장', 'SYSTEM_CODE_REORDER', 'reorder', ['change_count' => count($changes)], fn(): bool => $this->reorderInternal($changes, $actorType), 'info', false, static fn(bool $result): string => $result ? 'SUCCESS' : 'BLOCKED');
+    }
+
+    private function reorderInternal(array $changes, string $actorType = 'USER'): bool
     {
         if (empty($changes)) {
             return true;
@@ -437,6 +455,12 @@ class CodeService
             }
         }
         return $fallback;
+    }
+
+    private function loggedMutation(string $label, string $eventCode, string $action, callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger, $label, $eventCode, $action, [], $operation, 'info', false,
+            static fn(array $result): string => !empty($result['success']) ? 'SUCCESS' : (str_contains((string) ($result['message'] ?? ''), '오류') ? 'FAILED' : 'BLOCKED'));
     }
 
 }

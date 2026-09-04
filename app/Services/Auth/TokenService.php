@@ -3,34 +3,28 @@ namespace App\Services\Auth;
 
 use PDO;
 use Core\Helpers\ConfigHelper;
-use Core\LoggerFactory;
 
 class TokenService
 {
     private readonly PDO $pdo;
     private string $secret;
     private int $defaultExpire = 3600;
-    private $logger;
 
     public function __construct(PDO $pdo, ?string $secret = null)
     {
         $this->pdo    = $pdo;
-        $this->logger = LoggerFactory::getLogger('service-auth.TokenService');
-
         $this->secret = $secret
             ?? ConfigHelper::get('app.secret');
 
         if (empty($this->secret)) {
-            $this->logger->error('TokenService 초기화 실패 - secret 없음');
             throw new \RuntimeException('TokenService: secret이 설정되지 않았습니다.');
         }
 
         $this->defaultExpire = ConfigHelper::get('auth.token_expire', 3600);
 
-        $this->logger->info('TokenService 초기화 완료');
     }
 
-    public function create(array $payload, int $expireSeconds = null): string
+    public function create(array $payload, ?int $expireSeconds = null): string
     {
         $header  = ['alg' => 'HS256', 'typ' => 'JWT'];
         $expire  = time() + ($expireSeconds ?? $this->defaultExpire);
@@ -45,23 +39,13 @@ class TokenService
 
         $token = $base64Header . '.' . $base64Payload . '.' . $base64Signature;
 
-        $shortId = substr(hash('sha256', $token), 0, 16);
-
-        $this->logger->info('토큰 생성', [
-            'exp'      => $expire,
-            'short_id' => $shortId
-        ]);
-
         return $token;
     }
 
     public function verify(string $token): ?array
     {
-        $shortId = substr(hash('sha256', $token), 0, 16);
-
         $parts = explode('.', $token);
         if (count($parts) !== 3) {
-            $this->logger->warning('토큰 검증 실패 - 형식 오류', compact('shortId'));
             return null;
         }
 
@@ -72,7 +56,6 @@ class TokenService
         $signature   = base64_decode(strtr($signatureB64, '-_', '+/'), true);
 
         if ($headerJson === false || $payloadJson === false || $signature === false) {
-            $this->logger->warning('토큰 검증 실패 - base64 decode 실패', compact('shortId'));
             return null;
         }
 
@@ -80,12 +63,10 @@ class TokenService
         $payload = json_decode($payloadJson, true);
 
         if (!$header || !$payload) {
-            $this->logger->warning('토큰 검증 실패 - JSON decode 실패', compact('shortId'));
             return null;
         }
 
         if (($header['alg'] ?? null) !== 'HS256') {
-            $this->logger->warning('토큰 검증 실패 - alg 불일치', compact('shortId'));
             return null;
         }
 
@@ -94,40 +75,26 @@ class TokenService
         }
 
         if ($payload['exp'] < time()) {
-            $this->logger->info('토큰 만료', [
-                'exp' => $payload['exp'],
-                'short_id' => $shortId
-            ]);
             return null;
         }
 
         $expected = hash_hmac('sha256', $headerB64 . '.' . $payloadB64, $this->secret, true);
 
         if (!hash_equals($expected, $signature)) {
-            $this->logger->warning('토큰 검증 실패 - 서명 불일치', compact('shortId'));
             return null;
         }
-
-        $this->logger->info('토큰 검증 성공', compact('shortId'));
 
         return $payload;
     }
 
     public function createShortToken(array $payload): string
     {
-        $this->logger->info('단기 토큰 생성 요청', [
-            'ttl' => 10 * 60
-        ]);
         return $this->create($payload, 10 * 60); // 10분
     }
 
     public function randomString(int $length = 32): string
     {
         $str = bin2hex(random_bytes($length / 2));
-
-        $this->logger->info('randomString 생성', [
-            'length' => $length
-        ]);
 
         return $str;
     }

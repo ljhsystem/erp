@@ -13,13 +13,14 @@ use App\Models\User\ApprovalTemplateStepModel;
 use App\Models\User\EmployeeModel;
 use App\Services\System\NotificationService;
 use App\Repositories\Ledger\EvidenceSourceRepository;
-use App\Services\Ledger\EvidenceStatusHelperService;
 use App\Services\Ledger\EvidenceClientSyncService;
 use App\Services\Ledger\EvidenceExternalKeyService;
 use App\Services\Ledger\TransactionCrudService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class PersonalExpenseApprovalService
 {
@@ -34,6 +35,7 @@ class PersonalExpenseApprovalService
     private PersonalExpenseModel $expenses;
     private PersonalExpenseItemModel $expenseItems;
     private EmployeePersonalExpenseEvidenceModel $evidences;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -46,6 +48,7 @@ class PersonalExpenseApprovalService
         $this->expenses = new PersonalExpenseModel($pdo);
         $this->expenseItems = new PersonalExpenseItemModel($pdo);
         $this->evidences = new EmployeePersonalExpenseEvidenceModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-approval-personal-expense');
     }
 
     public function submit(string $documentId): array
@@ -212,7 +215,7 @@ class PersonalExpenseApprovalService
         );
         $expense = $document['header'];
         $items = $document['items'];
-        $status = (new EvidenceStatusHelperService($this->pdo))->evidenceStatusFromRequiredMissingMessages([]);
+        $status = 'COMPLETED';
         $evidenceIds = [];
         $transactionIds = [];
         $transactionItemCount = 0;
@@ -236,13 +239,37 @@ class PersonalExpenseApprovalService
             } else {
                 $clientId = $this->resolveMerchantClient($item, $clientSync);
                 $evidenceId = UuidHelper::generate();
+                $snapshot = [
+                    'source_document_id' => $sourceId,
+                    'source_item_id' => (string) $item['id'],
+                    'approval_request_id' => (string) $request['id'],
+                    'raw_application_date' => $expense['application_date'],
+                    'raw_project_id' => $item['project_id'],
+                    'raw_client_id' => $item['client_id'],
+                    'raw_expense_date' => $item['expense_date'],
+                    'raw_expense_category' => $item['expense_category'],
+                    'raw_payment_method' => $item['payment_method'],
+                    'raw_receipt_type' => $item['receipt_type'],
+                    'raw_merchant_company_name' => $item['merchant_name'],
+                    'raw_item_name' => $item['item_name'],
+                    'raw_quantity' => $item['item_quantity'],
+                    'raw_unit_price' => $item['item_unit_price'],
+                    'raw_supply_amount' => $item['item_supply_amount'],
+                    'raw_vat_amount' => $item['item_vat_amount'],
+                    'raw_total_amount' => $item['item_total_amount'],
+                ];
+                $snapshotJson = json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
                 $this->evidences->insert([
                     'id'=>$evidenceId,'sort_no'=>$this->evidences->nextSortNo(),
                     'external_key'=>$externalKeys->key(['approval_item_id'=>(string)$item['id']], self::IMPORT_TYPE),'source_type'=>'APPROVAL',
                     'import_type'=>self::IMPORT_TYPE,'source_personal_expense_item_id'=>$item['id'],
+                    'source_document_id'=>$sourceId,'source_item_id'=>$item['id'],
+                    'business_key_hash'=>hash('sha256', self::IMPORT_TYPE . '|' . $sourceId . '|' . $item['id']),
                     'business_unit'=>'HQ','transaction_direction'=>'EXPENSE','operation_type'=>'PERSONAL_EXPENSE',
                     'client_id'=>$clientId,'project_id'=>$item['project_id'],'bank_account_id'=>null,'card_id'=>null,
-                    'team_id'=>null,'employee_id'=>$expense['employee_id'],'raw_expense_date'=>$item['expense_date'],
+                    'work_team_id'=>null,'team_id'=>null,'employee_id'=>$expense['employee_id'],
+                    'raw_application_date'=>$expense['application_date'],'raw_project_id'=>$item['project_id'],
+                    'raw_client_id'=>$item['client_id'],'raw_expense_date'=>$item['expense_date'],
                     'raw_expense_category'=>$item['expense_category'],'raw_payment_method'=>$item['payment_method'],
                     'raw_receipt_type'=>$item['receipt_type'],'raw_merchant_company_name'=>$item['merchant_name'],
                     'raw_merchant_business_number'=>$item['merchant_business_no'],
@@ -254,7 +281,11 @@ class PersonalExpenseApprovalService
                     'raw_quantity'=>$item['item_quantity'],'raw_unit_price'=>$item['item_unit_price'],
                     'raw_supply_amount'=>$item['item_supply_amount'],'raw_vat_amount'=>$item['item_vat_amount'],
                     'raw_total_amount'=>$item['item_total_amount'],'raw_description'=>$item['item_description'],
-                    'raw_memo'=>$item['item_memo'],'evidence_status'=>$status,'created_by'=>$actor,'updated_by'=>$actor,
+                    'raw_memo'=>$item['item_memo'],'evidence_status'=>$status,
+                    'snapshot_json'=>$snapshotJson,'snapshot_version'=>1,'snapshot_origin_code'=>'APPROVAL_CAPTURED',
+                    'source_hash'=>hash('sha256', $snapshotJson),
+                    'approval_request_id'=>$request['id'],'approved_at'=>date('Y-m-d H:i:s'),'approved_by'=>$actor,
+                    'created_by'=>$actor,'updated_by'=>$actor,
                 ]);
             }
             $evidenceIds[] = $evidenceId;
@@ -390,10 +421,19 @@ class PersonalExpenseApprovalService
         if (!$outer) $this->pdo->beginTransaction();
         try {
             $result = $callback();
-            if (!$outer) $this->pdo->commit();
+            if (!$outer) {$this->pdo->commit();$this->logger->info('개인경비 결재업무가 완료되었습니다.',['event_code'=>'PERSONAL_EXPENSE_APPROVAL_COMPLETED','result'=>'SUCCESS','service'=>self::class,'action'=>'approval','actor'=>ActorHelper::user()]);}
             return $result;
+        } catch (\PDOException $exception) {
+            if (!$outer && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            if(!$outer)$this->logger->error('개인경비 결재업무에 실패했습니다.',['event_code'=>'PERSONAL_EXPENSE_APPROVAL_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'approval','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $exception) {
+            if (!$outer && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            if(!$outer)$this->logger->warning('개인경비 결재업무가 차단되었습니다.',['event_code'=>'PERSONAL_EXPENSE_APPROVAL_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'approval','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
         } catch (\Throwable $exception) {
             if (!$outer && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            if(!$outer)$this->logger->error('개인경비 결재업무에 실패했습니다.',['event_code'=>'PERSONAL_EXPENSE_APPROVAL_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'approval','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
             throw $exception;
         }
     }

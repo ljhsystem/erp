@@ -37,9 +37,22 @@ if (capabilities.project_save) buttons.push({ text:'프로젝트 배치',classNa
 buttons.push({ text:'인사발령 등록',className:'btn btn-warning btn-sm',action:()=>{ location.href='/institution/human-resources/personnel-actions'; } });
 
 table = await createDataTable({ tableSelector:'#jobAssignmentTable', api:API.list, serverSide:true, searching:false, selectable:false, showSelectionMoveButtons:false, deleteButton:false, pageLength:50, defaultOrder:[[0,'asc']], redrawAfterInitialVisibility:false,
-    tableSettings:{ enabled:true,pageKey:'institution.human_resources.job_assignments',tableKey:'job-assignment-main',storageKey:'datatable.settings.institution.job-assignment.main.v1',tableLabel:'직무·배치관리',metaDomain:'job-assignment' },
+    tableSettings:{ enabled:true,pageKey:'institution.human_resources.job_assignments',tableKey:'job-assignment-main',storageKey:'datatable.settings.institution.job-assignment.main.v2',tableLabel:'직무·배치관리',metaDomain:'job-assignment',resetOnColumnSchemaChange:true },
     buttons,
-    columns:[{data:'sort_no',title:'순번'},{data:'username',title:'아이디'},{data:'employee_name',title:'직원명'},{data:'employment_status',title:'재직상태',render:(value,_type,row)=>badge(value,row.employment_status_name)},{data:'department_name',title:'부서',defaultContent:'-'},{data:'position_name',title:'직위·직책',defaultContent:'-'},{data:'job_name',title:'직무',defaultContent:'-'},{data:'primary_project_name',title:'주 프로젝트',defaultContent:'-'},{data:'other_project_summary',title:'기타 프로젝트',defaultContent:'-'},{data:'workplace_name',title:'근무지',defaultContent:'-'},{data:'assignment_start_date',title:'배치 시작일',defaultContent:'-'},{data:'assignment_end_date',title:'배치 종료일',defaultContent:'-'},{data:'assignment_status',title:'배치상태',render:(value,_type,row)=>badge(value,row.assignment_status_name)},{data:'updated_at',title:'수정일시',defaultContent:'-'},{data:null,title:'관리',orderable:false,render:row=>`<button class="btn btn-outline-primary btn-sm" data-detail="${escapeHtml(row.employee_id)}">상세</button>`}]
+    columns:[
+        {data:'sort_no',settingsKey:'user_employees.sort_no',title:'순번'},
+        {data:'employee_name',settingsKey:'user_employees.employee_name',title:'직원명'},
+        {data:'employment_status',settingsKey:'institution_job_assignments_employment_status_histories.status_code',title:'재직상태',render:(value,_type,row)=>badge(value,row.employment_status_name)},
+        {data:'department_name',settingsKey:'institution_job_assignments_department_histories.department_id',title:'부서',defaultContent:'-'},
+        {data:'position_name',settingsKey:'institution_job_assignments_position_histories.position_id',title:'직위·직책',defaultContent:'-'},
+        {data:'job_name',settingsKey:'institution_job_assignments_job_histories.job_id',title:'직무',defaultContent:'-'},
+        {data:'primary_project_name',settingsKey:'institution_job_assignments_project_histories.project_id',title:'주 프로젝트',defaultContent:'-'},
+        {data:'workplace_name',settingsKey:'institution_job_assignments_workplace_histories.workplace_name_snapshot',title:'근무지',defaultContent:'-'},
+        {data:'assignment_start_date',settingsKey:'institution_job_assignments_job_histories.start_date',title:'배치 시작일',defaultContent:'-'},
+        {data:'assignment_end_date',settingsKey:'institution_job_assignments_job_histories.end_date',title:'배치 종료일',defaultContent:'-'},
+        {data:'assignment_status',settingsKey:'institution_job_assignments_project_histories.status_code',title:'배치상태',render:(value,_type,row)=>badge(value,row.assignment_status_name)},
+        {data:null,settingsKey:'__actions',title:'관리',orderable:false,render:row=>`<button class="btn btn-outline-primary btn-sm" data-detail="${escapeHtml(row.employee_id)}">상세</button>`},
+    ]
 });
 SearchForm({ table, apiList:API.list, tableId:'jobAssignment', defaultSearchField:'keyword', dateOptions:[{value:'as_of_date',label:'기준일'}], normalizeFilters:filters=>filters.map(filter=>filter.field==='as_of_date'&&typeof filter.value==='object'?{field:'as_of_date',value:filter.value.end||filter.value.start}:filter) });
 bindSearchPickers();

@@ -2,14 +2,18 @@
 
 namespace App\Services\Backup;
 
+use App\Services\Concerns\LogsServiceOperations;
+use Core\LoggerFactory;
 use DateTimeImmutable;
 use DateTimeZone;
 use PDO;
 use Throwable;
+use Psr\Log\LoggerInterface;
 use function Core\storage_system_path;
 
 class DatabaseSyncService
 {
+    use LogsServiceOperations;
     private const STATUS_STALE_SECONDS = 300;
     private const PROGRESS_INTERVAL = 50;
     private const TRACE_RECENT_SECONDS = 120;
@@ -17,11 +21,13 @@ class DatabaseSyncService
     private readonly PDO $pdo;
     private readonly string $backupDir;
     private readonly DateTimeZone $timezone;
+    private readonly LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
         $this->timezone = new DateTimeZone('Asia/Seoul');
+        $this->logger = LoggerFactory::getLogger('service-backup-database-sync');
 
         $backupPath = storage_system_path('db_backup');
         if (!$backupPath) {
@@ -33,6 +39,11 @@ class DatabaseSyncService
     }
 
     public function runLatestBackupSync(string $trigger = 'sync'): array
+    {
+        return $this->runLoggedOperation($this->logger,'데이터베이스 동기화','DATABASE_SYNC','run',['trigger_code'=>$trigger],fn():array=>$this->runLatestBackupSyncInternal($trigger),'warning',false,static fn(array$result):string=>!empty($result['success'])?'SUCCESS':(!empty($result['skipped'])?'BLOCKED':'FAILED'));
+    }
+
+    private function runLatestBackupSyncInternal(string $trigger = 'sync'): array
     {
         $startedAt = $this->now()->format('Y-m-d H:i:s');
         $latestPath = $this->findLatestBackupFile();
@@ -195,7 +206,6 @@ class DatabaseSyncService
 
             $this->appendDatabasePair($result, $dbPair);
             $this->writeSyncStatus($result);
-            $this->writeSyncLog($result);
             $this->writeSyncTrace('SUCCESS', 'completed', $result['message'], $latestFile, [
                 'statement_count' => $summary['statement_count'],
                 'target' => $dbPair['standby']['label'] ?? null,
@@ -242,7 +252,6 @@ class DatabaseSyncService
 
             $this->appendDatabasePair($failed, $dbPair);
             $this->writeSyncStatus($failed);
-            $this->writeSyncLog($failed);
             $this->writeSyncTrace('FAILED', (string) $failed['stage'], $failed['message'], $latestFile, [
                 'error' => $e->getMessage(),
                 'target' => $dbPair['standby']['label'] ?? null,
@@ -373,7 +382,6 @@ class DatabaseSyncService
 
         $this->appendDatabasePair($failed, $dbPair);
         $this->writeSyncStatus($failed);
-        $this->writeSyncLog($failed);
         $this->writeSyncTrace('FAILED', (string) $failed['stage'], $failed['message'], $latestFile, [
             'error' => $reason,
             'target' => $dbPair['standby']['label'] ?? null,
@@ -407,7 +415,6 @@ class DatabaseSyncService
 
         $this->appendDatabasePair($result);
         $this->writeSyncStatus($result);
-        $this->writeSyncLog($result);
 
         return $result;
     }
@@ -1022,37 +1029,15 @@ class DatabaseSyncService
         ]);
     }
 
-    private function writeSyncLog(array $result): void
-    {
-        $target = $result['standby_db']['label'] ?? '-';
-        $line = sprintf(
-            "[%s] %s: %s / target=%s%s\n",
-            $this->now()->format('Y-m-d H:i:s'),
-            ($result['success'] ?? false) ? 'SUCCESS' : 'FAILED',
-            $result['file'] ?? '-',
-            $target,
-            !empty($result['message']) ? ' / ' . $result['message'] : ''
-        );
-
-        @file_put_contents($this->backupDir . 'secondary_restore_log.txt', $line, FILE_APPEND);
-    }
-
     private function writeSyncTrace(string $state, string $stage, string $message, ?string $file = null, array $context = []): void
     {
-        $payload = [
-            'time' => $this->now()->format('Y-m-d H:i:s'),
-            'state' => $state,
+        $level = $state === 'FAILED' ? 'error' : ($state === 'SUCCESS' ? 'info' : 'debug');
+        $this->logger->log($level, '대기 데이터베이스 동기화 진행상태가 변경되었습니다.', [
+            'event_code' => 'DATABASE_SYNC_PROGRESS',
+            'result' => $state,
             'stage' => $stage,
-            'file' => $file,
-            'message' => $message,
-            'context' => $context,
-        ];
-
-        @file_put_contents(
-            $this->getSyncTracePath(),
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
-            FILE_APPEND
-        );
+            'statement_count' => isset($context['statement_count']) ? (int) $context['statement_count'] : null,
+        ]);
     }
 
     private function getSyncStatusPath(): string
@@ -1062,7 +1047,7 @@ class DatabaseSyncService
 
     private function getSyncTracePath(): string
     {
-        return $this->backupDir . 'secondary_restore_trace.log';
+        return $this->getSyncStatusPath();
     }
 
     private function getSyncLockPath(): string

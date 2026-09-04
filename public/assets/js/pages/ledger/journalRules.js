@@ -13,7 +13,7 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 import {
     initCodeSelectControls,
     onCodeOptionsLoaded,
-} from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+} from '/public/assets/js/pages/main/settings/system/code-select.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -55,9 +55,19 @@ import '/public/assets/js/components/trash-manager.js';
         'transaction_direction',
         'operation_type',
         'client_type',
-        'debit_account_id',
-        'credit_account_id',
-        'vat_account_id',
+        'source_type',
+        'source_line_type',
+        'item_code',
+        'accounting_role_code',
+        'debit_credit',
+        'account_id',
+        'effective_from',
+        'effective_to',
+        'priority_no',
+        'origin_code',
+        'rule_status',
+        'condition_hash',
+        'revision_no',
         'usage_count',
         'last_used_at',
         'confidence_score',
@@ -78,9 +88,12 @@ import '/public/assets/js/components/trash-manager.js';
         { selector: '#journalRuleModal [name="transaction_direction"]', key: 'transaction_direction' },
         { selector: '#journalRuleModal [name="client_type"]', key: 'client_type' },
         { selector: '#journalRuleModal [name="import_type"]', key: 'import_type' },
-        { selector: '#journalRuleModal [name="debit_account_id"]', key: 'debit_account_id' },
-        { selector: '#journalRuleModal [name="credit_account_id"]', key: 'credit_account_id' },
-        { selector: '#journalRuleModal [name="vat_account_id"]', key: 'vat_account_id' },
+        { selector: '#journalRuleModal [name="source_type"]', key: 'source_type' },
+        { selector: '#journalRuleModal [name="source_line_type"]', key: 'source_line_type' },
+        { selector: '#journalRuleModal [name="item_code"]', key: 'item_code' },
+        { selector: '#journalRuleModal [name="accounting_role_code"]', key: 'accounting_role_code' },
+        { selector: '#journalRuleModal [name="debit_credit"]', key: 'debit_credit' },
+        { selector: '#journalRuleModal [name="account_id"]', key: 'account_id' },
         { selector: '#journalRuleModal [name="description"]', key: 'description' },
         { selector: '#journalRuleModal [name="is_active"]', key: 'is_active' },
     ]);
@@ -343,9 +356,12 @@ import '/public/assets/js/components/trash-manager.js';
             transaction_direction: String(formData.get('transaction_direction') || '').trim(),
             client_type: String(formData.get('client_type') || '').trim(),
             import_type: String(formData.get('import_type') || '').trim(),
-            debit_account_id: String(formData.get('debit_account_id') || '').trim(),
-            credit_account_id: String(formData.get('credit_account_id') || '').trim(),
-            vat_account_id: String(formData.get('vat_account_id') || '').trim(),
+            source_type: String(formData.get('source_type') || '').trim(),
+            source_line_type: String(formData.get('source_line_type') || '').trim(),
+            item_code: String(formData.get('item_code') || '').trim(),
+            accounting_role_code: String(formData.get('accounting_role_code') || '').trim(),
+            debit_credit: String(formData.get('debit_credit') || '').trim(),
+            account_id: String(formData.get('account_id') || '').trim(),
             description: String(formData.get('description') || '').trim(),
             is_active: formData.has('is_active') ? '1' : '0',
         };
@@ -516,11 +532,17 @@ import '/public/assets/js/components/trash-manager.js';
                     'import_type',
                     'business_unit',
                     'transaction_direction',
-                    'client_type',
-                    'debit_account_id',
-                    'credit_account_id',
-                    'vat_account_id',
-                    'description',
+                    'item_code',
+                    'accounting_role_code',
+                    'debit_credit',
+                    'account_id',
+                    'effective_from',
+                    'effective_to',
+                    'priority_no',
+                    'origin_code',
+                    'rule_status',
+                    'condition_hash',
+                    'revision_no',
                     'is_active',
                 ],
             },
@@ -582,9 +604,19 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'operation_type', title: '업무유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(operationTypes, row.operation_type, row.operation_type_name)), settingsKey: 'operation_type', visible: false },
             { data: 'client_type', title: '거래처구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(clientTypes, row.client_type, row.client_type_name)), settingsKey: 'client_type' },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(importTypes, row.import_type, row.import_type_name)), settingsKey: 'import_type' },
-            { data: 'debit_account_id', title: '차변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'debit')), settingsKey: 'debit_account_id' },
-            { data: 'credit_account_id', title: '대변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'credit')), settingsKey: 'credit_account_id' },
-            { data: 'vat_account_id', title: '부가세계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'vat')), settingsKey: 'vat_account_id' },
+            { data: 'source_type', title: 'Source 유형', className: 'text-nowrap', render: textCell, settingsKey: 'source_type' },
+            { data: 'source_line_type', title: 'Source 라인유형', className: 'text-nowrap', render: textCell, settingsKey: 'source_line_type' },
+            { data: 'item_code', title: '비용분류', className: 'text-nowrap', render: (_value, _type, row) => badge(row.item_code_name || row.item_code || '전체'), settingsKey: 'item_code' },
+            { data: 'accounting_role_code', title: '회계역할', className: 'text-nowrap', render: (_value, _type, row) => badge(row.accounting_role_name || row.accounting_role_code), settingsKey: 'accounting_role_code' },
+            { data: 'debit_credit', title: '차대', className: 'text-center text-nowrap', render: (value) => badge(value === 'DEBIT' ? '차변' : value === 'CREDIT' ? '대변' : value), settingsKey: 'debit_credit' },
+            { data: 'account_id', title: '결과 계정', render: (_value, _type, row) => escapeHtml([row.result_account_code, row.result_account_name].filter(Boolean).join(' ') || '-'), settingsKey: 'account_id' },
+            { data: 'effective_from', title: '적용 시작일', className: 'text-nowrap', render: textCell, settingsKey: 'effective_from' },
+            { data: 'effective_to', title: '적용 종료일', className: 'text-nowrap', render: textCell, settingsKey: 'effective_to' },
+            { data: 'priority_no', title: '우선순위', className: 'text-end', render: textCell, settingsKey: 'priority_no' },
+            { data: 'origin_code', title: 'Origin', className: 'text-center', render: badge, settingsKey: 'origin_code' },
+            { data: 'rule_status', title: '규칙상태', className: 'text-center', render: badge, settingsKey: 'rule_status' },
+            { data: 'condition_hash', title: 'Condition Hash', className: 'text-nowrap', render: textCell, settingsKey: 'condition_hash' },
+            { data: 'revision_no', title: 'Revision', className: 'text-end', render: (_value, _type, row) => escapeHtml(`${row.revision_no || 0} / ${row.latest_revision_action || '-'}`), settingsKey: 'revision_no' },
             { data: 'usage_count', title: '사용횟수', className: 'text-end text-nowrap', render: textCell, settingsKey: 'usage_count', visible: false },
             { data: 'last_used_at', title: '최근사용일시', className: 'text-nowrap', render: textCell, settingsKey: 'last_used_at', visible: false },
             { data: 'confidence_score', title: '신뢰도', className: 'text-end text-nowrap', render: textCell, settingsKey: 'confidence_score', visible: false },
@@ -684,7 +716,7 @@ import '/public/assets/js/components/trash-manager.js';
                 }
                 if (!confirm('분개규칙을 삭제하시겠습니까?')) return;
 
-                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '분개규칙을 휴지통으로 이동 중' }, async () => {
+                await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '분개규칙을 휴지통으로 이동 중', trashChanged: true }, async () => {
                     const body = new URLSearchParams({ id });
                     const json = await fetchJson(API.delete, {
                         method: 'POST',
@@ -718,7 +750,17 @@ import '/public/assets/js/components/trash-manager.js';
             await ensureSelectSourcesReady();
             $('#journalRuleModal select').val('').trigger('change');
             $('#journalRuleModal [name="business_unit"]').val('CONSTRUCTION').trigger('change');
-            $('#journalRuleModal [name="operation_type"]').val('GENERAL').trigger('change');
+            $('#journalRuleModal [name="operation_type"]').val('PERSONAL_EXPENSE').trigger('change');
+            $('#journalRuleModal [name="transaction_direction"]').val('OUT').trigger('change');
+            $('#journalRuleModal [name="import_type"]').val('EMPLOYEE_EXPENSE_PERSONAL').trigger('change');
+            $('#journalRuleModal [name="accounting_role_code"]').val('EXPENSE').trigger('change');
+            $('#journalRuleModal [name="debit_credit"]').val('DEBIT').trigger('change');
+            $('#journalRuleModal [name="origin_code"]').val('USER').trigger('change');
+            $('#journalRuleModal [name="rule_status"]').val('ACTIVE').trigger('change');
+            $('#journalRuleModal [name="source_type"]').val('PERSONAL_EXPENSE_ITEM');
+            $('#journalRuleModal [name="source_line_type"]').val('ITEM');
+            $('#journalRuleModal [name="effective_from"]').val('2013-07-19');
+            $('#journalRuleModal [name="priority_no"]').val('100');
             applyJournalRuleModalPolicyLabels(document.getElementById('journalRuleModal'));
         } catch (error) {
             notify('error', error.message || '분개규칙 입력 준비 중 오류가 발생했습니다.');

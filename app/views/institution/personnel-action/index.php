@@ -6,7 +6,7 @@ $pageStyles = AssetHelper::css('/assets/css/pages/institution/personnel-action/i
 $pageScripts = AssetHelper::module('/assets/js/pages/institution/personnel-action/index.js');
 ?>
 <main class="personnel-action-page" data-page="personnel-action">
-    <div class="container-fluid py-4">
+    <div class="container-fluid py-4 dt-page-shell">
         <div class="mb-3">
             <h5 class="mb-1 fw-bold"><i class="bi bi-person-lines-fill me-2"></i>인사발령관리</h5>
             <p class="text-muted small mb-0">직원의 입사·조직·직위·직책·재직상태 변경을 공식 발령으로 등록하고 결재·적용 이력을 관리합니다.</p>

@@ -18,13 +18,14 @@ class ApprovalNotificationService
 
     public function sendApprovalMail(string $adminEmail, array $user, string $token): void
     {
-        $this->logger->info('sendApprovalMail 시작', [
-            'admin' => $adminEmail,
-            'user'  => $user['id'] ?? null,
-        ]);
-
         $baseUrl = rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/');
         if ($baseUrl === '') {
+            $this->logger->warning('계정승인 메일 발송이 차단되었습니다.', [
+                'event_code' => 'ACCOUNT_APPROVAL_MAIL_BLOCKED',
+                'result' => 'BLOCKED',
+                'user_id' => $user['id'] ?? null,
+                'reason_code' => 'BASE_URL_NOT_CONFIGURED',
+            ]);
             throw new \RuntimeException('App.BaseUrl is not configured');
         }
 
@@ -67,13 +68,20 @@ class ApprovalNotificationService
             //curl_close($ch);
 
             $this->logger->info('승인 메일 발송 성공', [
-                'admin' => $adminEmail,
+                'event_code' => 'ACCOUNT_APPROVAL_MAIL_SENT',
+                'result' => 'SUCCESS',
+                'user_id' => $user['id'] ?? null,
+                'recipient_domain' => str_contains($adminEmail, '@') ? substr(strrchr($adminEmail, '@'), 1) : '',
             ]);
 
         } catch (\Throwable $e) {
-            $this->logger->error('sendApprovalMail 실패', [
-                'admin' => $adminEmail,
-                'error' => $e->getMessage(),
+            $this->logger->error('계정승인 메일 발송에 실패했습니다.', [
+                'event_code' => 'ACCOUNT_APPROVAL_MAIL_FAILED',
+                'result' => 'FAILED',
+                'user_id' => $user['id'] ?? null,
+                'recipient_domain' => str_contains($adminEmail, '@') ? substr(strrchr($adminEmail, '@'), 1) : '',
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
         }
     }

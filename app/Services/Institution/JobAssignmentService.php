@@ -6,18 +6,22 @@ use App\Models\Institution\EmployeeAssignmentAuditModel;
 use App\Models\Institution\JobAssignmentModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use DateTimeImmutable;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class JobAssignmentService
 {
     private JobAssignmentModel $model;
     private EmployeeAssignmentAuditModel $audits;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $db)
     {
         $this->model = new JobAssignmentModel($db);
         $this->audits = new EmployeeAssignmentAuditModel($db);
+        $this->logger = LoggerFactory::getLogger('service-institution-job-assignment');
     }
 
     public function list(array $query): array
@@ -245,5 +249,5 @@ class JobAssignmentService
     private function nullable(mixed $value): ?string { $value=trim((string)$value);return $value===''?null:$value; }
     private function snapshot(array $row): array { return array_diff_key($row,array_flip(['created_at','created_by','updated_at','updated_by'])); }
     private function filterDate(array $query): ?string { $filters=json_decode((string)($query['filters']??''),true);foreach(is_array($filters)?$filters:[] as $filter)if(($filter['field']??'')==='as_of_date')return(string)($filter['value']??'');return null; }
-    private function transaction(callable $callback): array { $owned=!$this->db->inTransaction();if($owned)$this->db->beginTransaction();try{$result=$callback();if($owned)$this->db->commit();return$result;}catch(\Throwable $e){if($owned&&$this->db->inTransaction())$this->db->rollBack();throw$e;} }
+    private function transaction(callable $callback): array { $owned=!$this->db->inTransaction();if($owned)$this->db->beginTransaction();try{$result=$callback();if($owned){$this->db->commit();$this->logger->info('직원 배치정보 변경이 완료되었습니다.',['event_code'=>'JOB_ASSIGNMENT_CHANGED','result'=>'SUCCESS','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user()]);}return$result;}catch(\InvalidArgumentException|\DomainException$e){if($owned&&$this->db->inTransaction())$this->db->rollBack();if($owned)$this->logger->warning('직원 배치정보 변경이 차단되었습니다.',['event_code'=>'JOB_ASSIGNMENT_CHANGE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e]);throw$e;}catch(\Throwable $e){if($owned&&$this->db->inTransaction())$this->db->rollBack();if($owned)$this->logger->error('직원 배치정보 변경에 실패했습니다.',['event_code'=>'JOB_ASSIGNMENT_CHANGE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($e),'error'=>$e]);throw$e;} }
 }

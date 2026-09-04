@@ -1,0 +1,164 @@
+/* 경로: /public/assets/css/pages/main/settings/client.css */
+
+/* ==============================
+   PAGE
+============================== */
+.client-page{
+    width:100%;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+/* ==============================
+   HEADER
+============================== */
+.client-page .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.client-page .page-header h5{
+    margin-bottom:0;
+}
+
+.client-count,
+.client-page .page-count{
+    display:inline-flex;
+    align-items:center;
+    font-size:1rem;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
+}
+
+/* ==============================
+   MODAL SIZE ONLY
+============================== */
+.modal-dialog.modal-lg{
+    max-width:900px;
+    width:95vw;
+}
+
+.client-modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+.client-system-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px 16px;
+}
+
+.client-system-info-field{
+    min-width:0;
+    display:grid;
+    grid-template-columns:92px minmax(0, 1fr);
+    gap:8px;
+    align-items:start;
+}
+
+.client-system-info-label{
+    color:var(--color-text-muted, #667085);
+    font-size:.82rem;
+}
+
+.client-system-info-value{
+    min-width:0;
+    overflow-wrap:anywhere;
+    font-size:.86rem;
+}
+
+.file-upload-box{
+    border:2px dashed #d0d5dd;
+    padding:15px;
+    text-align:center;
+    cursor:pointer;
+    border-radius:8px;
+}
+
+.file-upload-box.drag-over{
+    background:#f5f8ff;
+    border-color:#3b82f6;
+}
+
+
+.file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:8px 12px;
+    background:#fff;
+}
+
+.client-page .client-active-toggle{
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.client-page .client-active-toggle:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.client-page .client-active-toggle:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.client-page .client-active-toggle:disabled{
+    cursor: wait;
+    opacity: .65;
+}
+
+.client-page .client-edit-btn{
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.client-page .client-edit-btn:hover,
+.client-page .client-edit-btn:focus{
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.client-page .client-edit-btn:active{
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:900px){
+
+    .modal-dialog.modal-lg{
+        max-width:98vw;
+        width:98vw;
+    }
+
+    .client-system-info-grid{
+        grid-template-columns:1fr;
+    }
+
+}

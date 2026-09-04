@@ -22,7 +22,7 @@ $layoutOptions = [
 
 $pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css')
     . AssetHelper::css('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css')
-    . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
+    . AssetHelper::css('/assets/css/pages/main/settings/system/code.css')
     . AssetHelper::css('/assets/css/pages/ledger/data-upload.css');
 $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js')
     . AssetHelper::module('/assets/js/pages/ledger/dataUpload.js');
@@ -161,4 +161,4 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/ag-grid-community@3
     </div>
 </main>
 
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>

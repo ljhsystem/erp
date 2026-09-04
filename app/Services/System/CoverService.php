@@ -4,6 +4,7 @@ namespace App\Services\System;
 use PDO;
 use App\Models\System\CoverModel;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\DataHelper;
@@ -13,6 +14,7 @@ use function Core\storage_to_url;
 
 class CoverService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private FileService $fileService;
     private CoverModel $model;
@@ -25,15 +27,10 @@ class CoverService
         $this->model       = new CoverModel();
         $this->logger      = LoggerFactory::getLogger('service-system.CoverService');
 
-        $this->logger->info('SystemCoverService initialized');
     }
 
     public function getList(array $filters = []): array
     {
-        $this->logger->info('getAll() called', [
-            'filters' => $filters
-        ]);
-
         try {
             $rows = $this->model->getList($filters);
 
@@ -42,15 +39,16 @@ class CoverService
                 return $row;
             }, $rows);
 
-            $this->logger->info('getAll() success', [
+            $this->logger->info('커버 목록을 조회했습니다.', [
                 'count' => count($result)
             ]);
 
             return $result;
 
         } catch (\Throwable $e) {
-            $this->logger->error('getAll() failed', [
-                'exception' => $e->getMessage()
+            $this->logger->error('커버 목록 조회에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
             return [];
         }
@@ -58,7 +56,7 @@ class CoverService
 
     public function getPublicList(): array
     {
-        $this->logger->info('getPublicList() called');
+        $this->logger->info('공개 커버 목록을 조회합니다.');
 
         $rows = $this->model->getPublicList();
 
@@ -77,13 +75,13 @@ class CoverService
 
     public function getById(string $id): ?array
     {
-        $this->logger->info('getById() called', ['id' => $id]);
+        $this->logger->info('커버 상세를 조회합니다.', ['id' => $id]);
 
         try {
             $row = $this->model->getById($id);
 
             if (!$row) {
-                $this->logger->warning('getById() not found', ['id' => $id]);
+                $this->logger->warning('커버를 찾을 수 없습니다.', ['id' => $id]);
                 return null;
             }
 
@@ -92,9 +90,10 @@ class CoverService
             return $row;
 
         } catch (\Throwable $e) {
-            $this->logger->error('getById() exception', [
+            $this->logger->error('커버 상세 조회 중 예외가 발생했습니다.', [
                 'id'        => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
             return null;
         }
@@ -102,9 +101,14 @@ class CoverService
 
     public function save(array $data): array
     {
+        return $this->loggedCoverMutation('표지 저장','COVER_SAVE','save',fn():array=>$this->saveInternal($data));
+    }
+
+    private function saveInternal(array $data): array
+    {
         $actor = ActorHelper::user();
 
-        $this->logger->info('save() called', [
+        $this->logger->info('커버 저장을 시작합니다.', [
             'cover_id' => $data['id'] ?? null
         ]);
 
@@ -255,8 +259,9 @@ class CoverService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('save() exception', [
-                'exception' => $e->getMessage()
+            $this->logger->error('커버 저장 중 예외가 발생했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -268,9 +273,14 @@ class CoverService
 
     public function delete(string $id): array
     {
+        return $this->loggedCoverMutation('표지 삭제','COVER_DELETE','delete',fn():array=>$this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $actor = ActorHelper::user();
 
-        $this->logger->info('delete() called', [
+        $this->logger->info('커버 삭제를 시작합니다.', [
             'id' => $id,
             'deleted_by' => $actor
         ]);
@@ -308,9 +318,10 @@ class CoverService
             ];
 
         } catch (\Throwable $e) {
-            $this->logger->error('delete() exception', [
+            $this->logger->error('커버 삭제 중 예외가 발생했습니다.', [
                 'id'        => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -322,7 +333,7 @@ class CoverService
 
     public function getTrashList(): array
     {
-        $this->logger->info('getTrashList() called');
+        $this->logger->info('삭제된 커버 목록을 조회합니다.');
 
         try {
             $rows = $this->model->getDeleted();
@@ -332,15 +343,16 @@ class CoverService
                 return $row;
             }, $rows);
 
-            $this->logger->info('getTrashList() success', [
+            $this->logger->info('삭제된 커버 목록을 조회했습니다.', [
                 'count' => count($result)
             ]);
 
             return $result;
 
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() failed', [
-                'exception' => $e->getMessage()
+            $this->logger->error('삭제된 커버 목록 조회에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
             return [];
         }
@@ -348,8 +360,13 @@ class CoverService
 
     public function restore(string $id): array
     {
+        return $this->loggedCoverMutation('표지 복구','COVER_RESTORE','restore',fn():array=>$this->restoreInternal($id));
+    }
+
+    private function restoreInternal(string $id): array
+    {
         $actor = ActorHelper::user();
-        $this->logger->info('restore() called', ['id' => $id]);
+        $this->logger->info('커버 복구를 시작합니다.', ['id' => $id]);
 
         try {
             $item = $this->model->getById($id);
@@ -382,9 +399,10 @@ class CoverService
             ];
 
         } catch (\Throwable $e) {
-            $this->logger->error('restore() exception', [
+            $this->logger->error('커버 복구 중 예외가 발생했습니다.', [
                 'id' => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -395,6 +413,11 @@ class CoverService
     }
 
     public function restoreBulk(array $ids): array
+    {
+        return $this->loggedCoverMutation('표지 일괄복구','COVER_RESTORE_BULK','restore-bulk',fn():array=>$this->restoreBulkInternal($ids));
+    }
+
+    private function restoreBulkInternal(array $ids): array
     {
         if (empty($ids)) {
             return ['success' => false, 'message' => 'ID가 비어 있습니다.'];
@@ -442,7 +465,7 @@ class CoverService
     {
         $actor = ActorHelper::user();
 
-        $this->logger->info('restoreAll() called');
+        $this->logger->info('커버 전체복구를 시작합니다.');
 
         try {
 
@@ -477,7 +500,12 @@ class CoverService
 
     public function purge(string $id): array
     {
-        $this->logger->info('purge() called', ['id' => $id]);
+        return $this->loggedCoverMutation('표지 영구삭제','COVER_PURGE','purge',fn():array=>$this->purgeInternal($id));
+    }
+
+    private function purgeInternal(string $id): array
+    {
+        $this->logger->info('커버 영구삭제를 시작합니다.', ['id' => $id]);
 
         try {
             $item = $this->model->getById($id);
@@ -509,9 +537,10 @@ class CoverService
             ];
 
         } catch (\Throwable $e) {
-            $this->logger->error('purge() exception', [
+            $this->logger->error('커버 영구삭제 중 예외가 발생했습니다.', [
                 'id'        => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -522,6 +551,11 @@ class CoverService
     }
 
     public function purgeBulk(array $ids): array
+    {
+        return $this->loggedCoverMutation('표지 일괄 영구삭제','COVER_PURGE_BULK','purge-bulk',fn():array=>$this->purgeBulkInternal($ids));
+    }
+
+    private function purgeBulkInternal(array $ids): array
     {
         if (empty($ids)) {
             return ['success' => false, 'message' => 'ID가 비어 있습니다.'];
@@ -579,9 +613,14 @@ class CoverService
 
     public function purgeAll(string $actorType = 'USER'): array
     {
+        return $this->loggedCoverMutation('표지 전체 영구삭제','COVER_PURGE_ALL','purge-all',fn():array=>$this->purgeAllInternal($actorType));
+    }
+
+    private function purgeAllInternal(string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('cover.purgeAll() called', [
+        $this->logger->info('커버 전체 영구삭제를 시작합니다.', [
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
@@ -614,8 +653,9 @@ class CoverService
 
             $this->pdo->rollBack();
 
-            $this->logger->error('cover.purgeAll() exception', [
-                'exception' => $e->getMessage()
+            $this->logger->error('커버 전체 영구삭제 중 예외가 발생했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -627,10 +667,11 @@ class CoverService
 
     public function reorder(array $changes): bool
     {
-        $this->logger->info('reorder() called', [
-            'changes' => $changes
-        ]);
+        return $this->runLoggedOperation($this->logger,'표지 정렬 저장','COVER_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
 
+    private function reorderInternal(array $changes): bool
+    {
         if (empty($changes)) {
             return true;
         }
@@ -673,7 +714,7 @@ class CoverService
                 $this->pdo->commit();
             }
 
-            $this->logger->info('reorder() success');
+            $this->logger->info('커버 정렬을 저장했습니다.');
 
             return true;
 
@@ -683,12 +724,18 @@ class CoverService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage(),
-                'changes' => $changes
+            $this->logger->error('커버 정렬 저장에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
+                'change_count' => count($changes)
             ]);
 
             throw $e;
         }
+    }
+    private function loggedCoverMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 }

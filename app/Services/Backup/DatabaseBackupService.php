@@ -2,6 +2,7 @@
 
 namespace App\Services\Backup;
 
+use App\Services\Concerns\LogsServiceOperations;
 use App\Services\System\SettingService;
 use Core\LoggerFactory;
 use DateTimeImmutable;
@@ -12,6 +13,7 @@ use function Core\storage_system_path;
 
 class DatabaseBackupService
 {
+    use LogsServiceOperations;
     private const RESTORE_STALE_SECONDS = 900;
 
     private readonly PDO $pdo;
@@ -37,6 +39,11 @@ class DatabaseBackupService
 
     public function backupDatabase(): array
     {
+        return $this->runLoggedOperation($this->logger,'데이터베이스 백업','DATABASE_BACKUP','backup',[],fn():array=>$this->backupDatabaseInternal(),'info',false,static fn(array$result):string=>!empty($result['success'])?'SUCCESS':(!empty($result['skipped'])?'BLOCKED':'FAILED'));
+    }
+
+    private function backupDatabaseInternal(): array
+    {
         try {
             $this->ensureBackupDir();
             $dbName = $this->getCurrentDatabaseName();
@@ -55,9 +62,6 @@ class DatabaseBackupService
             $time = $this->now()->format('Y-m-d H:i:s');
 
             $this->markBackupClean($filename, $time);
-            $this->writeBackupLog(sprintf('[%s] BACKUP SUCCESS: %s (%d bytes)', $time, $filename, $size));
-            $this->logger->info('[BACKUP] done', ['file' => $filename, 'size' => $size]);
-
             return [
                 'success' => true,
                 'message' => 'Primary DB backup completed.',
@@ -66,12 +70,9 @@ class DatabaseBackupService
                 'size' => $size,
             ];
         } catch (Throwable $e) {
-            $this->logger->error('[BACKUP] failed', ['error' => $e->getMessage()]);
-            $this->writeBackupLog(sprintf('[%s] BACKUP FAILED: %s', $this->now()->format('Y-m-d H:i:s'), $e->getMessage()));
-
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => '데이터베이스 백업 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -169,6 +170,11 @@ class DatabaseBackupService
 
     public function restoreLatestBackupToSecondary(string $trigger = 'manual'): array
     {
+        return $this->runLoggedOperation($this->logger,'보조 데이터베이스 복원','SECONDARY_DATABASE_RESTORE','restore',['trigger_code'=>$trigger],fn():array=>$this->restoreLatestBackupToSecondaryInternal($trigger),'warning',false,static fn(array$result):string=>!empty($result['success'])?'SUCCESS':(!empty($result['skipped'])?'BLOCKED':'FAILED'));
+    }
+
+    private function restoreLatestBackupToSecondaryInternal(string $trigger = 'manual'): array
+    {
         $startedAt = $this->now()->format('Y-m-d H:i:s');
         $latestPath = $this->findLatestBackupFile();
 
@@ -183,7 +189,6 @@ class DatabaseBackupService
                 'stage' => 'no-backup-file',
             ];
             $this->writeRestoreStatus($result);
-            $this->writeSecondaryRestoreLog($result);
             return $result;
         }
 
@@ -283,7 +288,6 @@ class DatabaseBackupService
                 ];
 
                 $this->writeRestoreStatus($result);
-                $this->writeSecondaryRestoreLog($result);
                 return $result;
             }
 
@@ -307,7 +311,6 @@ class DatabaseBackupService
             ];
 
             $this->writeRestoreStatus($result);
-            $this->writeSecondaryRestoreLog($result);
             return $result;
         } catch (Throwable $e) {
             $result = [
@@ -325,7 +328,6 @@ class DatabaseBackupService
             ];
 
             $this->writeRestoreStatus($result);
-            $this->writeSecondaryRestoreLog($result);
             return $result;
         }
     }
@@ -351,7 +353,6 @@ class DatabaseBackupService
             $status['stale'] = true;
             $status['warning'] = 'The mysql restore process may have ended unexpectedly. Please check Secondary DB state and backup logs.';
             $this->writeRestoreStatus($status);
-            $this->writeSecondaryRestoreLog($status);
         }
 
         return $this->appendSecondarySyncState($status);
@@ -453,11 +454,6 @@ class DatabaseBackupService
 
         $sqlDump .= "SET FOREIGN_KEY_CHECKS = 1;\n";
         return $sqlDump;
-    }
-
-    private function writeBackupLog(string $line): void
-    {
-        @file_put_contents($this->backupDir . 'backup_log.txt', $line . "\n", FILE_APPEND);
     }
 
     private function findLatestBackupFile(): ?string
@@ -674,19 +670,13 @@ class DatabaseBackupService
         }
 
         $fileSize = (int) (@filesize($sqlFile) ?: 0);
-        $trace = function (string $message) use ($sqlFile, $dbName, $fileSize): void {
-            @file_put_contents(
-                $this->backupDir . 'secondary_restore_trace.log',
-                sprintf(
-                    "[%s] IMPORT / %s / db=%s / file=%s / size=%d`n",
-                    $this->now()->format('Y-m-d H:i:s'),
-                    $message,
-                    $dbName,
-                    basename($sqlFile),
-                    $fileSize
-                ),
-                FILE_APPEND
-            );
+        $trace = function (string $message) use ($fileSize): void {
+            $this->logger->debug('보조 데이터베이스 복원 가져오기 단계를 처리했습니다.', [
+                'event_code' => 'SECONDARY_RESTORE_IMPORT_STEP',
+                'result' => 'SUCCESS',
+                'step' => $message,
+                'file_size' => $fileSize,
+            ]);
         };
 
         $cmd = sprintf(
@@ -1076,30 +1066,14 @@ class DatabaseBackupService
 
         $this->writeRestoreStatus($payload);
 
-        @file_put_contents(
-            $this->backupDir . 'secondary_restore_trace.log',
-            sprintf(
-                "[%s] %s / %s / %s\n",
-                $payload['updated_at'],
-                strtoupper($state),
-                $stage,
-                $message
-            ),
-            FILE_APPEND
-        );
-    }
-
-    private function writeSecondaryRestoreLog(array $result): void
-    {
-        $line = sprintf(
-            "[%s] %s: %s%s\n",
-            $this->now()->format('Y-m-d H:i:s'),
-            ($result['success'] ?? false) ? 'SUCCESS' : 'FAILED',
-            $result['file'] ?? '-',
-            !empty($result['message']) ? ' / ' . $result['message'] : ''
-        );
-
-        @file_put_contents($this->backupDir . 'secondary_restore_log.txt', $line, FILE_APPEND);
+        $level = $state === 'failed' ? 'error' : ($state === 'completed' ? 'info' : 'debug');
+        $this->logger->{$level}('보조 데이터베이스 복원 단계를 갱신했습니다.', [
+            'event_code' => 'SECONDARY_RESTORE_PROGRESS',
+            'result' => $state === 'failed' ? 'FAILED' : ($state === 'completed' ? 'SUCCESS' : 'PROGRESS'),
+            'stage' => $stage,
+            'state' => $state,
+            'status_message' => $message,
+        ]);
     }
 
 }

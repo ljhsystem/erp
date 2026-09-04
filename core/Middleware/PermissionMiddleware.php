@@ -4,6 +4,7 @@ namespace Core\Middleware;
 
 use App\Services\Auth\AuthSessionService;
 use App\Services\Auth\PermissionService;
+use Core\Helpers\ApiErrorResponseHelper;
 use Core\LoggerFactory;
 
 class PermissionMiddleware
@@ -93,12 +94,11 @@ class PermissionMiddleware
 
         if ($isApi) {
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'error' => true,
+            $error = $status === 401 ? 'AUTHENTICATION_REQUIRED' : 'PERMISSION_DENIED';
+            echo json_encode(ApiErrorResponseHelper::payload($error, $message, [
                 'status' => $status,
-                'message' => $message,
                 'redirect' => $status === 401 ? '/login' : null,
-            ], JSON_UNESCAPED_UNICODE);
+            ]), JSON_UNESCAPED_UNICODE);
             exit;
         }
 

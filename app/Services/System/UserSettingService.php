@@ -3,6 +3,7 @@
 namespace App\Services\System;
 
 use App\Models\System\UserSettingModel;
+use App\Services\Concerns\LogsServiceOperations;
 use App\Services\Auth\UserContextService;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
@@ -10,6 +11,7 @@ use PDO;
 
 class UserSettingService
 {
+    use LogsServiceOperations;
     private UserSettingModel $model;
     private UserContextService $userContextService;
     private $logger;
@@ -41,6 +43,11 @@ class UserSettingService
 
     public function save(string $pageKey, string $settingType, string $description, array $settingsJson): array
     {
+        return $this->runLoggedOperation($this->logger,'사용자 화면설정','USER_SETTING_SAVE','save',['page_key'=>$pageKey,'setting_type'=>$settingType],fn():array=>$this->saveInternal($pageKey,$settingType,$description,$settingsJson));
+    }
+
+    private function saveInternal(string $pageKey, string $settingType, string $description, array $settingsJson): array
+    {
         $normalizedPageKey = $this->normalizePageKey($pageKey);
         $normalizedSettingType = $this->normalizeSettingType($settingType);
         $normalizedDescription = $this->normalizeDescription($description);
@@ -61,12 +68,6 @@ class UserSettingService
             'actor' => $actorId,
         ]);
 
-        $this->logger->info('user setting saved', [
-            'page_key' => $normalizedPageKey,
-            'setting_type' => $normalizedSettingType,
-            'user_id' => $userId,
-        ]);
-
         return [
             'page_key' => $normalizedPageKey,
             'setting_type' => $normalizedSettingType,
@@ -77,18 +78,16 @@ class UserSettingService
 
     public function delete(string $pageKey, string $settingType): array
     {
+        return $this->runLoggedOperation($this->logger,'사용자 화면설정','USER_SETTING_DELETE','delete',['page_key'=>$pageKey,'setting_type'=>$settingType],fn():array=>$this->deleteInternal($pageKey,$settingType));
+    }
+
+    private function deleteInternal(string $pageKey, string $settingType): array
+    {
         $normalizedPageKey = $this->normalizePageKey($pageKey);
         $normalizedSettingType = $this->normalizeSettingType($settingType);
         $userId = $this->currentUserId();
 
         $deleted = $this->model->deleteOne($normalizedPageKey, $normalizedSettingType, $userId);
-
-        $this->logger->info('user setting deleted', [
-            'page_key' => $normalizedPageKey,
-            'setting_type' => $normalizedSettingType,
-            'user_id' => $userId,
-            'deleted' => $deleted,
-        ]);
 
         return [
             'page_key' => $normalizedPageKey,

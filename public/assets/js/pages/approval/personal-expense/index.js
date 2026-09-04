@@ -1361,7 +1361,7 @@ async function save(url) {
 async function removeCurrent() {
     if (!current?.header?.id || !confirm('신청서를 삭제하시겠습니까?')) return;
     try {
-        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '신청서를 휴지통으로 이동 중' }, async () => {
+        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '신청서를 휴지통으로 이동 중', trashChanged: true }, async () => {
             await request(API.delete, { method: 'POST', body: JSON.stringify({ id: current.header.id }) });
             allowModalClose = true;
             modal?.hide();

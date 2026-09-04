@@ -23,11 +23,12 @@ class StatutoryStandardSourceModel
         foreach ($existingStatement->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             $existing[(string) $row['id']] = $row;
         }
-        $retainedIds = [];
+        if ($existing !== []) {
+            throw new \LogicException('확정된 법정기준 Source는 수정하거나 삭제할 수 없습니다. 신규 Correction Revision에 Source를 등록하세요.');
+        }
         foreach ($sources as $index => $source) {
             $requestedId = trim((string) ($source['id'] ?? ''));
-            $previous = $existing[$requestedId] ?? null;
-            if ($requestedId !== '' && !$previous) {
+            if ($requestedId !== '') {
                 throw new \InvalidArgumentException('근거자료 연결 정보가 올바르지 않습니다.');
             }
             $uploaded = !empty($source['_uploaded']);
@@ -40,31 +41,15 @@ class StatutoryStandardSourceModel
                 'notice_no' => $this->null((string) ($source['notice_no'] ?? '')),
                 'published_at' => $this->null((string) ($source['published_at'] ?? '')),
                 'source_url' => $this->null((string) ($source['source_url'] ?? '')),
-                'file_path' => $uploaded ? $this->null((string) ($source['file_path'] ?? '')) : ($previous['file_path'] ?? null),
-                'file_name' => $uploaded ? $this->null((string) ($source['file_name'] ?? '')) : ($previous['file_name'] ?? null),
-                'file_size' => $uploaded ? (($source['file_size'] ?? '') === '' ? null : (int) $source['file_size']) : ($previous['file_size'] ?? null),
-                'mime_type' => $uploaded ? $this->null((string) ($source['mime_type'] ?? '')) : ($previous['mime_type'] ?? null),
+                'file_path' => $uploaded ? $this->null((string) ($source['file_path'] ?? '')) : null,
+                'file_name' => $uploaded ? $this->null((string) ($source['file_name'] ?? '')) : null,
+                'file_size' => $uploaded ? (($source['file_size'] ?? '') === '' ? null : (int) $source['file_size']) : null,
+                'mime_type' => $uploaded ? $this->null((string) ($source['mime_type'] ?? '')) : null,
                 'note' => $this->null((string) ($source['note'] ?? '')),
                 'updated_at' => date('Y-m-d H:i:s'),
                 'updated_by' => $actor,
             ];
-            if ($previous) {
-                $retainedIds[] = $requestedId;
-                $params = [':id' => $requestedId];
-                $sets = [];
-                foreach ($data as $field => $value) {
-                    $sets[] = $field . '=:' . $field;
-                    $params[':' . $field] = $value;
-                }
-                $statement = $this->db->prepare(
-                    'UPDATE system_statutory_standard_sources SET ' . implode(',', $sets) . ' WHERE id=:id'
-                );
-                $statement->execute($params);
-                continue;
-            }
-
             $id = UuidHelper::generate();
-            $retainedIds[] = $id;
             $insert = ['id' => $id] + $data + [
                 'created_at' => date('Y-m-d H:i:s'),
                 'created_by' => $actor,
@@ -80,14 +65,6 @@ class StatutoryStandardSourceModel
             ));
         }
 
-        $removedIds = array_values(array_diff(array_keys($existing), $retainedIds));
-        if ($removedIds !== []) {
-            $placeholders = implode(',', array_fill(0, count($removedIds), '?'));
-            $statement = $this->db->prepare(
-                'DELETE FROM system_statutory_standard_sources WHERE standard_id=? AND id IN (' . $placeholders . ')'
-            );
-            $statement->execute([$standardId, ...$removedIds]);
-        }
     }
 
     public function find(string $id): ?array

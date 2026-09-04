@@ -84,7 +84,7 @@ export function registerEditors(ctx) {
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
 
     const TRANSACTION_META_DOMAIN = 'transaction-header';
-    const TRANSACTION_TABLE_SETTINGS_KEY = 'datatable.settings.ledger.transaction.transaction-table.v1';
+    const TRANSACTION_TABLE_SETTINGS_KEY = 'datatable.settings.ledger.transaction.transaction-table.v2';
     const TRANSACTION_TABLE_PAGE_KEY = 'ledger.transaction';
     const TRANSACTION_HEADER_LABEL_FIELDS = Object.freeze([
         { field: 'business_unit', selector: '#business_unit', textSelector: '.transaction-field-label-text' },
@@ -98,7 +98,7 @@ export function registerEditors(ctx) {
         { field: 'team_id', selector: '#team_id', textSelector: '.transaction-field-label-text' },
         { field: 'employee_id', selector: '#employee_id', textSelector: '.transaction-field-label-text' },
         { field: 'transaction_date', selector: '#transaction_date' },
-        { field: 'description', selector: '#transaction_description' },
+        { field: 'description', selector: '#transaction_description', settingsKey: 'transaction_description' },
         { field: 'exchange_rate', selector: '#exchange_rate' },
         { field: 'foreign_amount', selector: '#transaction_foreign_amount', settingsKey: 'transaction_foreign_amount' },
         { field: 'note', selector: '#transaction_note' },
@@ -219,10 +219,13 @@ export function registerEditors(ctx) {
                 source_title: fieldConfig.field,
             };
 
+            const requirementPolicy = transactionFieldRequirementPolicy(meta, state, fieldConfig);
             targetEl.innerHTML = transactionFieldLabelHtml(
                 transactionFieldLabel(meta, state, { ...fieldConfig, fallback }),
-                transactionFieldRequirementPolicy(meta, state, fieldConfig)
+                requirementPolicy
             );
+            inputEl.required = requirementPolicy === 'required';
+            inputEl.setAttribute('aria-required', requirementPolicy === 'required' ? 'true' : 'false');
         });
     }
 
@@ -290,10 +293,10 @@ export function registerEditors(ctx) {
         'note',
         'transaction_memo',
         'memo',
+        'status',
     ]);
     const SYSTEM_INFO_LABEL_OVERRIDES = {
         sort_no: '순번',
-        status: '상태',
         transaction_no: '거래번호',
         created_at: '생성일시',
         created_by: '생성자',
@@ -304,7 +307,6 @@ export function registerEditors(ctx) {
     };
     const SYSTEM_INFO_FALLBACK_ORDER = [
         'sort_no',
-        'status',
         'transaction_no',
         'created_at',
         'created_by',
@@ -1095,40 +1097,14 @@ export function registerEditors(ctx) {
         return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
     }
 
-    function renderLineStatus(_value, _type, row = {}) {
-        const status = String(row.transaction_line_status || 'NONE').toUpperCase();
-        const count = Number(row.transaction_line_count || 0);
-        const incomplete = Number(row.transaction_line_incomplete_count || 0);
-
-        if (status === 'COMPLETE') {
-            return `<span class="badge text-bg-success">완성 ${count}</span>`;
-        }
-
-        if (status === 'INCOMPLETE') {
-            return `<span class="badge text-bg-warning" title="보완 필요 ${incomplete}건">미완성 ${count}</span>`;
-        }
-
-        return '<span class="badge text-bg-secondary" title="거래 화면에서 거래내역을 추가해 주세요.">내역 없음</span>';
-    }
-
     function updateTransactionStatusBadge(value) {
         if (!ctx.transactionStatusBadgeEl) return;
 
         const status = normalizeTransactionStatus(value);
-        const labels = {
-            draft: '임시저장',
-            completed: '완료',
-            closed: '마감',
-            cancelled: '취소',
-        };
-
-        ctx.transactionStatusBadgeEl.className = `transaction-modal-state transaction-status-${status}`;
-        const labelEl = ctx.transactionStatusBadgeEl.querySelector('span');
-        if (labelEl) {
-            labelEl.textContent = labels[status] || labels.draft;
-        } else {
-            ctx.transactionStatusBadgeEl.textContent = labels[status] || labels.draft;
-        }
+        ctx.transactionStatusBadgeEl.dataset.status = status;
+        ctx.transactionStatusBadgeEl.querySelectorAll('input[type="radio"]').forEach((radio) => {
+            radio.checked = radio.value === status;
+        });
     }
 
     function statusDisplayLabel(value) {
@@ -1374,7 +1350,7 @@ export function registerEditors(ctx) {
         form.querySelectorAll('input, select, textarea, button').forEach((control) => {
             if (control.matches('[data-bs-dismiss="ctx.modal"], .btn-close, .transaction-card-toggle')) return;
 
-            control.disabled = !editable;
+            control.disabled = !editable || control.matches('[data-status-terminal]');
         });
 
         deleteBtn?.classList.toggle('d-none', !editable || !document.getElementById('transaction_id')?.value);
@@ -1423,8 +1399,17 @@ export function registerEditors(ctx) {
         return ctx.agGridLoadPromise;
     }
 
+    ctx.transactionStatusBadgeEl?.querySelectorAll('input[name="transaction_status_choice"]:not([data-status-terminal])').forEach((radio) => {
+        radio.addEventListener('change', () => {
+            if (!radio.checked) return;
+            const statusInput = document.getElementById('transaction_status');
+            if (statusInput) statusInput.value = radio.value;
+            updateTransactionStatusBadge(radio.value);
+        });
+    });
+
     bindTransactionHeaderMetaSync();
 
-    Object.assign(ctx, { getLineColumns, getSettlementColumns, escapeHtml, notify, today, formatDate, decorateGridDatePicker, isLineDateCell, isManualDateKey, getVisibleGridDatePicker, closeGridDatePicker, unbindLineDateInputFormatter, bindLineDateInputFormatter, unbindLineDateEscHandler, bindLineDateEscHandler, getUnitDropdownSource, unitDropdownSource, normalizeUnitCellValue, isAllowedUnitCellValue, notifyInvalidUnitValue, updateSettlementTypeOptionsFromCodeState, updateAmountSignOptionsFromCodeState, findSettlementTypeOption, settlementTypeLabelFromCode, settlementTypeCodeFromCell, findAmountSignOption, amountSignLabelFromCode, amountSignCodeFromCell, updateUnitOptionsFromCodeState, openUnitQuickAdd, applyPendingUnitSelection, numberValue, formatAmount, setHeaderAmountValues, syncHeaderFinalAmount, normalizeHeaderAmountFormData, lineRowNoRenderer, dragHandleHeaderComponent, dragHandleCellRenderer, lineActionRenderer, formatBytes, updateFileDropzone, normalizeTransactionStatus, renderTransactionStatus, renderLineStatus, updateTransactionStatusBadge, statusDisplayLabel, setSystemInfoFields, setTransactionModalEditable, renderCodeName, ensureAgGridLibrary, initUnitCodeOptions, fetchJson, HOT_DATE_PICKER_CONFIG, LINE_ITEM_DATE_COL, LINE_UNIT_COL, UNIT_EMPTY_LABEL, UNIT_QUICK_ADD_LABEL, DEFAULT_SETTLEMENT_TYPE_OPTIONS, DEFAULT_AMOUNT_SIGN_OPTIONS, LINE_COLUMNS, SETTLEMENT_COLUMNS });
+    Object.assign(ctx, { getLineColumns, getSettlementColumns, escapeHtml, notify, today, formatDate, decorateGridDatePicker, isLineDateCell, isManualDateKey, getVisibleGridDatePicker, closeGridDatePicker, unbindLineDateInputFormatter, bindLineDateInputFormatter, unbindLineDateEscHandler, bindLineDateEscHandler, getUnitDropdownSource, unitDropdownSource, normalizeUnitCellValue, isAllowedUnitCellValue, notifyInvalidUnitValue, updateSettlementTypeOptionsFromCodeState, updateAmountSignOptionsFromCodeState, findSettlementTypeOption, settlementTypeLabelFromCode, settlementTypeCodeFromCell, findAmountSignOption, amountSignLabelFromCode, amountSignCodeFromCell, updateUnitOptionsFromCodeState, openUnitQuickAdd, applyPendingUnitSelection, numberValue, formatAmount, setHeaderAmountValues, syncHeaderFinalAmount, normalizeHeaderAmountFormData, lineRowNoRenderer, dragHandleHeaderComponent, dragHandleCellRenderer, lineActionRenderer, formatBytes, updateFileDropzone, normalizeTransactionStatus, renderTransactionStatus, updateTransactionStatusBadge, statusDisplayLabel, setSystemInfoFields, setTransactionModalEditable, renderCodeName, ensureAgGridLibrary, initUnitCodeOptions, fetchJson, HOT_DATE_PICKER_CONFIG, LINE_ITEM_DATE_COL, LINE_UNIT_COL, UNIT_EMPTY_LABEL, UNIT_QUICK_ADD_LABEL, DEFAULT_SETTLEMENT_TYPE_OPTIONS, DEFAULT_AMOUNT_SIGN_OPTIONS, LINE_COLUMNS, SETTLEMENT_COLUMNS });
     return ctx;
 }

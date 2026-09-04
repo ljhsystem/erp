@@ -2,13 +2,23 @@ import { createTableInteraction } from './index.js';
 import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableViewState } from '../datatable/dataTableSettings.js';
 import { applyActorDataTableColumn } from '../actor.js';
 import { hideDeleteProgress, updateDeleteProgress } from '../delete-progress.js';
+import { markTrashButtonsHasData } from '../trash/trash-button-state.js';
+import {
+    DATA_TABLE_COLUMN_WIDTH_MAX,
+    DATA_TABLE_COLUMN_WIDTH_MIN,
+    DATA_TABLE_PAGE_LENGTH_OPTIONS,
+    isDataTableColumnWidthResizable,
+    normalizeDataTableColumnWidth,
+    normalizeDataTablePageLength,
+    resolveDataTableColumnWidthKey,
+} from '../datatable/dataTableViewPolicy.js';
 
 const __dtAdjustState = new WeakMap();
 const __dtInstances = new Set();
 const __dtResizeState = new WeakMap();
 const __dtContainerResizeState = new WeakMap();
 const DEFAULT_PAGE_LENGTH = 100;
-const PAGE_LENGTH_MENU = [100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000];
+const PAGE_LENGTH_MENU = DATA_TABLE_PAGE_LENGTH_OPTIONS;
 const DELETE_PROGRESS_CHUNK_SIZE = 500;
 const LAYOUT_RESIZE_SETTLE_MS = 120;
 const AppCore = window.AppCore = window.AppCore || {};
@@ -54,6 +64,69 @@ function applyColumnHeaderClasses(table, columns = []) {
         [originalHeaders[index], getScrollHeaderNodeByIndex(table, index)].forEach((headerNode) => {
             if (!headerNode) return;
             headerNode.classList.add(...classes);
+        });
+    });
+}
+
+function resolvePlainColumnTitle(column = {}) {
+    const explicitTitle = String(column.tooltipText ?? column.plainTitle ?? column.settingsTitle ?? '').trim();
+    if (explicitTitle !== '') return explicitTitle;
+
+    const host = document.createElement('div');
+    host.innerHTML = String(column.title ?? '');
+    if (host.querySelector('input, button, select, textarea, a, svg, i')) return '';
+    return String(host.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function resolveHeaderColumnIndex(table, cell, columns = [], visibleIndex = -1) {
+    const dataIndexes = String(cell?.dataset?.dtColumn || '')
+        .split(',')
+        .map((value) => Number.parseInt(value.trim(), 10))
+        .filter(Number.isInteger);
+    if (dataIndexes.length === 1 && columns[dataIndexes[0]]) return dataIndexes[0];
+
+    const originalIndex = columns.findIndex((_column, index) => table.column(index).header() === cell);
+    if (originalIndex >= 0) return originalIndex;
+
+    const visibleIndexes = table.columns(':visible').indexes().toArray();
+    const runtimeIndex = visibleIndexes[visibleIndex];
+    if (Number.isInteger(runtimeIndex) && columns[runtimeIndex]) return runtimeIndex;
+
+    const connectedKey = String(cell?.dataset?.dtColumnKey || '').trim();
+    return connectedKey === ''
+        ? -1
+        : columns.findIndex((column) => resolveSettingsColumnKeys(column).includes(connectedKey));
+}
+
+function applyColumnHeaderMetadata(table, columns = []) {
+    if (!table || !Array.isArray(columns)) return;
+    const headers = [
+        table.table().header(),
+        table.table().container()?.querySelector('.dataTables_scrollHead thead'),
+        table.table().container()?.querySelector('.fixedHeader-floating thead'),
+        table.table().container()?.querySelector('.fixedHeader-locked thead'),
+    ].filter(Boolean);
+
+    headers.forEach((header) => {
+        Array.from(header.querySelectorAll('th')).forEach((cell, visibleIndex) => {
+            const index = resolveHeaderColumnIndex(table, cell, columns, visibleIndex);
+            const title = resolvePlainColumnTitle(columns[index] || {});
+            const key = index >= 0 ? resolveSettingsColumnKey(columns[index]) : '';
+            if (title === '' || key === '') {
+                disposeCellTooltip(cell);
+                cell.removeAttribute('data-dt-column-key');
+                cell.removeAttribute('data-dt-full-title');
+                cell.removeAttribute('data-dt-virtual-column');
+                cell.removeAttribute('aria-label');
+                return;
+            }
+            if (cell.dataset.dtColumnKey !== key || cell.dataset.dtFullTitle !== title) {
+                disposeCellTooltip(cell);
+            }
+            cell.dataset.dtColumnKey = key;
+            cell.dataset.dtFullTitle = title;
+            cell.dataset.dtVirtualColumn = columns[index]?.__dtColumnKind === 'virtual' ? 'true' : 'false';
+            cell.setAttribute('aria-label', title);
         });
     });
 }
@@ -200,6 +273,14 @@ function withUtilityColumnDefaults(column = {}) {
     const utilitySettingsKey = getUtilityColumnSettingsKey(next);
     if (utilitySettingsKey !== '' && typeof next.settingsKey !== 'string') {
         next.settingsKey = utilitySettingsKey;
+    }
+    const utilityTitle = {
+        __select: '\uC120\uD0DD',
+        __reorder: '\uC21C\uC11C \uC774\uB3D9',
+        __actions: '\uAD00\uB9AC',
+    }[utilitySettingsKey] || '';
+    if (utilityTitle !== '' && String(next.settingsTitle || '').trim() === '') {
+        next.settingsTitle = utilityTitle;
     }
     if (typeof next.widthResizable !== 'boolean') {
         next.widthResizable = true;
@@ -579,6 +660,7 @@ async function softDeleteSelectedRows({
             },
         }));
         await reloadDataTable(table);
+        if (deletedCount > 0) markTrashButtonsHasData(deletedCount);
         table.table?.().node?.()?.dispatchEvent(new CustomEvent('datatable:soft-delete-completed', {
             bubbles: true,
             detail: {
@@ -683,6 +765,8 @@ function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSele
         key: settingsKey,
         data: null,
         title: `<input type="checkbox" class="form-check-input dt-select-all" id="${escapeAttr(checkAllId)}" aria-label="\uC804\uCCB4 \uC120\uD0DD">`,
+        tooltipText: '\uC120\uD0DD',
+        settingsTitle: '\uC120\uD0DD',
         className: 'dt-select-column no-colvis text-center',
         headerClassName: 'dt-select-column no-colvis text-center',
         orderable: false,
@@ -912,46 +996,11 @@ function extractSortSettingsFromTable(table, tableColumns = []) {
 }
 
 function resolveColumnWidthKey(column = {}, index = 0) {
-    if (typeof column.__dtSettingsKey === 'string' && column.__dtSettingsKey.trim() !== '') {
-        return column.__dtSettingsKey.trim();
-    }
-    if (typeof column.key === 'string' && column.key.trim() !== '') {
-        return column.key.trim();
-    }
-    if (typeof column.settingsKey === 'string' && column.settingsKey.trim() !== '') {
-        return column.settingsKey.trim();
-    }
-    if (typeof column.name === 'string' && column.name.trim() !== '') {
-        return column.name.trim();
-    }
-    if (typeof column.data === 'string' && column.data.trim() !== '') {
-        return column.data.trim();
-    }
-    return '';
+    return resolveDataTableColumnWidthKey(column, index);
 }
 
 function isColumnWidthConfigurable(column = {}) {
-    if (!column) {
-        return false;
-    }
-
-    if (column.widthResizable === false) {
-        return false;
-    }
-
-    if (column.widthResizable === true) {
-        return resolveColumnWidthKey(column) !== '';
-    }
-
-    if (column.isSelectionColumn === true) {
-        return false;
-    }
-
-    if (isReorderColumn(column) || isActionColumn(column)) {
-        return false;
-    }
-
-    return resolveColumnWidthKey(column) !== '';
+    return isDataTableColumnWidthResizable(column);
 }
 
 function getColumnWidthIndexMap(tableColumns = []) {
@@ -1063,7 +1112,7 @@ function getColgroupNodesByIndex(table, index) {
 }
 
 function applyColumnWidthPx(table, index, widthPx) {
-    const normalizedWidth = Math.max(32, Math.round(Number(widthPx) || 0));
+    const normalizedWidth = normalizeDataTableColumnWidth(widthPx);
     if (!Number.isFinite(normalizedWidth) || normalizedWidth <= 0) {
         return;
     }
@@ -1464,19 +1513,23 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
             ...bodyNodes.map(node => measureCellContentWidth(node, false)),
             0
         );
-        const minWidth = Math.max(32, Number(column.autoFitMinWidth) || 48);
-        const maxWidth = Math.max(minWidth, Number(column.autoFitMaxWidth) || 640);
+        const minWidth = Math.max(DATA_TABLE_COLUMN_WIDTH_MIN, Number(column.autoFitMinWidth) || 48);
+        const maxWidth = Math.min(
+            DATA_TABLE_COLUMN_WIDTH_MAX,
+            Math.max(minWidth, Number(column.autoFitMaxWidth) || 640)
+        );
         return Math.min(maxWidth, Math.max(minWidth, naturalWidth));
     };
 
     const persistColumnWidth = (index, key, widthPx) => {
-        if (!Number.isFinite(widthPx) || widthPx <= 0 || !key) return;
+        const normalizedWidth = normalizeDataTableColumnWidth(widthPx);
+        if (!Number.isFinite(normalizedWidth) || !key) return;
 
-        applyColumnWidthPx(table, index, widthPx);
+        applyColumnWidthPx(table, index, normalizedWidth);
         updateDataTableViewState(settingsContext, {
             columnWidths: {
                 ...(settingsContext.viewState?.columnWidths || {}),
-                [key]: widthPx,
+                [key]: normalizedWidth,
             },
         });
         scheduleAdjust(table, {
@@ -1521,7 +1574,10 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         }
 
         stopEvent(event);
-        const nextWidth = Math.max(32, dragState.startWidth + (event.clientX - dragState.startX));
+        const nextWidth = Math.min(
+            DATA_TABLE_COLUMN_WIDTH_MAX,
+            Math.max(DATA_TABLE_COLUMN_WIDTH_MIN, dragState.startWidth + (event.clientX - dragState.startX))
+        );
         applyColumnWidthPx(table, dragState.index, nextWidth);
     };
 
@@ -2215,12 +2271,57 @@ function isCellTextTruncated(cell) {
     return Math.ceil(cell.scrollWidth) > Math.ceil(cell.clientWidth + 1);
 }
 
+function isBodyTextCell(cell, column = {}) {
+    if (!(cell instanceof HTMLElement)
+        || column.truncate === false
+        || column.multiline === true
+        || column.tooltip === false) return false;
+
+    const excludedClasses = [
+        'dt-select-column', 'dt-reorder-column', 'reorder-handle', 'dt-action-column',
+        'dt-status-column', 'dt-no-truncate', 'text-wrap', 'text-break',
+    ];
+    if (excludedClasses.some((className) => cell.classList.contains(className))) return false;
+
+    return !cell.querySelector([
+        'input', 'select', 'textarea', 'button', '.dropdown-menu', '.badge', '.form-switch',
+        '.progress', 'img', 'svg', 'canvas', 'video', '[role="progressbar"]',
+    ].join(','));
+}
+
+function syncBodyTextCellClasses(table, columns = []) {
+    const body = table?.table?.().body?.();
+    if (!body) return;
+    Array.from(body.rows || []).forEach((row) => {
+        Array.from(row.cells || []).forEach((cell) => {
+            const index = table.cell(cell).index()?.column;
+            const column = Number.isInteger(index) ? (columns[index] || {}) : {};
+            cell.classList.toggle('dt-text-truncate', isBodyTextCell(cell, column));
+        });
+    });
+}
+
 function resolveCellTooltipText(cell) {
     if (!(cell instanceof HTMLElement)) {
         return '';
     }
 
     return String(cell.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function resolveBodyTooltipText(table, cell, column = {}) {
+    const displayed = resolveCellTooltipText(cell);
+    const row = table.row(cell.closest('tr')).data();
+    if (typeof column.tooltipText === 'function') {
+        return String(column.tooltipText(row, displayed) ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    const raw = table.cell(cell).data();
+    if (['string', 'number', 'bigint'].includes(typeof raw)) {
+        const rawText = String(raw).replace(/\s+/g, ' ').trim();
+        if (!/[<>]/.test(rawText) && rawText === displayed) return rawText;
+    }
+    return displayed;
 }
 
 function disposeCellTooltip(cell) {
@@ -2235,7 +2336,20 @@ function disposeCellTooltip(cell) {
     cell.removeAttribute('data-bs-trigger');
     cell.removeAttribute('data-bs-original-title');
     cell.removeAttribute('title');
-    cell.removeAttribute('aria-label');
+    if (cell.dataset.dtFullTitle) {
+        cell.setAttribute('aria-label', cell.dataset.dtFullTitle);
+    } else {
+        cell.removeAttribute('aria-label');
+    }
+}
+
+function disposeTruncatedTableTooltips(wrapper) {
+    if (!(wrapper instanceof HTMLElement)) {
+        return;
+    }
+
+    wrapper.querySelectorAll('th[data-bs-trigger="manual"], td[data-bs-trigger="manual"]')
+        .forEach((cell) => disposeCellTooltip(cell));
 }
 
 function bindTruncatedHeaderTooltips(table) {
@@ -2268,8 +2382,8 @@ function bindTruncatedHeaderTooltips(table) {
             return;
         }
 
-        const text = resolveCellTooltipText(cell);
-        if (text === '' || !isCellTextTruncated(cell)) {
+        const text = String(cell.dataset.dtFullTitle || '').trim();
+        if (text === '') {
             disposeCellTooltip(cell);
             return;
         }
@@ -2288,6 +2402,7 @@ function bindTruncatedHeaderTooltips(table) {
             container: 'body',
             placement: 'top',
             trigger: 'manual',
+            animation: false,
         });
     };
 
@@ -2314,7 +2429,7 @@ function bindTruncatedHeaderTooltips(table) {
     }
 }
 
-function bindTruncatedCellTooltips(table, tableSelector) {
+function bindTruncatedCellTooltips(table, tableSelector, columns = []) {
     const wrapper = table?.table?.().container?.();
     if (!wrapper || wrapper.dataset.dtCellTooltipBound === 'true') {
         return;
@@ -2332,13 +2447,15 @@ function bindTruncatedCellTooltips(table, tableSelector) {
             return;
         }
 
-        if (cell.querySelector('input, select, textarea, button, a, .dropdown-menu')) {
+        const columnIndex = table.cell(cell).index()?.column;
+        const column = Number.isInteger(columnIndex) ? (columns[columnIndex] || {}) : {};
+        if (!isBodyTextCell(cell, column)) {
             disposeCellTooltip(cell);
             return;
         }
 
-        const text = resolveCellTooltipText(cell);
-        if (text === '' || !isCellTextTruncated(cell)) {
+        const text = resolveBodyTooltipText(table, cell, column);
+        if (text === '' || text === '-' || !isCellTextTruncated(cell)) {
             disposeCellTooltip(cell);
             return;
         }
@@ -2357,6 +2474,7 @@ function bindTruncatedCellTooltips(table, tableSelector) {
             container: 'body',
             placement: 'top',
             trigger: 'manual',
+            animation: false,
         });
     };
 
@@ -2372,6 +2490,15 @@ function bindTruncatedCellTooltips(table, tableSelector) {
     tbody.addEventListener('focusin', showTooltip, true);
     tbody.addEventListener('mouseout', hideTooltip, true);
     tbody.addEventListener('focusout', hideTooltip, true);
+    tbody.addEventListener('pointerdown', () => disposeTruncatedTableTooltips(wrapper), true);
+    wrapper.addEventListener('scroll', () => disposeTruncatedTableTooltips(wrapper), true);
+    table.on('preDraw.dt.dtTruncatedTooltip', () => disposeTruncatedTableTooltips(wrapper));
+    table.on('draw.dt.dtTruncatedTooltip column-visibility.dt.dtTruncatedTooltip column-reorder.dt.dtTruncatedTooltip responsive-resize.dt.dtTruncatedTooltip', () => {
+        disposeTruncatedTableTooltips(wrapper);
+        syncBodyTextCellClasses(table, columns);
+        applyColumnHeaderMetadata(table, columns);
+    });
+    syncBodyTextCellClasses(table, columns);
 }
 
 function positionTableSettingsTrigger(table) {
@@ -2423,13 +2550,15 @@ async function rebuildDataTableFromSettings(table, config = {}) {
     }
 
     const savedScrollTop = window.scrollY || window.pageYOffset || 0;
+    const preservedTbody = tableElement.tBodies?.[0] || tableElement.querySelector('tbody');
 
     try {
         if ($.fn.dataTable.isDataTable(tableElement)) {
             table.destroy();
         }
 
-        tableElement.innerHTML = '';
+        preservedTbody?.replaceChildren();
+        tableElement.replaceChildren(...(preservedTbody ? [preservedTbody] : []));
         const rebuiltTable = await createDataTable({ ...config });
         syncDataTableApiReference(table, rebuiltTable);
         tableElement.__dtCurrentInstance = rebuiltTable;
@@ -2454,7 +2583,7 @@ export async function createDataTable(config) {
         autoWidth = true,
         ajaxData = null,
         dataSrc = null,
-        cellSearchFill = true,
+        cellSearchFill = false,
         searchTableId = null,
         rowReorder = false,
         initialData = null,
@@ -2483,6 +2612,7 @@ export async function createDataTable(config) {
         fitColumnsToScope = true,
         fixedLayout = false,
         serverSide = false,
+        orderableColumnKeys = null,
         redrawAfterInitialVisibility = true,
     } = config;
     const isClientTableDiagnostic = tableSelector === '#client-table'
@@ -2492,6 +2622,9 @@ export async function createDataTable(config) {
     const normalizedPageLength = PAGE_LENGTH_MENU.includes(Number(pageLength))
         ? Number(pageLength)
         : DEFAULT_PAGE_LENGTH;
+    // DataTables server-side mode must retain its native global search input.
+    // Domain SearchForm filters may coexist, but must not replace search[value].
+    const resolvedSearching = serverSide === true ? true : searching !== false;
     const selectedIds = new Set();
     const sourceColumns = Array.isArray(columns) ? columns : [];
     const shouldAddSelectionColumn = selectable !== false && !hasSelectionColumn(sourceColumns);
@@ -2510,10 +2643,28 @@ export async function createDataTable(config) {
     const savedPageLength = Number(preparedTableSettings.context?.viewState?.pageLength);
     const savedCurrentPage = Number(preparedTableSettings.context?.viewState?.currentPage);
     const resolvedColumns = preparedTableSettings.columns || sourceColumnsWithSelection;
+    const runtimeColumns = resolvedColumns.filter((column) => !(
+        column?.__dtSystemCapability === false
+        && column?.visible === false
+    ));
     const resolvedAutoWidth = hasExplicitAutoWidth
         ? autoWidth
         : (resolvedTableSettings?.enabled ? false : autoWidth);
-    const tableColumns = normalizeUtilityColumns(normalizeActorColumns(resolvedColumns));
+    const enforcedOrderableKeys = Array.isArray(orderableColumnKeys)
+        ? new Set(orderableColumnKeys.map((key) => String(key || '').trim()).filter(Boolean))
+        : null;
+    const tableColumns = normalizeUtilityColumns(normalizeActorColumns(runtimeColumns))
+        .map((column) => enforcedOrderableKeys === null
+            ? column
+            : {
+                ...column,
+                orderable: enforcedOrderableKeys.has(resolveSettingsColumnKey(column)),
+            });
+    const tableColumnDefs = tableColumns.map((column, index) => ({
+        targets: index,
+        orderable: column?.orderable !== false,
+        searchable: column?.searchable !== false,
+    }));
     if (preparedTableSettings.context) {
         preparedTableSettings.context.tableColumns = tableColumns.map((column) => ({ ...column }));
     }
@@ -2547,7 +2698,16 @@ export async function createDataTable(config) {
                     const result = ajaxData(request);
 
                     if (result && typeof result === 'object') {
-                        return result;
+                        // Keep the complete DataTables request contract (draw,
+                        // paging, columns, order and native search) while adding
+                        // domain-specific request values.
+                        return {
+                            ...request,
+                            ...result,
+                            search: result.search && typeof result.search === 'object'
+                                ? { ...(request.search || {}), ...result.search }
+                                : request.search,
+                        };
                     }
                 }
 
@@ -2568,6 +2728,10 @@ export async function createDataTable(config) {
         }),
 
         columns: tableColumns,
+        // TableSettings can hide or move leading virtual columns. Apply the final
+        // policy by the DataTables runtime index so a hidden utility column cannot
+        // shift its non-orderable policy onto the following business column.
+        columnDefs: tableColumnDefs,
         order: resolvedInitialOrder.length > 0
             ? resolvedInitialOrder
             : (
@@ -2600,7 +2764,7 @@ export async function createDataTable(config) {
         autoWidth: resolvedAutoWidth,
         deferRender: true,
         paging,
-        searching,
+        searching: resolvedSearching,
         info,
         processing: true,
         serverSide: serverSide === true,
@@ -2753,6 +2917,7 @@ export async function createDataTable(config) {
             }
 
             applyColumnHeaderClasses(api, tableColumns);
+            applyColumnHeaderMetadata(api, tableColumns);
             updateStickyHeaderOffset(api);
             api.columns.adjust();
             renderColumnResizeHandles(api, tableColumns);
@@ -2834,8 +2999,8 @@ export async function createDataTable(config) {
             return;
         }
 
-        const normalizedLength = Number(nextLength);
-        if (!PAGE_LENGTH_MENU.includes(normalizedLength)) {
+        const normalizedLength = normalizeDataTablePageLength(nextLength);
+        if (!normalizedLength) {
             return;
         }
 
@@ -2916,6 +3081,55 @@ export async function createDataTable(config) {
         table.__dtTableSettings.refreshLayout = (options = {}) => refreshTableSettingsLayout(options);
         table.__dtTableSettings.tableColumns = tableColumns;
         table.__dtTableSettings.context = preparedTableSettings.context;
+        table.__dtTableSettings.getCurrentViewState = () => ({
+            columnWidths: tableColumns.reduce((widths, column, index) => {
+                const key = resolveDataTableColumnWidthKey(column);
+                const width = measureAppliedColumnWidth(table, index);
+                if (key !== '' && Number.isFinite(width) && width > 0) widths[key] = width;
+                return widths;
+            }, { ...(preparedTableSettings.context.viewState?.columnWidths || {}) }),
+            sortSettings: extractSortSettingsFromTable(table, tableColumns),
+            pageLength: Number(table.page.len()),
+            searchFormExpanded: table.__dtTableSettings.searchFormCapability?.available
+                ? Boolean(table.__dtTableSettings.searchFormCapability.getExpanded?.())
+                : preparedTableSettings.context.viewState?.searchFormExpanded,
+        });
+        table.__dtTableSettings.applyViewState = ({ previousState = {}, nextState = {} } = {}) => {
+            const previousPageLength = Number(previousState?.pageLength);
+            const nextPageLength = normalizeDataTablePageLength(nextState?.pageLength, previousPageLength);
+            const previousSort = normalizeSortSettingsInput(previousState?.sortSettings);
+            const nextSort = normalizeSortSettingsInput(nextState?.sortSettings);
+            const pageLengthChanged = Number.isFinite(nextPageLength) && nextPageLength !== previousPageLength;
+            const sortChanged = JSON.stringify(previousSort) !== JSON.stringify(nextSort);
+
+            clearAppliedColumnWidths(table, tableColumns);
+            applyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context);
+
+            if (pageLengthChanged) {
+                table.page.len(nextPageLength);
+                table.page(0);
+            }
+            if (sortChanged) {
+                table.order(buildOrderFromSortSettings(nextSort, tableColumns));
+            }
+            if (pageLengthChanged || sortChanged) {
+                table.draw(false);
+            } else {
+                scheduleAdjust(table, {
+                    draw: false,
+                    tableColumns,
+                    settingsContext: preparedTableSettings.context,
+                });
+            }
+
+            if (typeof nextState?.searchFormExpanded === 'boolean') {
+                table.__dtTableSettings.searchFormCapability?.setExpanded?.(
+                    nextState.searchFormExpanded,
+                    { persist: false }
+                );
+            }
+            return true;
+        };
         table.__dtTableSettings.applyState = ({ previousState, nextState } = {}) => {
             const currentOrder = Array.isArray(previousState?.columnOrder)
                 ? previousState.columnOrder
@@ -2956,8 +3170,28 @@ export async function createDataTable(config) {
 
             const orderUnchanged = currentOrder.length === targetOrder.length
                 && currentOrder.every((key, index) => key === targetOrder[index]);
+            const runtimeColumnKeys = new Set(
+                (preparedTableSettings.context?.tableColumns || [])
+                    .map((column) => resolveSettingsColumnKey(column))
+                    .filter(Boolean)
+            );
+            const requiresMissingRuntimeColumn = targetVisible.some((key) => !runtimeColumnKeys.has(String(key || '').trim()));
+            const unsupportedSystemKeys = new Set(
+                (preparedTableSettings.context?.originalColumns || [])
+                    .filter((column) => column?.__dtSystemCapability === false)
+                    .map((column) => resolveSettingsColumnKey(column))
+                    .filter(Boolean)
+            );
+            const currentVisibleSet = new Set(currentVisible);
+            const targetVisibleSet = new Set(targetVisible);
+            const requiresSystemCapabilityRebuild = Array.from(unsupportedSystemKeys)
+                .some((key) => currentVisibleSet.has(key) !== targetVisibleSet.has(key));
 
-            if (orderUnchanged && !displayNameChanged && visibilityChanged) {
+            if (orderUnchanged
+                && !displayNameChanged
+                && visibilityChanged
+                && !requiresMissingRuntimeColumn
+                && !requiresSystemCapabilityRebuild) {
                 applyVisibilityToTable(table, preparedTableSettings.context);
                 refreshTableSettingsLayout({ draw: true });
                 return true;
@@ -2970,12 +3204,25 @@ export async function createDataTable(config) {
                 return true;
             }
 
+            if (resolvedTableSettings?.deferSchemaRebuild === true) {
+                const settingsApi = table.__dtTableSettings;
+                if (settingsApi?.pendingSchemaRebuildTimer) {
+                    window.clearTimeout(settingsApi.pendingSchemaRebuildTimer);
+                }
+                settingsApi.pendingSchemaRebuildTimer = window.setTimeout(async () => {
+                    settingsApi.pendingSchemaRebuildTimer = null;
+                    await rebuildDataTableFromSettings(table, config);
+                }, 0);
+                return true;
+            }
+
             return rebuildDataTableFromSettings(table, config);
         };
     }
     positionTableSettingsTrigger(table);
     bindTableSettingsTooltip(table);
-    bindTruncatedCellTooltips(table, tableSelector);
+    applyColumnHeaderMetadata(table, tableColumns);
+    bindTruncatedCellTooltips(table, tableSelector, tableColumns);
     bindTruncatedHeaderTooltips(table);
 
     return table;

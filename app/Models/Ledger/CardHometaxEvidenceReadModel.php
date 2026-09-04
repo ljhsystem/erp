@@ -86,18 +86,18 @@ class CardHometaxEvidenceReadModel
                 '' AS card_name,
                 '' AS team_name,
                 body.evidence_status AS evidence_status,
-                " . $this->processingPolicyService->statusSelect('READY') . " AS transaction_status,
+                " . $this->processingPolicyService->processingStatusSelect() . " AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 " . $this->processingPolicyService->reviewStatusSelect('NORMAL') . " AS review_status,
                 CASE
-                    WHEN " . $this->processingPolicyService->statusSelect('READY') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->statusSelect('READY') . "
+                    WHEN " . $this->processingPolicyService->processingStatusSelect() . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->processingStatusSelect() . "
                     WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE " . $this->processingPolicyService->statusSelect('READY') . "
+                    ELSE " . $this->processingPolicyService->processingStatusSelect() . "
                 END AS process_status,
                 CASE
-                    WHEN " . $this->processingPolicyService->statusSelect('READY') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->statusSelect('READY') . "
+                    WHEN " . $this->processingPolicyService->processingStatusSelect() . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->processingStatusSelect() . "
                     WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE " . $this->processingPolicyService->statusSelect('READY') . "
+                    ELSE " . $this->processingPolicyService->processingStatusSelect() . "
                 END AS status,
                 " . $this->processingPolicyService->errorMessageSelect() . " AS error_message,
                 tx.target_id AS transaction_id,

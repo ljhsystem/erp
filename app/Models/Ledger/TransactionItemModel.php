@@ -92,6 +92,9 @@ class TransactionItemModel
             'id',
             'sort_no',
             'transaction_id',
+            'regular_employment_income_line_item_id',
+            'statutory_standard_revision_id',
+            'calculation_basis_id',
             'item_date',
             'item_name',
             'item_specification',
@@ -135,6 +138,9 @@ class TransactionItemModel
     {
         $allowed = [
             'transaction_id',
+            'regular_employment_income_line_item_id',
+            'statutory_standard_revision_id',
+            'calculation_basis_id',
             'sort_no',
             'item_date',
             'item_name',

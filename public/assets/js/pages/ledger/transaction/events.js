@@ -156,7 +156,6 @@ export function registerEvents(ctx) {
                 ctx.initLineGrid();
                 ctx.pendingLineGridInitAfterShow = false;
             }
-            ctx.focusInitialLineGridCell();
             const resolvers = ctx.modalShownResolvers;
             ctx.modalShownResolvers = [];
             resolvers.forEach((resolve) => resolve());
@@ -262,15 +261,9 @@ export function registerEvents(ctx) {
         ctx.initTransactionTable?.();
         ctx.bindEvents?.();
         ctx.syncConditionalPanels?.();
-        ctx.initClientSelect?.();
-        ctx.initProjectSelect?.();
-        ctx.initTeamSelect?.();
-        ctx.initBankAccountSelect?.();
-        ctx.initCardSelect?.();
-        ctx.initEmployeeSelect?.();
-        void ctx.initUnitCodeOptions?.();
-        ctx.initModalControls?.();
-        ctx.initTransactionDatePicker?.();
+        void ctx.initModalControls?.().catch(() => {
+            ctx.notify('error', '거래 입력 기능을 초기화하지 못했습니다.');
+        });
         ctx.refreshLineGridDimensions?.();
     }
 

@@ -6,6 +6,7 @@ use PDO;
 use App\Models\System\BankAccountModel;
 use App\Repositories\System\BankAccountDependencyRepository;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
 use Core\Helpers\ColumnPolicyRequestHelper;
@@ -20,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class BankAccountService
 {
+    use LogsServiceOperations;
     private const COLUMN_DEFINITIONS = [
         ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
         ['key' => 'account_name', 'label' => '계좌명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
@@ -66,31 +68,19 @@ class BankAccountService
         $this->dependencyRepository = new BankAccountDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.BankAccountService');
 
-        $this->logger->info('BankAccountService initialized');
     }
 
     public function getList(array $filters = []): array
     {
-        $this->logger->info('getList() called', [
-            'filters' => $filters
-        ]);
-
         try {
 
             $rows = $this->model->getList($filters);
-
-            $this->logger->info('getList() success', [
-                'count' => count($rows)
-            ]);
 
             return $rows;
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getList() failed', [
-                'filters'   => $filters,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('계좌 목록 조회에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return [];
         }
@@ -98,14 +88,11 @@ class BankAccountService
 
     public function getById(string $id): ?array
     {
-        $this->logger->info('getById() called', ['id' => $id]);
-
         try {
 
             $row = $this->model->getById($id);
 
             if (!$row) {
-                $this->logger->warning('getById() not found', ['id' => $id]);
                 return null;
             }
 
@@ -113,10 +100,7 @@ class BankAccountService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getById() exception', [
-                'id'        => $id,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('계좌 상세 조회에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_DETAIL_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return null;
         }
@@ -124,10 +108,6 @@ class BankAccountService
 
     public function searchPicker(string $keyword): array
     {
-        $this->logger->info('searchPicker() called', [
-            'keyword' => $keyword
-        ]);
-
         try {
 
             $rows = $this->model->searchPicker($keyword, 20);
@@ -168,16 +148,18 @@ class BankAccountService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchPicker() failed', [
-                'keyword'   => $keyword,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('계좌 선택목록 조회에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_PICKER_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return [];
         }
     }
 
     public function save(array $data, string $actorType = 'USER', array $files = []): array
+    {
+        return $this->loggedBankMutation('계좌 저장','BANK_ACCOUNT_SAVE','save',fn():array=>$this->saveInternal($data,$actorType,$files));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
         $id = trim((string)($data['id'] ?? ''));
@@ -190,12 +172,6 @@ class BankAccountService
 
         $uploadedPath = null;
         $obsoletePath = null;
-
-        $this->logger->info('save() called', [
-            'mode' => $mode,
-            'id' => $id,
-            'actor' => $actor
-        ]);
 
         try {
             $file = $files['bank_file'] ?? null;
@@ -276,11 +252,6 @@ class BankAccountService
             }
             $this->cleanupCompensatingFile($uploadedPath);
 
-            $this->logger->error('save() failed', [
-                'error' => $e->getMessage(),
-                'data' => $data
-            ]);
-
             return [
                 'success' => false,
                 'message' => $e instanceof \DomainException
@@ -322,14 +293,14 @@ class BankAccountService
     private function cleanupCompensatingFile(?string $path): void
     {
         if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
-            $this->logger->warning('신규 통장사본 보상 삭제 실패', ['path' => $path]);
+            $this->logger->warning('신규 통장사본 보상 삭제에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_FILE_COMPENSATION_FAILED', 'result' => 'FAILED']);
         }
     }
 
     private function cleanupCommittedFile(?string $path, string $context): void
     {
         if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
-            $this->logger->warning($context . ' 정리 실패', ['path' => $path]);
+            $this->logger->warning($context . ' 정리에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_FILE_CLEANUP_FAILED', 'result' => 'FAILED']);
         }
     }
 
@@ -358,6 +329,11 @@ class BankAccountService
 
     public function delete(string $id, string $actorType = 'USER'): array
     {
+        return $this->loggedBankMutation('계좌 삭제','BANK_ACCOUNT_DELETE','delete',fn():array=>$this->deleteInternal($id,$actorType));
+    }
+
+    private function deleteInternal(string $id, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
         try {
@@ -368,11 +344,6 @@ class BankAccountService
                 'message' => $ok ? '삭제했습니다.' : '삭제 중 오류가 발생했습니다.'
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('delete() failed', [
-                'id' => $id,
-                'exception' => $e->getMessage()
-            ]);
-
             return [
                 'success' => false,
                 'message' => '삭제 중 오류가 발생했습니다.'
@@ -382,20 +353,21 @@ class BankAccountService
 
     public function getTrashList(): array
     {
-        $this->logger->info('getTrashList() called');
-
         try {
             return $this->model->getDeleted();
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() exception', [
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('삭제된 계좌 목록 조회에 실패했습니다.', ['event_code' => 'BANK_ACCOUNT_TRASH_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return [];
         }
     }
 
     public function restore(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedBankMutation('계좌 복구','BANK_ACCOUNT_RESTORE','restore',fn():array=>$this->restoreInternal($id,$actorType));
+    }
+
+    private function restoreInternal(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -407,11 +379,6 @@ class BankAccountService
                 'message' => $ok ? '복원했습니다.' : '복구 중 오류가 발생했습니다.'
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('restore() failed', [
-                'id' => $id,
-                'exception' => $e->getMessage()
-            ]);
-
             return [
                 'success' => false,
                 'message' => '복구 중 오류가 발생했습니다.'
@@ -421,12 +388,12 @@ class BankAccountService
 
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
-        $actor = ActorHelper::resolve($actorType);
+        return $this->loggedBankMutation('계좌 일괄복구','BANK_ACCOUNT_RESTORE_BULK','restore-bulk',fn():array=>$this->restoreBulkInternal($ids,$actorType));
+    }
 
-        $this->logger->info('restoreBulk() called', [
-            'ids' => $ids,
-            'actor' => $actor
-        ]);
+    private function restoreBulkInternal(array $ids, string $actorType = 'USER'): array
+    {
+        $actor = ActorHelper::resolve($actorType);
 
         if (empty($ids)) {
             return ['success' => false, 'message' => '복구할 계좌를 선택해 주세요.'];
@@ -452,10 +419,6 @@ class BankAccountService
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
 
-            $this->logger->error('restoreBulk() failed', [
-                'exception' => $e->getMessage()
-            ]);
-
             return [
                 'success' => false,
                 'message' => '복구 중 오류가 발생했습니다.'
@@ -466,10 +429,6 @@ class BankAccountService
     public function restoreAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('restoreAll() called', [
-            'actor' => $actor
-        ]);
 
         $this->pdo->beginTransaction();
 
@@ -492,10 +451,6 @@ class BankAccountService
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
 
-            $this->logger->error('restoreAll() failed', [
-                'exception' => $e->getMessage()
-            ]);
-
             return [
                 'success' => false,
                 'message' => '복구 중 오류가 발생했습니다.'
@@ -505,16 +460,16 @@ class BankAccountService
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        $result = $this->purgeAccounts([$id]);
-        if (($result['deleted_count'] ?? 0) === 0) {
-            $result['success'] = false;
-        }
-        return $result;
+        return $this->loggedBankMutation('계좌 영구삭제','BANK_ACCOUNT_PURGE','purge',function()use($id):array{
+            $result=$this->purgeAccounts([$id]);
+            if(($result['deleted_count']??0)===0)$result['success']=false;
+            return $result;
+        });
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        return $this->purgeAccounts($ids);
+        return $this->loggedBankMutation('계좌 일괄 영구삭제','BANK_ACCOUNT_PURGE_BULK','purge-bulk',fn():array=>$this->purgeAccounts($ids));
     }
 
     public function purgeAll(string $actorType = 'USER'): array
@@ -569,11 +524,6 @@ class BankAccountService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('purgeAccounts() failed', [
-                'ids' => $ids,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '영구삭제 중 오류가 발생했습니다.',
@@ -621,10 +571,11 @@ class BankAccountService
 
     public function reorder(array $changes): bool
     {
-        $this->logger->info('reorder() called', [
-            'changes' => $changes
-        ]);
+        return $this->runLoggedOperation($this->logger,'계좌 정렬 저장','BANK_ACCOUNT_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
 
+    private function reorderInternal(array $changes): bool
+    {
         if (empty($changes)) {
             return true;
         }
@@ -653,17 +604,11 @@ class BankAccountService
                 $this->pdo->commit();
             }
 
-            $this->logger->info('reorder() success');
             return true;
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-
-            $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage(),
-                'changes' => $changes
-            ]);
 
             throw $e;
         }
@@ -789,6 +734,12 @@ class BankAccountService
         $spreadsheet->disconnectWorksheets();
         exit;
     }
+    private function loggedBankMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
+    }
+
     private function resolveColumns(string $type, ?string $columnsCsv = null): array
     {
         $columnsByKey = [];

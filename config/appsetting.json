@@ -1,5 +1,4 @@
 {
-
   "IsDevelopment": false,
 
   "App": {
@@ -7,26 +6,49 @@
   },
 
   "Security": {
-    "RRNKey": "sukhyang-super-secret-key-2026-32byte"
+    "RRNCredentialCode": "SECURITY_RRN_KEY"
   },
 
   "SmtpSettings": {
-    "Host": "smtp.gmail.com",
-    "Port": 587,
-    "SMTPSecure": "tls",
-    "UserName": "ljhsystem66@gmail.com",
-    "Password": "mfizppsciwuzyuqt",
-    "SenderName": "석향앱관리자",
+    "Transports": {
+      "DAUM_SMTP_MAIN": {
+        "Host": "smtp.daum.net",
+        "Port": 465,
+        "SMTPSecure": "ssl",
+        "UserName": "suk-hyang",
+        "CredentialCode": "DAUM_SMTP_MAIN"
+      },
+      "GOOGLE_SMTP_MAIN": {
+        "Host": "smtp.gmail.com",
+        "Port": 587,
+        "SMTPSecure": "tls",
+        "UserName": "ljhsystem66@gmail.com",
+        "CredentialCode": "GOOGLE_SMTP_MAIN"
+      }
+    },
+    "SenderProfiles": {
+      "SUKHYANG_APP_ADMIN": {
+        "TransportCode": "DAUM_SMTP_MAIN",
+        "SenderName": "석향앱관리자",
+        "SenderEmail": "suk-hyang@daum.net",
+        "ReplyToEmail": "suk-hyang@daum.net"
+      },
+      "SUKHYANG_REPRESENTATIVE": {
+        "TransportCode": "GOOGLE_SMTP_MAIN",
+        "SenderName": "이정호",
+        "SenderEmail": "ljhsystem66@gmail.com",
+        "ReplyToEmail": "ljhsystem66@gmail.com"
+      }
+    },
     "AdminEmail": "suk-hyang@daum.net"
   },
 
   "BusinessApi": {
     "BaseUrl": "https://api.odcloud.kr/api/nts-businessman/v1/status",
-    "ServiceKey": "0cfd48aa2744e37d80cb192b7283979b5a6987b722c559f913653fb8e5b08243"
+    "CredentialCode": "BUSINESS_STATUS_API"
   },
 
-
-  "InternalApiSecret": "change_this_to_a_secure_random_value_32+chars",
+  "InternalApiCredentialCode": "INTERNAL_API_MAIN",
 
   "Logger": {
     "Path": "storage/logs/app.log",
@@ -38,5 +60,4 @@
     "Script": "/app/kakaoserver.js",
     "WorkingDirectory": "/app"
   }
-
 }

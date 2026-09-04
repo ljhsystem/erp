@@ -64,6 +64,18 @@ class NotificationController
         });
     }
 
+    public function apiPage(): void
+    {
+        $this->jsonResponse(function (): array {
+            $data = $this->service->getNotificationPage(
+                $this->currentUserId(),
+                max(1, (int) $this->requestValue('page')),
+                max(1, (int) ($this->requestValue('page_size') ?: 20))
+            );
+            return ['success' => true, 'data' => $data];
+        });
+    }
+
     private function currentUserId(): string
     {
         $userId = $this->authSession->getCurrentUserId();

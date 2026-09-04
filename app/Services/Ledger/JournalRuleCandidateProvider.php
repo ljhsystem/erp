@@ -20,6 +20,18 @@ class JournalRuleCandidateProvider implements JournalCandidateProviderInterface
             ],
             'source' => 'JOURNAL_RULE',
             'source_id' => (string) ($row['id'] ?? ''),
+            'rule_bindings' => [
+                'DEBIT' => [
+                    'id' => (string) ($row['debit_rule_id'] ?? ''),
+                    'revision_no' => (int) ($row['debit_rule_revision_no'] ?? 0),
+                    'accounting_role_code' => 'EXPENSE',
+                ],
+                'CREDIT' => [
+                    'id' => (string) ($row['credit_rule_id'] ?? ''),
+                    'revision_no' => (int) ($row['credit_rule_revision_no'] ?? 0),
+                    'accounting_role_code' => 'EMPLOYEE_ACCRUED_EXPENSE',
+                ],
+            ],
             'metrics' => [
                 'usage_count' => (int) ($row['usage_count'] ?? 0),
                 'confidence' => (float) ($row['confidence_score'] ?? 0),

@@ -26,20 +26,25 @@ class RegisterService
     private SettingService $settingService;
     private $logger;
 
-    public function __construct(PDO $pdo)
+    public function __construct(PDO $pdo, ?MailService $mailService = null)
     {
         $this->pdo = $pdo;
         $this->usersModel = new UserModel($pdo);
         $this->employeeModel = new EmployeeModel($pdo);
         $this->authLogs = new LogModel($pdo);
         $this->roleModel = new RoleModel($pdo);
-        $this->mailService = new MailService();
+        $this->mailService = $mailService ?? new MailService();
         $this->fileService = new FileService($pdo);
         $this->settingService = new SettingService($pdo);
         $this->logger = LoggerFactory::getLogger('service-auth.RegisterService');
     }
 
     public function register(array $data, array $files = []): array
+    {
+        return $this->loggedRegister(fn(): array => $this->registerInternal($data, $files));
+    }
+
+    private function registerInternal(array $data, array $files = []): array
     {
         $username = trim((string) ($data['username'] ?? ''));
         $password = trim((string) ($data['password'] ?? ''));
@@ -138,10 +143,6 @@ class RegisterService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('register failed', [
-                'username' => $username,
-                'error'    => $e->getMessage(),
-            ]);
             $this->writeLog('회원가입 처리 오류', $username, 0);
 
             return ['success' => false, 'message' => '회원가입 중 오류가 발생했습니다.'];
@@ -160,11 +161,22 @@ class RegisterService
             'created_by'    => $userId,
         ]);
 
-        $this->sendAdminApprovalMail($username, $name, $email, $userId);
+        $mailResult = $this->sendAdminApprovalMail($username, $name, $email, $userId);
+
+        if (empty($mailResult['success'])) {
+            return [
+                'success' => true,
+                'mail_sent' => false,
+                'message' => '회원가입 요청은 저장되었으나 관리자 승인 메일을 발송하지 못했습니다. 관리자에게 직접 승인을 요청해 주세요.',
+                'redirect' => '/waiting_approval',
+            ];
+        }
 
         return [
             'success' => true,
+            'mail_sent' => true,
             'message' => '회원가입이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
+            'redirect' => '/register_success',
         ];
     }
 
@@ -224,10 +236,10 @@ class RegisterService
         return ['success' => true, 'db_path' => $upload['db_path'] ?? ''];
     }
 
-    private function sendAdminApprovalMail(string $username, string $employeeName, string $userEmail, string $userId): void
+    private function sendAdminApprovalMail(string $username, string $employeeName, string $userEmail, string $userId): array
     {
         try {
-            $this->mailService->sendAdminApprovalMail([
+            return $this->mailService->sendAdminApprovalMail([
                 'username'      => $username,
                 'employee_name' => $employeeName,
                 'email'         => $userEmail,
@@ -235,10 +247,38 @@ class RegisterService
                 'host'          => $_SERVER['HTTP_HOST'] ?? 'localhost',
             ]);
         } catch (\Throwable $e) {
-            $this->logger->error('admin approval mail failed', [
-                'username' => $username,
-                'error'    => $e->getMessage(),
+            $this->logger->error('관리자 승인 메일 발송에 실패했습니다.', [
+                'event_code' => 'ADMIN_APPROVAL_MAIL_FAILED',
+                'result' => 'FAILED',
+                'user_id' => $userId,
+                'error_code' => 'ADMIN_APPROVAL_MAIL_EXCEPTION',
+                'error' => $e,
             ]);
+            return [
+                'success' => false,
+                'sent' => false,
+                'error_code' => 'ADMIN_APPROVAL_MAIL_EXCEPTION',
+            ];
+        }
+    }
+
+    private function loggedRegister(callable $operation): array
+    {
+        try {
+            $result = $operation();
+            $success = !empty($result['success']);
+            $systemFailure = !$success && str_contains((string) ($result['message'] ?? ''), '오류');
+            $outcome = $success ? 'SUCCESS' : ($systemFailure ? 'FAILED' : 'BLOCKED');
+            $level = $success ? 'info' : ($systemFailure ? 'error' : 'warning');
+            $this->logger->{$level}($success ? '회원가입 처리를 완료했습니다.' : ($systemFailure ? '회원가입 처리에 실패했습니다.' : '회원가입 처리가 차단되었습니다.'), [
+                'event_code' => 'USER_REGISTER_' . $outcome, 'result' => $outcome,
+                'service' => self::class, 'action' => 'register',
+                'mail_sent' => $result['mail_sent'] ?? null,
+            ]);
+            return $result;
+        } catch (\Throwable $exception) {
+            $this->logger->error('회원가입 처리에 실패했습니다.', ['event_code' => 'USER_REGISTER_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => 'register', 'error_code' => get_class($exception), 'error' => $exception]);
+            throw $exception;
         }
     }
 

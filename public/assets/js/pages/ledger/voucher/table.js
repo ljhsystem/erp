@@ -31,7 +31,7 @@ export function registerTable(ctx) {
         if (text === '') {
             return '';
         }
-        return `<span title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+        return escapeHtml(text);
     }
 
     function voucherHeaderMetaColumns() {
@@ -338,7 +338,7 @@ export function registerTable(ctx) {
                     action: openTrashModal,
                 },
                 {
-                    text: '\uC2E0\uADDC\uC804\uD45C',
+                    text: '\uC2E0\uADDC\uB4F1\uB85D',
                     className: 'btn btn-warning btn-sm voucher-create-btn',
                     action() {
                         void ctx.openCreateModal?.();

@@ -65,7 +65,7 @@ if (!defined('STORAGE_DB_BACKUP'))  define('STORAGE_DB_BACKUP', STORAGE_ROOT . '
  * --------------------------------------------------------------- */
 function storage_bucket_map(): array
 {
-    return [
+    $buckets = [
         // Public
         'public://profile'           => PUBLIC_UPLOADS . '/profile',
         'public://covers'            => PUBLIC_UPLOADS . '/covers',
@@ -81,6 +81,11 @@ function storage_bucket_map(): array
         'private://card_file'        => STORAGE_UPLOADS . '/card_file',
         'private://transaction_file' => STORAGE_UPLOADS . '/transaction_file',
     ];
+    $attachmentRoot = trim((string) getenv('ATTACHMENT_PRIVATE_STORAGE_ROOT'));
+    if ($attachmentRoot !== '') {
+        $buckets['private://attachment'] = rtrim(str_replace('\\', '/', $attachmentRoot), '/');
+    }
+    return $buckets;
 }
 
 

@@ -32,6 +32,7 @@
         if(!sidebar) return;
 
         applyRouteContext(sidebar);
+        window.requestAnimationFrame(() => sidebar.classList.remove('sidebar-initializing'));
 
         sidebar.addEventListener('click', function(e){
 
@@ -120,35 +121,6 @@
         return hrefPath !== '/' && currentPath.startsWith(hrefPath + '/');
     }
 
-    function routeMenuId(currentPath){
-        const groups = [
-            ['/ledger/settings', 'menu-ledger-basic'],
-            ['/ledger/opening-balances', 'menu-ledger-basic'],
-            ['/ledger/data', 'menu-ledger-data'],
-            ['/ledger/transactions', 'menu-ledger-voucher'],
-            ['/ledger/transaction', 'menu-ledger-voucher'],
-            ['/ledger/vouchers/input', 'menu-ledger-voucher'],
-            ['/ledger/journal', 'menu-ledger-voucher'],
-            ['/ledger/vouchers', 'menu-ledger-voucher'],
-            ['/ledger/funds', 'menu-ledger-funds'],
-            ['/ledger/book', 'menu-ledger-book'],
-            ['/ledger/financial', 'menu-ledger-financial'],
-            ['/ledger/assets', 'menu-ledger-asset'],
-            ['/ledger/tax', 'menu-ledger-tax'],
-            ['/site', null],
-        ];
-
-        let matched = null;
-        groups.forEach(([prefix, menuId]) => {
-            const normalized = normalizePath(prefix);
-            if(pathMatches(normalized, currentPath) && (!matched || normalized.length > matched.prefix.length)){
-                matched = { prefix: normalized, menuId };
-            }
-        });
-
-        return matched ? matched.menuId : null;
-    }
-
     function canonicalLedgerPath(path){
         const aliases = {
             '/ledger/opening-balances': '/ledger/settings/opening-balances',
@@ -193,22 +165,25 @@
     function applyRouteContext(sidebar){
         const currentPath = canonicalLedgerPath(normalizePath(sidebar.dataset.currentPath || window.location.pathname));
         const activeLink = findBestActiveLink(sidebar, currentPath);
-        const routeMenu = routeMenuId(currentPath);
-        const activeMenu = activeLink?.closest('.collapse') || (routeMenu ? sidebar.querySelector('#' + routeMenu) : null);
+        const activeMenu = activeLink?.closest('.collapse') || null;
 
         sidebar.querySelectorAll('.nav-link.active').forEach((link) => {
+            if(link === activeLink) return;
             link.classList.remove('active');
             link.removeAttribute('aria-current');
         });
 
-        if(activeLink){
+        if(activeLink && !activeLink.classList.contains('active')){
             activeLink.classList.add('active');
             activeLink.setAttribute('aria-current', 'page');
         }
 
-        sidebar.querySelectorAll('.collapse').forEach((menu) => {
-            setMenuOpen(sidebar, menu, menu === activeMenu);
-        });
+        if(activeMenu){
+            const toggle = sidebar.querySelector('[href="#' + activeMenu.id + '"]');
+            if(!activeMenu.classList.contains('show') || toggle?.getAttribute('aria-expanded') !== 'true'){
+                setMenuOpen(sidebar, activeMenu, true);
+            }
+        }
     }
 
     function startLayoutSync(){

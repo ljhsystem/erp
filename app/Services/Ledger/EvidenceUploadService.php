@@ -5,6 +5,7 @@ namespace App\Services\Ledger;
 use App\Models\Ledger\EvidenceBodyStorageModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
@@ -15,6 +16,7 @@ class EvidenceUploadService
 {
     private EvidenceBodyStorageModel $bodyStorageModel;
     private EvidenceExternalKeyService $externalKeyService;
+    private $logger;
     /**
      * @param callable(string):string $dataTypeNormalizer
      * @param callable(array):array $bankPayloadNormalizer
@@ -54,6 +56,7 @@ class EvidenceUploadService
     ) {
         $this->bodyStorageModel = new EvidenceBodyStorageModel($pdo);
         $this->externalKeyService = new EvidenceExternalKeyService();
+        $this->logger = LoggerFactory::getLogger('service-ledger-evidence');
     }
 
     private array $existingSeedRowCache = [];
@@ -523,14 +526,12 @@ class EvidenceUploadService
 
     public function uploadTrace(string $event, array $context = []): void
     {
-        $parts = [];
-        foreach ($context as $key => $value) {
-            if (is_scalar($value) || $value === null) {
-                $parts[] = $key . '=' . (string) $value;
-            }
-        }
-
-        error_log('[ImportUpload] ' . $event . ($parts !== [] ? ' ' . implode(' ', $parts) : ''));
+        $this->logger->debug('증빙 업로드 처리상태가 변경되었습니다.', [
+            'event_code' => 'EVIDENCE_UPLOAD_TRACE',
+            'result' => 'PROGRESS',
+            'service' => self::class,
+            'action' => 'evidence_upload.' . strtolower($event),
+        ] + $context);
     }
 
     public function validateUploadFileColumns(array $file, array $columns): array

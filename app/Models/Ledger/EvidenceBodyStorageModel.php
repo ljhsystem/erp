@@ -12,15 +12,18 @@ class EvidenceBodyStorageModel
         'CARD_HOMETAX' => 'ledger_evidence_card_hometax', 'CARD' => 'ledger_evidence_card_statement',
         'CARD_STATEMENT' => 'ledger_evidence_card_statement', 'CARD_APPROVAL' => 'ledger_evidence_card_statement',
         'EMPLOYEE_EXPENSE' => 'ledger_evidence_employee_expense',
-        'EMPLOYEE_EXPENSE_PERSONAL' => 'ledger_evidence_employee_personal_expense', 'PAYROLL' => 'ledger_evidence_payroll',
-        'PAYROLL_WITHHOLDING' => 'ledger_evidence_payroll', 'BUSINESS_INCOME' => 'ledger_evidence_business_income',
+        'EMPLOYEE_EXPENSE_PERSONAL' => 'ledger_evidence_employee_personal_expense',
+        'PAYROLL' => 'ledger_evidence_salary_report', 'PAYROLL_REPORT' => 'ledger_evidence_salary_report',
+        'PAYROLL_WITHHOLDING' => 'ledger_evidence_payroll',
+        'BUSINESS_INCOME_REPORT' => 'ledger_evidence_business_income', 'BUSINESS_INCOME' => 'ledger_evidence_business_income',
         'BUSINESS_DATA' => 'ledger_evidence_cash_sales', 'CONSTRUCTION' => 'ledger_evidence_daily_worker',
         'SHOPPING_ORDER' => 'ledger_evidence_business_data', 'IMPORT_INVOICE' => 'ledger_evidence_business_data',
     ];
     private const TABLES = [
         'ledger_evidence_bank_transaction', 'ledger_evidence_tax_invoice', 'ledger_evidence_tax_invoice_manual',
         'ledger_evidence_cash_receipt', 'ledger_evidence_card_hometax', 'ledger_evidence_card_statement',
-        'ledger_evidence_card_sales', 'ledger_evidence_employee_expense', 'ledger_evidence_employee_personal_expense', 'ledger_evidence_payroll',
+        'ledger_evidence_card_sales', 'ledger_evidence_employee_expense', 'ledger_evidence_employee_personal_expense',
+        'ledger_evidence_salary_report', 'ledger_evidence_payroll',
         'ledger_evidence_daily_worker', 'ledger_evidence_business_income', 'ledger_evidence_cash_sales',
         'ledger_evidence_business_data',
     ];
@@ -155,7 +158,6 @@ class EvidenceBodyStorageModel
             $row['source_key'] = $key;
             $row['raw_json'] = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
             $row['mapped_payload_json'] = $row['raw_json'];
-            $row['evidence_status'] = 'ACTIVE';
             $row['transaction_status'] = 'READY';
             $row['voucher_status'] = 'WAITING';
             $row['transaction_id'] = null;
@@ -223,7 +225,7 @@ class EvidenceBodyStorageModel
             $stmt = $this->db->prepare("SELECT *, :canonical_import_type AS canonical_import_type
                 FROM `{$table}` WHERE id IN (" . implode(',', $marks) . ") {$deletedSql} {$typeSql}");
             $bind = [':canonical_import_type' => $type] + $params;
-            if ($typeSql !== '') $bind[':row_import_type'] = $type;
+            if ($typeSql !== '') $bind[':row_import_type'] = $type === 'PAYROLL' ? 'PAYROLL_REPORT' : $type;
             $stmt->execute($bind);
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
                 $key = $type . ':' . (string) ($row['id'] ?? '');

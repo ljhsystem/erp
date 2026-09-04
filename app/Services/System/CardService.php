@@ -8,6 +8,7 @@ use App\Models\System\ClientModel;
 use App\Models\System\BankAccountModel;
 use App\Repositories\System\CardDependencyRepository;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
 use Core\Helpers\ColumnPolicyRequestHelper;
@@ -24,6 +25,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CardService
 {
+    use LogsServiceOperations;
     private const COLUMN_DEFINITIONS = [
         ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
         ['key' => 'card_name', 'label' => '카드명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
@@ -86,7 +88,7 @@ class CardService
         try {
             return $this->model->getList($filters);
         } catch (\Throwable $e) {
-            $this->logger->error('getList() failed', ['exception' => $e->getMessage()]);
+            $this->logger->error('카드 목록 조회에 실패했습니다.',['event_code'=>'CARD_LIST_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return [];
         }
     }
@@ -96,7 +98,7 @@ class CardService
         try {
             return $this->model->getById($id);
         } catch (\Throwable $e) {
-            $this->logger->error('getById() failed', ['id' => $id, 'exception' => $e->getMessage()]);
+            $this->logger->error('카드 상세 조회에 실패했습니다.',['event_code'=>'CARD_DETAIL_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return null;
         }
     }
@@ -123,15 +125,17 @@ class CardService
                 ];
             }, $rows);
         } catch (\Throwable $e) {
-            $this->logger->error('searchPicker() failed', [
-                'keyword' => $keyword,
-                'exception' => $e->getMessage(),
-            ]);
+            $this->logger->error('카드 선택목록 조회에 실패했습니다.',['event_code'=>'CARD_PICKER_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return [];
         }
     }
 
     public function save(array $data, string $actorType = 'USER', array $files = []): array
+    {
+        return $this->loggedCardMutation('카드 저장','CARD_SAVE','save',fn():array=>$this->saveInternal($data,$actorType,$files));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
         $id = trim((string)($data['id'] ?? ''));
@@ -226,11 +230,6 @@ class CardService
             }
             $this->cleanupCompensatingFile($uploadedPath);
 
-            $this->logger->error('save() failed', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => $e instanceof \DomainException
@@ -241,6 +240,11 @@ class CardService
     }
 
     public function delete(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedCardMutation('카드 삭제','CARD_DELETE','delete',fn():array=>$this->deleteInternal($id,$actorType));
+    }
+
+    private function deleteInternal(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -255,7 +259,6 @@ class CardService
 
             return ['success' => true, 'message' => '삭제되었습니다.'];
         } catch (\Throwable $e) {
-            $this->logger->error('delete() failed', ['id' => $id, 'exception' => $e->getMessage()]);
             return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
@@ -265,12 +268,17 @@ class CardService
         try {
             return $this->model->getDeleted();
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() failed', ['exception' => $e->getMessage()]);
+            $this->logger->error('삭제된 카드 목록 조회에 실패했습니다.',['event_code'=>'CARD_TRASH_LIST_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return [];
         }
     }
 
     public function restore(string $id, string $actorType = 'USER'): array
+    {
+        return $this->loggedCardMutation('카드 복구','CARD_RESTORE','restore',fn():array=>$this->restoreInternal($id,$actorType));
+    }
+
+    private function restoreInternal(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -285,12 +293,16 @@ class CardService
 
             return ['success' => true, 'message' => '복원되었습니다.'];
         } catch (\Throwable $e) {
-            $this->logger->error('restore() failed', ['id' => $id, 'exception' => $e->getMessage()]);
             return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
     }
 
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
+    {
+        return $this->loggedCardMutation('카드 일괄복구','CARD_RESTORE_BULK','restore-bulk',fn():array=>$this->restoreBulkInternal($ids,$actorType));
+    }
+
+    private function restoreBulkInternal(array $ids, string $actorType = 'USER'): array
     {
         if (empty($ids)) {
             return ['success' => false, 'message' => '복원할 카드가 없습니다.'];
@@ -312,7 +324,6 @@ class CardService
             return ['success' => true, 'message' => "선택한 카드가 복원되었습니다. ({$success}건)"];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
-            $this->logger->error('restoreBulk() failed', ['exception' => $e->getMessage()]);
             return ['success' => false, 'message' => '복구 중 오류가 발생했습니다.'];
         }
     }
@@ -325,12 +336,12 @@ class CardService
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        return $this->purgeCards([$id]);
+        return $this->loggedCardMutation('카드 영구삭제','CARD_PURGE','purge',fn():array=>$this->purgeCards([$id]));
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        return $this->purgeCards($ids);
+        return $this->loggedCardMutation('카드 일괄 영구삭제','CARD_PURGE_BULK','purge-bulk',fn():array=>$this->purgeCards($ids));
     }
 
     public function purgeAll(string $actorType = 'USER'): array
@@ -390,7 +401,7 @@ class CardService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('purgeCards() failed', ['exception' => $e->getMessage()]);
+            $this->logger->error('카드 영구삭제에 실패했습니다.',['event_code'=>'CARD_PURGE_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.'];
         }
 
@@ -424,6 +435,11 @@ class CardService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->runLoggedOperation($this->logger,'카드 정렬 저장','CARD_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -630,6 +646,12 @@ class CardService
         $writer->save('php://output');
         $spreadsheet->disconnectWorksheets();
         exit;
+    }
+
+    private function loggedCardMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 
     private function resolveColumns(string $type, ?string $columnsCsv = null): array
@@ -1060,14 +1082,14 @@ class CardService
     private function cleanupCompensatingFile(?string $path): void
     {
         if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
-            $this->logger->warning('신규 카드 이미지 보상 삭제 실패', ['path' => $path]);
+            $this->logger->warning('신규 카드 이미지 보상 삭제에 실패했습니다.', ['event_code' => 'CARD_FILE_COMPENSATION_FAILED', 'result' => 'FAILED']);
         }
     }
 
     private function cleanupCommittedFile(?string $path, string $context): void
     {
         if ($path !== null && $path !== '' && !$this->fileService->delete($path)) {
-            $this->logger->warning($context . ' 정리 실패', ['path' => $path]);
+            $this->logger->warning($context . ' 정리에 실패했습니다.', ['event_code' => 'CARD_FILE_CLEANUP_FAILED', 'result' => 'FAILED']);
         }
     }
 

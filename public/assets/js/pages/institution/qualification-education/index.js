@@ -1,145 +1,47 @@
 import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { actorColumn } from '/public/assets/js/common/actor.js';
+import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 
-const root = document.querySelector('.qualification-education-page');
-if (root) {
-    const boot = JSON.parse(root.dataset.bootstrap || '{}');
-    const options = boot.options || {};
-    const capability = boot.capabilities || {};
-    const API = {
-        qList: '/api/institution/human-resources/qualification-education/qualification/all-list',
-        qDetail: '/api/institution/human-resources/qualification-education/qualification/detail',
-        qSave: '/api/institution/human-resources/qualification-education/qualification/save',
-        qVerify: '/api/institution/human-resources/qualification-education/qualification/verify',
-        qRenew: '/api/institution/human-resources/qualification-education/qualification/renew',
-        qDelete: '/api/institution/human-resources/qualification-education/qualification/delete',
-        eList: '/api/institution/human-resources/qualification-education/education/all-list',
-        eDetail: '/api/institution/human-resources/qualification-education/education/detail',
-        eSave: '/api/institution/human-resources/qualification-education/education/save',
-        eDelete: '/api/institution/human-resources/qualification-education/education/delete',
-        courseSave: '/api/institution/human-resources/qualification-education/course/save',
-        excel: '/api/institution/human-resources/qualification-education/excel'
-    };
-    let active = 'qualifications';
-    const initialEmployeeId = new URLSearchParams(location.search).get('employee_id') || '';
-    let table = null;
-    const qModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('qeQualificationModal'));
-    const eModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('qeEducationModal'));
-    const courseModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('qeCourseModal'));
-    const qForm = document.getElementById('qeQualificationForm');
-    const eForm = document.getElementById('qeEducationForm');
-    const courseForm = document.getElementById('qeCourseForm');
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-    const requestKey = () => crypto.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(16).slice(2);
-
-    function fillSelect(form, name, rows, blank = '선택') {
-        const element = form.elements[name];
-        if (!element) return;
-        element.innerHTML = '<option value="">' + blank + '</option>' + (rows || []).map(row => '<option value="' + escapeHtml(row.value) + '">' + escapeHtml(row.label) + '</option>').join('');
-    }
-    function initializeOptions() {
-        [qForm, eForm].forEach(form => fillSelect(form, 'employee_id', options.employees));
-        fillSelect(qForm, 'qualification_type_code', options.qualification_types);
-        fillSelect(qForm, 'status_code', options.qualification_statuses);
-        fillSelect(eForm, 'course_id', options.courses);
-        fillSelect(eForm, 'attendance_status_code', options.attendance_statuses);
-        fillSelect(eForm, 'completion_status_code', options.completion_statuses);
-        fillSelect(courseForm, 'education_type_code', options.education_types);
-    }
-    function badge(value) {
-        const color = value === 'EXPIRED' ? 'danger' : value === 'EXPIRING' ? 'warning' : ['ACTIVE', 'COMPLETED'].includes(value) ? 'success' : 'secondary';
-        return '<span class="badge text-bg-' + color + ' qe-status">' + escapeHtml(value || '-') + '</span>';
-    }
-    function fileLink(path, name) {
-        return path ? '<a href="/api/file/preview?path=' + encodeURIComponent(path) + '" target="_blank" rel="noopener">' + escapeHtml(name || '첨부 보기') + '</a>' : '-';
-    }
-    function actionButtons(row, type) {
-        const canEdit = type === 'q' ? capability.save : capability.education_manage;
-        const edit = canEdit ? '<button class="btn btn-outline-primary btn-sm" data-edit-' + type + '="' + escapeHtml(row.id) + '">수정</button>' : '';
-        const verify = type === 'q' && capability.verify ? '<button class="btn btn-outline-success btn-sm" data-verify-q="' + escapeHtml(row.id) + '">검증</button>' : '';
-        const renew = type === 'q' && capability.renew ? '<button class="btn btn-outline-warning btn-sm" data-renew-q="' + escapeHtml(row.id) + '">갱신</button>' : '';
-        const remove = capability.delete ? '<button class="btn btn-outline-danger btn-sm" data-delete-' + type + '="' + escapeHtml(row.id) + '">삭제</button>' : '';
-        return '<div class="d-flex gap-1">' + edit + verify + renew + remove + '</div>';
-    }
-    const qualificationColumns = [
-        {data:'employee_name',title:'직원명'},{data:'username',title:'아이디'},{data:'dept_name',title:'부서',defaultContent:'-'},
-        {data:'qualification_name',title:'자격명'},{data:'credential_number',title:'자격번호',defaultContent:'-'},{data:'issuer_name',title:'발급기관',defaultContent:'-'},
-        {data:'acquired_date',title:'취득일',defaultContent:'-'},{data:'valid_to',title:'만료일',defaultContent:'-'},{data:'display_status_code',title:'상태',render:badge},
-        {data:'attachment_path',title:'첨부',orderable:false,render:(value,type,row)=>fileLink(value,row.attachment_name)},actorColumn('updated_by','수정자'),
-        {data:'updated_at',title:'수정일시'},{data:null,title:'관리',orderable:false,render:row=>actionButtons(row,'q')}
-    ];
-    const educationColumns = [
-        {data:'employee_name',title:'직원명'},{data:'username',title:'아이디'},{data:'dept_name',title:'부서',defaultContent:'-'},{data:'course_name',title:'교육과정'},
-        {data:'education_name',title:'교육명'},{data:'institution_name',title:'교육기관',defaultContent:'-'},{data:'education_start_at',title:'교육일'},
-        {data:'education_minutes',title:'교육시간(분)'},{data:'completion_number',title:'수료번호',defaultContent:'-'},{data:'valid_to',title:'만료일',defaultContent:'-'},
-        {data:'display_status_code',title:'상태',render:badge},{data:'attachment_path',title:'첨부',orderable:false,render:(value,type,row)=>fileLink(value,row.attachment_name)},
-        actorColumn('updated_by','수정자'),{data:null,title:'관리',orderable:false,render:row=>actionButtons(row,'e')}
-    ];
-    const courseColumns = [
-        {data:'course_code',title:'코드'},{data:'course_name',title:'교육과정'},{data:'education_type_code',title:'교육 종류'},
-        {data:'default_institution_name',title:'기본 기관',defaultContent:'-'},{data:'default_minutes',title:'기본 시간(분)'},{data:'validity_months',title:'유효기간(개월)'},
-        {data:'is_mandatory',title:'필수',render:value=>value==1?'예':'아니오'},{data:'is_active',title:'사용',render:value=>value==1?'사용':'미사용'},
-        {data:null,title:'관리',orderable:false,render:row=>'<button class="btn btn-outline-primary btn-sm" data-edit-course="' + escapeHtml(row.id || row.value) + '">수정</button>'}
-    ];
-    async function initializeTable() {
-        table?.destroy?.();
-        const isCourse = active === 'courses';
-        const isEducation = active === 'educations';
-        const api = isEducation ? API.eList : API.qList;
-        table = await createDataTable({
-            tableSelector:'#qualificationEducationTable', api:isCourse ? null : api, data:isCourse ? (options.courses || []) : undefined,
-            serverSide:!isCourse, searching:false, paging:!isCourse, pageLength:50,
-            columns:isCourse ? courseColumns : isEducation ? educationColumns : qualificationColumns,
-            tableSettings:{enabled:true,pageKey:'institution.human_resources.qualification_education',tableKey:'qualification-education-' + active,storageKey:'datatable.settings.institution.qualification-education.' + active + '.v1',tableLabel:'자격·교육관리'}
-        });
-        if (!isCourse) SearchForm({table,apiList:api,tableId:'qualificationEducation',defaultSearchField:'employee_id',dateOptions:[{value:'valid_to',label:'만료일'},{value:'acquired_date',label:'취득일'},{value:'education_start_at',label:'교육일'}],normalizeFilters:filters=>{const normalized=[...filters];if(initialEmployeeId&&!normalized.some(filter=>filter.field==='employee_id'))normalized.push({field:'employee_id',value:initialEmployeeId});if(active==='expiring')normalized.push({field:'expiry_state',value:'EXPIRING'});return normalized;}});
-        document.getElementById('qeExcel')?.setAttribute('href', API.excel + '?type=' + (isEducation ? 'educations' : 'qualifications'));
-    }
-    function setForm(form, row = {}) {
-        form.reset();
-        form.dataset.mode = 'save';
-        [...form.elements].forEach(element => {
-            if (!element.name || element.type === 'file') return;
-            if (element.type === 'checkbox') element.checked = Number(row[element.name] ?? (element.name === 'is_active' ? 1 : 0)) === 1;
-            else element.value = row[element.name] ?? '';
-        });
-        form.elements.request_key.value = requestKey();
-        const file = form.querySelector('[data-current-file]');
-        if (file) file.innerHTML = fileLink(row.attachment_path, row.attachment_name);
-    }
-    async function get(url) {
-        const response = await fetch(url,{credentials:'same-origin'}); const payload = await response.json();
-        if (!response.ok || !payload.success) throw new Error(payload.message || '조회 중 오류가 발생했습니다.');
-        return payload.data;
-    }
-    async function send(url, input) {
-        const isForm = input instanceof HTMLFormElement;
-        const response = await fetch(url,{method:'POST',credentials:'same-origin',headers:isForm?{}:{'Content-Type':'application/json'},body:isForm?new FormData(input):JSON.stringify(input)});
-        const payload = await response.json(); if (!response.ok || !payload.success) throw new Error(payload.message || '처리 중 오류가 발생했습니다.');
-        window.AppCore?.notify?.('success',payload.message || '처리되었습니다.'); return payload;
-    }
-    async function editQualification(id, mode = 'save') { setForm(qForm, await get(API.qDetail + '?id=' + encodeURIComponent(id))); qForm.dataset.mode = mode; qModal.show(); }
-    async function editEducation(id) { setForm(eForm, await get(API.eDetail + '?id=' + encodeURIComponent(id))); eModal.show(); }
-    document.querySelectorAll('[data-qe-tab]').forEach(button => button.addEventListener('click', () => {
-        document.querySelectorAll('[data-qe-tab]').forEach(item => item.classList.toggle('active',item===button)); active=button.dataset.qeTab; initializeTable();
-    }));
-    document.querySelectorAll('[data-qe-action]').forEach(button => button.addEventListener('click', () => {
-        if (button.dataset.qeAction === 'qualification-add') { setForm(qForm); qModal.show(); } else { setForm(eForm); eModal.show(); }
-    }));
-    document.querySelector('#qualificationEducationTable tbody')?.addEventListener('click', async event => {
-        try {
-            const q=event.target.closest('[data-edit-q]'),e=event.target.closest('[data-edit-e]'),course=event.target.closest('[data-edit-course]'),verify=event.target.closest('[data-verify-q]'),renew=event.target.closest('[data-renew-q]'),dq=event.target.closest('[data-delete-q]'),de=event.target.closest('[data-delete-e]');
-            if(q) await editQualification(q.dataset.editQ); else if(e) await editEducation(e.dataset.editE);
-            else if(verify&&confirm('자격 정보를 검증 완료 처리하시겠습니까?')){await send(API.qVerify,{id:verify.dataset.verifyQ,request_key:requestKey(),reason:'관리자 검증'});table.ajax.reload(null,false);}
-            else if(renew) await editQualification(renew.dataset.renewQ,'renew');
-            else if(course){const row=(options.courses||[]).find(item=>(item.id||item.value)===course.dataset.editCourse);setForm(courseForm,row||{});courseModal.show();}
-            else if(dq&&confirm('자격 정보를 삭제하시겠습니까?')){await send(API.qDelete,{id:dq.dataset.deleteQ,request_key:requestKey(),reason:'관리자 삭제'});table.ajax.reload(null,false);}
-            else if(de&&confirm('교육 이력을 삭제하시겠습니까?')){await send(API.eDelete,{id:de.dataset.deleteE,request_key:requestKey(),reason:'관리자 삭제'});table.ajax.reload(null,false);}
-        } catch(error) { window.AppCore?.notify?.('error',error.message); }
-    });
-    qForm.addEventListener('submit',async event=>{event.preventDefault();try{await send(qForm.dataset.mode==='renew'?API.qRenew:API.qSave,qForm);qModal.hide();table?.ajax?.reload(null,false);}catch(error){window.AppCore?.notify?.('error',error.message);}});
-    eForm.addEventListener('submit',async event=>{event.preventDefault();try{await send(API.eSave,eForm);eModal.hide();table?.ajax?.reload(null,false);}catch(error){window.AppCore?.notify?.('error',error.message);}});
-    courseForm.addEventListener('submit',async event=>{event.preventDefault();try{await send(API.courseSave,courseForm);courseModal.hide();location.reload();}catch(error){window.AppCore?.notify?.('error',error.message);}});
-    initializeOptions(); initializeTable();
+const root=document.querySelector('.qualification-education-page');
+if(root){
+const boot=JSON.parse(root.dataset.bootstrap||'{}'),capabilities=boot.capabilities||{};let options=boot.options||{},active='qualifications',policyKind='qualification',table,tableSwitching=false,tableSwitchPending=false;const policyCache=new Map();
+const API={options:'/api/institution/human-resources/qualification-education/options',qList:'/api/institution/human-resources/qualification-education/qualification/all-list',qDetail:'/api/institution/human-resources/qualification-education/qualification/detail',qSave:'/api/institution/human-resources/qualification-education/qualification/save',qVerify:'/api/institution/human-resources/qualification-education/qualification/verify',qRenew:'/api/institution/human-resources/qualification-education/qualification/renew',qDelete:'/api/institution/human-resources/qualification-education/qualification/delete',eList:'/api/institution/human-resources/qualification-education/education/all-list',eDetail:'/api/institution/human-resources/qualification-education/education/detail',eSave:'/api/institution/human-resources/qualification-education/education/save',eDelete:'/api/institution/human-resources/qualification-education/education/delete',typeList:'/api/institution/human-resources/qualification-education/qualification-type/list',typeSave:'/api/institution/human-resources/qualification-education/qualification-type/save',courseList:'/api/institution/human-resources/qualification-education/course/list',courseSave:'/api/institution/human-resources/qualification-education/course/save',reqList:'/api/institution/human-resources/qualification-education/requirement/list',reqSave:'/api/institution/human-resources/qualification-education/requirement/save',reorder:'/api/institution/human-resources/qualification-education/policy/reorder',employee:'/api/settings/organization/employee/search-picker'};
+Object.assign(API,{sessionList:'/api/institution/human-resources/qualification-education/session/list',sessionDetail:'/api/institution/human-resources/qualification-education/session/detail',sessionSave:'/api/institution/human-resources/qualification-education/session/save',sessionTransition:'/api/institution/human-resources/qualification-education/session/transition',targetList:'/api/institution/human-resources/qualification-education/session-target/list',targetAdd:'/api/institution/human-resources/qualification-education/session-target/add',targetRemove:'/api/institution/human-resources/qualification-education/session-target/remove',targetOutcome:'/api/institution/human-resources/qualification-education/session-target/outcome'});
+const forms={q:document.getElementById('qeQualificationForm'),e:document.getElementById('qeEducationForm'),type:document.getElementById('qeQualificationTypeForm'),course:document.getElementById('qeCourseForm'),req:document.getElementById('qeRequirementForm')};
+forms.session=document.getElementById('qeSessionForm');
+const modals={q:bootstrap.Modal.getOrCreateInstance(document.getElementById('qeQualificationModal')),e:bootstrap.Modal.getOrCreateInstance(document.getElementById('qeEducationModal')),type:bootstrap.Modal.getOrCreateInstance(document.getElementById('qeQualificationTypeModal')),course:bootstrap.Modal.getOrCreateInstance(document.getElementById('qeCourseModal')),req:bootstrap.Modal.getOrCreateInstance(document.getElementById('qeRequirementModal'))};
+modals.session=bootstrap.Modal.getOrCreateInstance(document.getElementById('qeSessionModal'));modals.target=bootstrap.Modal.getOrCreateInstance(document.getElementById('qeSessionTargetModal'));
+const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),key=()=>`QE-${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;
+const get=async u=>{const r=await fetch(u,{credentials:'same-origin'}),p=await r.json();if(!r.ok||!p.success)throw new Error(p.message||'조회 중 오류가 발생했습니다.');return p.data;};
+const send=async(u,input)=>{const form=input instanceof HTMLFormElement,r=await fetch(u,{method:'POST',credentials:'same-origin',headers:form?{}:{'Content-Type':'application/json'},body:form?new FormData(input):JSON.stringify(input)}),p=await r.json();if(!r.ok||!p.success)throw new Error(p.message||'처리 중 오류가 발생했습니다.');window.AppCore?.notify?.('success',p.message||'처리되었습니다.');return p.data;};
+const fill=(form,name,items)=>{const s=form?.elements?.[name];if(!s)return;s.innerHTML='<option value="">선택</option>'+items.map(x=>`<option value="${esc(x.value??x.id)}">${esc(x.label??x.name)}</option>`).join('');};
+function setForm(form,row={}){form.reset();[...form.elements].forEach(el=>{if(!el.name||el.type==='file')return;if(el.type==='checkbox')el.checked=Number(row[el.name]??(el.name==='is_active'?1:0))===1;else el.value=row[el.name]??'';});form.elements.request_key.value=key();}
+function setEmployee(form,row={}){const select=form.elements.employee_id;if(!select||!row.employee_id)return;const label=row.employee_name||row.employee_number||row.employee_id;select.replaceChildren(new Option(label,row.employee_id,true,true));window.jQuery(select).trigger('change.select2');}
+function bindSearchEmployeePicker(){const form=document.getElementById('qualificationEducationSearchConditionsForm');if(!form)return;const apply=row=>{const field=row.querySelector('[name="searchField[]"]'),input=row.querySelector('[name="searchValue[]"]'),old=row.querySelector('.qe-search-employee');if(!field||!input)return;if(field.value!=='employee_id'){old?.remove();input.classList.remove('d-none');return;}if(old)return;input.classList.add('d-none');const select=document.createElement('select');select.className='form-select form-select-sm qe-search-employee';select.innerHTML='<option value="">직원 검색</option>';input.insertAdjacentElement('afterend',select);AdminPicker.select2Ajax(select,{width:'100%',url:API.employee,allowClear:true,minimumInputLength:0});window.jQuery(select).on('change',()=>{input.value=select.value||'';});};const refresh=()=>form.querySelectorAll('.search-condition').forEach(apply);if(!form.dataset.qePickerBound){form.dataset.qePickerBound='1';form.addEventListener('change',event=>{if(event.target.matches('[name="searchField[]"]'))apply(event.target.closest('.search-condition'));});new MutationObserver(refresh).observe(form,{childList:true,subtree:true});}refresh();}
+function applyOptions(){fill(forms.q,'qualification_type_id',options.qualification_types||[]);fill(forms.e,'course_id',options.courses||[]);fill(forms.session,'course_id',options.courses||[]);fill(forms.type,'category_code',options.qualification_categories||[]);fill(forms.course,'education_type_code',options.education_types||[]);fill(forms.req,'job_id',options.jobs||[]);fill(forms.req,'qualification_type_id',options.qualification_types||[]);fill(forms.req,'course_id',options.courses||[]);}
+async function refresh(){options=await get(API.options);applyOptions();policyCache.clear();}
+async function policyRows(kind){if(policyCache.has(kind))return policyCache.get(kind);const domain=kind.startsWith('qualification')?'qualification':'education',rows=kind==='qualification'?await get(API.typeList):kind==='education'?await get(API.courseList):await get(`${API.reqList}?kind=${domain}`);policyCache.set(kind,rows);return rows;}
+AdminPicker.select2Ajax(forms.q.elements.employee_id,{width:'100%',dropdownParent:window.jQuery('#qeQualificationModal'),url:API.employee,minimumInputLength:0});AdminPicker.select2Ajax(forms.e.elements.employee_id,{width:'100%',dropdownParent:window.jQuery('#qeEducationModal'),url:API.employee,minimumInputLength:0});
+AdminPicker.select2Ajax(forms.session.elements.organizer_employee_id,{width:'100%',dropdownParent:window.jQuery('#qeSessionModal'),url:API.employee,minimumInputLength:0});AdminPicker.select2Ajax(document.getElementById('qeTargetEmployee'),{width:'100%',dropdownParent:window.jQuery('#qeSessionTargetModal'),url:API.employee,minimumInputLength:0});
+const dp=AdminPicker.create({type:'today',container:document.getElementById('qeDatePicker')}),dtp=AdminPicker.create({type:'datetime',container:document.getElementById('qeDateTimePicker')});let dateInput;dp.subscribe((_,v)=>{dateInput.value=typeof v==='string'?v:v.toISOString().slice(0,10);dp.close();});dtp.subscribe((_,v)=>{dateInput.value=(typeof v==='string'?v:v.toISOString().slice(0,16)).replace('T',' ');dtp.close();});document.querySelectorAll('.admin-date,.admin-datetime').forEach(i=>i.addEventListener('click',()=>{dateInput=i;(i.classList.contains('admin-datetime')?dtp:dp).open({anchor:i});}));
+const badge=v=>`<span class="badge text-bg-${['ACTIVE','COMPLETED'].includes(v)?'success':['EXPIRED','OVERDUE','INVALIDATED','REVOKED'].includes(v)?'danger':'warning'}">${esc(v||'-')}</span>`;
+const qCols=[{data:'employee_name',title:'직원'},{data:'job_name',title:'현재 직무',defaultContent:'-'},{data:'qualification_name',title:'자격명'},{data:'credential_number',title:'자격번호',defaultContent:'-'},{data:'issuer_name',title:'발급기관',defaultContent:'-'},{data:'acquired_date',title:'취득일',defaultContent:'-'},{data:'valid_to',title:'만료일',defaultContent:'-'},{data:'renewal_due_date',title:'갱신기한',defaultContent:'-'},{data:'display_status_code',title:'현재상태',render:badge},{data:'verified_by_name',title:'검증자',defaultContent:'-'},{data:'verified_at',title:'검증일',defaultContent:'-'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-q="${r.id}">상세</button> ${r.status_code==='PENDING_VERIFICATION'?`<button class="btn btn-outline-success btn-sm" data-verify-q="${r.id}">검증</button>`:''} <button class="btn btn-outline-warning btn-sm" data-renew-q="${r.id}">갱신</button> <button class="btn btn-outline-danger btn-sm" data-remove-q="${r.id}">${r.status_code==='PENDING_VERIFICATION'?'삭제':'무효화'}</button>`}];
+const eCols=[{data:'employee_name',title:'직원'},{data:'job_name',title:'현재 직무',defaultContent:'-'},{data:'course_name',title:'교육과정'},{data:'education_type_code',title:'교육구분'},{data:'institution_name',title:'교육기관',defaultContent:'-'},{data:'education_start_at',title:'시작일시'},{data:'education_end_at',title:'종료일시'},{data:'education_minutes',title:'시간(분)'},{data:'completion_status_code',title:'이수상태'},{data:'next_due_date',title:'다음교육',defaultContent:'-'},{data:'display_status_code',title:'현재상태',render:badge},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-e="${r.id}">상세</button> <button class="btn btn-outline-danger btn-sm" data-remove-e="${r.id}">${r.completion_status_code==='COMPLETED'?'무효화':'삭제'}</button>`}];
+const sessionCols=[{data:'title',title:'교육명'},{data:'course_name',title:'교육과정'},{data:'starts_at',title:'시작일시'},{data:'ends_at',title:'종료일시'},{data:'location_name',title:'장소',defaultContent:'-'},{data:'status_code',title:'상태',render:badge},{data:'target_count',title:'대상'},{data:'acknowledged_count',title:'확인'},{data:'unacknowledged_count',title:'미확인'},{data:'attended_count',title:'참석'},{data:'absent_count',title:'불참'},{data:'completed_count',title:'이수'},{data:'not_completed_count',title:'미이수'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-session="${r.id}">상세</button> <button class="btn btn-outline-secondary btn-sm" data-target-session="${r.id}">대상자</button> ${r.status_code==='DRAFT'?`<button class="btn btn-outline-success btn-sm" data-transition-session="SCHEDULED" data-id="${r.id}">확정</button>`:''} ${r.status_code==='SCHEDULED'?`<button class="btn btn-outline-success btn-sm" data-transition-session="COMPLETED" data-id="${r.id}">완료</button><button class="btn btn-outline-danger btn-sm" data-transition-session="CANCELLED" data-id="${r.id}">취소</button>`:''}`}];
+const typeCols=[{data:null,title:'이동',settingsKey:'__reorder',__dtColumnKind:'virtual',className:'reorder-handle',orderable:false,defaultContent:'<i class="bi bi-list"></i>'},{data:'sort_no',title:'순서'},{data:'qualification_code',title:'자격코드'},{data:'qualification_name',title:'자격명'},{data:'category_code',title:'분류'},{data:'validity_policy_code',title:'유효정책'},{data:'renewal_policy_code',title:'갱신정책'},{data:'is_active',title:'사용',render:v=>v==1?'사용':'미사용'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-type="${r.id}">수정</button>`}];
+const courseCols=[{data:null,title:'이동',settingsKey:'__reorder',__dtColumnKind:'virtual',className:'reorder-handle',orderable:false,defaultContent:'<i class="bi bi-list"></i>'},{data:'sort_no',title:'순서'},{data:'course_code',title:'코드'},{data:'course_name',title:'교육과정'},{data:'education_type_code',title:'구분'},{data:'default_minutes',title:'기본시간'},{data:'recurrence_policy_code',title:'재교육정책'},{data:'recurrence_interval_value',title:'주기',defaultContent:'-'},{data:'recurrence_event_code',title:'이벤트',defaultContent:'-'},{data:'is_active',title:'사용',render:v=>v==1?'사용':'미사용'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-course="${r.id}">수정</button>`}];
+const reqCols=[{data:'job_name',title:'직무'},{data:'target_name',title:'요구대상'},{data:'requirement_level_code',title:'요구수준'},{data:'effective_from',title:'적용시작'},{data:'effective_to',title:'적용종료',defaultContent:'-'},{data:'note',title:'비고',defaultContent:'-'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-primary btn-sm" data-edit-req="${r.id}">수정</button>`}];
+function openAddAction(action){if(action==='qualification-add'){setForm(forms.q);modals.q.show();}else if(action==='session-add'){setForm(forms.session);modals.session.show();}else if(action==='education-add'){setForm(forms.e);modals.e.show();}else if(policyKind==='qualification'){setForm(forms.type);modals.type.show();}else if(policyKind==='education'){setForm(forms.course);modals.course.show();}else{setForm(forms.req);const kind=policyKind.startsWith('qualification')?'qualification':'education';forms.req.elements.kind.value=kind;document.querySelector('[data-requirement-qualification]').classList.toggle('d-none',kind!=='qualification');document.querySelector('[data-requirement-education]').classList.toggle('d-none',kind!=='education');modals.req.show();}}
+function tableButtons(){if(active==='qualifications'&&capabilities.save)return[{text:'자격 등록',className:'btn btn-primary btn-sm',action:()=>openAddAction('qualification-add')}];if(active==='sessions'&&capabilities.education_manage)return[{text:'교육 일정 등록',className:'btn btn-primary btn-sm',action:()=>openAddAction('session-add')}];if(active==='educations'&&capabilities.education_manage)return[{text:'외부 개별교육 등록',className:'btn btn-primary btn-sm',action:()=>openAddAction('education-add')}];if(active!=='policies')return[];const policyButtons=[['qualification','자격 기준'],['education','교육과정'],['qualification-requirement','직무 자격 요구'],['education-requirement','직무 교육 요구']].map(([kind,label])=>({text:label,className:`btn btn-sm ${policyKind===kind?'btn-secondary':'btn-outline-secondary'}`,action:()=>{if(policyKind===kind)return;policyKind=kind;void makeTable();}}));if(capabilities.policy_manage)policyButtons.push({text:'기준 등록',className:'btn btn-primary btn-sm',action:()=>openAddAction('policy-add')});return policyButtons;}
+function waitForServerTable(currentTable){if(currentTable?.ajax?.json?.())return Promise.resolve();return new Promise(resolve=>{let finished=false;const done=()=>{if(finished)return;finished=true;window.clearTimeout(timer);window.requestAnimationFrame(resolve);};const timer=window.setTimeout(done,10000);currentTable?.one?.('xhr.dt.qeTableReady',done);});}
+async function makeTable(){if(tableSwitching){tableSwitchPending=true;return;}tableSwitching=true;const area=document.getElementById('qeListArea');area?.classList.add('qe-table-switching');try{table?.destroy?.();table=null;const tableElement=document.getElementById('qualificationEducationTable');if(tableElement)tableElement.innerHTML='';let c;if(active==='qualifications')c={api:API.qList,server:true,columns:qCols,domain:'qualification-status'};else if(active==='sessions')c={api:API.sessionList,server:true,columns:sessionCols,domain:'education-session'};else if(active==='educations')c={api:API.eList,server:true,columns:eCols,domain:'education-status'};else{const data=await policyRows(policyKind);c={data,server:false,columns:policyKind==='qualification'?typeCols:policyKind==='education'?courseCols:reqCols,domain:policyKind==='qualification'?'qualification-type':policyKind==='education'?'education-course':`job-${policyKind.startsWith('qualification')?'qualification':'education'}-requirement`};}table=await createDataTable({tableSelector:'#qualificationEducationTable',api:c.api,initialData:c.data,serverSide:c.server,searching:false,paging:c.server,pageLength:50,columns:c.columns,buttons:tableButtons(),tableSettings:{enabled:true,pageKey:'institution.human_resources.qualification_education',tableKey:c.domain,storageKey:`datatable.settings.institution.qualification-education.${c.domain}.v2`,tableLabel:'자격·교육관리',metaDomain:c.domain}});if(c.server){SearchForm({table,apiList:c.api,tableId:'qualificationEducation',defaultSearchField:active==='sessions'?'title':'employee_id',dateOptions:active==='qualifications'?['acquired_date','valid_to']:active==='sessions'?['starts_at','ends_at']:['education_start_at','valid_to']});if(active!=='sessions')bindSearchEmployeePicker();await waitForServerTable(table);}if(active==='policies'&&['qualification','education'].includes(policyKind))bindRowReorder(table,{api:API.reorder,extraData:()=>({kind:policyKind,request_key:key(),reason:'표시순서 변경'}),onSuccess:()=>{policyCache.delete(policyKind);void makeTable();}});}finally{area?.classList.remove('qe-table-switching');tableSwitching=false;if(tableSwitchPending){tableSwitchPending=false;void makeTable();}}}
+document.querySelectorAll('[data-qe-tab]').forEach(b=>b.addEventListener('click',()=>{if(active===b.dataset.qeTab)return;document.querySelectorAll('[data-qe-tab]').forEach(x=>x.classList.toggle('active',x===b));active=b.dataset.qeTab;void makeTable();}));
+document.querySelector('#qualificationEducationTable tbody').addEventListener('click',async ev=>{try{const b=ev.target.closest('button');if(!b)return;let row;if(b.dataset.editQ){row=await get(`${API.qDetail}?id=${b.dataset.editQ}`);setForm(forms.q,row);setEmployee(forms.q,row);modals.q.show();}else if(b.dataset.editE){row=await get(`${API.eDetail}?id=${b.dataset.editE}`);setForm(forms.e,row);setEmployee(forms.e,row);modals.e.show();}else if(b.dataset.verifyQ&&confirm('검증 완료 처리하시겠습니까?')){await send(API.qVerify,{id:b.dataset.verifyQ,request_key:key(),reason:'관리자 검증'});table.ajax.reload(null,false);}else if(b.dataset.renewQ){row=await get(`${API.qDetail}?id=${b.dataset.renewQ}`);setForm(forms.q,row);setEmployee(forms.q,row);forms.q.dataset.mode='renew';modals.q.show();}else if(b.dataset.removeQ){const reason=prompt('처리 사유를 입력해 주세요.');if(reason){await send(API.qDelete,{id:b.dataset.removeQ,request_key:key(),reason});table.ajax.reload(null,false);}}else if(b.dataset.removeE){const reason=prompt('처리 사유를 입력해 주세요.');if(reason){await send(API.eDelete,{id:b.dataset.removeE,request_key:key(),reason});table.ajax.reload(null,false);}}else if(b.dataset.editType){setForm(forms.type,table.row(b.closest('tr')).data());modals.type.show();}else if(b.dataset.editCourse){setForm(forms.course,table.row(b.closest('tr')).data());modals.course.show();}else if(b.dataset.editReq){row=table.row(b.closest('tr')).data();setForm(forms.req,row);forms.req.elements.kind.value=policyKind.startsWith('qualification')?'qualification':'education';modals.req.show();}}catch(e){window.AppCore?.notify?.('error',e.message);}});
+forms.q.addEventListener('submit',async e=>{e.preventDefault();try{await send(forms.q.dataset.mode==='renew'?API.qRenew:API.qSave,forms.q);forms.q.dataset.mode='save';modals.q.hide();table.ajax.reload(null,false);}catch(x){window.AppCore?.notify?.('error',x.message);}});forms.e.addEventListener('submit',async e=>{e.preventDefault();try{await send(API.eSave,forms.e);modals.e.hide();table.ajax.reload(null,false);}catch(x){window.AppCore?.notify?.('error',x.message);}});forms.type.addEventListener('submit',async e=>{e.preventDefault();try{await send(API.typeSave,forms.type);modals.type.hide();await refresh();makeTable();}catch(x){window.AppCore?.notify?.('error',x.message);}});forms.course.addEventListener('submit',async e=>{e.preventDefault();try{await send(API.courseSave,forms.course);modals.course.hide();await refresh();makeTable();}catch(x){window.AppCore?.notify?.('error',x.message);}});forms.req.addEventListener('submit',async e=>{e.preventDefault();try{await send(API.reqSave,forms.req);modals.req.hide();policyCache.delete(policyKind);makeTable();}catch(x){window.AppCore?.notify?.('error',x.message);}});
+forms.session.addEventListener('submit',async e=>{e.preventDefault();try{await send(API.sessionSave,forms.session);modals.session.hide();table.ajax.reload(null,false);}catch(x){window.AppCore?.notify?.('error',x.message);}});
+let targetTable;async function openTargets(sessionId){document.getElementById('qeTargetSessionId').value=sessionId;targetTable?.destroy?.();targetTable=null;const targetElement=document.getElementById('qeSessionTargetTable');if(targetElement)targetElement.innerHTML='';targetTable=await createDataTable({tableSelector:'#qeSessionTargetTable',api:API.targetList,serverSide:true,searching:true,paging:true,pageLength:20,ajaxData:request=>({...request,session_id:sessionId}),columns:[{data:'employee_name',title:'직원'},{data:'department_name',title:'부서',defaultContent:'-'},{data:'job_name',title:'직무',defaultContent:'-'},{data:'acknowledged_at',title:'확인',defaultContent:'미확인'},{data:'attendance_status_code',title:'참석'},{data:'completion_status_code',title:'이수'},{data:null,title:'관리',orderable:false,render:r=>`<button class="btn btn-outline-danger btn-sm" data-remove-target="${r.id}">제외</button>`}],tableSettings:{enabled:true,pageKey:'institution.human_resources.qualification_education',tableKey:'education-session-target',storageKey:'datatable.settings.institution.qualification-education.education-session-target.v1',tableLabel:'교육 대상자',metaDomain:'education-session-target'}});modals.target.show();}
+document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;try{if(b.dataset.editSession){const row=await get(`${API.sessionDetail}?id=${encodeURIComponent(b.dataset.editSession)}`);setForm(forms.session,row);if(row.organizer_employee_id){forms.session.elements.organizer_employee_id.replaceChildren(new Option(row.organizer_employee_name||row.organizer_employee_id,row.organizer_employee_id,true,true));window.jQuery(forms.session.elements.organizer_employee_id).trigger('change.select2');}modals.session.show();}else if(b.dataset.targetSession){await openTargets(b.dataset.targetSession);}else if(b.dataset.transitionSession){const reason=b.dataset.transitionSession==='CANCELLED'?prompt('취소 사유를 입력해 주세요.'):'';if(b.dataset.transitionSession==='CANCELLED'&&!reason)return;const action={SCHEDULED:'SCHEDULE',COMPLETED:'COMPLETE',CANCELLED:'CANCEL'}[b.dataset.transitionSession];await send(API.sessionTransition,{id:b.dataset.id,action,reason,request_key:key()});table.ajax.reload(null,false);}else if(b.dataset.removeTarget){const reason=prompt('대상 제외 사유를 입력해 주세요.');if(!reason)return;await send(API.targetRemove,{id:b.dataset.removeTarget,reason,request_key:key()});targetTable.ajax.reload(null,false);}}catch(x){window.AppCore?.notify?.('error',x.message);}});
+document.getElementById('qeTargetAdd').addEventListener('click',async()=>{const sessionId=document.getElementById('qeTargetSessionId').value,employeeId=document.getElementById('qeTargetEmployee').value;if(!employeeId)return;try{await send(API.targetAdd,{session_id:sessionId,employee_ids:[employeeId],assignment_source_code:'INDIVIDUAL',reason:'관리자 대상 지정',request_key:key()});window.jQuery('#qeTargetEmployee').val(null).trigger('change');targetTable.ajax.reload(null,false);}catch(x){window.AppCore?.notify?.('error',x.message);}});
+applyOptions();makeTable().catch(e=>window.AppCore?.notify?.('error',e.message));
 }

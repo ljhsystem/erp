@@ -1,13 +1,17 @@
 - 2026-08-11: 설정 상위 메뉴의 `법정기준관리`를 `기준관리`로 재구성하고 하위 탭을 `코드`, `법정기준` 순서로 둔다. 각 페이지의 업무명·제목·권한명은 `코드관리`, `법정기준관리`를 유지한다. 코드관리의 Controller·Service·Model·View·JS·API·권한은 복제하거나 변경하지 않고 기존 단일 구현을 새 Web 경로에서 재사용한다.
 - 2026-08-06: 법정기준관리 페이지는 공용 Excel Manager와 공용 휴지통을 사용하지 않는다. 삭제 권한이 있는 사용자는 상세모달에서 기준과 관련근거를 복구 불가능하게 완전삭제한다.
 - 2026-08-06: 국가 법정 세율·요율·계산기준은 회사 정책이나 업무 계산결과와 분리하여 `system_statutory_standards_*`를 ERP 공통 SSOT로 사용한다. 단순값·구간·행렬을 물리 구조로 분리하고 공식 숫자는 임의 Seed하지 않는다.
-- 2026-08-06: `employment_rules`를 회사 정책 SSOT로 확정했다. 문서, 불변 개정본, 구조화 정책값, 적용범위, 감사 저장소를 분리한다. 승인된 개정본은 공용 전자결재를 거친 새 revision으로만 변경한다. 근로계약의 승인 스냅샷과 근태·휴가·급여의 실제 원장은 덮어쓰지 않는다.
+- 2026-08-21: 취업규칙·인사규정의 SSOT를 회사 공식 규정문서 헤더, 불변 개정본, 감사의 3개 저장소로 한정했다. 구조화 정책값·적용범위 저장소와 직접 Excel은 제거하고, 기준일 문서 해석은 시행기간 기반 `EmploymentRuleResolver`만 사용한다. 근로계약·근태·휴가·급여의 계산정책 및 실제 원장은 이 도메인의 책임이 아니다.
 - 2026-07-16: Evidence uploads use deterministic external-source identity and skip-on-duplicate semantics.
   - Decision: `EvidenceExternalKeyService` is the only upload `external_key` formula. Provider identifiers are preferred; otherwise an ordered raw-source allowlist is canonicalized and SHA-256 hashed.
   - Why: upload filename, time, user, row order, UUID, workflow state, and corrected ERP values made identical source records unstable or mutable. Source identity must remain independent from ERP workflow.
   - Consequence: an existing key, including a soft-deleted, completed, or linked row, is never updated or recreated. File duplicates and concurrent unique-key races are counted as skipped duplicates; different content under one key is surfaced as a conflict.
   - Migration constraint: unique-index migration aborts when pre-existing duplicate keys exist. It does not delete, merge, or rewrite existing evidence rows; collision review and any backfill require a separate approved data operation.
 # Decision Log
+
+- 2026-09-01: 내부 승인형 Evidence의 상태는 사용자 검토·회계준비 상태다. 초기값은 개인경비 `COMPLETED`, 상용·일용 `CORRECTION_REQUIRED`를 유지하며 Transaction/Voucher 연결상태와 분리한다.
+- 2026-09-01: 일용 Evidence는 Header 합계 + Raw Line 상세 + 전체 Snapshot의 3단계 계약을 사용한다. Raw Line은 0원·제외·사용자부담을 보존하고 근로자 지급 Settlement에는 적용된 양수 근로자 공제만 투영한다.
+- 2026-09-01: Transaction 공식 금액식은 `Item 합계 + signed Settlement 합계 = Final`이다.
 
 ## 2026-08-19 DataTables server-side 전송 방식
 
@@ -44,6 +48,7 @@
 
 - `institution_personnel_actions.issued_date`는 문서상 발령일이고 기존 `action_date`는 효력일이다. `created_at`과 `approved_at`은 발령일 대체값으로 사용하지 않는다.
 - 부서와 직위·직책은 각각 `institution_job_assignments_department_histories`, `institution_job_assignments_position_histories`가 기간 이력 SSOT다. 직원 마스터는 현재값이며 `PersonnelActionApplyService`만 두 저장소를 한 트랜잭션에서 동기화한다.
+- 직위와 직책은 별도 마스터가 아니라 통합 `user_positions`가 기준정보 SSOT다. 근로계약은 직원 현재 `position_id`를 강제하거나 인사기간이력을 변경하지 않고, 사용자가 통합 참조목록에서 확인한 계약 당시 명칭을 `job_title_snapshot`으로 보존한다. 이는 과거 계약의 표시 불변성과 인사발령의 현재상태 변경 책임을 분리하기 위한 결정이다.
 - `user_positions`는 현행 직위·직책 통합 SSOT다. 실제 독립 요구가 확정되기 전에는 별도 직책 마스터나 호환 컬럼을 만들지 않는다.
 - 기존 직원 Backfill은 재직상태 이력의 최초 시작일을 우선하고 실제·문서상 입사일을 보조로 사용한다. 퇴직자는 실제·문서상 퇴직일을 종료일로 사용하며 과거 변경을 추정하지 않는다.
 - 대상자별 적용 감사는 `application_status`, `application_error`, `applied_at`, `applied_by`를 사용한다. 헤더 `updated_by`를 적용처리자 보존용으로 사용하지 않는다.
@@ -505,6 +510,8 @@
 - 계산·세무·임금산입 정책과 항목 코드/명칭은 `institution_employment_contracts_pay_components`에서 계약 component로 스냅샷하며 사용자가 수정하지 않는다.
 - 항목별 `payment_cycle` 입력은 헤더 `payment_day`·`payment_timing`과 중복되므로 제거한다. 현재 헤더가 표현하는 월 단위 지급계약은 Service가 내부값 `MONTHLY`로 저장한다.
 - 근로계약 지급합계는 `institution_employment_contracts_components.amount` 합계만 사용하며 헤더에 별도 합계 컬럼을 저장하지 않는다. Service와 UI·결재 상세는 같은 합계 정책을 사용하고, 월급은 연 환산액(`합계 × 12`), 연봉은 월 환산액(`합계 ÷ 12`)만 파생한다. 일급·시급은 월 환산 가정이 없으므로 추가 환산액을 표시하지 않는다. 동일 지급항목 중복과 0원 이하 지급항목은 계약 의미가 없으므로 금지한다.
+- 근로계약의 `contract_date`는 실제 체결일, `contract_start_date`는 근로조건 적용 시작일, `contract_end_date`는 적용 종료일, `created_at`은 ERP 등록시각이다. 계약번호는 최초 DRAFT 생성 시 `contract_date`의 `YYYYMMDD`를 사용한 `EC-YYYYMMDD-XXXXXX`로 확정한다. 동일 계약일 재저장·재오픈에는 유지하고 일반/CHANGE DRAFT의 계약일이 실제 바뀐 경우에만 번호도 새 날짜로 재생성한다. CORRECTION은 원 계약일을 보존하고, 기존 계약일이 미확정인 과거행만 원본 확인값을 받는다. CHANGE는 새 초안 생성 전에 새 변경계약일을 입력받는다. 승인계약의 계약일·번호는 변경하지 않는다. 법정기준 Projection은 계약번호 기준일이 아니라 `contract_start_date`를 계속 사용한다.
+- 근로계약 Modal Runtime은 상세 hydrate·지급항목·주간일정·Action orchestration을 유지하고, 법정기준 API/lazy rendering/close cleanup은 `statutory-validation.js`, 공용 Picker·계약기간 입력정책·DB metadata 라벨은 `modal-form-controls.js`, 성능 계측과 동적 의존성 로딩은 각각 `modal-performance.js`, `modal-dependencies.js`, API 응답 계약은 `api-client.js`가 담당한다. Projection은 Modal 기본 hydrate 완료 후 계약당 1회 lazy-load하며 close 시 generation을 무효화해 stale 결과와 listener 누적을 차단한다.
 - 지급조건 산식 문자열은 저장하지 않고 `quantity`, `rate`, 선택적 `premium_rate`로 매번 생성한다. 계산값은 원 단위 반올림하며 확정 계약금액과 1원까지 차이를 허용한다.
 - 급여항목 마스터가 `FIXED_AMOUNT`여도 `BASE_PAY` 기본급은 정액 표시 대상이 아니며 기준시간(`quantity`)과 기준 단가(`rate`)의 `기준시간 × 기준단가` 산식을 필수로 한다. `STATUTORY_PREMIUM`, 연차수당, 명시적 `FORMULA` 항목은 시간과 기준 단가를 사용하는 파생 산식 정책을 적용한다. `월 정액`은 식대·차량유지비·통신비와 기타 정액 지급 항목에만 사용한다.
 - 기준 단가는 기본급 산식의 정형 계산요소 `rate`로 입력하며 산식 문자열을 직접 입력하지 않는다. 기본급과 모든 시간급 기반 수당은 이 단일 기준 단가를 공유하고, 수당 행의 `rate`는 저장 시 Service가 기본급 값으로 다시 정규화한다. 기본급 계약금액은 기준시간·단가, 수당 계약금액은 시간·단가·가산율의 산식 결과로 자동 계산한다.
@@ -537,8 +544,13 @@
 
 - 장기 휴직과 일반 휴가는 기간·승인·잔액 책임이 달라 별도 SSOT로 유지한다.
 - 잔액 정정 가능성과 감사 추적성을 위해 분 단위 불변 원장을 선택하고 별도 잔액 캐시는 두지 않는다.
-- 반차·시간차는 고정 4시간이 아니라 유효 근로계약의 예정근로 구간과 실제 휴게구간으로 계산한다. 상세 휴게구간이 없거나 기존 합계와 다르면 추정하지 않고 신청을 차단한다.
+- 전일·반차는 유효 근로계약의 예정근로 구간과 `break_minutes` 총량으로 계산한다. 시간차는 신청구간과 휴게구간의 교차를 판정해야 하므로 총 휴게시간이 있으나 상세 휴게구간이 미지정이면 확인을 요구한다. 상세구간 합계가 총량과 다르면 모든 계산을 차단한다.
 - 승인·취소 완료와 usage·원장·근태 재계산은 같은 서비스 트랜잭션에서 처리해 결재 완료만 남는 부분 성공을 막는다.
+- 2026-08-21: 직원용 휴가 저장·상세·상신·회수·승인 후 취소는 Controller 권한판정뿐 아니라 `LeaveService`에서도 로그인 사용자와 연결된 직원 ID와 신청 `employee_id`의 일치를 강제한다. 직원용 endpoint는 관리자 대행 경로로 재사용하지 않으며, 별도 관리자 대행 업무가 승인되기 전에는 타인 신청을 변경하지 않는다. 모든 일반 휴가는 초기 운영에서 공용 전자결재를 필수로 하고 `requires_approval`은 삭제하지 않되 사용자 편집 정책으로 확대하지 않는다. 공용 업무문서 첨부 저장소가 확정되기 전 `REQUIRED` 증빙 유형은 상신을 차단하는 방향을 사용하며 휴가 전용 첨부 SSOT는 만들지 않는다.
+- 2026-08-21: 직원 본인 휴가 기안은 `전자결재 > 휴가신청`, 전체 직원의 부여·잔액·유형 정책은 `인사·노무 > 휴가관리`가 소유한다. UI와 Application 진입점만 분리하고 기존 7개 휴가 테이블 및 `LEAVE_REQUEST` 결재 SSOT는 공유한다. 승인·반려는 공용 결재함만 담당하며 관리자 화면은 Request 상태를 직접 승인으로 변경하지 않는다.
+- 2026-08-21: 휴가 권한 전환은 기존 역할 및 `ROLE`·`EXTEND`·`REPLACE` 사용자 개별 매핑을 신규 직원·관리자 Route 권한으로 먼저 복제한 뒤 사용되지 않는 Institution 직원 권한을 제거하는 forward-only 정책을 사용한다. 구 권한과 신규 권한의 장기 병존은 실제 접근경계를 모호하게 하므로 허용하지 않으며, Down으로 구 권한 의미를 추정 복원하지 않는다.
+- 2026-08-21: 휴가 잔액의 소비·복원 추적 단위는 `institution_leave_grants.id`로 확정한다. 부여·사용·복원·이월·소멸 원장은 반드시 Grant에 귀속하고 관리자 조정만 예외적으로 Grant 없이 기록한다. 차감은 만료일이 있는 Grant를 먼저, 같은 경우 만료일·사용종료일·사용시작일·생성일·ID 순으로 결정하며 동시 요청에서는 Grant 행을 잠근다. 승인 취소는 현재 잔액으로 재배분하지 않고 원래 USAGE 원장의 Grant 배분을 그대로 복원한다. 계산확정 부여의 근거는 부여행 JSON에 보존하되 자동발생·자동이월·자동소멸 스케줄러는 별도 승인 전 만들지 않는다.
+- 2026-08-21: 휴가 현황·부여잔액·전자결재 휴가신청의 TableSettings는 화면 JS 제목 배열을 원본 metadata로 간주하지 않는다. 실제 목록 SQL이 읽는 테이블의 전체 물리컬럼은 DB 등록순서와 `table.column` key로 제공하고, JOIN 표시값과 집계값은 각각 `join`과 `projection`으로 명시한다. 부여·잔액은 Grant를 직접 조회하지 않으므로 Grant 테이블을 추정 등록하지 않고, 기준연도는 요청값, 잔액은 Ledger SUM으로 표현한다. 기본 화면 visible은 기존 업무 컬럼을 유지한다.
 ## 2026-08-06 — 직원 자격·교육 SSOT 통합
 
 - 직원 마스터의 certificate_name, certificate_file 단일 대표값을 폐기하고 직원별 다건 원장으로 이관한다.
@@ -568,7 +580,8 @@
 - `AttendanceCalculationPolicy`를 근태 시간 분류의 단일 정책 SSOT로 사용한다. `AttendanceService`는 DB I/O·트랜잭션·감사·마감을 조정한다.
 - 출퇴근 사건의 `work_date`는 단순 날짜가 아니라 유효 근로계약 주간일정의 시작·종료·`end_day_offset` 구간으로 판정한다. 익일 종료 사건은 일정 시작일에 귀속하며 일반 다음날 일정과 합치지 않는다.
 - `WORK`는 출퇴근 사이의 실제 활동 가능 구간, `BREAK`와 `OUTSIDE`는 그 안에서 제외하는 실제 사실이다. 실제근로는 WORK 합집합에서 WORK와 겹치는 BREAK/OUTSIDE 합집합만 한 번 차감한다.
-- 예정 휴게는 계약 상세 휴게구간 SSOT를 사용한다. `break_minutes`는 상세구간 합계 검증용 projection이며 실제 휴게로 자동 확정하지 않는다.
+- `break_minutes`는 요일별 계약상 총 휴게시간 SSOT다. 상세 휴게구간은 계약서에 휴게시각을 명시할 때만 저장하는 선택 Snapshot이며, 입력된 경우 합계가 `break_minutes`와 일치해야 한다. 일반근무의 `기본설정`을 사용자가 명시적으로 적용한 경우에는 평일 09:00~18:00, 총 휴게 60분과 함께 12:00~13:00 상세구간을 템플릿 값으로 생성한다. 저장계약 조회나 총량만으로 상세구간을 추정·Backfill하지 않는다.
+- 승인·시행 근로계약은 직접 수정하지 않는다. 실제 근로조건 변경은 `CHANGE` 개정 초안에서 새 적용 시작일을 확정하고, 당시 원계약과 ERP 입력이 달랐던 입력누락은 `CORRECTION` 초안과 불변 감사 Snapshot으로 정정한다. 두 경우 모두 기존 승인행은 보존한다.
 - 정상근로는 실제근로와 휴가 반영 후 계약 예정근로의 작은 값이다. 계약 예정초과는 법정 연장근로와 다른 개념이다.
 - 현재 법정기준관리에는 일·주 법정근로시간, 야간시간대, 법정·회사 공휴일 기준이 없다. 해당 기준이 생기기 전까지 8시간·40시간·22시~06시·일요일을 코드에 하드코딩하지 않고 법정 연장·야간·휴일 시간을 확정하지 않는다.
 - `NORMAL`, `NIGHT`는 계약 주간일정과 익일 종료 범위까지 지원한다. `FLEXIBLE`, `SELECTIVE`, `SHIFT`, `OTHER`는 세부 반복·코어타임·정산기간 정책이 없어 `NEEDS_CONFIRMATION`으로 처리하며 NORMAL로 추정하지 않는다.
@@ -577,6 +590,9 @@
 - `AttendanceCalculationPolicy::VERSION`을 일별 `calculation_version`에 기록한다. 현재 컬럼은 정책 숫자는 보존하지만 법정기준 revision ID 전체는 보존하지 못하므로 완전한 과거 법정기준 재현에는 DB 보강 승인이 필요하다.
 - 미마감 `daily_records`는 급여 확정 소비 대상이 아니다. 급여·원가·통계는 CLOSED 상태의 `monthly_closure_histories.current_revision`만 소비하며, 재오픈하면 새 revision으로 다시 마감될 때까지 확정 소비를 중단한다.
 - 2026-08-18: `WORKING_TIME_STANDARD`와 `PUBLIC_HOLIDAY_CALENDAR`를 법정기준 Type으로 등록하되 실제 8·40시간, 야간시간대와 공휴일 날짜는 Migration에 seed하지 않는다. 공식 출처를 포함한 기준일 적용 row를 법정기준관리에서 등록한다.
+- 2026-08-22: 근로계약 지급조건은 급여형태, 약정 지급일, 지급기준과 지급항목 Snapshot으로 제한한다. 상용근로소득은 귀속연월과 `CURRENT_MONTH`/`NEXT_MONTH`, `payment_day`로 명목 지급일만 제안하며 급여 산정기간·없는 날짜·휴일 보정정책은 계약에 두지 않는다.
+- 2026-08-22: 상용근로소득은 계약 지급정책을 소비해 산정기간·명목 지급일·최종 지급일을 계산한다. Header 단일 지급일 구조를 유지하므로 정책 결과가 다른 직원은 지급일별 별도 문서로 분리하며, 자동 제안일 변경은 사유와 Audit을 필수로 남긴다.
+- 2026-08-22: `PAYMENT_TIMING`의 `WEEKLY`, `BIWEEKLY`, `OTHER`는 기존 코드 호환을 위해 보존하되 월급제 상용근로소득 Runtime과 신규 근로계약 저장에서 미지원으로 차단한다.
 - 근태 일별행은 실제 사용한 근로시간·공휴일 기준 row ID를 FK로 보존한다. 계약 예정초과는 `contract_excess_seconds`, 법정 일·주 기준 연장은 `calculated_overtime_seconds`로 분리한다.
 - 2026-08-18: Daily 변경 시 해당 직원의 법정 주간 최대 7건을 일괄 잠그고 재평가한다. 일 기준 초과와 주 추가 초과는 발생 날짜에 귀속하며 연장·야간·휴일은 서로 다른 분류 차원으로 중첩을 허용한다.
 - 2026-08-18: 귀속월 마지막 날이 포함된 법정 주간이 종료되기 전에는 월 마감을 유예한다. 주간 재평가가 CLOSED 월에 영향을 줄 경우 자동 변경하지 않고 재오픈→재계산→재마감을 사용한다.
@@ -584,6 +600,7 @@
 - 2026-08-18: 월 경계 readiness의 최종 SSOT 검증은 `AttendanceService::close()`가 시작한 DB Transaction 내에서 수행한다. 대상 closure·귀속월 Daily·다음 달 closure·월말 법정 주간 Daily만 `FOR UPDATE`로 제한 잠금하고, blocker·hash·closure·history·audit을 같은 Transaction으로 묶는다. 중간 실패 시 부분 closure/history/Daily 확정은 남지 않는다.
 - 2026-08-18: 근태 Closure Fixture Baseline은 정상·휴게·익일·누락·중복·지각·조퇴·결근·계약초과·일·주·야간·공휴일·휴가·휴직·배치·마감·Revision을 정책·Phase1·월경계·법정 Revision rollback Fixture 묶음으로 검증한다. `FLEXIBLE`·`SELECTIVE`·`SHIFT`·`OTHER`는 각각 NORMAL fallback 없이 `NEEDS_CONFIRMATION`으로 고정한다.
 - 2026-08-18: 근태가 참조하는 `WORKING_TIME_STANDARD`·`PUBLIC_HOLIDAY_CALENDAR` row는 불변 Revision이다. 참조 후 `value_data`·시작일·종류·Source를 직접 수정하지 않고 새 row로 정정한다.
+- 2026-08-19: 근태 출퇴근 사건의 Daily 귀속은 달력 날짜나 고정 2일 조회범위가 아니라 `AttendanceScheduleService::resolveWorkDate()` 결과로 확정한다. 자동 WORK 구간은 해당 근무일에 귀속된 유효 사건의 순차 `CLOCK_IN → CLOCK_OUT` 쌍만 사용하며, 다음 근무일 사건이 이전 Daily 계산에 섞이지 않도록 한다. 출퇴근 변경과 월 마감의 경합은 직원 단위 잠금과 closure 잠금을 동일 트랜잭션 안에서 획득해 직렬화한다.
 - 법정 주 범위는 기준 revision의 `week_start_day`를 사용하고 월말에서 끊지 않는다. 한 날짜 변경은 같은 주 후속 일자의 주 누적 분류에 영향을 주므로 주 전체 재평가가 최종 책임이다.
 - 공휴일은 PUBLIC_HOLIDAY와 SUBSTITUTE_PUBLIC_HOLIDAY만 법정 calendar에서 판정한다. 계약 비근무일과 회사 지정휴일은 별개이며 회사 지정 날짜휴일은 이번 SSOT에 포함하지 않는다.
 - 같은 시각·동일 유형 clock은 저장 차단하고, 서로 다른 시각의 연속 CLOCK_IN/OUT은 원본을 보존한 채 DUPLICATE_CLOCK_IN/OUT 자동 예외와 NEEDS_CONFIRMATION으로 마감을 차단한다.
@@ -638,7 +655,7 @@
 - Transaction and voucher remain independently linked to Evidence; no direct transaction-voucher relationship is restored.
 - Transaction header amounts are server-calculated from transaction items plus signed settlements. A conflicting client snapshot is rejected.
 - Existing `updated_at` is the optimistic-lock token for transaction edits; no version column is introduced.
-- User CRUD may edit and soft-delete draft transactions only. Completed, closed, and cancelled transactions require an explicit source-domain correction workflow.
+- User CRUD may edit `draft` and `completed` transactions. Completion identifies an input or source-generation result and is not a modification lock; `closed` and `cancelled` remain blocked. Soft delete remains limited to `draft`. The transaction Modal exposes `draft/completed` in the business-classification Header and keeps terminal states read-only; source trace identifiers remain attached when generated lines are revised.
 - Transaction item TAX_TYPE is retired because it has no persisted runtime consumer. Evidence tax semantics and VAT settlements remain unchanged.
 - Transaction Excel management is retired. Manual list ordering uses the retained `ledger_transactions.sort_no` through the transaction-input Reorder API.
 - Settlement FK and active-transaction Evidence uniqueness remain separate DB-approval items; no migration is created by this change.
@@ -657,6 +674,7 @@
 - 2026-08-15: 전표입력은 Excel 양식·목록 다운로드·업로드·대량 Header/Line/Ref 생성을 공식 입력경로로 사용하지 않는다. 전표 전용 Excel UI, JS, Route, Controller action, Service를 제거하고 공용 Excel Manager와 다른 도메인의 Excel 기능은 유지한다. 전표 작성은 수동 입력, Evidence 기반 추천 적용, 취소전표 생성과 현재 공식 `VoucherService` 저장경로로 단일화한다. 향후 조회용 Export가 필요하면 전표 입력과 분리된 보고서 기능으로 검토한다.
 - 2026-08-15: 추천 적용 당시 계정·차대·금액·Rule·라인 참조 Snapshot은 브라우저 Runtime에서만 유지한다. 최종 분개결과가 Snapshot과 다르면 `is_user_modified=1`, 다시 완전히 같아지면 `0`이며 적요 단독 변경은 제외한다. 서버 DB Snapshot이 없으므로 이 플래그는 최종 회계검증을 대체하지 않는다. 취소전표의 Rule ID는 감사 trace로 유지하되 usage/향후 learning 집계에서 제외한다. Rule usage는 POSTED commit 후 통계 후처리로 유지하고 실패는 voucher/rule context와 함께 기존 로그에 남긴다. learning/recent/client Projection writer와 DB 멱등 계약은 후속 승인사항이다.
 - 2026-08-15: 전표 Feedback Loop는 최초 POSTED 확정라인 Event를 학습 SSOT로 삼고 Recent/Client Pattern을 Event aggregate Projection으로 둔다. Event는 회계 POSTED Transaction에 포함하며 Projection과 Rule usage는 commit 후 후처리한다. 신규 Event는 `(voucher_line_id,event_type)` UNIQUE와 line FK RESTRICT로 멱등·보존을 보장한다. 현재 전표와 연결할 수 없는 기존 Event 5건 및 기존 Projection 2/3건은 삭제·추측 Backfill하지 않고 Legacy baseline으로 보존한다. 취소전표는 Event/Projection/Rule usage에서 모두 제외하며, 추천 GET DML과 SYSTEM Rule 자동생성·confidence 자동조정은 계속 금지한다.
+- 2026-08-25: 개인경비 공식 분류 15개는 각각 하나의 기본 EXPENSE Rule을 가진다. OTHER는 정상 확정 분류이며 `item_code=OTHER` 전용 기본 Rule을 사용하고 무조건 Fallback으로 확장하지 않는다. 전표 사용자의 계정 수정은 기본 Rule을 덮어쓰지 않고 저장 Snapshot과 POSTED Learning Event로 축적한 뒤 거래처·적요분류 등 더 구체적인 조건의 Candidate로 집계한다. 승인 또는 저위험 승격된 Candidate만 동일 Rule SSOT에 CREATE Revision으로 등록하며 취소·역분개는 학습효과를 상쇄한다.
 # 전표검토·전기 권한 및 상태전이 기준 (2026-08-15)
 
 - 전표검토는 전자결재와 분리하며 `ledger_vouchers.status`를 회계 Workflow SSOT로 유지한다.
@@ -707,3 +725,331 @@
 - 결정: 입사예정은 미래 입사일, 재직은 오늘 이전 입사일과 퇴사일 없음, 퇴직은 입사일 이후의 과거 퇴사일을 요구한다. 휴직 신규 생성은 휴직 기간 원본이 필요하므로 허용하지 않는다.
 - 결정: 최초 Baseline의 `created_by`는 직원 생성 Actor를 그대로 사용하고 인사발령 대상 FK는 `NULL`로 둔다. 별도 감사 테이블이나 임의 Actor 문자열은 추가하지 않는다.
 - 결정: 기존 데이터 보정 기능, 스케줄러, DB/Migration은 이번 범위에 포함하지 않는다.
+
+## 2026-08-19 근태 입력·보정 UX와 계약상 고정휴게 정책
+
+- 정상 본인 출퇴근은 로그인 사용자에 연결된 직원과 서버 현재시각만 사용하며 UI는 `출근`·`퇴근` 동작만 제공한다. 직원·근무일·마감월·과거 발생일시는 입력받지 않는다.
+- 관리자용 출퇴근 기록 보정은 누락·과거자료 입력 경로로 분리하고 직원, 사건유형, 발생일시, 사유만 입력받는다. 근무일은 `AttendanceScheduleService::resolveWorkDate()`가 결정하고 월은 그 근무일에서 파생한다.
+- 근무구간 정정과 월 마감은 각각 별도 Modal로 분리하며 근무일은 공용 Date Picker, `closing_month`는 공용 Year-Month Picker를 사용한다.
+- 계약 주간일정의 고정 휴게구간은 출퇴근 범위 안에서 자동 BREAK 구간으로 생성한다. 직원에게 휴게 CLOCK 사건을 요구하지 않으며 09:00~18:00 출퇴근과 12:00~13:00 계약 휴게는 실제근로 8시간으로 계산한다.
+- WORK와 BREAK·OUTSIDE 겹침은 차감 표현이므로 허용한다. BREAK·OUTSIDE끼리 또는 WORK끼리의 중복은 계속 차단하며 실제 휴게 변경·추가 휴게·외출은 관리자 구간 정정으로 표현한다.
+- 공용 직원 Picker의 기본 활성직원 정책은 유지하고 과거 보정 화면만 `include_inactive=1`을 명시한다. 신규 DB 구조와 Attendance 전용 Picker API는 만들지 않는다.
+
+## 2026-08-19 관리자 근태 UX와 원천·계산 트랜잭션 분리
+
+- 관리자 근태관리 화면은 직원별 조회, 누락·이상 확인, 원본 보정, 근무구간 정정, 월 마감만 담당하며 로그인 관리자 본인의 출근·퇴근 버튼은 제거한다.
+- 본인 출퇴근 API는 직원·시각 입력을 무시하고 로그인 사용자의 직원 연결과 서버 현재시각을 사용하며, 향후 대시보드·내 근태 등 별도 진입점을 위해 유지한다.
+
+## 2026-08-19 근태관리 4개 탭 책임 분리
+
+- `일별 현황`은 직원·근무일별 예정/실제/계산 결과 조회와 상세·재계산 진입, `월별 현황`은 읽기 전용 월 누계와 일별 드릴다운, `누락·이상 근태`는 미해결 예외 확인과 보정·정정·재계산 진입, `월 마감`은 직원·월별 readiness·마감·재오픈·Revision 조회만 담당한다.
+- 특정 직원·근무일에 귀속되는 상세, 구간 정정, 예외 조치는 행 액션에서 진입한다. 직원과 발생일시를 새로 선택하는 `출퇴근 기록 보정`만 일별·예외 탭의 글로벌 액션으로 유지한다.
+- 월별 현황에는 마감 액션을 노출하지 않는다. 미마감·재오픈 월은 `institution_attendance_daily_records`와 미해결 예외를 실시간 집계하고, 마감 월은 현재 `institution_attendance_monthly_closure_histories` revision snapshot을 표시한다. 월별 현황과 월 마감은 중복 SQL을 만들지 않고 동일 Model projection을 사용한다.
+
+## 2026-08-19 근태 TableSettings 메타데이터 경계
+
+- 근태 4개 탭은 화면 책임과 응답 schema가 다르므로 사용자 설정 저장 키와 metadata domain을 각각 분리한다. 동일 page 안의 탭이라는 이유로 컬럼 표시·순서·폭 설정을 공유하지 않는다.
+- DB 물리컬럼 기본값은 `information_schema`의 COMMENT, `ORDINAL_POSITION`, `DATA_TYPE`, `IS_NULLABLE`을 따른다. JOIN 표시값, 월간 계산값, 관리 버튼은 화면 렌더링 책임이며 TableSettings metadata와 기본값에 포함하지 않고 JS 컬럼 제목도 DB 기본값으로 간주하지 않는다.
+- 공용 TableSettings는 기존 표시·순서·사용컬럼명·필수구분 UI를 유지한다. 물리컬럼 원본명은 `table.column`, 상단은 등록순서대로 테이블별 물리컬럼 수와 선택/전체 수를 표시한다. `__select`, `__reorder`, `__actions`도 같은 목록에 표시하되 기존 `no-colvis` 제약이 있는 기능 필수 컬럼은 숨김·이동을 잠근다. 별도 설정 저장소는 만들지 않는다.
+- 예정 출퇴근은 야간근무의 `work_date` 결정에 계속 사용하지만, 휴게 상세 누락·오류는 원천 INSERT 거부 사유가 아니다. 원천 등록을 먼저 commit하고 계산은 별도 트랜잭션으로 실행한다.
+- 계약 상세 휴게구간이 없어도 예정근로는 `break_minutes` 총량을 차감한다. 실제근로는 실제 WORK/BREAK 사건으로 계산하며 계약 상세구간 미지정 자체를 근태 오류로 보지 않는다. 실제 BREAK가 필요한데 원천 사건이 없으면 기존 실제근태 확인정책을 적용한다.
+- 신규 예외 코드나 DB 컬럼을 추가하지 않고 기존 `calculation_status_code=NEEDS_CONFIRMATION` 경계를 재사용한다.
+
+## 2026-08-20 TableSettings와 DataTable VIEW 양방향 동기화
+
+- 결정: 사용자는 DataTable 직접 조작과 공용 TableSettings에서 같은 보기환경을 변경한다. 두 경로는 기존 `setting_type=VIEW`의 `columnWidths`, `sortSettings`, `pageLength`, `searchFormExpanded`를 공유하고 별도 브라우저 상태나 신규 설정유형을 만들지 않는다.
+- 결정: TableSettings의 정렬은 하단 Select가 아니라 각 컬럼 행에서 DataTable 헤더와 같은 삼각형 표시를 순환한다. 너비는 현재 실측값을 기준으로 좌우 1px 제어와 직접 입력을 제공한다. 두 조작은 모달 전용 상태나 저장 키를 만들지 않고 기존 VIEW를 즉시 현재 DataTable에 적용한다.
+- 결정: TableSettings는 TABLE과 제한된 VIEW 항목을 한 모달에 표시하지만 저장 payload와 저장 호출은 TABLE/VIEW로 분리한다. `currentPage`, `searchFormState`는 기존 자동저장 책임을 유지하고 설정 UI에 노출하지 않는다.
+- 결정: SearchForm은 DOM 추정 대신 DataTable 설정 API에 capability를 등록한다. SearchForm이 없는 화면과 TableSettings 비활성 DataTable은 기존 동작을 유지한다.
+
+## 2026-08-20 직무·배치 TableSettings 물리 metadata 경계
+
+- 결정: 직무·배치 TableSettings 원본은 직원 Master와 실제 배치상태를 소유하는 재직·부서·직위·직무·프로젝트·근무지 기간이력 6개 테이블이다. 아이디 표시를 위한 `auth_users`와 부서명·직위명 등을 얻는 JOIN 참조 Master는 물리 설정 원본이 아니므로 제외한다.
+- 결정: 등록된 각 원본 테이블은 사용된 Projection 몇 개만 발췌하지 않고 전체 물리컬럼을 DB `ORDINAL_POSITION` 순으로 제공한다. 화면 순번은 명시한 테이블 등록순서 전체에서 연속된 누적값이며 원본 테이블 내부 순번은 별도 provenance로 보존한다.
+- 결정: 복합 직무·배치 metadata key는 `table.column`으로 고정하고 사용컬럼명·필수구분 기본값은 DB COMMENT와 `IS_NULLABLE`을 따른다. DataTable은 물리 FK key에 참조 표시명을 렌더링하며 직원명·아이디 같은 JOIN Projection을 별도 가상컬럼으로 설정에 중복 추가하지 않는다.
+- 결정: `other_project_summary`와 목록 대표 `updated_at`은 각각 복수 프로젝트 요약과 여러 원본 변경시각 Projection이므로 특정 물리컬럼으로 간주하지 않는다. 목록 표시는 유지하되 `settingsVirtualType`을 부여하지 않아 직무·배치 TableSettings와 사용자 TABLE 설정에서 제외한다. 각 원본 테이블의 실제 `updated_at`은 전체 물리 metadata 안에서 각각 별도로 제공한다.
+- 결정: 향후 신규 목록 화면의 TableSettings 완료 여부는 `AGENTS.md`의 원본 테이블 경계, 전체 물리컬럼 수, 누적 순번, COMMENT·NULL 계약, 참조 Projection 제외, 저장·복원·회귀검증 기준을 모두 통과했는지로 판정한다.
+- 결정: `__select`, `__reorder`, `__actions`는 DB 컬럼이 아니라 DataTable 동작을 구성하는 공용 시스템 가상컬럼이며 모든 TableSettings에 동일하게 노출한다. 페이지가 해당 동작을 구현한 경우 실제 컬럼 정의를 사용하고, 구현하지 않은 경우 공용 Adapter가 기본 보기 OFF의 비활성 placeholder를 제공한다. 따라서 설정 schema는 페이지마다 달라지지 않으면서 지원하지 않는 선택·드래그·관리 동작이 우회 실행되지 않는다.
+- 결정: 보기 설정 초기화는 네 노출항목만 공용 기본값으로 되돌리고 현재 페이지와 검색조건은 보존한다. Excel Manager는 업로드·다운로드 설정 SSOT를 계속 독립적으로 소유한다.
+## 2026-08-21 — 인사 운영화면 성능 Closure
+
+- 근태 월별 현황과 월 마감은 검색 조건이 없는 첫 화면에서 동일 월별 집계를 두 번 수행하지 않는다. 전체 건수는 직원 범위 건수를 재사용하고, 실제 검색 조건이 있을 때만 정확한 필터 건수용 집계를 추가한다.
+- 휴가 부여·잔액은 전 직원·전 유형 결과를 한 번에 반환하지 않고 공용 DataTable의 서버 페이징과 동일한 50건 단위 계약을 사용한다. 잔액 원장은 먼저 직원·휴가유형·기준연도 단위로 집계한 뒤 목록에 결합한다.
+- 휴가 옵션은 휴가유형만 초기 제공하며 직원 후보 전체 선적재를 금지한다. 직원 선택은 공용 `AdminPicker` 검색 API를 사용한다.
+- 자격·교육 기준설정 하위 목록은 최초 진입 시에만 조회하고 같은 화면 세션의 재진입은 캐시를 재사용한다. 기준 저장·순서 변경 후에는 해당 캐시를 무효화한다.
+- 목록형 읽기 API는 권한과 사용자 범위를 확정한 직후 PHP 세션 쓰기 잠금을 해제하여 병렬 목록·메타데이터 요청을 직렬화하지 않는다.
+- TableSettings 물리컬럼 메타데이터는 초기 컬럼 구성과 사용자 저장 설정 복원에 필요한 계약이므로 현재는 생성 전에 1회 조회하고 도메인 캐시를 공유한다. 모달 열기 시점으로 완전 지연하면 숨김 물리컬럼과 저장 순서 복원이 깨지므로 별도 공용 구조 개편 없이 우회하지 않는다.
+
+## 2026-08-21 — 자격·교육 정책 SSOT Closure
+
+- 자격 종류는 `institution_qualifications_types`, 교육 재교육 정책은 `institution_educations_courses`를 원본으로 확정한다.
+- 직원별 자격·교육 원장은 결과 Snapshot을 보존하고, 현재상태와 다음 교육일은 원본·정책에서 Projection한다.
+- 직무별 요구조건은 자격·교육별 기간형 관계 테이블로 분리하며 중복 적용기간을 허용하지 않는다.
+- 완료·검증된 이력은 물리삭제 대신 무효화하고 모든 정책 변경은 통합 감사원장에 기록한다.
+- 페이지 전용 Excel 다운로드는 제거하고 공용 Excel Manager 계약만 허용한다.
+## 2026-08-21 대표자격 및 교육 운영 책임 분리
+
+- 대표자격은 `user_employees.representative_qualification_id`가 직원 자격이력을 참조하는 기존 FK를 유지한다. 직원 화면의 직접 자격 생성·파일 업로드는 제거하고, 소유권·ACTIVE·검증·유효기간 Guard를 통과한 후보만 선택한다.
+- 교육과정(반복 정의), Session(실제 일정), Target(대상 Snapshot), Employee Record(실제 참석 결과)를 분리한다.
+- 대상 지정만으로 Employee Record를 생성하지 않고 Session 완료 때 `ATTENDED` 결과만 확정한다. `ABSENT`는 Target에만 남긴다.
+- 교육 Service는 `TRAINING_ASSIGNED`, `TRAINING_UPDATED`, `TRAINING_CANCELLED` 이벤트 결과만 제공하며 Notification 채널 구현은 후속 과제로 둔다.
+
+## 2026-08-21 공용 Notification Core Closure
+
+- Notification은 Event(업무 사실), Recipient(수신자·IN_APP 읽음), Delivery(채널 전달)를 서로 다른 SSOT로 분리한다.
+- 기존 `system_notifications` 59건은 `LEGACY:{id}` Event key로 전량 Backfill하고 Legacy/Read-only로 보존한다. 신규 Runtime Write와 Navbar Read는 Core만 사용한다.
+- IN_APP을 현재 유일한 실제 채널로 운영한다. MANDATORY Event는 사용자 Preference로 차단하지 않고 OPTIONAL Event만 Preference를 따른다.
+- 결재 결과 저장형 알림은 Core로 전환한다. 현재 결재 차례는 동적 권한과 단계 변경 정확성을 위해 actionable Projection을 유지하고, `approval_actionable` 종류로 분리해 결과 알림과 동일 사실로 취급하지 않는다.
+- 교육 일정확정·주요변경·취소는 업무 Transaction 안에서 Core Event와 연결 사용자 Recipient·IN_APP Delivery까지 원자 생성한다. Notification read와 Target acknowledged는 독립 상태다.
+- `/main/notifications`는 실제 알림센터이며 `/notice` 회사 공지와 분리한다. Web Push·PWA·Kakao·SMS·APP_PUSH·Scheduler는 별도 승인 전까지 구현하지 않는다.
+# 2026-08-22 — Evidence Link N:M과 상용근로소득 회계경계
+
+- Transaction-Evidence Link의 물리 Cardinality는 N:M으로 확정한다. 동일 활성 Evidence/Target Pair만 DB UNIQUE로 차단하며 업무 Cardinality는 `ledger_evidence_metadata.transaction_cardinality`에서 제한한다.
+- `PAYROLL_REPORT`는 월 Evidence 1건을 직원별 실지급 Transaction N건과 연결한다. 직원별 Payment Schedule은 기존 지급예정 SSOT를 사용하고 상용근로소득은 Voucher를 직접 생성하지 않는다.
+- 업무페이지는 `REGULAR_EMPLOYMENT_INCOME_PAYROLL_REGISTER` Report Dataset만 소유한다. 출력 흐름은 업무페이지 → report_key → Dataset Provider → 공용 Template → Renderer → Preview/Print/PDF이며 페이지 전용 출력엔진은 만들지 않는다.
+# 2026-08-22 직원 사회보험 SSOT
+
+- 도메인은 `social-insurance`, 관리책임은 `대외기관업무 > 4대보험업무`로 확정한다.
+- 실제 자격은 기간 Coverage, 산정금액은 별도 기간이력, 보험요율은 `system_statutory_standards`가 소유한다.
+- 장기요양 기본자격은 건강보험에서 파생하며 예외만 Coverage로 저장한다. 산재보험은 직원 공제에서 제외한다.
+- 미확정 Coverage, 잠정 Basis, 월중 처리정책 또는 공식 법정기준 누락은 결재요청을 차단한다.
+- 법정기준의 일부 단계만 미확정이면 항목 전체를 불투명하게 차단하지 않는다. 확인된 계산기초·요율·계산 전 금액은 Runtime Projection에 유지하고, 미확정 단계와 최종 적용금액만 확인 대상으로 표시한다. 2013-08 고용보험은 2013-07-01 이후 근로자 부담률 0.65%까지 계산하되 공식 끝수처리 근거가 확정되기 전에는 최종 자동계산액을 만들지 않는다.
+# 2026-08-22 상용근로소득 급여 원천 책임
+
+- 근로계약은 정상 월급제의 기본 지급 원천이다. 근태 월마감은 전 직원 공통 선행조건이 아니다.
+- 근태는 결근·무급시간·연장·야간·휴일근로처럼 실제 지급액 변동에 사용한 경우에만 확정성 Guard와 계산근거를 요구한다.
+- 휴가는 유급 여부만으로 계약급여를 감액하지 않는다. 무급휴가가 실제 감액에 사용되면 근태 감액과 중복되지 않는 단일 근거를 기록한다.
+- 성과평가와 보상·인센티브는 향후 추가지급 근거이며 현재 상용근로소득 Closure의 선행조건이 아니다.
+- 상용근로소득은 계약·조건부 변동원천·사회보험·법정기준을 결합한 월 최종 지급·공제 Snapshot이다.
+- 2026-08-22: 상용근로소득의 과거 귀속월도 현재 급여와 동일한 계산 Service를 사용한다. 계약·사회보험 Coverage/Basis는 귀속월 기간이력, 사회보험 법정기준은 귀속월 말일, 간이세액표·지방소득세는 실제 지급일 Revision을 Resolve하며 현재일 fallback과 연도별 전용 계산기를 두지 않는다. 과거 지급완료·거래복원·Payment Schedule 정책은 계산 Closure와 분리한다.
+- 2026-08-22: 상용근로소득 Header의 자료구분 UI와 Runtime 모드 분기를 폐지한다. 귀속연월과 지급일만 Resolver 기준으로 사용하며, Coverage/Basis는 선택적 자동제안 자료다. 미등록 시 지급항목 최종금액으로 보험 계산기초를 산출한다. Header `calculation_source_code`는 현재 NOT NULL 물리계약 호환을 위해 `CALCULATED`로만 저장하고, 삭제 Migration은 별도 승인 대상으로 둔다. Line의 `HISTORICAL_IMPORT`는 실제 원본값 provenance이므로 유지한다.
+- 2026-08-24: 상용근로소득 Header에서 Runtime 생성·조회·검증이 없던 `correction_of_id`, `revision_no`, `request_key`, `snapshot_at`과 전용 FK·인덱스·제약을 제거한다. 정정·개정·Header 멱등·승인 Snapshot 기능은 사용되지 않는 선행 컬럼으로 예약하지 않고, 실제 업무흐름 승인 시 신규 Migration으로 도입한다.
+- 2026-08-22: 근로소득세는 지급일 간이세액표 Revision의 `dependent_counts`와 `tax_by_dependents` 키를 정규화해 소비한다. UI의 숫자 가족수와 JSON의 문자열 키 차이를 Runtime 경계에서 해소하고, 급여구간·가족수 열·조회세액을 결과에 포함한다. 표 결과 0원은 정상 계산이며 미확정과 구분한다.
+- 2026-08-24: 고용보험 근로자 부담금은 적용기간별 `EMPLOYMENT_INSURANCE` 행이 요율과 계산정책을 함께 소유한다. 계산기초는 소득세법상 비과세 근로소득을 제외한 보수, 계산단위는 피보험자별 보수 지급 건, 계산순서는 보수에 실업급여 근로자 부담률을 적용한 후 10원 미만 버림이다. 확정 Coverage의 적용제외만 자동계산보다 우선하며, 미확정 대표자 여부를 실제 0원에 맞추기 위해 추정하지 않는다. 별도 Revision·Correction 테이블은 만들지 않고 기존 적용기간 행을 전진 Migration으로 명시 갱신하며 기존 요율·기간·Source를 보존한다.
+- 2026-08-24: 상용근로소득 보험 계산기초의 우선순위는 급여 Item Snapshot, 확정 Coverage/Basis, 법정기준 자동제안이다. 국민연금 기준소득월액은 비과세 근로소득을 제외한 신고 소득월액에서 1,000원 미만을 버린 뒤 요율을 적용하며, 건강보험 보수월액은 비과세 근로소득을 제외하되 법정 포함 예외가 있으면 확정 보수월액 Snapshot으로 보정한다. 지급항목 이름을 PHP/JS에서 판정하지 않고 각 Revision의 `automatic_fallback_base_value_code`와 `pay_item_basis_rule_code`를 소비한다. 근로소득세 가족수는 근로계약이 아니라 급여 Item의 `dependent_count_snapshot`이며 카드에서 직접 입력·재계산한다.
+# 2026-08-24 상용근로소득 공제 정산 Line 구조
+
+- 공제 정산은 `institution_regular_employment_income_line_items`를 SSOT로 재사용하고 신규 정산 테이블이나 미구현 연말정산 FK를 만들지 않는다.
+- `adjustment_amount`는 당월 자동계산액과 실제 당월 적용액의 차이만 담당한다. 과거기간 추징·환급은 별도 정산 Line으로 저장한다.
+- 정산 금액은 항상 양수로 저장하고 `ADDITIONAL_COLLECTION`은 공제 증가, `REFUND`는 공제 감소로 계산한다.
+- 정산 메타는 기존 `source_key`, `business_source_code`, `source_reference_id`, `business_reason`, `processed_at`, `processed_by`를 사용한다.
+- 승인 후 Transaction Settlement는 당월 공제를 `*_CURRENT/MINUS`, 추징을 `*_SETTLEMENT/MINUS`, 환급을 `*_REFUND/PLUS`로 투영한다.
+
+# 2026-08-24 상용근로소득 증감 지급항목 SSOT
+
+- 증감 지급항목은 신규 코드그룹을 만들지 않고 `institution_employment_contracts_pay_components`를 근로계약과 공동 SSOT로 사용한다.
+- 화면은 적용일 기준 활성 마스터만 선택하게 하고, 서버가 마스터 PK를 다시 조회해 코드·명칭·과세정책을 확정한다. 클라이언트의 항목명과 과세 여부는 저장 근거로 사용하지 않는다.
+- 과거 재현은 기존 `source_reference_id`의 마스터 PK와 `item_name_snapshot`·`taxable_flag` Snapshot으로 보장한다. 따라서 신규 컬럼이나 Backfill Migration은 만들지 않는다.
+- 동일 직원·귀속월·지급항목의 복수 증감은 각각 고유 조정 Line으로 보존하되 감액은 선택한 지급항목의 구성금액에만 적용한다. 세금·사회보험 공제 정산은 이 구조에 포함하지 않는다.
+## 2026-08-24: 승인 개인경비 회계분류는 불변 정정 Revision으로 보완
+
+- 최종승인된 `approval_personal_expense_items.expense_category`, 기존 Evidence raw 분류, 거래와 결재이력은 승인 당시 원본이므로 수정하지 않는다.
+- 회계분류 오류는 `approval_personal_expense_item_classification_corrections`에 Item별 연속 Revision으로 기록하고, 최신 `corrected_category`를 유효분류로 사용한다. 정정이 없을 때만 승인 Item 분류로 fallback한다.
+- 잘못된 정정은 행 삭제나 과거 Revision 수정 없이 다음 Revision으로 Forward Fix한다. Evidence Identity와 Link는 계속 원천추적 SSOT다.
+- 2026-08-25: 개인경비 다건 분개추천은 계정별 차변 합산을 금지하고 `PERSONAL_EXPENSE_ITEM` identity별 차변 1 Line을 유지한다. 대변 합산은 같은 직원·회사·통화·회계일·계정·정책에서만 허용하며 포함된 모든 Item을 `ledger_voucher_line_source_refs`에 보존한다. 추천 적용 가능 여부는 건수·금액뿐 아니라 Source identity와 CLIENT/EMPLOYEE 보조정보 Coverage까지 모두 COMPLETE인 경우로 제한한다. 별도 DDL이나 중복 Source 테이블은 만들지 않는다.
+# 상용근로소득 회계생성 Registry와 계산근거 책임 분리 (2026-08-25)
+
+- 결정: 상용근로소득 회계생성 멱등성은 `institution_regular_employment_income_accounting_links`의 생성역할과 집계키가 담당하고, Evidence와 Transaction의 공식 연결은 기존 `ledger_evidence_links`가 계속 담당한다.
+- 이유: 하나의 급여문서에는 여러 법정기준·직원·보험기관·지급예정이 존재하므로 집계 Link 하나에 단일 계산근거 또는 지급예정을 대표시키면 원천 재현성이 손실된다.
+- 계산근거: 법정기준과 계산기초는 실제 계산결과 단위인 Transaction Item·Settlement에 연결한다. 문자열 다형 참조는 FK 검증이 불가능하여 채택하지 않았다.
+- 지급예정: 직원 실지급은 직원별 대표 Schedule을 유지하고, 사회보험·원천세처럼 한 생성역할에서 여러 Schedule이 생기는 경우 전용 다건 연결을 사용한다.
+- 사용자부담 집계: 직원별 계산은 원천 Line으로 보존하되 거래 Header는 귀속월·회사·통화·인식일·납부기관·채무방향이 같은 단위로 묶는다. 법정요율과 납부기일은 `system_statutory_standards` 및 지급정책 SSOT 없이는 추정하지 않는다.
+
+# Migration 04 부분 적용의 Forward-only 복구 (2026-08-25)
+
+- MariaDB DDL 자동 Commit으로 04의 Transaction Item·Settlement 원천 FK만 적용된 상태를 승인 기준선으로 확정했다. 04 원본 수정·재실행·수동 이력 조작 없이 `20260825_05_resume_regular_income_accounting_generation_identity`가 나머지 구조만 완성한다.
+- 기존 `fk_regular_income_accounting_detail`의 선두 지원 인덱스를 잃지 않도록 비고유 `idx_regular_income_accounting_detail`을 별도 ALTER로 먼저 추가하고 검증한 후 기존 단일 Item UK를 제거한다.
+- 프로젝트에는 중앙 Migration 이력 테이블이나 파일명 자동 실행 Runner가 없다. 05 전용 실행도구가 SQL SHA-256, 적용 전 Snapshot, 전후 건수와 최종 `SHOW CREATE TABLE`을 파일 감사기록으로 남기며 04를 호출하지 않는다.
+- 공식 Down은 04 Down과 연속 실행하지 않는다. 05 통합 Down 하나가 데이터 미사용 Guard를 통과한 경우에만 최종 스키마에서 04 이전 기준선까지 역순 복구한다.
+
+# 급여(신고) 증빙의 공통 업무분류 Context 정규화 (2026-08-25)
+
+- 결정: 급여(신고)도 다른 증빙원본과 동일한 업무분류정보·원본정보·시스템 처리정보 카드 계약을 사용한다. 거래처·직원·프로젝트·계좌·카드·팀은 증빙 활용도를 높이는 nullable 보조 Context이며, 급여라는 이유로 화면이나 저장소에서 제거하지 않는다.
+- 입력정책: 여섯 보조 Context의 기본값은 선택이다. 화면별 업무상 필수가 필요한 경우 별도 하드코딩 없이 공용 TableSettings 필수구분이 라벨 표시와 저장 검증을 함께 통제한다.
+- 저장경계: 급여 Header의 직원 Context는 특정 대표 직원이 명확한 경우에만 저장하며, 다수 직원 급여의 구성원을 대표하거나 상세 Item 관계를 대체하지 않는다. 급여 구성원 SSOT는 계속 상용근로소득 Item이다.
+- 구현: forward-only Migration `20260825_06_add_salary_report_business_context`가 여섯 nullable 컬럼만 추가한다. UI `PAYROLL`은 물리 `PAYROLL_REPORT` Body와 Link로 정규화하며 승인 원천 `APPROVAL`은 유지한다.
+
+# 상용근로소득 FINAL_APPROVAL 회계생성 단일 책임 전환 (2026-08-25)
+
+- 결정: 구형 `RegularEmploymentIncomeService::finalizeEmployeeAccounting()`의 Evidence·거래·지급예정·구형 Link 생성 본문을 제거하고 `RegularEmploymentIncomeAccountingGenerationService`를 유일한 생성 책임으로 확정했다. 기존 메서드는 신형 Service를 호출하는 얇은 진입점만 유지한다.
+- 실행순서: FINAL_APPROVAL 승인 요청은 결재단계 상태를 변경하기 전에 신형 Preflight를 통과해야 한다. 통과 후 공용 결재 Workflow 처리, 회계자료 생성, 문서 APPROVED 확정을 동일한 바깥 PDO Transaction에서 처리한다.
+- 날짜: 귀속월 말일을 거래·Item 인식일과 Registry `recognition_date`로 사용하고 Header `payment_date`는 급여 Evidence 지급일과 직원 실지급 Schedule 예정일로만 사용한다.
+- 원천추적: 급여 Transaction Item과 Settlement는 원천 급여 Line FK를 명시적으로 저장하며 해당 Line에 공식 계산근거가 있는 경우에만 법정기준과 계산기초 FK를 투영한다. 사용자부담은 기관 Header로 집계해도 직원·보험별 Item을 유지한다.
+- 안전장치: 고용보험 사용자부담, 직업능력개발, 산재보험, 납부기관 Master, 납부예정 정책 중 하나라도 빠지면 `error_code`와 안전한 한글 메시지로 결재 전에 차단한다. 기존 일부 생성자료는 자동 보정하거나 이어서 생성하지 않는다.
+- 2026-08-25: Evidence 업무분류 완료확정 상태 전환
+  - 공식 Evidence 8개 유형의 `evidence_status`는 사용자가 업무분류정보 정리를 완료했는지 나타내며 런타임 저장값은 `COMPLETED`, `CORRECTION_REQUIRED`만 사용한다.
+  - 외부·수기·Excel 신규 Evidence는 상태가 명시되지 않으면 `CORRECTION_REQUIRED`로 생성한다. 급여 최종승인 생성 Evidence도 관리자의 업무분류 확인 전이므로 `CORRECTION_REQUIRED`로 생성한다.
+  - 사용자별 TableSettings의 `columnRequirementPolicy`는 모달 입력검증·표시에만 사용하며 회사 공통 Evidence 상태를 계산하지 않는다. `evidence_status` 자체의 필수정책은 공용 정규화에서 무시한다.
+  - 삭제·복원은 `deleted_at/deleted_by`를 사용하고 은행 삭제·복원도 `evidence_status`에 생명주기 코드를 쓰지 않는다.
+  - 거래·전표 연결은 서버에서도 `COMPLETED`만 허용한다.
+  - 운영 기준선 전환은 `tools/apply_evidence_status_baseline_transition.php`의 동일 판정기를 Dry-run과 Apply에서 사용한다. 삭제되지 않은 공식 Evidence 중 실제 유효 거래·전표에 직접 연결되지 않은 행만 `CORRECTION_REQUIRED`로 바꾸고, 삭제 Evidence와 연결 Evidence의 기존 상태는 유지한다.
+
+# 상용근로소득 Closure와 지급·전표 책임 분리 (2026-08-26)
+
+- 결정: 상용근로소득 최종승인은 급여 Evidence, 직원 발생거래, 기관 발생채무 거래와 원본추적 Link까지만 원자적으로 생성한다. 지급예정·실제 지급·납부·전표·분개는 생성하지 않는다.
+- 정정: 자동 생성 급여 Evidence는 관리자의 업무분류 확인 전 상태인 `CORRECTION_REQUIRED`로 저장한다. 런타임 상태는 `CORRECTION_REQUIRED`와 `COMPLETED` 두 개만 사용하고 `CLASSIFICATION_PENDING`은 폐기한다.
+- 결정: Evidence Link 목적은 `SOURCE_TRACE`와 `ACCOUNTING_READY`로 분리한다. 원본추적 Link는 두 상태 모두 허용하고, 후자 및 모든 전표 Gate는 `COMPLETED`만 허용한다.
+- 결정: 상용근로소득 최종승인 완료만으로 업무분류 완료를 추정하지 않는다. 관리자가 증빙관리에서 업무분류를 확인한 뒤 `COMPLETED`로 전환한다.
+  - 활성 거래 연결은 삭제되지 않은 Link와 실제 존재하는 비삭제·비취소 거래의 조합이다. 활성 전표 연결은 삭제되지 않은 Link와 실제 존재하는 비삭제·비취소·비취소전표의 조합이며, 원전표 Evidence 조회 Projection은 직접 Link로 인정하지 않는다.
+# 잔존 Migration Routine 정리 정책 (2026-08-26)
+
+- Migration 실행을 위해 생성한 임시 PROCEDURE는 영구 운영객체가 아니며 정상 경로는 `CREATE → CALL → DROP`을 같은 Migration 안에서 완결한다.
+- 부분 실행 복구는 목표 테이블 구조와 데이터 불변을 먼저 확인하고, 확인된 종류·DEFINER·본문 해시와 일치하는 해당 Migration PROCEDURE만 제거한다. 복구 도구가 잔존 PROCEDURE를 호출하거나 다른 Routine을 포괄 삭제하지 않는다.
+- 잔존 실행객체 제거는 forward-only 보안 정리로 수행한다. Down은 폐기된 DDL을 재생성하지 않고 명시적으로 중단한다. 운영 적용 전 전체 백업, `SHOW CREATE` 원문과 해시, Routine 및 업무자료 기준선을 감사자료로 보존한다.
+# 상용근로소득 직원별 Evidence 생성단위 정정 결정 (2026-08-26)
+
+- 최종승인 생성단위는 귀속월 Header Evidence 1건이 아니라 직원별 급여 Item마다 Evidence 1건과 직원 거래 1건이다. Evidence와 직원 거래는 1:1로 연결한다.
+- 사용자부담은 직원별 Evidence Snapshot과 원본 급여 Line 추적으로 보존하며 최종승인에서 별도 기관 발생거래를 만들지 않는다. 지급예정과 전표도 생성하지 않는다.
+- 현행 Evidence는 원본 Header 단독 UNIQUE라 직원별 구조를 표현할 수 없으므로 `20260826_05_enable_employee_salary_report_evidence`로 직원별 복합 UNIQUE와 관계를 적용한다. 과도한 전용 정정 Audit 구조는 운영에 적용하지 않고 제거했으며, 승인 전 상태 복원은 별도 구조를 남기지 않는 단순 원상복구로 완료했다.
+- 2026-08-26: 상용근로소득 최종승인 결과는 문서 Header 단일 증빙이 아니라 급여 Item별 직원 증빙과 직원 거래의 1:1 구조로 생성한다. Registry 역할은 `PAYROLL_REPORT_EVIDENCE`, `EMPLOYEE_PAYROLL`만 허용하고 `INSTITUTION_LIABILITY` 생성은 폐기한다. 사용자부담은 승인 시 기관 거래로 만들지 않고 불변 급여 Line과 직원 증빙 합계로 보존하여 후속 전표추천이 기관별로 집계한다.
+- 2026-08-26: 잘못 생성된 상용근로소득 Closure의 원상복구는 직접 SQL이나 단일 JSON 메모가 아니라 정정 Header와 대상 Object별 불변 Audit을 선행 저장하는 공식 Service만 사용한다. 적용 순서는 Audit DDL 05, 공식 원상복구, 직원별 Evidence DDL 06, 사용자 UI 재승인이며 각 단계 실패 시 후속 단계를 중단한다.
+# 2026-08-26 일용근로소득 사전구현 경계
+
+- 도메인 SSOT는 `daily-employment-income`으로 통일한다.
+- 근로자는 별도 인적 마스터를 만들지 않고 `system_clients.client_type=DAILY_WORKER`를 사용한다.
+- 동일 근로자의 복수 프로젝트·작업팀 근무는 Item을 분리하며, Workday가 당시 기간 배치를 FK로 보존한다.
+- Evidence와 근로자 거래는 Item 단위로 생성한다. 별도 Accounting Registry, 기관 발생거래, 지급예정, 전표는 생성하지 않는다.
+- 근무일별 소득세는 `DAILY_WORKER_INCOME_TAX` 법정기준만 사용하며 공제액·세율·세액공제율·끝수·소액부징수 값을 코드에 하드코딩하지 않는다.
+- 운영 Migration 및 운영자료 생성은 별도 승인 전까지 금지한다.
+- 2026-08-27: 일용근로소득 화면은 별도 UI 체계를 소유하지 않는다. 상용근로소득의 공용 SearchForm·DataTable·TableSettings 계약을 기준선으로 사용하고, 일용직 업무 차이는 검색필드·목록컬럼·Modal 내용에만 둔다.
+- 2026-08-27: 일용근로소득 회수 상태는 상용근로소득·휴가·취업규칙의 공용 업무상태 계약과 동일하게 `WITHDRAWN`을 보존한다. 저장 명령, 승인 후 Closure 실행, Item별 회계 생성 결과는 각각 독립 원장으로 분리하며 공용 결재상태에 Closure 상태를 혼합하지 않는다.
+- 2026-08-27: 일용근로소득 Header의 `company_id`는 상용근로소득과 동일하게 `system_company.id`의 실제 문자셋·Collation을 명시적으로 상속한다. DB 적용 전 FK 형식 불일치로 중단된 `20260826_06` 대신 같은 업무 구조를 유지하며 회사 SSOT FK 정의만 보정한 `20260827_02_enable_daily_employment_income_with_company_ssot`을 적용 기준으로 사용한다.
+- 2026-08-27: 일용근로소득 문서 1건은 귀속월 기준 Header 1건이며, 그 아래에 `현장(프로젝트/본사) + 소속팀(팀) + 작업자(DAILY_WORKER 거래처)` 조합별 Item을 순서대로 둔다. 사회보험 적용·사업장 귀속과 원가 추적은 현장 Item 단위로 보존한다. 세무·지급 결과는 동일 귀속월·지급일·작업자를 기준으로 Item을 묶어 작업자별 Evidence와 지급 Transaction Header를 생성하고, 각 현장 Item 결과는 그 아래 Detail/Transaction Item으로 분리하여 프로젝트·팀 귀속을 잃지 않는다. 상용근로소득의 Header 1건·직원 Item N건 구조와 결재 경계는 같지만 일용근로소득은 현장 원천과 작업자 세무 Projection을 별도 계층으로 유지한다.
+- 2026-08-27: 현장관리의 계약관리 → 기성관리 → 거래관리 → 시공기성결재 최종승인 결과를 일용근로소득 후보자료로 불러오는 기능은 후속 확장으로 둔다. 현재는 사용자가 일용근로소득 모달에서 현장·소속팀·작업자·근무일·금액을 직접 입력한다. 향후 불러오기는 별도 저장경로를 만들지 않고 승인된 현장자료를 현재의 Item/Workday 입력계약으로 변환한 뒤 동일 계산·검증·저장 Service를 사용한다. 현장관리 원천 도메인명과 승인 결과 식별자가 확정되기 전에는 임의 Source Type·Source ID 컬럼이나 가상 연계 테이블을 만들지 않는다.
+- 2026-08-27: 일용근로소득의 수동 입력·세금 Preview·DRAFT 저장은 보험 기준 미확정과 분리한다. 보험사업장 또는 Coverage가 없거나 중복되고 `APPLICABLE` 보험료 정책이 미완성인 근무일은 보험료를 임의의 0원으로 확정하지 않으며 계산상태를 `CONFIRMATION_REQUIRED`로 보존한다. 결재 상신과 최종승인 Closure는 모든 근무일의 사회보험 Preflight가 완료되기 전까지 차단한다. 이 계산상태는 Group의 보험 적용판정 값과 별개다.
+- 2026-08-28: 일용근로소득 Group의 고용·산재 적용판정은 임시 수동 운영기간에 `APPLICABLE`과 `EXCLUDED` 두 값만 사용한다. 확인 필요·미선택을 Group의 판정값으로 저장하지 않으며, 본사·일괄적용의 일반 운영빈도를 반영해 신규 또는 레거시 NULL Group은 화면에서 미적용으로 초기화한다. 미적용 사유는 임의 기본값을 만들지 않고 사용자가 입력해야 저장할 수 있으며, 사업구분·프로젝트 변경에도 판정을 유지한다. 향후 고용·산재 도메인의 공식 설정과 연결되면 해당 Resolver가 신규 문서의 판정원천을 담당한다.
+- 2026-08-28: 일용근로소득의 고용·산재 적용정책은 사업구분과 관계없이 `문서 × Group` Grain의 임시 수동판정을 사용한다. 본사 Group도 상용 근로계약·Coverage를 조회하지 않으며 고용보험과 산재보험의 상태·사유·`MANUAL_INTERIM_GROUP` 판정원천을 독립 저장한다. 향후 사업구분·현장 계약관리 도메인이 완성되면 신규 문서부터 공식 정책 Resolver로 전환하고 기존 승인 Snapshot은 유지한다.
+- 2026-08-31: 일용근로소득 보험사업장 관리와 실제 등록자료가 없는 현재 단계에서는 고용보험·산재보험을 `문서 × Group` Grain의 명시적 수동설정으로 처리한다. 외부 표시·계산 Snapshot의 `decision_source_code`는 `GROUP_MANUAL_SETTING`이며 기존 `INCOME_ACTUAL_APPLICATION_SOURCE/MANUAL_INTERIM_GROUP` 코드행과 물리 FK는 하위 호환 저장에 재사용한다. 적용이면 수동상태와 PREMIUM Revision을 결합해 계산하고, 적용 제외면 설정사유를 필수로 보존하며, 미선택일 때만 `CONFIRMATION_REQUIRED`로 차단한다. 보험사업장 NULL은 단독 차단 사유가 아니다. 향후 공용 보험사업장 자동결정과 공식 ELIGIBILITY Resolver가 완성되면 신규 계산부터 Resolver 결과를 우선하고 기존 수동설정 Snapshot은 감사정보로 보존한다.
+- 2026-08-31: 위 일용 고용·산재 임시 보험사업장·설정사유 계약을 폐기한다. 필요한 업무사실은 보험사업장 식별이 아니라 우리 회사의 기관부담 책임이다. 본사와 통신판매는 `BUSINESS_DIVISION_POLICY`로 자동 부담하고, 건설은 현행 Group에서 `DAILY_GROUP_MANUAL_SETTING`으로 우리 회사 부담/미부담만 선택한다. 회사부담은 근로자 법정 가입자격·Coverage·공단 신고상태와 분리하며 보험사업장 누락으로 계산을 차단하거나 가짜 보험사업장 사실을 만들지 않는다. 기존 물리 컬럼과 원천코드 FK는 하위 호환 저장에 유지하고 이번 변경에서는 DDL을 수행하지 않는다.
+- 2026-08-31: 일용근로소득 최종승인 Closure는 Group×근로자 Item마다 Evidence 1건과 근로자 지급 Transaction 1건을 생성하고 공식 Evidence Link로 연결한다. Evidence는 승인 계산 Snapshot의 증빙, Transaction은 근로자 실지급액의 지급 책임, 회계 전표는 별도 공식 전표 흐름의 책임이다. 기관부담액은 승인 Snapshot에 보존하되 기관 Counterparty·고지·납부 Grain이 확정되기 전까지 기관부담 Transaction을 생성하지 않는다. 동일 근로자가 복수 Group에 속하는 경우 계산 Result 고유키도 Item을 포함하여 각 Group Snapshot을 독립 보존한다.
+- 2026-08-31: 일용 최종승인 Event Handler 재호출은 동일 승인 ID·Calculation Revision·Source Hash·Group×근로자 업무키일 때 실패가 아니라 `ALREADY_PROCESSED` 멱등 성공으로 기존 Closure ID와 결과 Hash를 반환한다. 승인 원장과 Source Hash 또는 역할별 업무키가 다르면 재사용하지 않고 무결성 오류로 차단한다. 동시 Callback은 결재단계와 Closure의 DB 잠금 순서로 직렬화하여 최초 처리자만 생성하고 후속 처리자는 완료 산출물을 재사용한다.
+- 2026-08-27: 일용근로소득 수동 입력의 참조 순서는 코드관리 `BUSINESS_UNIT` 사업구분 → `system_work_teams` 활성 소속팀 → `system_clients` 활성 작업자(거래처)로 확정한다. 거래처의 기존 `client_type` 값은 `DAILY_WORKER`로 정규화되어 있지 않으므로 유형값으로 작업자를 누락시키지 않는다. 팀도 팀페이지의 활성자료 전체를 제공하며 사업구분 기본값으로 목록을 숨기지 않는다. 근무범위의 본사·프로젝트 고정 선택은 사용자 입력계약에서 제거한다.
+- 2026-08-27: 팀페이지의 신규등록은 거래처·코드관리와 동일하게 퀵모달을 먼저 연다. 퀵모달은 사업구분과 팀명만 저장하며 `상세입력`은 입력값을 유지한 채 기존 팀 상세모달로 전환한다. 수정·조회는 기존 상세모달이 계속 담당하고 퀵등록도 기존 WorkTeam 저장 API와 Service를 재사용한다.
+- 2026-08-27: 일용근로소득의 사업구분·소속팀·작업자 선택은 공용 `PickerSelect2` 계약을 사용한다. 선택 목록은 `선택(없음)` → `sort_no` 기준 원본 목록 → `+ 추가` 순서로 구성한다. `+ 추가`는 각각 코드관리 `BUSINESS_UNIT`, 팀, 거래처 원본 도메인의 퀵모달을 열며 저장 성공 후 현재 일용근로소득 Item에 신규 값을 즉시 선택하여 입력 흐름을 이어간다.
+- 2026-08-27: `institution_daily_employment_income_commands`의 최종 스키마 소유자는 실제 DB에 적용된 `20260827_04_create_daily_employment_income_commands`로 확정한다. 적용 이력이 없던 `_01_complete_daily_employment_income_closure` 초안은 신규 설치 순서 보존용 no-op으로 전환하고 다른 Migration 소유 테이블을 생성·삭제하지 않는다. Closure와 Accounting Registry는 Command 이후의 `20260827_07_create_daily_employment_income_closure_registry`가 생성·삭제한다. 중앙 Migration History 테이블이 없는 수동 Runner 환경이므로 파일 계보, 실제 DDL, 적용 전후 검증기록을 함께 보존한다.
+- 2026-08-27: 일용근로소득 내부 Grain은 귀속연월 → 사업구분 → 프로젝트 → 작업팀 → 작업자 → 근무일로 확정한다. 사용자 상위 선택은 사업구분 하나이며 `work_scope_code`는 코드 메타데이터와 프로젝트 존재 여부에서 서버가 파생하는 기술 Projection이다. 본사·통신판매업은 프로젝트/팀 미사용, 전문건설업은 프로젝트/팀 필수로 시작하고 기관별 결과는 Item·Workday·Line 원천에서 Projection한다.
+# 2026-08-27 일용근로소득 입력 Grain과 기관별 Projection 분리
+
+- 회사 입력 SSOT는 `문서 → 근무그룹 → Item → Workday → Line`으로 확정한다.
+- 사업구분·프로젝트·작업팀·작업내용은 Group 책임이며 Item은 Group 안 작업자 책임이다.
+- 세무·보험 계산 Grain은 Group과 다르므로 Group 합계를 공식 기관결과로 간주하지 않는다.
+- 현재 Workday/Line은 기관별 확정 Revision·배부·대사를 완전하게 표현하지 못한다.
+- 신규 저장구조 승인 전 임시 JSON이나 중복 Snapshot 컬럼으로 우회하지 않는다.
+- Group 기본단가는 폐기한다. 작업자별 기본단가는 Item 입력계약, 날짜별 변경단가는 Workday 계약으로 둔다. `_10`은 수정하지 않고 `_11` forward-only Migration으로 물리컬럼을 제거한다.
+- 2026-08-27: 일용근로소득 Calculation Revision의 예약 ID `_14`는 이미 근무그룹 작업내용 복원 Migration에 점유되어 있고 기존 파일은 불변이므로, fresh-install 번호순서를 유지하기 위해 신규 `_15`가 Calculation Revision·Institution Result·Allocation을 함께 소유하고 `_16`이 Reconciliation·Snapshot·Closure Grain 정상화를 소유한다. `_17`은 과거 Attachment 예약상태만 문서화하고 빈 Migration을 만들지 않는다.
+# 2026-08-28 일용근로소득 상신 Preflight 경계
+
+- 상신 전 판정은 저장된 `Header → Group → Item → Workday → Line`과 현재 법정기준을 서버에서 재대사하며 실제 결재 상태는 변경하지 않는다.
+- 상태 변경 권한이 없는 현재 단계에서는 미동작 결재·회수 버튼을 노출하지 않는다.
+- 상용 직원과 일용 작업자의 공식 개인 식별 SSOT가 없으므로 이름 기반 중복 판정은 금지하고 경고만 제공한다.
+- 별도 Calculation Revision, Closure, Accounting Link, 비과세 Revision·Audit·Attachment는 승인 전 운영 DB에 적용하지 않는다.
+- 2026-08-31: 별도 `INSURANCE_ELIGIBILITY` 법정기준 Type을 물리 폐기하고 기존 보험 Type 내부의 `PREMIUM`·`ELIGIBILITY` 독립 Timeline으로 통합한다. Grain은 보험 Type·정책 구성요소·고용형태·업무 Scope·추가 Dimension·적용기간이며 Resolver는 정확 일치만 허용한다. 기존 22개 정책·Source는 결정적 ID로 1:1 이관하고 기존 계산결과 3건은 금액·판정·ID를 유지한 채 가입자격 참조와 Snapshot만 결정적으로 이관한다.
+- 2026-08-31: 보험 법정기준 Header는 기관 Type·정책 구성요소·고용형태·업무 Scope·적용기간을 선택한다. 지원 조합은 `STATUTORY_STANDARD_TYPE.extra_data.component_templates`가 SSOT이며 공통 보험료는 `PREMIUM/ALL/ALL`, 가입자격은 `REGULAR/HEAD_OFFICE`, `DAILY/HEAD_OFFICE`, `DAILY/CONSTRUCTION_SITE`만 허용한다. ECOMMERCE 업무자료는 보존하되 가입자격 Resolver에는 `HEAD_OFFICE`로 투영한다.
+- 2026-08-31: 법정기준 Header와 보험 가입자격 카드의 사용자 선택형 업무코드는 `system_codes`를 SSOT로 사용한다. Template은 `option_source=SYSTEM_CODES`, 코드그룹, 필드별 `allowed_codes`, 기존 비활성값 표시 여부, nullable만 선언하고 선택지 배열을 중복 소유하지 않는다. UI 활성선택, Service 코드그룹·활성 검증, Validator 정책구조·지원조합 검증, Resolver 의미 판정의 책임은 분리한다. 기간 적용상태는 저장 컬럼이 아니라 서버 기준일 Projection을 유지하되 표시명은 `STATUTORY_STANDARD_PERIOD_STATUS`에서 조회한다.
+- 2026-09-01: 내부 업무형 Evidence 정규화는 승인상태를 유지한 채 Forward Migration과 결정적 파생자료 Repair로 수행한다. 승인 원천 raw 값, 계산 입력·법정기준, 대상자·기간·지급일·금액을 변경하거나 기존 승인으로 새 산출물을 정당화할 수 없을 때만 결재요청 전 복구와 재승인을 사용한다. 컬럼 rename, Snapshot 보강, 조회 변경, 결정적 Projection Repair는 재승인 사유가 아니다.
+- 2026-09-01: Evidence 물리 원천 금액은 `raw_*`, Transaction 검증 DTO는 무접두사 금액명을 사용한다. 일용·상용·개인경비 Migration은 업무별로 분리하며 구 컬럼 제거는 소비자 0건 확인과 별도 승인 이후 최종 Migration에서만 수행한다.
+## 2026-09-02 승인 파생 Transaction Projection 정정 감사
+
+- 승인 원천과 결재이력은 불변으로 유지한다.
+- 승인 후 생성된 Transaction Projection의 결정적 오류는 before/after 공용 감사행을 남기는 전용 Service로 정정할 수 있다.
+- 기존 Item ID를 유지하고 근로자 공제는 부호 있는 Settlement로 저장한다.
+- 사용자부담은 근로자 지급 Transaction에 포함하지 않는다.
+# 2026-09-02 Evidence P1 Forward 정규화
+
+- 유형별 `ledger_evidence_*` 본문테이블을 유지하고 공용 부모테이블은 만들지 않는다.
+- 최초 발원 사실은 `raw_*`, 원본 참조는 `source_*`, ERP 업무분류는 무접두사 코드·FK로 구분한다.
+- 자료유형, 유입방식, 원천시스템과 원천기관을 분리하며 코드값은 `system_codes`와 Evidence Metadata를 SSOT로 사용한다.
+- 기존 `source_type`, `import_type`, `external_key`, `evidence_status`와 유형별 구 금액컬럼은 Forward 전환기간의 Alias로 유지한다.
+- 기존 상용·개인경비 Snapshot은 `LEGACY_RECONSTRUCTED`와 `reconstruction_hash`로 표시하며 승인 당시 `source_hash`로 표현하지 않는다.
+- 세금계산서 다품목은 Header 대표 품목이 아니라 유형별 Raw Line 자식테이블로 보존한다.
+- 증빙원본의 최종 Architecture 계약은 [EvidenceOriginalContract.md](EvidenceOriginalContract.md)를 따른다.
+- `docs/projects/EvidenceP1Normalization20260902.md`는 당시 구현·Migration 계획 문서로만 유지한다. 해당 문서의 일반 정의가 Architecture SSOT와 충돌하면 그 정의는 폐기된 것으로 본다.
+
+## 내부 승인형 3종으로 범위 축소
+
+- P1 구현 범위는 상용급여, 개인경비, 일용근로소득 Evidence로 제한한다.
+- 업로드형 Batch·Sheet·행 추적, 외부 Metadata 필수화, 수기 세금계산서 재정규화, 대표 품목 복제 Raw Line 및 상태 다중분리는 채택하지 않는다.
+- 기존 승인자료에는 결정 가능한 원 업무·승인·금액만 backfill하며 승인 당시 없던 Snapshot·Source Hash를 생성하지 않는다.
+- `team_id`는 Legacy, `work_team_id`는 최종 공용 명칭으로 사용하되 구 컬럼은 소비자 0건과 별도 승인 전까지 유지한다.
+- 2026-09-03: 사업소득 P1 Closure는 사업소득 작성·계산·저장 → 결재요청 → 최종승인 → 승인 Item별 `BUSINESS_INCOME_REPORT` Evidence 원본·승인 계산 Raw Line·Transaction Item·공제 Settlement 생성 → Evidence↔Transaction 연결 → Closure 완료까지로 확정한다. 전표·분개·계정과목·보조계정·Voucher·Journal·Posting은 사업소득 모듈이 생성하거나 선결정하지 않는다. 후속처리는 하나의 DB Transaction에서 수행하며 Item별 산출물 원장은 멱등성 확인 용도일 뿐 회계/전표 Registry가 아니다.
+- 2026-09-03: 사업소득 법정기준 운영 Closure 조사에서 기존 `BUSINESS_INCOME_WITHHOLDING` 1개와 `LOCAL_INCOME_TAX_WITHHOLDING` 2개가 확인됐다. 2013 지방소득세 Revision은 기존 계산 및 Evidence가 참조하므로 필수 계산정책을 채우기 위한 직접 UPDATE를 금지한다. 현재 운영 스키마에는 2026-08-11에 제거된 Source Correction/Revision supersession 구조가 없고 동일기간 신규 행은 Resolver 중복 오류가 되므로, 공용 불변 Correction 구조의 별도 구조결정 전에는 기존행 수정·중복기간 INSERT·사업소득 전용 fallback을 하지 않는다.
+# 2026-09-03 — 법정기준 불변 Correction/Supersession 구조 확정
+
+- 기준 행 자체가 Revision이고 Source가 Revision에 1:N으로 연결되는 기존 SSOT를 유지한다.
+- 원 Revision과 Source는 UPDATE/DELETE하지 않는다. 신규 정정 Revision과 신규 Source만 INSERT한다.
+- 별도 `system_statutory_standard_supersessions` 관계 테이블을 채택했다. 원본 테이블에 감사 관계를 혼합하지 않고 기존 FK를 영구 보존하며 predecessor/successor UNIQUE로 선형 chain을 강제하기 위해서다.
+- Resolver는 기준일에 유효한 후보 중 같은 chain의 유효 descendant가 있는 ancestor를 제외한다. 최종 leaf 0건은 `POLICY_NOT_FOUND`, 복수는 `AMBIGUOUS_POLICY`로 차단하며 최신시각 fallback은 금지한다.
+- 운영 구조 적용 전후 기존 Revision 128건·Source 173건과 기존 Resolver 성공 사례 2,112건의 결과 변화는 0건이었다.
+- 사업소득과 지방소득세는 기존 3개 Revision을 변경하지 않고 신규 완전정책 Revision 4건·Source 4건·Supersession 4건으로 정정했다.
+- 기존 `20260903_09_activate_business_income_runtime`은 모든 역사 Revision에 완전정책을 요구하여 불변 Supersession 모델과 충돌한다. 기존 Migration 수정 금지 원칙에 따라 적용하지 않고 별도 Forward Fix 대상으로 분류한다.
+# 2026-09-03 법정기준·사업소득 Trigger 제거
+
+- DB 내부의 숨은 업무규칙을 사용하지 않고 Controller → Service → Model/Repository 경로에서 검증 책임을 드러낸다.
+- 세무 프로필 중복과 Supersession 경합은 동일 업무키 또는 Revision 행의 `FOR UPDATE` 잠금으로 직렬화한다.
+- 확정 법정기준 변경은 직접 UPDATE/DELETE가 아니라 공식 Correction을 통한 신규 Revision INSERT만 허용한다.
+- FK·UNIQUE·CHECK는 유지한다. 관리자 직접 SQL은 Application Validation을 우회할 수 있으므로 운영 통제 대상이다.
+- 제거된 Trigger의 Down 자동 복구 및 사용자 승인 없는 재도입을 금지한다.
+# 2026-09-03 사업소득 Evidence 금액 Grain 및 DB Comment SSOT (폐기·대체됨)
+
+- 이 절의 Evidence 공급가액·총액 계약은 아래 `소득 신고 Evidence 원본 통일` 결정으로 폐기한다. Transaction 공급금액은 계속 공제 전 총지급액이지만 Evidence 물리 원본에는 세금계산서형 공급가액·부가세 컬럼을 두지 않는다.
+- 공제 후 금액은 `raw_net_payment_amount`와 Transaction Final로 보존하고, 원천징수는 Settlement로 분해한다.
+- DB 물리컬럼명·순서·Comment·NULL·타입을 공용 TableSettings 기본 메타데이터의 SSOT로 사용한다.
+- 캘린더 3개 외부연동 테이블은 `PROTECTED_EXTERNAL_INTEGRATION`으로 동결한다.
+
+# 2026-09-03 사업소득 Header 물리 합계 Snapshot
+
+- 상용·일용근로소득과 동일하게 문서 목록·결재·집계에서 반복 사용하는 합계는 Header의 물리 Snapshot으로 확정한다.
+- `group_count`, `item_count`, 총지급액, 사업소득세, 개인지방소득세, 총공제액, 최종지급액을 `institution_business_incomes`에 저장한다.
+- 합계는 Client 입력을 신뢰하지 않고 `BusinessIncomeService`가 Group·Item 저장과 같은 DB Transaction에서 계산한다. 결재요청 직전에 Header Snapshot과 Item 재계산값을 다시 대사한다.
+- 업무 합계 Projection 가상컬럼은 제거하고, TableSettings에 필요한 `__select`, `__reorder`, `__actions` 시스템 가상컬럼만 유지한다. DB Trigger는 사용하지 않는다.
+
+# 2026-09-03 소득자료 지급예정일 폐기
+
+- 상용·일용·사업소득의 지급예정일은 실제 발생일도 법정 귀속일도 아니며 메모성 예정값이므로 Header, 계산결과 Grain, Evidence 원본 복제, 목록·검색·모달·Excel 계약에서 제거한다.
+- 상용근로소득의 증빙·거래·세액 기준일은 귀속월 말일, 일용근로소득의 거래일은 작업자별 최종 실제 근무일, 사업소득의 기준일은 개인 지급항목별 실제 거래일로 확정한다.
+- 근로계약의 `payment_day`·`payment_timing`은 계약조건 Snapshot으로 유지하지만 소득자료 Header나 Evidence에 복제하지 않는다.
+- 공용 `ledger_transactions.transaction_date`는 실제 거래 사실이므로 제거하지 않는다. 소득 모듈은 예정일을 이 컬럼으로 복사하지 않는다.
+- Forward Migration `20260903_16_remove_income_scheduled_payment_dates`가 예정일 계열 물리컬럼 11개와 관련 인덱스·CHECK를 제거하고 사업소득 Item에 필수 `transaction_date`를 추가한다. Trigger는 생성하지 않는다.
+
+# 2026-09-03 소득자료 문서정보 카드 통일
+
+- 상용·일용·사업소득의 첫 카드는 `귀속연월 → 제목 → 비고 → 메모` 순서와 동일한 공용 반응형 폭 계약을 사용한다.
+- 사업소득 Header에는 기존 상용·일용과 같은 nullable `memo`를 Forward Migration `20260903_17_add_business_income_header_memo`로 추가하고 저장·상세 재조회·Excel Header에 연결한다.
+- 기존 사업소득 데이터는 변경하지 않으며 Trigger를 사용하지 않는다.
+
+# 2026-09-03 사업소득 외주 정산 Grain 확정
+
+- 사업소득 금액의 원천은 소득자 총액 직접입력이 아니라 소득자별 외주 작업내역 N건이다.
+- 작업내역은 `품명·규격·단위·수량·단가·계산금액·증감액·증감사유·확정금액`을 물리 저장하며 `계산금액=수량×단가`, `확정금액=계산금액+증감액`을 서버와 CHECK에서 검증한다. 품명부터 단가까지가 금액 산정근거이므로 중복 자유문자열 `calculation_note`는 원천·증빙·Excel·UX에서 제거한다.
+- 소득자 총지급액은 작업내역 확정금액 합계로만 산출하고, 사업소득세·개인지방소득세는 거래정산 Settlement Grain으로 분리한다.
+
+# 2026-09-04 캘린더·일정 구조 리팩토링 임시 유예
+
+- Main 캘린더·일정은 Synology Calendar·CalDAV 외부연동과 운영 일정 데이터를 보유하고 있으나 아직 기능 Closure 단계가 아니므로 일반 구조 리팩토링에서 임시 제외한다.
+- 현재 Calendar Service의 직접 SQL은 정상 구조나 영구 예외가 아니라 승인된 기술부채다. 전체 SQL 책임 감사에서는 일반 업무 Service와 분리해 `캘린더 보호·유예`로 계속 집계한다.
+- 운영 장애·보안·데이터 보존을 위한 긴급 수정과 사용자 별도 승인 변경 외에는 캘린더 기능·DB·동기화 구조를 변경하지 않는다.
+- 캘린더 유예는 다른 도메인의 Controller·Service·View·Helper 직접 SQL을 허용하지 않으며, 캘린더 공용 계약을 개별 구현으로 우회하는 근거로도 사용할 수 없다.
+- 캘린더 개발을 재개할 때는 신규 기능보다 먼저 `Controller → Service → Model/Repository → DB` 구조와 Query·CRUD·Trash·Sync 저장소 책임을 확정하고 Calendar SQL Ownership Closure를 수행한다.
+- Closure 전까지 ERP 전체 SQL 책임을 완료로 판정하지 않되, 캘린더 외 도메인 리팩토링의 진행과 완료 판정은 캘린더 유예 항목과 분리한다.
+
+# 2026-09-03 사업소득 기타공제 계약 폐기
+
+- 외주 대금의 증감은 작업내역별 `증감액·증감사유`가 이미 산정 근거와 확정금액을 보존하므로, 소득자 Item 하단의 별도 기타공제는 동일 경제사건을 중복 조정하는 구조로 판정한다.
+- 사업소득의 지급식은 `외주 작업 확정금액 합계 - 사업소득세 - 개인지방소득세 = 최종지급액`으로 확정한다.
+- Forward Migration `20260903_21_remove_business_income_other_deduction`으로 Header·Item·Evidence의 기타공제 컬럼 5개와 계산 Line의 `OTHER_DEDUCTION` 허용을 제거한다. 운영 사업소득 자료가 존재하면 적용을 차단하며 Trigger와 데이터 보정 DML은 사용하지 않는다.
+- UI·Excel·결재상세·계산 Revision·Evidence Raw·Transaction Settlement에서도 기타공제 계약을 제거한다.
+- 최종승인 시 소득자 Item 1건은 거래 Header 1건이 되고 작업내역 N건은 거래품목 N건이 된다. 계산 Line은 Settlement로, 작업내역은 별도 Evidence 원본 N건으로 불변 Snapshot한다.
+- Forward Migration은 `20260903_18_create_business_income_work_lines`이며 적용 전 운영 Item/Evidence 0건을 확인했다. 데이터 보정 DML과 Trigger는 없다.
+- 외주 작업내역 편집 UI는 일용근로소득의 일별 상세와 동일한 공용 `createHtmlGrid`를 재사용한다. AG Grid나 화면 전용 CSS Table을 중복 구현하지 않으며 공용 숫자·텍스트 Editor, 키보드, Clipboard, Column Resize 계약을 따른다.
+- 신규 테이블 2개의 누락 Comment 26건은 적용된 `_18`을 수정하지 않고 후속 Migration `20260903_19_complete_business_income_work_line_comments`로 보완한다.
+- Grid 본행은 `순번·이동, 품명, 규격, 단위, 수량, 단가, 계산금액, 관리`만 표시한다. `증감액·증감사유·확정금액` 하위행은 기본 숨김이며 관리 컬럼의 증감 입력 버튼으로 해당 작업행만 열고 같은 버튼으로 닫는다. 물리 산정내역 컬럼 제거는 `20260903_20_remove_business_income_calculation_note`가 소유한다.
+- 2026-09-03: 상용·일용·사업소득 Header에 `withholding_date`를 도입한다. 이는 지급예정일이나 실제지급일이 아니라 기관 신고와 소득세·개인지방소득세 법정기준 Revision을 선택하는 업무 기준일이다. 귀속연월은 소득 귀속과 월 보험기준, 근무일·거래일은 업무 원천사실과 Transaction 거래일을 계속 소유한다. 승인 후 Evidence는 `raw_withholding_date` Snapshot을 보존하지만 지급 Transaction 날짜와 원천징수일을 결합하지 않는다.
+- 2026-09-03: `withholding_date`의 회사 기본 제안일은 상용 `귀속월 익월 11일`, 일용·사업소득 `귀속월 익월 말일`로 정한다. 이 값은 회사의 통상 지급예상 기준과 법정기준 Revision 선택을 함께 표현하지만 실제 지급일은 아니다. 조기·지연 지급으로 변경하지 않으며, 법정기준 경계에 따라 신고 문서를 분리해야 할 때 사용자가 명시적으로 수정한다. 기존 2013년 8월 귀속 승인 일용문서는 이 정책에 따라 `2013-09-30`으로 보정한다.
+
+# 2026-09-03 소득 신고 Evidence 원본 통일
+
+- 급여·일용·사업소득 신고 Evidence는 사용자가 편집하는 회계 증빙이 아니라 최종승인 원천에서 생성된 읽기 전용 불변 원본이다. 세 유형의 `source_type`은 `INTERNAL_APPROVAL`, 공용 증빙 검토상태는 `COMPLETED`로 통일하며 결재 승인은 `approval_request_id`, `approved_at`, `approved_by`가 별도 증명한다. 대표 거래일은 상용 귀속월 말일, 일용 최종 Workday, 사업소득 개인 Item 거래일을 사용하고 `raw_withholding_date`는 법정기준 선택일로 별도 보존한다.
+- 급여 Evidence는 승인 당시 지급·공제·사용자부담 계산 Line을 별도 불변 테이블에 보존한다. 기존 승인 2건은 원 급여 Line을 검증하여 Snapshot·Source Hash·Reconstruction Hash와 함께 백필한다.
+- 일용 Evidence의 `raw_*`가 승인 원본 SSOT다. 구 `total_*`, `income_year_month`, `evidence_status_code`는 운영 호환을 위한 보호 레거시로만 유지하고 신규 화면·대사 계약에서 사용하지 않는다.
+- 사업소득 Evidence는 세금계산서가 아니므로 공급자·공급가액·부가세·봉사료·증빙총액 컬럼을 제거한다. 금액 불변식은 `공제 전 확정금액 - 원천징수 합계 = 최종지급액`이며 작업내역 N건은 Transaction Item, 원천징수 Line은 MINUS Settlement로 연결한다.
+- Forward Migration `20260903_24_align_income_evidence_originals`는 기존 Evidence·Transaction·Link 수를 변경하지 않고 급여 Line/Snapshot을 백필하며 사업소득 운영행 0건일 때만 잘못된 컬럼을 제거한다. Trigger는 생성하지 않는다.

@@ -27,7 +27,7 @@ final class TransactionReferenceValidatorService
     {
     }
 
-    public function validate(array $payload, ?array $existing = null): void
+    public function validate(array $payload, ?array $existing = null, array $context = []): void
     {
         foreach (self::MASTERS as $field => [$table, $label, $extraActive]) {
             $value = trim((string) ($payload[$field] ?? ''));
@@ -35,6 +35,10 @@ final class TransactionReferenceValidatorService
                 continue;
             }
             $isUnchanged = $existing !== null && hash_equals((string) ($existing[$field] ?? ''), $value);
+            if ($field === 'employee_id' && ($context['employee_policy'] ?? '') === 'REGULAR_EMPLOYMENT_INCOME_EFFECTIVE_SNAPSHOT') {
+                $this->validateRegularEmploymentIncomeEmployee($value, $context);
+                continue;
+            }
             $this->validateMaster($table, $label, $value, $isUnchanged, $extraActive);
         }
 
@@ -49,6 +53,63 @@ final class TransactionReferenceValidatorService
             $isUnchanged = $existing !== null && hash_equals(strtoupper((string) ($existing[$field] ?? '')), $value);
             $this->validateCode($group, $label, $value, $isUnchanged);
         }
+    }
+
+    private function validateRegularEmploymentIncomeEmployee(string $employeeId, array $context): void
+    {
+        $documentId = trim((string) ($context['source_document_id'] ?? ''));
+        $itemId = trim((string) ($context['source_item_id'] ?? ''));
+        $contractId = trim((string) ($context['employment_contract_id'] ?? ''));
+        $periodFrom = trim((string) ($context['period_from'] ?? ''));
+        $periodTo = trim((string) ($context['period_to'] ?? ''));
+        if ($documentId === '' || $itemId === '' || $contractId === ''
+            || !$this->isDate($periodFrom) || !$this->isDate($periodTo) || $periodFrom > $periodTo) {
+            throw new \InvalidArgumentException('급여 원천과 유효기간 검증 정보를 확인해 주세요.');
+        }
+
+        $statement = $this->pdo->prepare(
+            'SELECT 1
+               FROM institution_regular_employment_income_items item
+               JOIN institution_regular_employment_incomes income
+                 ON income.id = item.regular_employment_income_id
+                AND income.deleted_at IS NULL
+               JOIN institution_employment_contracts contract
+                 ON contract.id = item.employment_contract_id
+                AND contract.employee_id = item.employee_id
+                AND contract.deleted_at IS NULL
+                AND contract.approved_at IS NOT NULL
+                AND contract.contract_start_date <= :contract_period_to
+                AND (contract.contract_end_date IS NULL OR contract.contract_end_date >= :contract_period_from)
+               JOIN user_employees employee
+                 ON employee.id = item.employee_id
+              WHERE income.id = :document_id
+                AND item.id = :item_id
+                AND item.employee_id = :employee_id
+                AND item.employment_contract_id = :contract_id
+                AND COALESCE(income.payroll_period_start_date, CONCAT(income.income_year_month, "-01")) = :period_from
+                AND COALESCE(income.payroll_period_end_date, LAST_DAY(CONCAT(income.income_year_month, "-01"))) = :period_to
+                AND item.deleted_at IS NULL
+              LIMIT 1'
+        );
+        $statement->execute([
+            ':document_id' => $documentId,
+            ':item_id' => $itemId,
+            ':employee_id' => $employeeId,
+            ':contract_id' => $contractId,
+            ':contract_period_from' => $periodFrom,
+            ':contract_period_to' => $periodTo,
+            ':period_from' => $periodFrom,
+            ':period_to' => $periodTo,
+        ]);
+        if (!$statement->fetchColumn()) {
+            throw new \InvalidArgumentException('급여 귀속기간에 유효한 승인 계약과 직원 원천 스냅샷을 확인해 주세요.');
+        }
+    }
+
+    private function isDate(string $value): bool
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        return $date !== false && $date->format('Y-m-d') === $value;
     }
 
     public function validateGroupedIds(array $idsByTarget): void

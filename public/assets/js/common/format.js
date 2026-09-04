@@ -36,6 +36,14 @@ function normalizeNumberString(value) {
     return result;
 }
 
+function normalizeIntegerString(value) {
+    const normalized = normalizeNumberString(value);
+    if (normalized === '' || normalized === '-') return normalized;
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? String(Math.trunc(parsed)) : '';
+}
+
 function parseNumber(value) {
     const normalized = normalizeNumberString(value);
 
@@ -126,13 +134,17 @@ export function bindNumberInput(input, options = {}) {
     };
 
     const normalize = () => {
-        input.value = normalizeNumberString(input.value);
+        input.value = options.integerOnly === true
+            ? normalizeIntegerString(input.value)
+            : normalizeNumberString(input.value);
         return input.value;
     };
 
     const formatForInput = () => {
         const cursorAtEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
-        const normalized = normalizeNumberString(input.value);
+        const normalized = options.integerOnly === true
+            ? normalizeIntegerString(input.value)
+            : normalizeNumberString(input.value);
         input.value = normalized === '' ? '' : formatNumber(normalized);
         if (cursorAtEnd) {
             const end = input.value.length;
@@ -156,7 +168,10 @@ export function bindNumberInput(input, options = {}) {
     });
 
     if (String(input.value ?? '').trim() !== '') {
-        input.value = formatNumber(input.value);
+        const normalized = options.integerOnly === true
+            ? normalizeIntegerString(input.value)
+            : input.value;
+        input.value = formatNumber(normalized);
     }
 
     input.dataset.numberFormatBound = 'true';

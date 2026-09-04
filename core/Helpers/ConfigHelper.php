@@ -4,6 +4,7 @@
 namespace Core\Helpers;
 
 use App\Services\System\SettingService;
+use Core\Security\SecretResolver;
 
 class ConfigHelper
 {
@@ -63,26 +64,6 @@ class ConfigHelper
      */
     public static function secret(): string
     {
-        // 1. 상수 우선
-        if (defined('APP_SECRET')) {
-            return APP_SECRET;
-        }
-
-        // 2. JSON 설정
-        $secret = self::get('InternalApiSecret');
-        if (!empty($secret)) {
-            return $secret;
-        }
-
-        $secret = self::get('AppSecret');
-        if (!empty($secret)) {
-            return $secret;
-        }
-
-        // ❌ fallback 금지
-        throw new \RuntimeException('Secret key is not configured');
-
-        // 3. fallback
-        //return 'default-secret-key';
+        return (new SecretResolver())->resolve('ERP_APP_MAIN', 'secret');
     }
 }

@@ -30,7 +30,7 @@ class TrashService
             SELECT
                 e.*,
                 e.deleted_by AS deleted_by_name
-            FROM dashboard_calendar_events e
+            FROM main_calendar_events e
             WHERE e.is_active = 0
               AND e.synology_login_id = :synology
             ORDER BY e.deleted_at DESC
@@ -53,7 +53,7 @@ class TrashService
             SELECT
                 t.*,
                 t.deleted_by AS deleted_by_name
-            FROM dashboard_calendar_tasks t
+            FROM main_calendar_tasks t
             WHERE t.is_active = 0
               AND t.synology_login_id = :synology
             ORDER BY t.deleted_at DESC
@@ -77,8 +77,8 @@ class TrashService
         try {
             $stmt = $this->pdo->prepare("
                  SELECT e.*, l.id AS list_id, l.is_active AS calendar_active
-                 FROM dashboard_calendar_events e
-                 INNER JOIN dashboard_calendar_list l
+                 FROM main_calendar_events e
+                 INNER JOIN main_calendar_list l
                      ON l.id = e.calendar_id
                 WHERE e.id = :id
                 AND e.synology_login_id = :synology
@@ -112,7 +112,7 @@ class TrashService
             }
 
             $update = $this->pdo->prepare("
-                 UPDATE dashboard_calendar_events
+                 UPDATE main_calendar_events
                  SET is_active = 1,
                      deleted_at = NULL,
                      deleted_by = NULL,
@@ -140,7 +140,7 @@ class TrashService
     {
         $stmt = $this->pdo->prepare("
             SELECT *
-            FROM dashboard_calendar_tasks
+            FROM main_calendar_tasks
             WHERE id = :id
               AND synology_login_id = :synology
             LIMIT 1
@@ -180,7 +180,7 @@ class TrashService
                 $caldav->createObject($newHref, $row['raw_ics']);
 
                 $this->pdo->prepare("
-                    UPDATE dashboard_calendar_tasks
+                    UPDATE main_calendar_tasks
                     SET href = :href
                     WHERE id = :id
                       AND synology_login_id = :synology
@@ -201,7 +201,7 @@ class TrashService
         }
 
         $update = $this->pdo->prepare("
-            UPDATE dashboard_calendar_tasks
+            UPDATE main_calendar_tasks
             SET is_active = 1,
                 deleted_at = NULL,
                 deleted_by = NULL,
@@ -222,7 +222,7 @@ class TrashService
     {
         $stmt = $this->pdo->prepare("
             SELECT href, etag
-            FROM dashboard_calendar_events
+            FROM main_calendar_events
             WHERE id = :id
               AND is_active = 0
               AND synology_login_id = :synology
@@ -249,7 +249,7 @@ class TrashService
         }
 
         $del = $this->pdo->prepare("
-            DELETE FROM dashboard_calendar_events
+            DELETE FROM main_calendar_events
             WHERE id = :id
               AND is_active = 0
               AND synology_login_id = :synology
@@ -265,7 +265,7 @@ class TrashService
     {
         $stmt = $this->pdo->prepare("
             SELECT href, etag
-            FROM dashboard_calendar_tasks
+            FROM main_calendar_tasks
             WHERE id = :id
               AND synology_login_id = :synology
               AND is_active = 0
@@ -312,7 +312,7 @@ class TrashService
         }
 
         $del = $this->pdo->prepare("
-            DELETE FROM dashboard_calendar_tasks
+            DELETE FROM main_calendar_tasks
             WHERE id = :id
               AND synology_login_id = :synology
               AND is_active = 0
@@ -332,7 +332,7 @@ class TrashService
 
             $stmt = $this->pdo->prepare("
                 SELECT id
-                FROM dashboard_calendar_events
+                FROM main_calendar_events
                 WHERE is_active = 0
                   AND synology_login_id = :synology
             ");
@@ -363,7 +363,7 @@ class TrashService
 
             $stmt = $this->pdo->prepare("
                 SELECT id
-                FROM dashboard_calendar_tasks
+                FROM main_calendar_tasks
                 WHERE is_active = 0
                   AND synology_login_id = :synology
             ");

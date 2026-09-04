@@ -22,7 +22,7 @@ class LoginController
     public function webLoginPage()
     {
         if ($this->authSessionService->isAuthenticated()) {
-            header('Location: /dashboard');
+            header('Location: /main');
             exit;
         }
 

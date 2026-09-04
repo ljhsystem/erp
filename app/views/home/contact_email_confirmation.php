@@ -9,7 +9,7 @@ header('Content-Type: text/html; charset=UTF-8');
 <head>
     <meta charset="UTF-8">
     <title>Contact Email Confirmation</title>
-    <?= AssetHelper::css('/assets/css/pages/_layout/contact.css') ?>
+    <?= AssetHelper::css('/assets/css/pages/home/contact.css') ?>
     <style>
         .confirmation-container {
             max-width: 500px;

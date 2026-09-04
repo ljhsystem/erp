@@ -2,8 +2,10 @@
 
 namespace App\Services\System;
 
+use Core\LoggerFactory;
 use PDO;
 use PDOException;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 class DatabaseActiveSwitchService
@@ -15,7 +17,7 @@ class DatabaseActiveSwitchService
     private string $topologyConfigPath;
     private string $logDir;
     private string $statusPath;
-    private string $logPath;
+    private LoggerInterface $logger;
 
     public function __construct()
     {
@@ -23,7 +25,7 @@ class DatabaseActiveSwitchService
         $this->topologyConfigPath = PROJECT_ROOT . '/../secure-config/db_replication.php';
         $this->logDir = PROJECT_ROOT . '/storage/db_backup/';
         $this->statusPath = $this->logDir . 'active_db_switch_status.json';
-        $this->logPath = $this->logDir . 'active_db_switch_log.txt';
+        $this->logger = LoggerFactory::getLogger('service-system-database-active-switch');
     }
 
     public function getLatestSwitch(): array
@@ -104,7 +106,13 @@ class DatabaseActiveSwitchService
         ];
 
         $this->writeStatus($payload);
-        $this->appendLog($payload);
+        $this->logger->warning('활성 데이터베이스 전환을 완료했습니다.', [
+            'event_code' => 'ACTIVE_DATABASE_SWITCH',
+            'result' => 'SUCCESS',
+            'before_active_db' => $payload['before_active_db'] ?? null,
+            'after_active_db' => $payload['after_active_db'] ?? null,
+            'actor' => $payload['executed_by_user_id'] ?? null,
+        ]);
 
         return $payload;
     }
@@ -247,22 +255,6 @@ class DatabaseActiveSwitchService
         }
     }
 
-    private function appendLog(array $payload): void
-    {
-        $line = sprintf(
-            "[%s] %s -> %s / 사용자=%s (%s)\n",
-            $payload['executed_at'] ?? '-',
-            $payload['before_active_db'] ?? '-',
-            $payload['after_active_db'] ?? '-',
-            $payload['executed_by_name'] ?? '-',
-            $payload['executed_by_user_id'] ?? '-'
-        );
-
-        if (@file_put_contents($this->logPath, $line, FILE_APPEND) === false) {
-            throw new RuntimeException('전환 로그 저장에 실패했습니다.');
-        }
-    }
-
     private function validateTargetConnection(array $config): void
     {
         foreach (['host', 'port', 'dbname', 'user', 'pass'] as $key) {
@@ -316,7 +308,7 @@ class DatabaseActiveSwitchService
         }
 
         $runtime = $this->inspectTraceRuntime(
-            $this->logDir . 'secondary_restore_trace.log',
+            $this->logDir . 'secondary_restore_status.json',
             $this->logDir . 'secondary_restore_runner.lock'
         );
 
@@ -333,7 +325,7 @@ class DatabaseActiveSwitchService
             return true;
         }
 
-        $runtime = $this->inspectTraceRuntime($this->logDir . 'active_restore_trace.log');
+        $runtime = $this->inspectTraceRuntime($this->logDir . 'active_restore_status.json');
         return (bool) ($runtime['trace_recent']);
     }
 

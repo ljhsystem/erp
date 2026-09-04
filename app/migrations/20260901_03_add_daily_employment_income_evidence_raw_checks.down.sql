@@ -1,0 +1,3 @@
+ALTER TABLE ledger_evidence_daily_employment_income DROP CONSTRAINT ck_daily_evidence_review_status,
+ DROP CONSTRAINT ck_daily_evidence_business_classification,DROP CONSTRAINT ck_daily_evidence_raw_period,
+ DROP CONSTRAINT ck_daily_evidence_raw_amounts,DROP CONSTRAINT ck_daily_evidence_raw_non_negative;

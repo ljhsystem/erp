@@ -1,0 +1,33 @@
+SET NAMES utf8mb4;
+
+ALTER TABLE institution_business_income_work_lines
+    MODIFY COLUMN id VARCHAR(36) NOT NULL COMMENT '작업내역 ID',
+    MODIFY COLUMN business_income_item_id VARCHAR(36) NOT NULL COMMENT '사업소득 소득자 정산 ID',
+    MODIFY COLUMN sort_no INT UNSIGNED NOT NULL DEFAULT 1 COMMENT '정렬순서',
+    MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+    MODIFY COLUMN created_by VARCHAR(100) NOT NULL COMMENT '등록자',
+    MODIFY COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    MODIFY COLUMN updated_by VARCHAR(100) NOT NULL COMMENT '수정자',
+    MODIFY COLUMN deleted_at DATETIME NULL COMMENT '삭제일시',
+    MODIFY COLUMN deleted_by VARCHAR(100) NULL COMMENT '삭제자',
+    ALGORITHM=INSTANT, LOCK=NONE;
+
+ALTER TABLE ledger_evidence_business_income_work_lines
+    MODIFY COLUMN id VARCHAR(36) NOT NULL COMMENT '증빙 작업내역 ID',
+    MODIFY COLUMN evidence_id VARCHAR(36) NOT NULL COMMENT '사업소득 증빙 ID',
+    MODIFY COLUMN source_work_line_id VARCHAR(36) NOT NULL COMMENT '원천 작업내역 ID',
+    MODIFY COLUMN raw_item_name VARCHAR(200) NOT NULL COMMENT '원본 품명',
+    MODIFY COLUMN raw_item_specification VARCHAR(255) NULL COMMENT '원본 규격',
+    MODIFY COLUMN raw_item_unit_name VARCHAR(50) NOT NULL COMMENT '원본 단위',
+    MODIFY COLUMN raw_item_quantity DECIMAL(18,4) NOT NULL COMMENT '원본 수량',
+    MODIFY COLUMN raw_item_unit_price DECIMAL(18,2) NOT NULL COMMENT '원본 단가',
+    MODIFY COLUMN raw_calculated_amount DECIMAL(18,2) NOT NULL COMMENT '원본 계산금액',
+    MODIFY COLUMN raw_adjustment_amount DECIMAL(18,2) NOT NULL COMMENT '원본 증감액',
+    MODIFY COLUMN raw_adjustment_reason VARCHAR(500) NULL COMMENT '원본 증감 사유',
+    MODIFY COLUMN raw_calculation_note VARCHAR(1000) NULL COMMENT '원본 산정내역',
+    MODIFY COLUMN raw_final_amount DECIMAL(18,2) NOT NULL COMMENT '원본 확정금액',
+    MODIFY COLUMN raw_sort_no INT UNSIGNED NOT NULL COMMENT '원본 정렬순서',
+    MODIFY COLUMN source_hash CHAR(64) NOT NULL COMMENT '원천 작업내역 해시',
+    MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+    MODIFY COLUMN created_by VARCHAR(100) NOT NULL COMMENT '등록자',
+    ALGORITHM=INSTANT, LOCK=NONE;

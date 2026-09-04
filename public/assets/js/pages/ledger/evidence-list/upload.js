@@ -5,7 +5,6 @@ export function createEvidenceUploadModule({
     notify,
     updateSummary,
     refreshEvidenceTypeCounts,
-    currentStatusColumnPolicy,
 }) {
     function currentColumnPolicyPayload() {
         const form = state.refs.excelForm;
@@ -26,20 +25,6 @@ export function createEvidenceUploadModule({
                 : {},
             column_requirement_policy: settingsState.requirementPolicy && typeof settingsState.requirementPolicy === 'object'
                 ? settingsState.requirementPolicy
-                : {},
-        };
-    }
-
-    function currentStatusPolicyPayload() {
-        const policyState = typeof currentStatusColumnPolicy === 'function'
-            ? currentStatusColumnPolicy()
-            : {};
-        return {
-            column_display_name: policyState?.columnDisplayName && typeof policyState.columnDisplayName === 'object'
-                ? policyState.columnDisplayName
-                : {},
-            column_requirement_policy: policyState?.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
-                ? policyState.columnRequirementPolicy
                 : {},
         };
     }
@@ -163,9 +148,6 @@ export function createEvidenceUploadModule({
         }
         formData.append('column_display_name', JSON.stringify(columnPolicyPayload.column_display_name));
         formData.append('column_requirement_policy', JSON.stringify(columnPolicyPayload.column_requirement_policy));
-        const statusPolicyPayload = currentStatusPolicyPayload();
-        formData.append('evidence_status_column_display_name', JSON.stringify(statusPolicyPayload.column_display_name));
-        formData.append('evidence_status_column_requirement_policy', JSON.stringify(statusPolicyPayload.column_requirement_policy));
         button.disabled = true;
         const originalText = button.textContent;
         button.textContent = '\uc5c5\ub85c\ub4dc \uc911';

@@ -101,18 +101,18 @@ async function init() {
                 import('/public/assets/js/common/grid/ag-grid-editors.js'),
                 import('/public/assets/js/common/grid/ag-grid-formatters.js'),
                 import('/public/assets/js/common/picker/admin_picker.js'),
-                import('/public/assets/js/pages/dashboard/settings/system/code-select.js'),
-                import('/public/assets/js/pages/dashboard/settings/base/client.js'),
-                import('./editors.js'),
+                import('/public/assets/js/pages/main/settings/system/code-select.js'),
+                import('/public/assets/js/pages/main/settings/base/client.js'),
+                import('./editors.js?v=20260826-transaction-requirement-policy-1'),
                 import('./calculation.js'),
                 import('./storage.js'),
                 import('./keyboard.js'),
                 import('./grid.js'),
-                import('./modal.js'),
-                import('./selects.js'),
-                import('./files.js'),
+                import('./modal.js?v=20260826-transaction-modal-viewport-1'),
+                import('./selects.js?v=20260826-common-empty-option-1'),
+                import('./files.js?v=20260826-modal-controls-single-flight-1'),
                 import('./validation.js'),
-                import('./events.js'),
+                import('./events.js?v=20260826-transaction-modal-viewport-1'),
                 import('./evidence-selection-table.js'),
                 import('./recommendation.js'),
             ]).then((modules) => {
@@ -174,6 +174,11 @@ async function init() {
     ctx.deleteTransaction = (...args) => ensureRuntime().then(() => ctx.deleteTransaction(...args));
 
     void ensureRuntime();
+    const linkedTransactionId = new URLSearchParams(window.location.search).get('transaction_id');
+    if (linkedTransactionId) {
+        showModalShell();
+        void ensureRuntime().then(() => ctx.modal?.openTransaction?.(linkedTransactionId));
+    }
 }
 
 await init();

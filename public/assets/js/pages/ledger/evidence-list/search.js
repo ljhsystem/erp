@@ -229,12 +229,20 @@ export function createEvidenceSearchModule({
     }
 
     async function refreshEvidenceTypeCounts() {
-        if (state.fixedType) {
-            const response = await fetch(`${API.seedRows}?type_counts=1`, { cache: 'no-store' });
+        const requestTypeCounts = async () => {
+            const response = await fetch(`${API.seedRows}?type_counts=1`, {
+                method: 'POST',
+                cache: 'no-store',
+            });
             const json = await response.json().catch(() => ({}));
             if (!response.ok || json.success === false) {
                 throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
             }
+            return json;
+        };
+
+        if (state.fixedType) {
+            const json = await requestTypeCounts();
 
             let fixedCount = 0;
             (Array.isArray(json.data) ? json.data : []).forEach((row) => {
@@ -254,11 +262,7 @@ export function createEvidenceSearchModule({
             return;
         }
 
-        const response = await fetch(`${API.seedRows}?type_counts=1`, { cache: 'no-store' });
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok || json.success === false) {
-            throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
-        }
+        const json = await requestTypeCounts();
 
         const nextCounts = {};
         (Array.isArray(json.data) ? json.data : []).forEach((row) => {

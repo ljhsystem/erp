@@ -1,0 +1,59 @@
+{
+  "plan_id": "DAILY_INCOME_MARIADB_BASELINE_V2",
+  "domain": "daily-employment-income",
+  "database_engine": "MariaDB",
+  "minimum_database_version": "10.6",
+  "included_migrations": [
+    "20260827_01_complete_daily_employment_income_closure",
+    "20260827_02_enable_daily_employment_income_with_company_ssot",
+    "20260827_03_add_daily_employment_income_sort_no",
+    "20260827_04_create_daily_employment_income_commands",
+    "20260827_05_add_daily_employment_income_trash",
+    "20260827_06_add_daily_employment_income_counts",
+    "20260827_08_add_daily_income_business_unit_chain",
+    "20260827_09_align_daily_income_group_ssot",
+    "20260827_10_create_daily_employment_income_groups",
+    "20260827_11_remove_daily_employment_income_group_default_rate",
+    "20260827_12_move_daily_income_work_description_to_item",
+    "20260827_13_remove_daily_income_ag_grid_table_settings",
+    "20260827_14_restore_daily_income_group_description",
+    "20260827_22_add_daily_income_header_description_memo",
+    "20260827_23_create_daily_income_mariadb_compatible_baseline",
+    "20260827_15_create_daily_income_calculation_results_allocations",
+    "20260827_16_create_daily_income_reconciliation_closure_baseline",
+    "20260827_18_add_daily_income_actual_work_minutes",
+    "20260827_20_create_common_attachment_ssot",
+    "20260827_21_add_daily_income_non_tax_command_audit"
+  ],
+  "excluded_migrations": [
+    "20260827_07_create_daily_employment_income_closure_registry",
+    "20260827_19_create_daily_income_non_taxable_revisions"
+  ],
+  "supersedes": {
+    "20260827_23_create_daily_income_mariadb_compatible_baseline": [
+      "20260827_07_create_daily_employment_income_closure_registry",
+      "20260827_19_create_daily_income_non_taxable_revisions"
+    ]
+  },
+  "dependency_notes": [
+    "20260827_23은 _07 초기 Closure 책임과 _19 비과세 책임을 함께 제공한다.",
+    "20260827_15는 계산 Revision·Result·Allocation을 생성한다.",
+    "20260827_16은 _23 Closure Registry를 최종 기관 Grain으로 확장한다.",
+    "20260827_20·_21은 _23 비과세 Revision을 FK 대상으로 사용한다."
+  ],
+  "preflight": {
+    "require_no_partial_target_tables": true,
+    "require_empty_lines_for_scope_transition": true,
+    "require_constraint_and_index_name_availability": true,
+    "require_orphan_and_duplicate_scan": true
+  },
+  "result_contract": {
+    "record_schema_fingerprint": true,
+    "record_checksums": true,
+    "record_started_at": true,
+    "record_completed_at": true,
+    "record_applied_by": true,
+    "record_engine_version": true,
+    "record_status_and_error": true
+  }
+}

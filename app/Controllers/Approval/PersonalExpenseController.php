@@ -4,6 +4,8 @@ namespace App\Controllers\Approval;
 
 use App\Controllers\System\LayoutController;
 use App\Services\Approval\PersonalExpenseApprovalService;
+use App\Services\Approval\PersonalExpenseClassificationCorrectionService;
+use App\Services\Approval\PersonalExpenseClassificationProjectionService;
 use App\Services\Approval\PersonalExpenseExcelService;
 use App\Services\Approval\PersonalExpenseService;
 use Core\DbPdo;
@@ -22,6 +24,8 @@ class PersonalExpenseController
     private PersonalExpenseService $service;
     private PersonalExpenseApprovalService $approval;
     private PersonalExpenseExcelService $excel;
+    private PersonalExpenseClassificationCorrectionService $classificationCorrection;
+    private PersonalExpenseClassificationProjectionService $classificationProjection;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -29,6 +33,8 @@ class PersonalExpenseController
         $this->service = new PersonalExpenseService($this->pdo);
         $this->approval = new PersonalExpenseApprovalService($this->pdo);
         $this->excel = new PersonalExpenseExcelService($this->service);
+        $this->classificationCorrection = new PersonalExpenseClassificationCorrectionService($this->pdo);
+        $this->classificationProjection = new PersonalExpenseClassificationProjectionService($this->pdo);
     }
 
     public function webIndex(): void
@@ -55,6 +61,14 @@ class PersonalExpenseController
     public function apiRestoreAll(): void { $this->respond(fn () => $this->service->restoreAll()); }
     public function apiPurgeAll(): void { $this->respond(fn () => $this->service->purgeAll()); }
     public function apiSaveAndSubmit(): void { $this->respond(fn () => $this->approval->saveAndSubmit($this->input())); }
+    public function apiCorrectClassification(): void { $this->respond(fn () => $this->classificationCorrection->correctBatch($this->input())); }
+    public function apiEffectiveClassifications(): void
+    {
+        $this->respond(fn () => [
+            'success' => true,
+            'data' => $this->classificationProjection->forDocument(trim((string) ($_GET['id'] ?? ''))),
+        ]);
+    }
 
     public function apiReorder(): void
     {

@@ -102,7 +102,6 @@ class EvidenceImportController
             $title = $this->evidenceTypePolicyService()->importTypeLabel($type) ?: $type;
             $this->evidenceTemplateService()->downloadTemplate($filename, $title, $headers, $samples, $required, $fields, $type);
         } catch (\Throwable $e) {
-            error_log('[ImportController] Template download failed: ' . $e->getMessage());
             if (!headers_sent()) {
                 self::clearOutputBuffers();
                 $this->json(['success' => false, 'message' => '엑셀 템플릿 다운로드 중 오류가 발생했습니다.'], 500);

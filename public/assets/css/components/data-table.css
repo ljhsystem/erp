@@ -90,7 +90,9 @@
 
 .dataTables_wrapper.dt-viewport-fitted table.dataTable thead th {
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  word-break: normal;
 }
 
 /*
@@ -127,31 +129,38 @@
 }
 
 .column-policy-star.is-required {
-  color: #dc2626;
+  color: var(--bs-danger, #dc2626);
 }
 
 .column-policy-star.is-optional {
-  color: #2563eb;
+  color: var(--bs-primary, #2563eb);
 }
 
-.dt-requirement-policy-select.is-optional {
-  color: #2563eb;
+#dtColumnSettingsModal .dt-requirement-policy-select.is-optional {
+  color: var(--bs-primary, #2563eb);
+  font-weight: 600;
 }
 
-.dt-requirement-policy-select.is-required {
-  color: #dc2626;
+#dtColumnSettingsModal .dt-requirement-policy-select.is-required {
+  color: var(--bs-danger, #dc2626);
+  font-weight: 600;
 }
 
-.dt-requirement-policy-select option[value="none"] {
-  color: inherit;
+#dtColumnSettingsModal .dt-requirement-policy-select.is-none {
+  color: var(--bs-body-color, #212529);
+  font-weight: 400;
 }
 
-.dt-requirement-policy-select option[value="optional"] {
-  color: #2563eb;
+#dtColumnSettingsModal .dt-requirement-policy-select option[value="none"] {
+  color: var(--bs-body-color, #212529);
 }
 
-.dt-requirement-policy-select option[value="required"] {
-  color: #dc2626;
+#dtColumnSettingsModal .dt-requirement-policy-select option[value="optional"] {
+  color: var(--bs-primary, #2563eb);
+}
+
+#dtColumnSettingsModal .dt-requirement-policy-select option[value="required"] {
+  color: var(--bs-danger, #dc2626);
 }
 
 .dataTables_wrapper table.dataTable {
@@ -183,12 +192,13 @@
 }
 
 .dataTables_wrapper.dt-fixed-layout > table.dataTable thead th {
-  overflow: visible;
+  overflow: hidden;
   text-overflow: clip;
   white-space: nowrap !important;
+  word-break: normal;
 }
 
-.dataTables_wrapper.dt-fixed-layout > table.dataTable tbody td {
+.dataTables_wrapper.dt-fixed-layout > table.dataTable tbody td.dt-text-truncate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap !important;
@@ -241,7 +251,7 @@
   table-layout: fixed !important;
 }
 
-.dataTables_wrapper .dataTables_scrollBody table.dataTable tbody td {
+.dataTables_wrapper .dataTables_scrollBody table.dataTable tbody td.dt-text-truncate {
   white-space: nowrap !important;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -270,14 +280,32 @@ table.dataTable thead th {
   vertical-align: middle;
   line-height: 1.25;
   border-bottom: 1px solid var(--color-border);
-  overflow: visible;
+  overflow: hidden;
   text-overflow: clip;
 }
 
-table.dataTable tbody td {
+.dataTables_wrapper table.dataTable thead th .dt-column-title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+table.dataTable tbody td.dt-text-truncate {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.dataTables_wrapper table.dataTable thead > tr > th:last-child,
+.dataTables_wrapper table.dataTable thead > tr > td:last-child,
+.dataTables_wrapper table.dataTable tbody > tr > th:last-child,
+.dataTables_wrapper table.dataTable tbody > tr > td:last-child,
+.dataTables_wrapper table.dataTable tfoot > tr > th:last-child,
+.dataTables_wrapper table.dataTable tfoot > tr > td:last-child {
+  border-right: 1px solid var(--color-border, #dbe4ee) !important;
 }
 
 table.dataTable thead th.sorting,
@@ -359,7 +387,8 @@ table.dataTable thead th.sorting_desc::after {
 
 table.dataTable thead th.sorting::before,
 table.dataTable thead th.sorting_asc::before,
-table.dataTable thead th.sorting_desc::before {
+table.dataTable thead th.sorting_desc::before,
+#dtColumnSettingsModal .dt-sort-indicator.is-asc::before {
   border-left: 4px solid transparent !important;
   border-right: 4px solid transparent !important;
   border-bottom: 6px solid var(--color-text-muted, #8a94a6) !important;
@@ -368,7 +397,8 @@ table.dataTable thead th.sorting_desc::before {
 
 table.dataTable thead th.sorting::after,
 table.dataTable thead th.sorting_asc::after,
-table.dataTable thead th.sorting_desc::after {
+table.dataTable thead th.sorting_desc::after,
+#dtColumnSettingsModal .dt-sort-indicator.is-desc::after {
   border-left: 4px solid transparent !important;
   border-right: 4px solid transparent !important;
   border-top: 6px solid var(--color-text-muted, #8a94a6) !important;
@@ -556,165 +586,627 @@ table.dataTable thead th.dt-select-column::after {
   pointer-events: none;
 }
 
-.dt-column-settings-item {
-  user-select: none;
-}
-
-/* 테이블 설정은 Excel Manager 자산을 로드하지 않아도 독립적으로 표시되어야 한다. */
-.dt-column-settings-grid {
+#dtColumnSettingsModal .dt-column-settings-scroll {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border: 1px solid #dbe4ee;
   border-radius: 10px;
+  background: var(--bs-body-bg, #fff);
+}
+
+#dtColumnSettingsModal .modal-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--color-surface, #fff);
   overflow: hidden;
-  background: #fff;
 }
 
-.dt-column-settings-grid .excel-settings-grid-header,
-.dt-column-settings-grid .excel-settings-grid-row {
-  display: grid;
-  align-items: center;
+#dtColumnSettingsModal .modal-dialog-scrollable .modal-content {
+  height: 100%;
 }
 
-.dt-column-settings-grid .excel-settings-grid-header {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+#dtColumnSettingsModal .modal-header {
+  align-items: flex-start;
 }
 
-.dt-column-settings-grid .excel-settings-grid-body .excel-settings-grid-row + .excel-settings-grid-row {
-  border-top: 1px solid #eef2f7;
+#dtColumnSettingsModal .modal-header .btn-close {
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
 }
 
-.dt-column-settings-grid .excel-settings-grid-head,
-.dt-column-settings-grid .excel-settings-grid-cell {
+#dtColumnSettingsModal .dt-column-settings-shell,
+#dtColumnSettingsModal .dt-column-settings-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
-  padding: 10px 12px;
+  min-height: 0;
 }
 
-.dt-column-settings-grid .excel-settings-grid-head {
-  color: #475569;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
+#dtColumnSettingsModal .modal-footer {
+  position: relative;
+  z-index: 30;
+  flex: 0 0 auto;
+  background: var(--color-surface, #fff);
 }
 
-.dt-column-settings-grid .excel-settings-head-icon,
-.dt-column-settings-grid .excel-settings-head-toggle {
+#dtColumnSettingsModal [data-dt-settings-subtitle] {
+  white-space: pre-line;
+}
+
+#dtColumnSettingsModal .dt-column-settings-sticky-region {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  isolation: isolate;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 3px 8px rgb(15 23 42 / 14%);
+}
+
+#dtColumnSettingsModal .dt-column-settings-toolbar {
+  flex: 0 0 auto;
+  min-height: 64px;
+  border-bottom: 1px solid #e2e8f0;
+  background: var(--color-surface, #fff);
+}
+
+#dtColumnSettingsModal .dt-column-settings-head-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+}
+
+#dtColumnSettingsModal .dt-column-settings-head-toggle.form-switch {
+  min-height: 0;
+  padding-left: 0;
+}
+
+#dtColumnSettingsModal .dt-column-settings-head-toggle.form-switch .form-check-input {
+  float: none;
+  margin-left: 0;
+}
+
+#dtColumnSettingsModal .dt-column-settings-handle-head {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   min-height: 20px;
-}
-
-.dt-column-settings-grid .excel-settings-head-icon {
-  color: #64748b;
+  color: var(--bs-secondary-color, #64748b);
   font-size: 14px;
 }
 
-.dt-column-settings-grid .excel-settings-grid-row {
-  position: relative;
-  background: #fff;
-  transition: background-color .15s ease, box-shadow .15s ease;
+#dtColumnSettingsModal .dt-column-settings-grid {
+  --dt-settings-square-control-size: 18px;
+  --dt-settings-visibility-toggle-width: 32px;
+  --dt-settings-visibility-toggle-height: 16px;
+  min-width: 984px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
 }
 
-.dt-column-settings-grid .excel-settings-grid-row:hover {
-  background: #f8fbff;
+#dtColumnSettingsModal .dt-column-settings-grid [data-dt-settings-select-all],
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-body-row .html-grid-row-selection {
+  box-sizing: border-box;
+  flex: 0 0 var(--dt-settings-square-control-size);
+  width: var(--dt-settings-square-control-size) !important;
+  min-width: var(--dt-settings-square-control-size) !important;
+  height: var(--dt-settings-square-control-size) !important;
+  min-height: var(--dt-settings-square-control-size) !important;
+  margin: 0;
 }
 
-.dt-column-settings-grid .excel-settings-grid-cell-handle,
-.dt-column-settings-grid .excel-settings-grid-cell-usage,
-.dt-column-settings-grid .excel-settings-grid-cell-order {
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-header-cell {
+  top: var(--dt-settings-toolbar-height, 64px);
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-body-row {
+  user-select: none;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-body-row:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--bs-primary, #0d6efd);
+  outline-offset: -2px;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-selection,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-width,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-selection .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-requirementPolicy .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sortDirection .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-width .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-selection .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-requirementPolicy .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-width .html-grid-cell-content {
+  text-align: center;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-selection .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-header-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-selection .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sortDirection .html-grid-cell-editor-slot {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.dt-column-settings-grid .excel-settings-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid #dbe4ee;
-  border-radius: 8px;
-  background: #fff;
-  color: #475569;
-  cursor: grab;
-}
-
-.dt-column-settings-grid .excel-settings-drag-handle:active {
-  cursor: grabbing;
-}
-
-.dt-column-settings-grid .excel-settings-order-value {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  min-height: 28px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.dt-column-settings-grid .excel-settings-grid-cell-label {
-  display: flex;
-  align-items: center;
-  width: auto;
-}
-
-.dt-column-settings-grid .excel-settings-column-label {
-  flex: 1 1 auto;
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sourceOrder .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-requirementPolicy .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-requirementPolicy .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-visible .html-grid-cell-editor-slot,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sortDirection .html-grid-cell-content,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-sortDirection .html-grid-cell-editor-slot {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   width: 100%;
-  overflow: hidden;
-  color: #0f172a;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  height: 100%;
+  min-height: 42px;
+  margin: 0;
+  padding: 0;
 }
 
-.dt-column-settings-item.is-dragging {
-  opacity: .72;
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-cell.html-grid-column-sourceOrder,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-cell.html-grid-column-requirementPolicy,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-cell.html-grid-column-visible,
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-cell.html-grid-column-sortDirection {
+  height: 42px;
+  padding: 0 !important;
+  vertical-align: middle;
 }
 
-.excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-header,
-.excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-row {
-  grid-template-columns: 68px 56px 68px minmax(180px, 1fr) minmax(220px, 1.2fr) 140px !important;
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-requirementPolicy .dt-requirement-policy-select {
+  width: 116px;
+  min-width: 116px;
+  margin: 0 auto;
+  padding-right: 22px;
+  padding-left: 8px;
+  background-position: right 6px center;
 }
 
-#dtColumnSettingsModal .modal-body {
-  overflow-x: auto;
+#dtColumnSettingsModal .dt-column-settings-grid .dt-display-name-locked:disabled {
+  color: var(--bs-secondary-color, #6c757d);
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  border-color: var(--bs-border-color, #ced4da);
+  opacity: 1;
+  cursor: not-allowed;
 }
 
-#dtColumnSettingsModal .dt-column-settings-grid,
-.dt-column-settings-grid .excel-settings-grid-body {
-  min-width: 900px;
+#dtColumnSettingsModal .dt-column-settings-grid .html-grid-column-handle .html-grid-cell-content {
+  height: 100%;
 }
 
-.dt-column-settings-display-cell,
-.dt-column-settings-policy-cell {
+#dtColumnSettingsModal .dt-column-settings-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.dt-column-settings-display-cell .form-control,
-.dt-column-settings-policy-cell .form-select {
+#dtColumnSettingsModal .dt-column-settings-source-label {
+  min-width: 0;
+  white-space: normal;
+  color: var(--bs-secondary-color, #64748b);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+#dtColumnSettingsModal .dt-column-settings-source-prefix {
+  white-space: nowrap;
+}
+
+#dtColumnSettingsModal .dt-column-settings-source-name {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.dt-column-settings-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bs-primary-bg-subtle, #cfe2ff);
+  color: var(--bs-primary-text-emphasis, #052c65);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dt-column-settings-order-badge.is-system {
+  background: var(--bs-danger-bg-subtle, #f8d7da);
+  color: var(--bs-danger-text-emphasis, #58151c);
+}
+
+.dt-column-settings-order-badge.is-calculated {
+  background: var(--bs-success-bg-subtle, #d1e7dd);
+  color: var(--bs-success-text-emphasis, #0a3622);
+}
+
+.dt-column-settings-order-badge.is-other {
+  background: var(--bs-secondary-bg, #e9ecef);
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.dt-column-settings-order-badge .bi {
+  font-size: 12px;
+  line-height: 1;
+}
+
+#dtColumnSettingsModal .html-grid-column-visible .form-check {
+  padding-left: 0;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid [data-dt-settings-visible-all],
+#dtColumnSettingsModal .dt-column-settings-grid [data-dt-settings-visible] {
+  box-sizing: border-box;
+  flex: 0 0 var(--dt-settings-visibility-toggle-width) !important;
+  width: var(--dt-settings-visibility-toggle-width) !important;
+  min-width: var(--dt-settings-visibility-toggle-width) !important;
+  max-width: var(--dt-settings-visibility-toggle-width) !important;
+  height: var(--dt-settings-visibility-toggle-height) !important;
+  min-height: var(--dt-settings-visibility-toggle-height) !important;
+  max-height: var(--dt-settings-visibility-toggle-height) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 16px !important;
+  background-size: contain;
+  transform: none !important;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid [data-dt-settings-visible-all].is-mixed {
+  border-color: var(--bs-primary, #0d6efd) !important;
+  background-color: var(--bs-primary-bg-subtle, #cfe2ff) !important;
+  background-image: radial-gradient(circle at center, var(--bs-primary, #0d6efd) 0 5px, transparent 5.5px) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  box-shadow: none;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid [data-dt-settings-visible-all].is-mixed:focus {
+  border-color: var(--bs-primary, #0d6efd) !important;
+  box-shadow: 0 0 0 0.2rem rgb(13 110 253 / 18%);
+}
+
+#dtColumnSettingsModal .dt-column-width-input {
+  width: 64px;
+  min-width: 0;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+#dtColumnSettingsModal .dt-column-width-input::-webkit-inner-spin-button,
+#dtColumnSettingsModal .dt-column-width-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+#dtColumnSettingsModal .dt-column-width-control {
+  display: inline-grid;
+  grid-template-columns: 28px minmax(52px, 64px) 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   width: 100%;
 }
 
-.dt-column-settings-grid .excel-settings-column-label {
+#dtColumnSettingsModal .dt-column-width-step,
+#dtColumnSettingsModal .dt-sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--bs-border-radius-sm, 4px);
+  color: var(--color-text-muted, #8a94a6);
+  background: transparent;
+}
+
+#dtColumnSettingsModal .dt-column-width-step:hover:not(:disabled),
+#dtColumnSettingsModal .dt-column-width-step:focus-visible,
+#dtColumnSettingsModal .dt-sort-indicator:hover:not(:disabled),
+#dtColumnSettingsModal .dt-sort-indicator:focus-visible {
+  border-color: var(--color-border, #dbe4ee);
+  background: var(--bs-secondary-bg, #e9ecef);
+  outline: none;
+}
+
+#dtColumnSettingsModal .dt-column-width-step:disabled,
+#dtColumnSettingsModal .dt-sort-indicator:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+#dtColumnSettingsModal .dt-sort-indicator {
+  position: relative;
+  width: var(--dt-settings-square-control-size);
+  min-width: var(--dt-settings-square-control-size);
+  height: var(--dt-settings-square-control-size);
+  min-height: var(--dt-settings-square-control-size);
+  margin: 0 auto;
+  border: 2px solid var(--bs-secondary-border-subtle, #b6bbc0);
+  background: var(--color-surface, #fff);
+  cursor: pointer;
+}
+
+#dtColumnSettingsModal .dt-sort-indicator.is-asc,
+#dtColumnSettingsModal .dt-sort-indicator.is-desc {
+  border-color: var(--bs-primary, #0d6efd);
+  background: var(--bs-primary-bg-subtle, #cfe2ff);
+}
+
+#dtColumnSettingsModal .dt-sort-indicator:hover:not(:disabled),
+#dtColumnSettingsModal .dt-sort-indicator:focus-visible {
+  border-color: var(--bs-primary, #0d6efd);
+}
+
+#dtColumnSettingsModal .dt-sort-indicator::before,
+#dtColumnSettingsModal .dt-sort-indicator::after {
+  content: "";
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+#dtColumnSettingsModal .dt-sort-indicator.is-asc::before {
+  display: block;
+  margin-top: 0 !important;
+}
+
+#dtColumnSettingsModal .dt-sort-indicator.is-desc::after {
+  display: block;
+  margin-top: 0 !important;
+}
+
+#dtColumnSettingsModal .dt-column-width-input:disabled {
+  color: var(--bs-secondary-color, #64748b);
+  background: var(--bs-secondary-bg, #e9ecef);
+  cursor: not-allowed;
+}
+
+#dtColumnSettingsModal .dt-view-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  margin-left: auto;
+}
+
+#dtColumnSettingsModal .dt-column-settings-toolbar-actions {
+  margin-right: auto;
+}
+
+#dtColumnSettingsModal .dt-column-settings-toolbar-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+#dtColumnSettingsModal .dt-column-settings-toolbar-controls [data-dt-settings-move-up],
+#dtColumnSettingsModal .dt-column-settings-toolbar-controls [data-dt-settings-move-down] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+#dtColumnSettingsModal .dt-column-settings-toolbar-controls [data-dt-settings-move-up] .bi,
+#dtColumnSettingsModal .dt-column-settings-toolbar-controls [data-dt-settings-move-down] .bi {
+  line-height: 1;
+}
+
+#dtColumnSettingsModal .dt-column-settings-state-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-right: 6px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--bs-border-radius-pill, 50rem);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+#dtColumnSettingsModal .dt-column-settings-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#dtColumnSettingsModal .dt-column-settings-title-row .modal-title {
+  margin: 0;
+}
+
+#dtColumnSettingsModal .dt-column-settings-title-row .dt-column-settings-state-source {
+  min-height: 18px;
+  margin-right: 0;
+  padding: 2px 7px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+#dtColumnSettingsModal .dt-column-settings-state-source.is-default {
+  color: var(--bs-secondary-color, #495057);
+  background: var(--bs-secondary-bg, #e9ecef);
+  border-color: var(--bs-border-color, #dee2e6);
+}
+
+#dtColumnSettingsModal .dt-column-settings-state-source.is-saved {
+  color: var(--bs-primary-text-emphasis, #052c65);
+  background: var(--bs-primary-bg-subtle, #cfe2ff);
+  border-color: var(--bs-primary-border-subtle, #9ec5fe);
+}
+
+#dtColumnSettingsModal .dt-view-settings[hidden] {
+  display: none;
+}
+
+#dtColumnSettingsModal .dt-view-settings-fields {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+#dtColumnSettingsModal .dt-view-settings-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  color: var(--bs-secondary-color, #64748b);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+#dtColumnSettingsModal .dt-view-settings-field .form-select {
+  width: 92px;
+  min-height: 26px !important;
+  height: 26px !important;
+  max-height: 26px;
+  padding-block: 0 !important;
+  padding-left: 8px;
+  font-size: 12px;
+  line-height: 1.1;
+  box-sizing: border-box;
+}
+
+#dtColumnSettingsModal .dt-column-settings-search-field {
+  display: inline-flex;
+  align-items: center;
+  width: 160px;
+  height: 26px;
+  gap: 6px;
+  padding: 0 7px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: var(--bs-border-radius, 6px);
+}
+
+#dtColumnSettingsModal .dt-column-settings-search-field .bi {
+  position: static;
+  flex: 0 0 auto;
+  color: var(--bs-secondary-color, #64748b);
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  transform: none;
+}
+
+#dtColumnSettingsModal .dt-column-settings-search-field .form-control {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 24px;
+  height: 24px;
+  padding: 2px 0 !important;
+  font-size: 12px;
+  line-height: 1.1;
+  background: transparent;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+#dtColumnSettingsModal .dt-column-settings-search-field:focus-within {
+  border-color: var(--bs-primary, #0d6efd);
+  box-shadow: 0 0 0 2px rgb(13 110 253 / 12%);
+}
+
+#dtColumnSettingsModal [data-dt-settings-item][hidden],
+#dtColumnSettingsModal .dt-column-settings-search-empty[hidden] {
+  display: none !important;
+}
+
+#dtColumnSettingsModal .dt-column-settings-search-empty {
+  padding: 28px 16px;
+  color: var(--bs-secondary-color, #64748b);
+  text-align: center;
+  background: var(--color-surface, #fff);
+  border-top: 1px solid var(--color-border, #dbe4ee);
+}
+
+#dtColumnSettingsModal .dt-view-settings-switch-field .form-check-input {
+  flex: 0 0 2.75rem;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 1.375rem;
+  margin: 0;
+  transform: none;
+}
+
+#dtColumnSettingsModal .dt-view-settings-switch-field {
+  gap: 3px;
+}
+
+#dtColumnSettingsModal .dt-view-settings-switch-field .form-switch {
+  padding-left: 0;
+}
+
+#dtColumnSettingsModal .dt-view-settings-switch-field > span,
+#dtColumnSettingsModal .dt-view-settings-switch-field .form-check {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.375rem;
+  line-height: 1.375rem;
 }
 
 @media (max-width: 767.98px) {
-  .excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-header,
-  .excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-row {
-    grid-template-columns: 56px 44px 56px minmax(160px, 1fr) minmax(200px, 1.1fr) 120px !important;
-    grid-template-areas: none !important;
-    row-gap: 0 !important;
+  #dtColumnSettingsModal .dt-column-settings-toolbar-controls,
+  #dtColumnSettingsModal .dt-view-settings-fields {
+    flex-wrap: wrap;
   }
+}
+
+#dtColumnSettingsModal .html-grid-body-row.is-dragging {
+  opacity: .72;
+}
+
+#dtColumnSettingsModal .html-grid-body-row.is-drop-before .html-grid-cell {
+  border-top: 2px solid var(--bs-primary, #0d6efd);
+}
+
+#dtColumnSettingsModal .html-grid-body-row.is-drop-after .html-grid-cell {
+  border-bottom: 2px solid var(--bs-primary, #0d6efd);
 }
 
 .dt-settings-drag-handle.reorder-handle {
@@ -728,6 +1220,8 @@ table.dataTable thead th.dt-select-column::after {
   border-radius: 6px;
   flex-shrink: 0;
   color: #6c757d;
+  border: 1px solid #dbe4ee;
+  background: var(--bs-body-bg, #fff);
   user-select: none;
 }
 
@@ -738,7 +1232,7 @@ table.dataTable thead th.dt-select-column::after {
 }
 
 .dt-settings-drag-handle.reorder-handle:active,
-.dt-column-settings-item.is-dragging .dt-settings-drag-handle.reorder-handle,
+#dtColumnSettingsModal .html-grid-body-row.is-dragging .dt-settings-drag-handle.reorder-handle,
 body.dt-settings-dragging .dt-settings-drag-handle.reorder-handle {
   cursor: grabbing;
 }

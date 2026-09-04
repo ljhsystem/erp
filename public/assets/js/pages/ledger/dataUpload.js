@@ -1,4 +1,4 @@
-import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapter.js';
 
 (() => {

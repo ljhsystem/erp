@@ -3,7 +3,6 @@ declare(strict_types=1);
 namespace App\Services\Mail;
 
 use Core\Helpers\ConfigHelper;
-use Core\LoggerFactory;
 
 class AdminApprovalMail
 {
@@ -13,12 +12,9 @@ class AdminApprovalMail
     private string $userEmail = '';
     private string $userId = '';
 
-    private $logger;
-
     public function __construct(Mailer $mailer)
     {
         $this->mailer = $mailer;
-        $this->logger = LoggerFactory::getLogger('service-mail.AdminApprovalMail');
     }
 
     public function send(array $data): array
@@ -32,22 +28,14 @@ class AdminApprovalMail
             throw new \InvalidArgumentException('AdminApprovalMail requires user_id.');
         }
 
-        $this->logger->info('관리자 승인 메일 발송 시도', [
-            'username'      => $this->username,
-            'employee_name' => $this->employeeName,
-            'user_email'    => $this->userEmail,
-            'user_id'       => $this->userId,
-        ]);
-
         $content = $this->build();
 
-        $result = $this->mailer->sendToAdmin($content['subject'], $content['html'], $content['text']);
-
-        $this->logger->info('관리자 승인 메일 발송 결과', [
-            'username'  => $this->username,
-            'sent'      => $result['sent'] ?? null,
-            'status'    => $result['status'] ?? null
-        ]);
+        $result = $this->mailer->sendToAdmin(
+            $content['subject'],
+            $content['html'],
+            $content['text'],
+            Mailer::SENDER_SUKHYANG_APP_ADMIN
+        );
 
         return $result;
     }
@@ -60,10 +48,6 @@ class AdminApprovalMail
         }
 
         $secret = $this->loadAppSecret();
-
-        $this->logger->info('AdminApprovalMail: secret loaded', [
-            'has_secret' => $secret !== ''
-        ]);
 
         $adminEmail = $this->mailer->getAdminEmail() ?: $this->userEmail;
 
@@ -82,26 +66,10 @@ class AdminApprovalMail
                     24 * 3600
                 );
 
-                $this->logger->info('AdminApprovalMail: token created', [
-                    'short' => substr($token, 0, 16)
-                ]);
             } catch (\Throwable $e) {
-
-                $this->log("MailToken::create 실패: " . $e->getMessage());
-                $this->logger->error('관리자 승인 메일 토큰 생성 실패', [
-                    'username'      => $this->username,
-                    'user_id'       => $this->userId,
-                    'error'         => $e->getMessage()
-                ]);
                 $token = '';
             }
         } else {
-
-            $this->log("시크릿 없음 - 토큰 미생성");
-            $this->logger->warning('관리자 승인 메일 토큰 미생성 - 시크릿 없음', [
-                'username'      => $this->username,
-                'user_id'       => $this->userId
-            ]);
         }
 
         $approveUrl = sprintf(
@@ -129,54 +97,10 @@ class AdminApprovalMail
 
     private function loadAppSecret(): string
     {
-
-        if (\defined('APP_SECRET')) {
-            $val = \constant('APP_SECRET');
-            if (is_string($val) && $val !== '') {
-                return $val;
-            }
-        }
-
-        $configFile = PROJECT_ROOT . '/config/appsetting.json';
-        if (!file_exists($configFile)) {
-            $this->log("appsetting.json 없음");
-            $this->logger->warning('AdminApprovalMail: appsetting.json 없음');
+        try {
+            return (new \Core\Security\SecretResolver())->resolve('ERP_APP_MAIN', 'secret');
+        } catch (\Core\Security\SecretResolutionException) {
             return '';
         }
-
-        $raw = file_get_contents($configFile);
-
-        $raw = preg_replace('#^\s*//.*$#m', '', $raw);
-        $raw = preg_replace('#/\*.*?\*/#s', '', $raw);
-
-        $cfg = json_decode($raw, true);
-
-        if (!is_array($cfg)) {
-            $this->log("appsetting.json 파싱 실패");
-            $this->logger->error('AdminApprovalMail: appsetting.json 파싱 실패');
-            return '';
-        }
-
-        if (!empty($cfg['AppSecret'])) {
-            return (string)$cfg['AppSecret'];
-        }
-
-        if (!empty($cfg['InternalApiSecret'])) {
-            $this->log("AppSecret 없음 — InternalApiSecret 사용");
-            $this->logger->warning('AdminApprovalMail: AppSecret 없음, InternalApiSecret 사용');
-            return (string)$cfg['InternalApiSecret'];
-        }
-
-        $this->logger->warning('AdminApprovalMail: AppSecret/InternalApiSecret 모두 없음');
-        return '';
-    }
-
-    private function log(string $msg): void
-    {
-        @file_put_contents(
-            PROJECT_ROOT . '/storage/logs/mail_debug.log',
-            date('c') . " | AdminApprovalMail | " . $msg . PHP_EOL,
-            FILE_APPEND
-        );
     }
 }

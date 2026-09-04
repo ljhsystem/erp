@@ -55,12 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         hideLoading();
-        showMessage(result.message || '로그인 실패', 'danger');
+        if (result.mail_error) {
+          showMailError(result.mail_error);
+        } else {
+          showMessage(result.message || '로그인 실패', 'danger');
+        }
         return;
       }
 
       showLoading(result.reason === 'password_expired' ? '비밀번호 변경이 필요합니다...' : '이동 중입니다...');
-      window.location.href = result.redirect || '/dashboard';
+      window.location.href = result.redirect || '/main';
     } catch (error) {
       hideLoading();
       showMessage('서버 통신 오류가 발생했습니다.', 'danger');
@@ -81,6 +85,51 @@ document.addEventListener('DOMContentLoaded', () => {
   function showMessage(text, type) {
     msgBox.className = `alert alert-${type} text-center py-2 mb-3`;
     msgBox.textContent = text;
+    msgBox.classList.remove('d-none');
+  }
+
+  function showMailError(error) {
+    msgBox.className = 'alert alert-danger text-start py-3 mb-3';
+    msgBox.replaceChildren();
+
+    const title = document.createElement('strong');
+    title.className = 'd-block mb-2';
+    title.textContent = error.title || '인증 메일을 발송하지 못했습니다.';
+    msgBox.appendChild(title);
+
+    const detail = document.createElement('div');
+    detail.textContent = error.detail || '메일 발송 설정에 문제가 있습니다. 관리자에게 문의해 주세요.';
+    msgBox.appendChild(detail);
+
+    if (error.notice) {
+      const notice = document.createElement('div');
+      notice.className = 'small mt-2';
+      notice.textContent = error.notice;
+      msgBox.appendChild(notice);
+    }
+
+    if (error.can_manage_google_app_password && error.management_url) {
+      const actions = document.createElement('div');
+      actions.className = 'd-flex flex-wrap gap-2 mt-3';
+
+      const managementLink = document.createElement('a');
+      managementLink.className = 'btn btn-sm btn-outline-danger';
+      managementLink.href = error.management_url;
+      managementLink.target = '_blank';
+      managementLink.rel = 'noopener noreferrer';
+      managementLink.textContent = 'Google 앱 비밀번호 관리';
+      actions.appendChild(managementLink);
+
+      const retryButton = document.createElement('button');
+      retryButton.type = 'button';
+      retryButton.className = 'btn btn-sm btn-danger';
+      retryButton.textContent = '다시 시도';
+      retryButton.addEventListener('click', () => form.requestSubmit());
+      actions.appendChild(retryButton);
+
+      msgBox.appendChild(actions);
+    }
+
     msgBox.classList.remove('d-none');
   }
 

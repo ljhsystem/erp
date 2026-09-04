@@ -32,6 +32,7 @@ class WorkTeamModel
         $fieldMap = [
             'sort_no' => ['col' => 't.sort_no', 'type' => 'exact'],
             'team_name' => ['col' => 't.team_name', 'type' => 'like'],
+            'business_unit' => ['col' => 't.business_unit', 'type' => 'exact'],
             'team_leader_client_name' => ['col' => 'c.client_name', 'type' => 'like'],
             'note' => ['col' => 't.note', 'type' => 'like'],
             'memo' => ['col' => 't.memo', 'type' => 'like'],
@@ -162,10 +163,10 @@ class WorkTeamModel
     {
         $sql = "
             INSERT INTO system_work_teams (
-                id, sort_no, team_name, team_leader_client_id, note, memo,
+                id, sort_no, team_name, business_unit, team_leader_client_id, note, memo,
                 is_active, created_by, updated_by
             ) VALUES (
-                :id, :sort_no, :team_name, :team_leader_client_id, :note, :memo,
+                :id, :sort_no, :team_name, :business_unit, :team_leader_client_id, :note, :memo,
                 :is_active, :created_by, :updated_by
             )
         ";
@@ -176,6 +177,7 @@ class WorkTeamModel
             ':id' => $data['id'],
             ':sort_no' => (int)($data['sort_no'] ?? 0),
             ':team_name' => trim((string)($data['team_name'] ?? '')),
+            ':business_unit' => strtoupper(trim((string) ($data['business_unit'] ?? 'CONSTRUCTION'))),
             ':team_leader_client_id' => $data['team_leader_client_id'] ?? null,
             ':note' => $data['note'] ?? null,
             ':memo' => $data['memo'] ?? null,
@@ -191,6 +193,7 @@ class WorkTeamModel
             UPDATE system_work_teams SET
                 sort_no = :sort_no,
                 team_name = :team_name,
+                business_unit = :business_unit,
                 team_leader_client_id = :team_leader_client_id,
                 note = :note,
                 memo = :memo,
@@ -206,6 +209,7 @@ class WorkTeamModel
             ':id' => $id,
             ':sort_no' => (int)($data['sort_no'] ?? 0),
             ':team_name' => trim((string)($data['team_name'] ?? '')),
+            ':business_unit' => strtoupper(trim((string) ($data['business_unit'] ?? 'CONSTRUCTION'))),
             ':team_leader_client_id' => $data['team_leader_client_id'] ?? null,
             ':note' => $data['note'] ?? null,
             ':memo' => $data['memo'] ?? null,

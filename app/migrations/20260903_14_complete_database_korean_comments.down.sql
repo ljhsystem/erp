@@ -1,0 +1,2 @@
+-- Comment SSOT는 의미 데이터이므로 자동 역변환하지 않는다.
+-- 복구는 적용 전 Manifest와 SHOW CREATE TABLE 백업을 사용한다.

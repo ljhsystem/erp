@@ -62,7 +62,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
                 <div class="voucher-review-table-wrap">
                     <?php
                     $tableId = 'voucherReviewTable';
-                    $ajaxUrl = '/api/ledger/voucher/list';
+                    $ajaxUrl = '/api/ledger/voucher/review-list';
                     $columnsType = 'voucher-header';
                     $tableClass = 'table table-bordered align-middle table-cross-highlight voucher-review-table';
                     $enableButtons = true;

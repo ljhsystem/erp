@@ -1,7 +1,7 @@
 import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { actorColumn } from '/public/assets/js/common/actor.js';
-import { getCodeNameByGroup } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { getCodeNameByGroup } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { notify } from '/public/assets/js/common/notification.js';
 
@@ -36,7 +36,9 @@ function codeColumn(data, title, escape, visible = false) {
         title,
         visible,
         defaultContent: '-',
-        render: value => escape(getCodeNameByGroup(groups[data], value) || value || '-'),
+        render: (value, _type, row) => escape(
+            row?.[`${data}_name`] || getCodeNameByGroup(groups[data], value) || value || '-'
+        ),
     };
 }
 
@@ -69,6 +71,7 @@ export async function createEmploymentContractTable({
             storageKey: 'datatable.settings.institution.employment-contract.main.v1',
             tableLabel: '근로계약관리',
             metaDomain: 'employment-contract',
+            deferSchemaRebuild: true,
         },
         buttons: [
             {
@@ -104,8 +107,9 @@ export async function createEmploymentContractTable({
                 render: value => Number(value || 0),
             },
             { data: 'contract_no', title: '계약번호', className: 'text-nowrap' },
+            { data: 'contract_date', title: '계약일', className: 'text-nowrap', defaultContent: '-' },
             { data: 'employee_name', title: '직원명', defaultContent: '-' },
-            { data: 'project_name', title: '프로젝트명', defaultContent: '-' },
+            { data: 'project_name', title: '특정 프로젝트', settingsKey: 'project_id', defaultContent: '-' },
             { data: 'previous_contract_no', title: '이전 계약번호', defaultContent: '-' },
             codeColumn('contract_type', '계약종류', escapeHtml),
             codeColumn('contract_period_type', '계약기간 구분', escapeHtml, true),
@@ -145,7 +149,7 @@ export async function createEmploymentContractTable({
         apiList: api.list,
         tableId: 'employmentContract',
         defaultSearchField: 'keyword',
-        dateOptions: ['contract_start_date', 'contract_end_date'],
+        dateOptions: ['contract_date', 'contract_start_date', 'contract_end_date'],
     });
     bindRowReorder(table, {
         api: api.reorder,

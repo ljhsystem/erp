@@ -1,0 +1,2 @@
+ALTER TABLE institution_regular_employment_income_items
+  DROP COLUMN dependent_count_snapshot;

@@ -6,15 +6,17 @@ use App\Models\Institution\EmploymentContractComponentModel;
 use App\Models\Institution\EmploymentContractModel;
 use App\Models\Institution\EmploymentContractWeeklyScheduleModel;
 use App\Models\Institution\EmploymentContractWorkSchedulePolicyModel;
-use App\Models\Institution\PayComponentModel;
 use App\Models\System\CodeModel;
 use App\Models\System\CompanyModel;
 use App\Models\User\ApprovalRequestModel;
+use App\Models\User\PositionModel;
 use App\Services\Approval\ApprovalWorkflowService;
-use App\Services\System\UserSettingService;
+use App\Services\System\StatutoryStandardResolver;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class EmploymentContractService
 {
@@ -36,14 +38,18 @@ class EmploymentContractService
     private EmploymentContractComponentModel $components;
     private EmploymentContractWeeklyScheduleModel $weeklySchedules;
     private EmploymentContractWorkSchedulePolicyModel $schedulePolicies;
-    private PayComponentModel $payComponents;
+    private PayComponentService $payComponents;
     private ApprovalRequestModel $requests;
     private ApprovalWorkflowService $workflow;
     private CodeModel $codes;
     private CompanyModel $company;
-    private UserSettingService $userSettings;
+    private PositionModel $positions;
+    private EmploymentContractFieldPolicyService $fieldPolicy;
     private EmploymentContractValidityService $validity;
     private EmploymentContractAuditService $audit;
+    private StatutoryStandardResolver $statutoryStandards;
+    private EmploymentContractStatutoryProjectionService $statutoryProjection;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -51,38 +57,63 @@ class EmploymentContractService
         $this->components = new EmploymentContractComponentModel($pdo);
         $this->weeklySchedules = new EmploymentContractWeeklyScheduleModel($pdo);
         $this->schedulePolicies = new EmploymentContractWorkSchedulePolicyModel($pdo);
-        $this->payComponents = new PayComponentModel($pdo);
+        $this->payComponents = new PayComponentService($pdo);
         $this->requests = new ApprovalRequestModel($pdo);
         $this->workflow = new ApprovalWorkflowService($pdo);
         $this->codes = new CodeModel($pdo);
         $this->company = new CompanyModel($pdo);
-        $this->userSettings = new UserSettingService($pdo);
+        $this->positions = new PositionModel($pdo);
+        $this->fieldPolicy = new EmploymentContractFieldPolicyService($pdo);
         $this->validity = new EmploymentContractValidityService($this->contracts);
         $this->audit = new EmploymentContractAuditService($pdo);
+        $this->statutoryStandards = new StatutoryStandardResolver($pdo);
+        $this->statutoryProjection = new EmploymentContractStatutoryProjectionService($pdo);
+        $this->logger = LoggerFactory::getLogger('service-institution-employment-contract');
+    }
+
+    public function minimumWageGuide(string $date): array
+    {
+        $date = trim($date);
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!$parsed || $parsed->format('Y-m-d') !== $date) {
+            throw new \InvalidArgumentException('계약 시작일을 먼저 입력해 주세요.');
+        }
+        $standard = $this->statutoryStandards->resolveOptional('MINIMUM_WAGE', $date);
+        if ($standard === null) {
+            return [
+                'status' => 'UNAVAILABLE',
+                'message' => '계약 시작일에 적용되는 최저임금 기준이 등록되지 않았습니다.',
+            ];
+        }
+        $hourlyWage = $standard['value_data']['hourly_wage'] ?? null;
+        if (!is_numeric($hourlyWage) || (float) $hourlyWage <= 0) {
+            return [
+                'status' => 'UNAVAILABLE',
+                'message' => '등록된 최저임금의 시간급 기준값을 확인해 주세요.',
+            ];
+        }
+        return [
+            'status' => 'READY',
+            'standard_id' => (string) $standard['id'],
+            'effective_from' => (string) $standard['effective_from'],
+            'effective_to' => $standard['effective_to'],
+            'hourly_wage' => (float) $hourlyWage,
+            'message' => '법정기준관리의 계약 시작일 기준 시간급 최저임금입니다.',
+        ];
     }
 
     public function formOptions(): array
     {
         return [
-            'pay_components' => array_map(
-                static fn(array $component): array => [
-                    'value' => (string) $component['id'],
-                    'label' => (string) $component['component_name'],
-                    'meta' => [
-                        'sort_no' => (int) $component['sort_no'],
-                        'component_code' => (string) $component['component_code'],
-                        'component_name' => (string) $component['component_name'],
-                        'component_type' => (string) $component['component_type'],
-                        'default_calculation_type' => (string) $component['default_calculation_type'],
-                        'default_tax_type' => (string) $component['default_tax_type'],
-                        'tax_policy_code' => $component['tax_policy_code'],
-                        'minimum_wage_treatment' => (string) $component['minimum_wage_treatment'],
-                        'ordinary_wage_treatment' => (string) $component['ordinary_wage_treatment'],
-                        'average_wage_treatment' => (string) $component['average_wage_treatment'],
-                    ],
+            'positions' => array_map(
+                static fn(array $position): array => [
+                    'value' => (string) $position['position_name'],
+                    'label' => (string) $position['position_name'],
+                    'sort_no' => (int) $position['sort_no'],
                 ],
-                $this->payComponents->activeForDate(date('Y-m-d'))
+                $this->positions->getAll(['is_active' => 1])
             ),
+            'pay_components' => $this->payComponents->optionsForDate(date('Y-m-d')),
             'component_input_options' => [
                 'work_type' => [
                     ['value' => '', 'label' => '선택'],
@@ -118,6 +149,11 @@ class EmploymentContractService
                     ['NORMAL', 'FLEXIBLE', 'SELECTIVE', 'SHIFT', 'NIGHT', 'OTHER'])
             ),
         ];
+    }
+
+    public function statutoryProjection(string $id): array
+    {
+        return ['success' => true, 'data' => $this->statutoryProjection->project($id)];
     }
 
     public function list(array $query): array
@@ -322,6 +358,13 @@ class EmploymentContractService
                 if ((string) $existing['contract_status'] !== 'DRAFT') {
                     throw new \RuntimeException('승인 진행 중이거나 승인된 계약은 직접 수정할 수 없습니다.');
                 }
+                $contractDateChanged = (string) ($existing['contract_date'] ?? '') !== (string) $data['contract_date'];
+                if ($contractDateChanged && str_starts_with((string) ($existing['revision_reason'] ?? ''), '[입력정정]')) {
+                    throw new \RuntimeException('입력누락정정 초안은 원 계약일을 변경할 수 없습니다.');
+                }
+                if ($contractDateChanged) {
+                    $data['contract_no'] = $this->contractNo((string) $data['contract_date']);
+                }
                 $data['updated_at'] = date('Y-m-d H:i:s');
                 $data['updated_by'] = $actor;
                 if (!$this->contracts->updateEditable($id, $data)) {
@@ -337,7 +380,7 @@ class EmploymentContractService
                 $data += [
                     'id' => $id,
                     'sort_no' => $this->contracts->nextSortNo(),
-                    'contract_no' => $this->contractNo(),
+                    'contract_no' => $this->contractNo((string) $data['contract_date']),
                     'revision_no' => 1,
                     'contract_status' => $draftStatus,
                     'created_at' => date('Y-m-d H:i:s'),
@@ -357,19 +400,29 @@ class EmploymentContractService
         });
     }
 
-    public function revise(string $id, string $reason, string $requestKey): array
+    public function revise(
+        string $id,
+        string $reason,
+        string $requestKey,
+        string $revisionKind = 'CHANGE',
+        ?string $contractDate = null
+    ): array
     {
         [, $actor] = $this->identity();
         $reason = trim($reason);
+        $revisionKind = strtoupper(trim($revisionKind));
         if ($reason === '') {
             throw new \InvalidArgumentException('개정사유를 입력해 주세요.');
         }
+        if (!in_array($revisionKind, ['CHANGE', 'CORRECTION'], true)) {
+            throw new \InvalidArgumentException('계약 개정 구분을 확인해 주세요.');
+        }
         $requestKey=$this->requestKey($requestKey);
-        return $this->transaction(function () use ($id, $reason, $actor, $requestKey): array {
+        return $this->transaction(function () use ($id, $reason, $actor, $requestKey, $revisionKind, $contractDate): array {
             $source = $this->contracts->find($id, false, true);
             $before=$source?$this->audit->snapshot($id):null;
-            if (!$source || (string) $source['contract_status'] !== 'APPROVED') {
-                throw new \RuntimeException('최종 승인된 계약만 개정할 수 있습니다.');
+            if (!$source || !in_array((string) $source['contract_status'], ['APPROVED', 'EFFECTIVE'], true)) {
+                throw new \RuntimeException('승인 또는 시행 중인 계약만 개정·정정할 수 있습니다.');
             }
             $newId = UuidHelper::generate();
             $copyColumns = [
@@ -377,17 +430,32 @@ class EmploymentContractService
                 'employee_identifier_snapshot', 'employer_name_snapshot',
                 'employer_registration_no_snapshot', 'employer_address_snapshot',
                 'employer_representative_snapshot', 'contract_type', 'contract_period_type',
-                'employment_category', 'working_time_type', 'contract_start_date', 'contract_end_date',
+                'employment_category', 'working_time_type', 'contract_date', 'contract_start_date', 'contract_end_date',
                 'fixed_term_reason_code', 'fixed_term_reason_detail', 'work_location_type',
                 'project_id', 'work_location_detail', 'job_title_snapshot', 'job_description',
-                'work_schedule_type', 'salary_type', 'payment_day',
-                'payment_timing', 'probation_start_date', 'probation_end_date', 'probation_rate',
+                'work_schedule_type', 'salary_type', 'payment_day', 'payment_timing',
+                'probation_start_date', 'probation_end_date', 'probation_rate',
                 'note',
             ];
             $copy = [];
             foreach ($copyColumns as $column) {
                 $copy[$column] = $source[$column] ?? null;
             }
+            $requestedContractDate = $this->optionalDate($contractDate, '계약일');
+            $sourceContractDate = $copy['contract_date'] ?? null;
+            if ($revisionKind === 'CORRECTION' && $sourceContractDate !== null
+                && $requestedContractDate !== null && $requestedContractDate !== $sourceContractDate) {
+                throw new \RuntimeException('입력누락정정은 원 계약일을 변경할 수 없습니다.');
+            }
+            $revisionContractDate = $revisionKind === 'CORRECTION'
+                ? ($sourceContractDate ?? $requestedContractDate)
+                : $requestedContractDate;
+            if ($revisionContractDate === null) {
+                throw new \RuntimeException($revisionKind === 'CORRECTION'
+                    ? '원 계약의 계약일을 입력해 주세요.'
+                    : '새 변경계약의 계약일을 입력해 주세요.');
+            }
+            $copy['contract_date'] = $revisionContractDate;
             $draftStatus = $this->activeCode(
                 'EMPLOYMENT_CONTRACT_STATUS',
                 'DRAFT',
@@ -395,9 +463,9 @@ class EmploymentContractService
             );
             $copy += [
                 'id' => $newId, 'sort_no' => $this->contracts->nextSortNo(),
-                'contract_no' => $this->contractNo(), 'previous_contract_id' => $id,
+                'contract_no' => $this->contractNo($revisionContractDate), 'previous_contract_id' => $id,
                 'revision_no' => (int) $source['revision_no'] + 1,
-                'revision_reason' => $reason, 'contract_status' => $draftStatus,
+                'revision_reason' => ($revisionKind === 'CORRECTION' ? '[입력정정] ' : '[조건변경] ') . $reason, 'contract_status' => $draftStatus,
                 'created_at' => date('Y-m-d H:i:s'), 'created_by' => $actor, 'updated_by' => $actor,
             ];
             $this->contracts->create($copy);
@@ -409,11 +477,13 @@ class EmploymentContractService
             $this->components->replace($newId, $rows, $actor);
             $this->weeklySchedules->replace($newId, $this->weeklySchedules->forContract($id, true), $actor);
             $this->schedulePolicies->replace($newId, $this->schedulePolicies->forContract($id, true), $actor);
-            $this->audit->record($newId,'CREATE_REVISION',$before,$this->audit->snapshot($newId),$reason,$actor,$requestKey);
+            $this->audit->record($newId,$revisionKind === 'CORRECTION' ? 'CREATE_CORRECTION' : 'CREATE_REVISION',$before,$this->audit->snapshot($newId),$reason,$actor,$requestKey);
             return [
                 'success' => true,
                 'data' => ['id' => $newId],
-                'message' => '개정 계약 초안을 생성했습니다. 계약기간·프로젝트와 기간제 계약 사유를 다시 확인해 주세요.',
+                'message' => $revisionKind === 'CORRECTION'
+                    ? '입력정정 초안을 생성했습니다. 당시 원계약 내용과 정정 근거를 확인해 주세요.'
+                    : '조건변경 계약 초안을 생성했습니다. 새 적용 시작일과 변경 조건을 확인해 주세요.',
             ];
         });
     }
@@ -441,6 +511,10 @@ class EmploymentContractService
             }
             $this->validateStoredSchedule($contract);
             $this->validateStoredForApproval($contract);
+            $projection = $this->statutoryProjection->project($id, true);
+            if (!empty($projection['approval_blocked'])) {
+                throw new \RuntimeException('당시 최저임금보다 계약 계산단가가 낮아 결재를 요청할 수 없습니다. 법정기준 검증을 확인해 주세요.');
+            }
             $this->validity->assertNoOverlap($id);
             $pendingStatus = $this->activeCode(
                 'EMPLOYMENT_CONTRACT_STATUS',
@@ -601,15 +675,14 @@ class EmploymentContractService
             'employer_registration_no_snapshot' => $company['biz_number'] ?: null,
             'employer_address_snapshot' => $employerAddress !== '' ? $employerAddress : null,
             'employer_representative_snapshot' => $company['ceo_name'] ?: null,
-            'job_title_snapshot' => $employee['position_name'] ?: null,
         ];
     }
     private function validateContract(array $input): array
     {
-        $this->validateConfiguredRequiredFields($input);
+        $this->fieldPolicy->validateRequiredFields($input);
         foreach ([
             'employee_id', 'contract_type', 'contract_period_type', 'employment_category',
-            'working_time_type', 'contract_start_date',
+            'working_time_type', 'contract_date', 'contract_start_date',
             'work_location_type', 'work_schedule_type', 'salary_type', 'payment_timing',
         ] as $field) {
             if (trim((string) ($input[$field] ?? '')) === '') {
@@ -626,12 +699,23 @@ class EmploymentContractService
             $input['employment_category'],
             '고용구분'
         );
+        [$employmentInsuranceStatus, $employmentInsuranceReason] = $this->insuranceApplication(
+            $input['employment_insurance_application_status_code'] ?? null,
+            $input['employment_insurance_exclusion_reason'] ?? null,
+            '고용보험'
+        );
+        [$industrialAccidentStatus, $industrialAccidentReason] = $this->insuranceApplication(
+            $input['industrial_accident_application_status_code'] ?? null,
+            $input['industrial_accident_exclusion_reason'] ?? null,
+            '산재보험'
+        );
         $workingTimeType = $this->activeCode(
             'EMPLOYMENT_WORKING_TIME_TYPE',
             $input['working_time_type'],
             '근로시간 구분'
         );
         $isFixedTerm = $contractPeriodType === self::FIXED_TERM_CONTRACT_PERIOD_TYPE;
+        $contractDate = $this->date((string) $input['contract_date'], '계약일');
         $start = $this->date((string) $input['contract_start_date'], '계약시작일');
         $end = $isFixedTerm
             ? $this->optionalDate($input['contract_end_date'] ?? null, '계약종료일')
@@ -682,13 +766,20 @@ class EmploymentContractService
                 throw new \InvalidArgumentException('특정 사업·프로젝트 완료 사유는 프로젝트를 선택해 주세요.');
             }
         }
-        if ($locationType === 'PROJECT' && $projectId === null) {
-            throw new \InvalidArgumentException('특정 현장 근무는 프로젝트를 선택해 주세요.');
-        }
         if ($locationType === 'OTHER' && $locationDetail === null) {
-            throw new \InvalidArgumentException('기타 근무장소의 상세 내용을 입력해 주세요.');
+            throw new \InvalidArgumentException(
+                '기타 근무장소는 ' . $this->fieldPolicy->label('work_location_detail', '근무장소 상세') . '을(를) 입력해 주세요.'
+            );
         }
         $paymentDay = (int) ($input['payment_day'] ?? 0);
+        $paymentTiming = $this->activeCode(
+            'PAYMENT_TIMING',
+            $input['payment_timing'] ?? null,
+            '급여지급기준'
+        );
+        if (!in_array($paymentTiming, ['CURRENT_MONTH', 'NEXT_MONTH'], true)) {
+            throw new \InvalidArgumentException('현재 상용근로소득 Runtime은 당월·익월 월급제 계약만 지원합니다.');
+        }
         $probationRate = $this->nullableNumber($input['probation_rate'] ?? null);
         if ($paymentDay < 1 || $paymentDay > 31
             || ($probationRate !== null && ($probationRate < 0 || $probationRate > 100))) {
@@ -699,18 +790,24 @@ class EmploymentContractService
             'contract_type' => $this->activeCode('EMPLOYMENT_CONTRACT_TYPE', $input['contract_type'], '계약종류'),
             'contract_period_type' => $contractPeriodType,
             'employment_category' => $employmentCategory,
+            'employment_insurance_application_status_code' => $employmentInsuranceStatus,
+            'employment_insurance_exclusion_reason' => $employmentInsuranceReason,
+            'industrial_accident_application_status_code' => $industrialAccidentStatus,
+            'industrial_accident_exclusion_reason' => $industrialAccidentReason,
             'working_time_type' => $workingTimeType,
+            'contract_date' => $contractDate,
             'contract_start_date' => $start, 'contract_end_date' => $end,
             'fixed_term_reason_code' => $fixedTermReasonCode,
             'fixed_term_reason_detail' => $fixedTermReasonDetail,
             'work_location_type' => $locationType,
             'project_id' => $projectId,
             'work_location_detail' => $locationDetail,
+            'job_title_snapshot' => $this->positionSnapshot($input['job_title_snapshot'] ?? null),
             'job_description' => $this->nullableString($input['job_description'] ?? null),
             'work_schedule_type' => $scheduleType,
             'salary_type' => $this->activeCode('SALARY_TYPE', $input['salary_type'], '급여형태'),
             'payment_day' => $paymentDay,
-            'payment_timing' => $this->activeCode('PAYMENT_TIMING', $input['payment_timing'], '급여지급기준'),
+            'payment_timing' => $paymentTiming,
             'probation_start_date' => $probationStart, 'probation_end_date' => $probationEnd,
             'probation_rate' => $probationRate,
             'note' => $this->nullableString($input['note'] ?? null),
@@ -718,37 +815,18 @@ class EmploymentContractService
         return [$contract, $weeklySchedules, $schedulePolicy];
     }
 
-    private function validateConfiguredRequiredFields(array $input): void
+    private function positionSnapshot(mixed $value): string
     {
-        $editableFields = [
-            'employee_id', 'contract_type', 'contract_period_type', 'employment_category',
-            'working_time_type', 'contract_start_date',
-            'work_location_type', 'project_id', 'work_location_detail', 'job_description',
-            'work_schedule_type',
-            'salary_type', 'payment_day', 'payment_timing', 'probation_start_date',
-            'probation_end_date', 'probation_rate', 'note',
-        ];
-        $settings = $this->userSettings->detail(
-            'institution.human_resources.employment_contracts',
-            'TABLE'
-        )['settings_json'] ?? [];
-        $policies = is_array($settings['columnRequirementPolicy'] ?? null)
-            ? $settings['columnRequirementPolicy']
-            : [];
-        $displayNames = is_array($settings['columnDisplayName'] ?? null)
-            ? $settings['columnDisplayName']
-            : [];
-
-        foreach ($editableFields as $field) {
-            if (strtolower(trim((string) ($policies[$field] ?? ''))) !== 'required') {
-                continue;
-            }
-            if (trim((string) ($input[$field] ?? '')) !== '') {
-                continue;
-            }
-            $label = trim((string) ($displayNames[$field] ?? $field));
-            throw new \InvalidArgumentException($label . '은(는) 필수 입력입니다.');
+        $snapshot = trim((string) $value);
+        if ($snapshot === '') {
+            throw new \InvalidArgumentException('계약 당시 직위·직책을 선택해 주세요.');
         }
+        foreach ($this->positions->getAll(['is_active' => 1]) as $position) {
+            if (hash_equals((string) $position['position_name'], $snapshot)) {
+                return (string) $position['position_name'];
+            }
+        }
+        throw new \InvalidArgumentException('사용 가능한 직위·직책 기준정보를 선택해 주세요.');
     }
 
     private function validateSchedule(
@@ -852,7 +930,7 @@ class EmploymentContractService
     {
         if($dayType!=='WORKDAY'){if($rows!==[])throw new \InvalidArgumentException($dayLabel.' 비근무일에는 휴게구간을 입력할 수 없습니다.');return[];}
         if($breakMinutes===0){if($rows!==[])throw new \InvalidArgumentException($dayLabel.' 휴게시간이 0분이면 상세 휴게구간을 입력할 수 없습니다.');return[];}
-        if($rows===[])throw new \InvalidArgumentException($dayLabel.'의 상세 휴게구간을 입력해 주세요.');
+        if($rows===[])return[];
         $workStartMinutes=$this->timeMinutes((string)$workStart);$workEndMinutes=$this->timeMinutes((string)$workEnd)+1440*(int)$workOffset;$out=[];$sum=0;$lastEnd=null;
         foreach($rows as$index=>$row){$start=$this->scheduleTime($row['start_time']??null);$end=$this->scheduleTime($row['end_time']??null);$offset=filter_var($row['end_day_offset']??0,FILTER_VALIDATE_INT);if($start===null||$end===null||!in_array($offset,[0,1],true))throw new \InvalidArgumentException($dayLabel.' 휴게구간 시각을 확인해 주세요.');$a=$this->timeMinutes($start);$b=$this->timeMinutes($end)+1440*$offset;if($b<=$a||$a<$workStartMinutes||$b>$workEndMinutes)throw new \InvalidArgumentException($dayLabel.' 휴게구간은 예정 근무구간 안에 있어야 합니다.');if($lastEnd!==null&&$a<$lastEnd)throw new \InvalidArgumentException($dayLabel.' 휴게구간이 서로 겹칩니다.');$sum+=$b-$a;$lastEnd=$b;$out[]=['start_time'=>$start,'end_time'=>$end,'end_day_offset'=>$offset];}
         if($sum!==$breakMinutes)throw new \InvalidArgumentException($dayLabel.' 상세 휴게구간 합계와 휴게시간(분)이 일치하지 않습니다.');return$out;
@@ -1110,6 +1188,14 @@ class EmploymentContractService
     private function validateStoredForApproval(array $contract): void
     {
         foreach ([
+            ['employment_insurance_application_status_code', 'employment_insurance_exclusion_reason', '고용보험'],
+            ['industrial_accident_application_status_code', 'industrial_accident_exclusion_reason', '산재보험'],
+        ] as [$statusColumn, $reasonColumn, $label]) {
+            [$status] = $this->insuranceApplication($contract[$statusColumn] ?? null, $contract[$reasonColumn] ?? null, $label);
+            if ($status === null) throw new \RuntimeException($label . ' 적용여부를 선택해야 결재를 요청할 수 있습니다.');
+        }
+        $this->fieldPolicy->validateRequiredFields($contract);
+        foreach ([
             'work_location_detail' => '근무장소',
             'job_description' => '종사업무',
         ] as $column => $label) {
@@ -1150,6 +1236,14 @@ class EmploymentContractService
             if ($reasonCode === 'GENERAL' && $this->exceedsTwoYearsOfContinuousEmployment($contract)) {
                 throw new \RuntimeException('일반 기간제 계약의 계속근로기간이 2년을 초과하여 결재를 요청할 수 없습니다.');
             }
+        }
+        if ((string) ($contract['work_location_type'] ?? '') === 'OTHER'
+            && trim((string) ($contract['work_location_detail'] ?? '')) === '') {
+            throw new \RuntimeException(
+                '기타 근무장소는 '
+                . $this->fieldPolicy->label('work_location_detail', '근무장소 상세')
+                . '을(를) 입력해야 결재를 요청할 수 있습니다.'
+            );
         }
         $components = $this->components->activeForContract((string) $contract['id'], true);
         if (!array_filter(
@@ -1282,9 +1376,11 @@ class EmploymentContractService
         return [$userId, $actor];
     }
 
-    private function contractNo(): string
+    private function contractNo(string $contractDate): string
     {
-        return 'EC-' . date('YmdHis') . '-' . strtoupper(substr(str_replace('-', '', UuidHelper::generate()), 0, 6));
+        $date = $this->date($contractDate, '계약일');
+        return 'EC-' . str_replace('-', '', $date) . '-'
+            . strtoupper(substr(str_replace('-', '', UuidHelper::generate()), 0, 6));
     }
 
     private function date(string $value, string $label): string
@@ -1323,6 +1419,20 @@ class EmploymentContractService
         $key=trim((string)$value);
         if($key===''||strlen($key)>100)throw new \InvalidArgumentException('요청 키를 확인해 주세요.');
         return$key;
+    }
+
+    private function insuranceApplication(mixed $statusValue, mixed $reasonValue, string $label): array
+    {
+        $status = strtoupper(trim((string) $statusValue));
+        $reason = $this->nullableString($reasonValue);
+        if ($status === '') return [null, null];
+        if (!in_array($status, ['APPLICABLE', 'EXCLUDED'], true)) {
+            throw new \InvalidArgumentException($label . ' 적용여부를 확인해 주세요.');
+        }
+        if ($status === 'APPLICABLE') return [$status, null];
+        if ($reason === null) throw new \InvalidArgumentException($label . ' 미적용 사유를 입력해 주세요.');
+        if (mb_strlen($reason) > 500) throw new \InvalidArgumentException($label . ' 미적용 사유는 500자 이하여야 합니다.');
+        return [$status, $reason];
     }
 
     private function nullableNumber(mixed $value): ?float
@@ -1364,12 +1474,22 @@ class EmploymentContractService
             $result = $callback();
             if (!$outer) {
                 $this->pdo->commit();
+                $this->logger->info('근로계약 업무 처리가 완료되었습니다.',['event_code'=>'EMPLOYMENT_CONTRACT_OPERATION_COMPLETED','result'=>'SUCCESS','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user()]);
             }
             return $result;
-        } catch (\Throwable $exception) {
+        } catch (\PDOException $exception) {
             if (!$outer && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            if(!$outer)$this->logger->error('근로계약 업무 처리에 실패했습니다.',['event_code'=>'EMPLOYMENT_CONTRACT_OPERATION_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $exception) {
+            if (!$outer && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if(!$outer)$this->logger->warning('근로계약 업무 처리가 차단되었습니다.',['event_code'=>'EMPLOYMENT_CONTRACT_OPERATION_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        } catch (\Throwable $exception) {
+            if (!$outer && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if(!$outer)$this->logger->error('근로계약 업무 처리에 실패했습니다.',['event_code'=>'EMPLOYMENT_CONTRACT_OPERATION_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
             throw $exception;
         }
     }

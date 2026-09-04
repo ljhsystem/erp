@@ -110,3 +110,5 @@ ERROR 1050 (42S01) at line 13: Table 'auth_logs' already exists
 [2026-06-16 18:35:04] SUCCESS: sukhyang_2026-06-16_181944.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.
 [2026-06-25 17:52:15] SUCCESS: sukhyang_2026-06-25_173704.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.
 [2026-07-31 16:25:18] SUCCESS: sukhyang_2026-07-31_161248.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.
+[2026-08-26 13:22:20] FAILED: sukhyang_2026-08-26_130007.sql / target=STANDBY (3306) / DB 동기화에 실패했습니다.
+[2026-08-26 17:06:25] FAILED: sukhyang_2026-08-26_152238.sql / target=STANDBY (3306) / DB 동기화에 실패했습니다.

@@ -126,6 +126,7 @@ $ui = array_merge([
     <?= AssetHelper::css('/assets/css/components/form-card.css') ?>
     <?php if (!$isLightweightFormPage): ?>
         <?= AssetHelper::css('/assets/css/components/data-table.css') ?>
+        <?= AssetHelper::css('/assets/css/components/html-grid.css') ?>
         <?php if ($loadSpreadsheetAssets): ?>
             <?= AssetHelper::css('/assets/css/components/spreadsheet.css') ?>
             <?= AssetHelper::css('/assets/css/components/excel-manager.css') ?>

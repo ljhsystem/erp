@@ -19,6 +19,8 @@ class EvidenceController
         'CARD_STATEMENT',
         'EMPLOYEE_EXPENSE_PERSONAL',
         'PAYROLL',
+        'DAILY_EMPLOYMENT_INCOME',
+        'BUSINESS_INCOME_REPORT',
     ];
 
     private const PLANNED_PAGE_NOTICES = [
@@ -27,8 +29,6 @@ class EvidenceController
         'CARD_APPROVAL' => '카드매입(카드사) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'SHOPPING_ORDER' => '카드매출(쇼핑몰) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
         'EMPLOYEE_EXPENSE' => '직원경비(개인) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
-        'PAYROLL_WITHHOLDING' => '일용직(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
-        'BUSINESS_INCOME' => '사업소득(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
     ];
 
     private const TYPE_PAGE_PATHS = [
@@ -43,9 +43,11 @@ class EvidenceController
         'CASH_RECEIPT_SALES' => '/ledger/data/cash-receipt-sales',
         'IMPORT_INVOICE' => '/ledger/data/import-invoices',
         'SHOPPING_ORDER' => '/ledger/data/shopping-orders',
+        'DAILY_EMPLOYMENT_INCOME' => '/ledger/data/daily-employment-incomes',
         'PAYROLL_WITHHOLDING' => '/ledger/data/payroll-withholdings',
         'BUSINESS_DATA' => '/ledger/data/business-data',
         'PAYROLL' => '/ledger/data/payroll',
+        'BUSINESS_INCOME_REPORT' => '/ledger/data/business-income',
         'BUSINESS_INCOME' => '/ledger/data/business-income',
         'EMPLOYEE_EXPENSE' => '/ledger/data/employee-expenses',
         'EMPLOYEE_EXPENSE_PERSONAL' => '/ledger/data/employee-personal-expenses',
@@ -94,7 +96,13 @@ class EvidenceController
             return;
         }
 
-        $this->renderListPage(null, $type);
+        $canonicalType = self::normalizeDataType($type);
+        if ($canonicalType !== $type && isset(self::TYPE_PAGE_PATHS[$canonicalType])) {
+            $this->redirect(self::TYPE_PAGE_PATHS[$canonicalType]);
+            return;
+        }
+
+        $this->renderListPage(null, $canonicalType);
     }
 
     public function webUpload(): void

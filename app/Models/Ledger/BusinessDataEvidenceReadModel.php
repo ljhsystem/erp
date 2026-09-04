@@ -26,7 +26,7 @@ class BusinessDataEvidenceReadModel
         $tableName = match ($normalizedType) {
             'BUSINESS_DATA' => 'ledger_evidence_cash_sales',
             'SHOPPING_ORDER', 'IMPORT_INVOICE' => 'ledger_evidence_business_data',
-            'BUSINESS_INCOME' => 'ledger_evidence_business_income',
+            'BUSINESS_INCOME_REPORT' => 'ledger_evidence_business_income',
             'EMPLOYEE_EXPENSE' => 'ledger_evidence_employee_expense',
             default => '',
         };
@@ -47,7 +47,7 @@ class BusinessDataEvidenceReadModel
         $employeeIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['employee_id'], "''");
         $bankAccountIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['bank_account_id'], "''");
         $cardIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['card_id'], "''");
-        $teamIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['team_id'], "''");
+        $teamIdExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['work_team_id', 'team_id'], "''");
         $clientNameExpr = $this->schemaService->coalesceExistingColumnExpr($tableName, 'body', ['client_name', 'raw_client_name', 'client_company_name', 'merchant_company_name', 'supplier_company_name', 'customer_company_name', 'description'], "''");
         $projectNameExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['project_name'], "''");
         $employeeNameExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['employee_name'], "''");
@@ -57,6 +57,7 @@ class BusinessDataEvidenceReadModel
         $createdByExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['created_by'], 'NULL');
         $updatedByExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['updated_by'], 'NULL');
         $deletedByExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['deleted_by'], 'NULL');
+        $approvedByExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['approved_by'], 'NULL');
         $createdAtExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['created_at', 'updated_at'], 'NULL');
         $updatedAtExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['updated_at', 'created_at'], 'NULL');
         $deletedAtExpr = $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['deleted_at'], 'NULL');
@@ -110,19 +111,19 @@ class BusinessDataEvidenceReadModel
                 {$bankAccountNameExpr} AS bank_account_name,
                 {$cardNameExpr} AS card_name,
                 {$teamNameExpr} AS team_name,
-                " . $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['evidence_status'], "'ACTIVE'") . " AS evidence_status,
-                " . $this->processingPolicyService->statusSelect('READY') . " AS transaction_status,
+                " . $this->schemaService->firstExistingColumnExpr($tableName, 'body', ['evidence_status'], "'CORRECTION_REQUIRED'") . " AS evidence_status,
+                " . $this->processingPolicyService->processingStatusSelect() . " AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 " . $this->processingPolicyService->reviewStatusSelect('NORMAL') . " AS review_status,
                 CASE
-                    WHEN " . $this->processingPolicyService->statusSelect('READY') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->statusSelect('READY') . "
+                    WHEN " . $this->processingPolicyService->processingStatusSelect() . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->processingStatusSelect() . "
                     WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE " . $this->processingPolicyService->statusSelect('READY') . "
+                    ELSE " . $this->processingPolicyService->processingStatusSelect() . "
                 END AS process_status,
                 CASE
-                    WHEN " . $this->processingPolicyService->statusSelect('READY') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->statusSelect('READY') . "
+                    WHEN " . $this->processingPolicyService->processingStatusSelect() . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->processingPolicyService->processingStatusSelect() . "
                     WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE " . $this->processingPolicyService->statusSelect('READY') . "
+                    ELSE " . $this->processingPolicyService->processingStatusSelect() . "
                 END AS status,
                 " . $this->processingPolicyService->errorMessageSelect() . " AS error_message,
                 tx.target_id AS transaction_id,
@@ -130,6 +131,7 @@ class BusinessDataEvidenceReadModel
                 {$createdByExpr} AS created_by_name,
                 {$updatedByExpr} AS updated_by_name,
                 {$deletedByExpr} AS deleted_by_name,
+                {$approvedByExpr} AS approved_by_name,
                 {$createdAtExpr} AS created_at,
                 {$updatedAtExpr} AS updated_at,
                 {$deletedAtExpr} AS deleted_at,
@@ -155,11 +157,35 @@ class BusinessDataEvidenceReadModel
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        if ($normalizedType === 'BUSINESS_INCOME_REPORT' && $requestedId !== '' && $rows !== []) {
+            $rows[0]['work_lines'] = $this->businessIncomeDetailLines(
+                'ledger_evidence_business_income_work_lines',
+                $requestedId,
+                'raw_sort_no'
+            );
+            $rows[0]['raw_lines'] = $this->businessIncomeDetailLines(
+                'ledger_evidence_business_income_raw_lines',
+                $requestedId,
+                'raw_sort_no'
+            );
+        }
+
         return ActorHelper::enrichActorNames($rows, [
             'created_by_name' => 'created_by',
             'updated_by_name' => 'updated_by',
             'deleted_by_name' => 'deleted_by',
+            'approved_by_name' => 'approved_by',
         ]);
+    }
+
+    private function businessIncomeDetailLines(string $table, string $evidenceId, string $sortColumn): array
+    {
+        if (!$this->schemaService->tableExists($table)) return [];
+
+        $stmt = $this->pdo->prepare("SELECT * FROM `{$table}` WHERE evidence_id = :evidence_id ORDER BY `{$sortColumn}` ASC, id ASC");
+        $stmt->execute([':evidence_id' => $evidenceId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function findCount(string $importType, string $status = '', string $requestedId = ''): int
@@ -172,7 +198,7 @@ class BusinessDataEvidenceReadModel
         $tableName = match ($normalizedType) {
             'BUSINESS_DATA' => 'ledger_evidence_cash_sales',
             'SHOPPING_ORDER', 'IMPORT_INVOICE' => 'ledger_evidence_business_data',
-            'BUSINESS_INCOME' => 'ledger_evidence_business_income',
+            'BUSINESS_INCOME_REPORT' => 'ledger_evidence_business_income',
             'EMPLOYEE_EXPENSE' => 'ledger_evidence_employee_expense',
             default => '',
         };

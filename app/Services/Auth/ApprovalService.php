@@ -26,9 +26,13 @@ class ApprovalService
 
     public function generateApprovalToken(string $userId, string $adminEmail): string
     {
-        $this->logger->info('generateApprovalToken 시작', [
+        $this->logger->info('계정승인 인증정보 생성을 시작합니다.', [
+            'event_code' => 'ACCOUNT_APPROVAL_TOKEN_STARTED',
+            'result' => 'STARTED',
+            'service' => self::class,
+            'action' => 'account_approval_token.generate',
             'user_id' => $userId,
-            'admin'   => $adminEmail,
+            'recipient_domain' => str_contains($adminEmail, '@') ? substr(strrchr($adminEmail, '@'), 1) : '',
         ]);
 
         $payload = [
@@ -41,10 +45,15 @@ class ApprovalService
 
         $raw = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
-        return base64_encode(json_encode([
+        $approvalToken = base64_encode(json_encode([
             'data' => $payload,
             'sig'  => hash_hmac('sha256', $raw, $secret),
         ], JSON_UNESCAPED_UNICODE));
+        $this->logger->info('계정승인 인증정보 생성을 완료했습니다.', [
+            'event_code' => 'ACCOUNT_APPROVAL_TOKEN_CREATED', 'result' => 'SUCCESS',
+            'service' => self::class, 'action' => 'account_approval_token.generate', 'user_id' => $userId,
+        ]);
+        return $approvalToken;
     }
 
     public function verifyApprovalToken(string $token): ?array
@@ -136,12 +145,17 @@ class ApprovalService
                 ]);
             }
 
+            $this->logger->{$ok ? 'info' : 'warning'}($ok ? '사용자 계정승인을 완료했습니다.' : '사용자 계정승인이 차단되었습니다.', [
+                'event_code' => $ok ? 'ACCOUNT_APPROVAL_COMPLETED' : 'ACCOUNT_APPROVAL_BLOCKED',
+                'result' => $ok ? 'SUCCESS' : 'BLOCKED', 'user_id' => $userId,
+            ]);
+
             return $ok;
 
         } catch (\Throwable $e) {
-            $this->logger->error('approveUser 예외', [
-                'user_id' => $userId,
-                'error'   => $e->getMessage(),
+            $this->logger->error('사용자 계정승인에 실패했습니다.', [
+                'event_code' => 'ACCOUNT_APPROVAL_FAILED', 'result' => 'FAILED',
+                'user_id' => $userId, 'error_code' => get_class($e), 'error' => $e,
             ]);
             return false;
         }
@@ -149,14 +163,11 @@ class ApprovalService
 
     public function toggleActive(string $userId, int $active): bool
     {
-        $this->logger->info('toggleActive 호출', [
-            'user_id'   => $userId,
-            'is_active' => $active,
-        ]);
-
         $ok = $this->authUsers->setActive($userId, $active, null);
 
-        $this->logger->info('toggleActive 결과', [
+        $this->logger->{$ok ? 'info' : 'warning'}($ok ? '사용자 계정 활성상태를 변경했습니다.' : '사용자 계정 활성상태 변경이 차단되었습니다.', [
+            'event_code' => $ok ? 'ACCOUNT_ACTIVE_CHANGED' : 'ACCOUNT_ACTIVE_CHANGE_BLOCKED',
+            'result' => $ok ? 'SUCCESS' : 'BLOCKED',
             'user_id' => $userId,
             'success' => $ok,
         ]);
@@ -166,14 +177,11 @@ class ApprovalService
 
     public function softDelete(string $userId, string $adminId): bool
     {
-        $this->logger->info('softDelete 호출', [
-            'user_id'    => $userId,
-            'deleted_by' => $adminId,
-        ]);
-
         $ok = $this->authUsers->softDelete($userId, $adminId);
 
-        $this->logger->warning('softDelete 결과', [
+        $this->logger->{$ok ? 'info' : 'warning'}($ok ? '사용자 계정을 삭제했습니다.' : '사용자 계정 삭제가 차단되었습니다.', [
+            'event_code' => $ok ? 'ACCOUNT_DELETED' : 'ACCOUNT_DELETE_BLOCKED',
+            'result' => $ok ? 'SUCCESS' : 'BLOCKED',
             'user_id' => $userId,
             'success' => $ok,
         ]);

@@ -5,12 +5,14 @@ namespace App\Services\System;
 use App\Models\System\ClientModel;
 use App\Repositories\System\ClientDependencyRepository;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 use PDO;
 
 class ClientTrashService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private ClientModel $model;
     private FileService $fileService;
@@ -28,9 +30,14 @@ class ClientTrashService
 
     public function delete(string $id, string $actorType = 'USER'): array
     {
+        return $this->loggedTrashMutation('거래처 삭제','CLIENT_DELETE','delete',fn():array=>$this->deleteInternal($id,$actorType));
+    }
+
+    private function deleteInternal(string $id, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('delete() called', [
+        $this->logger->info('거래처 삭제를 시작합니다.', [
             'id' => $id,
             'actorType' => $actorType,
             'actor' => $actor,
@@ -40,7 +47,7 @@ class ClientTrashService
             $item = $this->model->getById($id);
 
             if (!$item) {
-                $this->logger->warning('delete() not found', ['id' => $id]);
+                $this->logger->warning('삭제할 거래처를 찾을 수 없습니다.', ['id' => $id]);
                 return [
                     'success' => false,
                     'message' => '거래처 정보를 찾을 수 없습니다.',
@@ -48,7 +55,7 @@ class ClientTrashService
             }
 
             if (!$this->model->deleteById($id, $actor)) {
-                $this->logger->error('delete() DB failed', [
+                $this->logger->error('거래처 삭제 저장에 실패했습니다.', [
                     'id' => $id,
                     'user' => $actor,
                 ]);
@@ -59,13 +66,14 @@ class ClientTrashService
                 ];
             }
 
-            $this->logger->info('delete() success', ['id' => $id]);
+            $this->logger->info('거래처를 삭제했습니다.', ['id' => $id]);
 
             return ['success' => true];
         } catch (\Throwable $e) {
-            $this->logger->error('delete() exception', [
+            $this->logger->error('거래처 삭제 중 예외가 발생했습니다.', [
                 'id' => $id,
-                'exception' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -77,13 +85,14 @@ class ClientTrashService
 
     public function getTrashList(): array
     {
-        $this->logger->info('getTrashList() called');
+        $this->logger->info('삭제된 거래처 목록을 조회합니다.');
 
         try {
             return $this->model->getDeleted();
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() exception', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('삭제된 거래처 목록 조회 중 예외가 발생했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [];
@@ -92,9 +101,14 @@ class ClientTrashService
 
     public function restore(string $id, string $actorType = 'USER'): array
     {
+        return $this->loggedTrashMutation('거래처 복구','CLIENT_RESTORE','restore',fn():array=>$this->restoreInternal($id,$actorType));
+    }
+
+    private function restoreInternal(string $id, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restore() called', [
+        $this->logger->info('거래처 복구를 시작합니다.', [
             'id' => $id,
             'actorType' => $actorType,
             'actor' => $actor,
@@ -118,9 +132,14 @@ class ClientTrashService
 
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->loggedTrashMutation('거래처 일괄복구','CLIENT_RESTORE_BULK','restore-bulk',fn():array=>$this->restoreBulkInternal($ids,$actorType));
+    }
+
+    private function restoreBulkInternal(array $ids, string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreBulk() called', [
+        $this->logger->info('거래처 일괄복구를 시작합니다.', [
             'ids' => $ids,
             'actor' => $actor,
         ]);
@@ -151,8 +170,9 @@ class ClientTrashService
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
 
-            $this->logger->error('restoreBulk() failed', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('거래처 일괄복구에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -164,9 +184,14 @@ class ClientTrashService
 
     public function restoreAll(string $actorType = 'USER'): array
     {
+        return $this->loggedTrashMutation('거래처 전체복구','CLIENT_RESTORE_ALL','restore-all',fn():array=>$this->restoreAllInternal($actorType));
+    }
+
+    private function restoreAllInternal(string $actorType = 'USER'): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreAll() called', [
+        $this->logger->info('거래처 전체복구를 시작합니다.', [
             'actor' => $actor,
         ]);
 
@@ -202,29 +227,20 @@ class ClientTrashService
 
     public function purge(string $id, string $actorType = 'USER'): array
     {
-        $this->logger->info('purge() called', ['id' => $id, 'actorType' => $actorType]);
-
-        $result = $this->purgeClients([$id]);
-        if (($result['deleted_count'] ?? 0) > 0) {
-            return $result;
-        }
-
-        return [
-            ...$result,
-            'success' => false,
-        ];
+        return $this->loggedTrashMutation('거래처 영구삭제','CLIENT_PURGE','purge',function()use($id):array{
+            $result=$this->purgeClients([$id]);
+            return ($result['deleted_count']??0)>0?$result:[...$result,'success'=>false];
+        });
     }
 
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
-        $this->logger->info('purgeBulk() called', ['ids' => $ids, 'actorType' => $actorType]);
-        return $this->purgeClients($ids);
+        return $this->loggedTrashMutation('거래처 일괄 영구삭제','CLIENT_PURGE_BULK','purge-bulk',fn():array=>$this->purgeClients($ids));
     }
 
     public function purgeAll(string $actorType = 'USER'): array
     {
-        $this->logger->info('purgeAll() called', ['actorType' => $actorType]);
-        return $this->purgeClients(array_column($this->model->getDeleted(), 'id'));
+        return $this->loggedTrashMutation('거래처 전체 영구삭제','CLIENT_PURGE_ALL','purge-all',fn():array=>$this->purgeClients(array_column($this->model->getDeleted(),'id')));
     }
 
     private function purgeClients(array $ids): array
@@ -277,8 +293,9 @@ class ClientTrashService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('purgeClients() failed', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('거래처 영구삭제에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
                 'ids' => $ids,
             ]);
 
@@ -296,7 +313,7 @@ class ClientTrashService
 
         foreach ($filesToDelete as $file) {
             if (!$this->fileService->delete($file)) {
-                $this->logger->warning('purged client attachment cleanup failed', ['path' => $file]);
+                $this->logger->warning('영구삭제된 거래처 첨부파일 정리에 실패했습니다.', ['event_code' => 'CLIENT_FILE_CLEANUP_FAILED', 'result' => 'FAILED']);
             }
         }
 
@@ -333,10 +350,11 @@ class ClientTrashService
 
     public function reorder(array $changes): bool
     {
-        $this->logger->info('reorder() called', [
-            'changes' => $changes,
-        ]);
+        return $this->runLoggedOperation($this->logger,'거래처 정렬 저장','CLIENT_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED');
+    }
 
+    private function reorderInternal(array $changes): bool
+    {
         if (empty($changes)) {
             return true;
         }
@@ -375,7 +393,7 @@ class ClientTrashService
                 $this->pdo->commit();
             }
 
-            $this->logger->info('reorder() success');
+            $this->logger->info('거래처 정렬을 저장했습니다.');
 
             return true;
         } catch (\Throwable $e) {
@@ -383,12 +401,18 @@ class ClientTrashService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage(),
-                'changes' => $changes,
+            $this->logger->error('거래처 정렬 저장에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
+                'change_count' => count($changes),
             ]);
 
             throw $e;
         }
+    }
+    private function loggedTrashMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 }

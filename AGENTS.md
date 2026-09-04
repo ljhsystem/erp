@@ -1,5 +1,15 @@
 # 프로젝트 공통 규칙
 
+## DB와 TableSettings 생성규칙
+
+- 모든 Application BASE TABLE과 물리컬럼에는 실제 업무 의미에 맞는 한글 Comment를 작성한다.
+- Comment 없는 Table·Column 생성과 PHP·JS fallback label로 누락을 숨기는 구현을 금지한다.
+- DB 원본 컬럼순서는 TableSettings 기본순서, DB Column Comment는 기본 한글 표시명, DB NULL 허용 여부는 필수 판단의 기초 SSOT다.
+- 테이블 생성 시 물리컬럼·Projection·가상컬럼을 구분한 TableSettings 계약을 함께 설계한다.
+- 기본 미노출 물리컬럼도 Comment를 작성하며, PK·FK는 대상을 명시하고 Actor·Token·Hash·JSON은 실제 책임을 표기한다.
+- 신규 Migration은 Table/Column Comment 누락검사를 통과해야 한다.
+- Synology Calendar·CalDAV 소유의 `main_calendar_events`, `main_calendar_list`, `main_calendar_tasks`는 사용자 별도 승인 없이 Comment와 TableSettings를 변경하지 않는다.
+
 1. 한글 깨짐 금지
 2. UTF-8 (BOM 없음)
 3. LF 사용
@@ -33,6 +43,8 @@
 범위 외 수정 금지.
 
 DB 변경은 별도 승인 필요.
+
+DB Trigger는 Trigger명, 대상 테이블, 동작, 생성 이유, 대체 가능성 및 운영 영향을 사용자에게 사전 보고하고 명시적 승인을 받은 경우에만 생성할 수 있다. 제거된 법정기준·사업소득 Trigger를 이름 변경, Stored Procedure, Event Scheduler 또는 다른 숨은 구조로 재도입하는 것을 금지한다.
 
 분석 요청 시 수정 금지.
 
@@ -71,29 +83,59 @@ DB 변경은 별도 승인 필요.
 - 신규 구현과 리팩토링은 공용 SSOT를 사용하도록 개발한다.
 - 공용 SSOT를 사용할 수 없는 예외가 있으면 구현 전에 사유와 영향 범위를 먼저 보고한다.
 
+## 캘린더·일정 임시 보호 및 리팩토링 유예 규칙
+
+- Main 캘린더·일정은 Synology Calendar·CalDAV 외부연동 계약과 운영 일정 데이터를 보유하므로, 캘린더 기능 Closure를 시작하기 전까지 일반 구조 리팩토링 범위에서 제외한다.
+- 허용 범위는 운영 장애 수정, 보안 수정, 데이터 보존을 위한 긴급 수정, 사용자가 별도로 승인한 변경으로 제한한다.
+- 도메인명 전환처럼 이미 승인된 전사 SSOT 변경은 필요한 최소 범위에서만 반영하며, 이를 캘린더 구조 리팩토링 승인으로 확대 해석하지 않는다.
+- `app/Services/Calendar`의 직접 SQL은 정상 구조로 인정하지 않고 승인된 임시 기술부채로 관리한다. 전체 아키텍처 감사에서는 일반 업무 위반과 분리해 `캘린더 보호·유예` 항목으로 파일 수와 호출 수를 계속 보고한다.
+- 캘린더 유예를 이유로 캘린더 외 Controller·Service·View·Helper의 직접 SQL이나 다른 아키텍처 위반을 허용하지 않는다.
+- 캘린더와 공용 계약을 함께 사용하는 Actor, Permission, PageRegistry, TableSettings, 공용 UI 자산은 캘린더 전용 우회 구현 없이 기존 공용 SSOT를 유지한다.
+- 캘린더 개발 재개 시 기능 추가보다 먼저 `Controller → Service → Model/Repository → DB` 경계를 확정하고, Query·CRUD·Trash·Sync SQL을 책임별 Model/Repository로 이전하는 Calendar SQL Ownership Closure 계획을 수립해 사용자 승인을 받는다.
+- Calendar SQL Ownership Closure가 완료되기 전에는 캘린더 Service 직접 SQL을 제거 완료 또는 ERP 전체 SQL 책임 Closure 완료로 판정하지 않는다.
+- Synology Calendar·CalDAV 소유 Table의 Comment·TableSettings 보호와 DB 변경 사전승인 규칙은 이 유예와 관계없이 계속 적용한다.
+
+## 소득자료 날짜 SSOT 규칙
+
+- 상용·일용·사업소득 문서에 메모성 `지급예정일` 컬럼·입력·검색조건을 신규 생성하거나 재도입하지 않는다.
+- 상용근로소득의 증빙·거래·세액 기준일은 귀속월 말일을 사용한다.
+- 일용근로소득의 거래일은 작업자별 실제 Workday 중 최종 근무일을 사용한다.
+- 사업소득의 거래일은 Group이 아니라 개인 지급 Item의 `transaction_date`를 사용한다.
+- 근로계약의 약정 지급일은 계약조건 Snapshot이며 소득자료 Header·Evidence 원본에 복제하지 않는다.
+- 공용 `ledger_transactions.transaction_date`는 실제 거래 사실 SSOT이므로 예정일 대체 저장소로 사용하지 않는다.
+
 ## ERP 개발 표준 규칙
 
 ### 0. Architecture Guide
 
+- 프로젝트의 기본 실행 구조는 `Route → Controller → Service → Model/Repository → DB`로 고정한다.
+- 프론트엔드 구조는 `View(HTML 구조·초기값·Asset 연결) + JS(상호작용·상태·API 통신) + CSS(표현·배치·반응형)`로 고정한다.
+- Controller, Service, Model, Repository, View, JS, CSS의 책임 경계를 우회하거나 한 계층에 합쳐 구현하지 않는다.
+- 업무규칙과 업무 처리 흐름의 최종 SSOT는 Service다. UI 검증은 사용자 편의를 위한 선행 검증이며 Service 검증을 대체하지 않는다.
+- 개발규칙은 현재 Runtime과 확정 Architecture에 맞춰 계속 진화해야 한다. 프로젝트 전반에 재사용될 책임·네이밍·구조 기준이 새로 확정되면 후속 구현 전에 `AGENTS.md`를 먼저 갱신한다.
 - 도메인 생성 또는 구조 개편 시작 전 반드시 SSOT 도메인명을 먼저 확정한다.
 - SSOT 도메인명은 Route, Controller, Service, Model, View, JS, CSS, Permission, PageRegistry에서 동일하게 사용한다.
 - 허용 예시: `company`, `brand`, `cover`, `client`, `project`, `bank-account`, `card`, `work-team`
 - 하나의 도메인에 대해 `brand`, `brand_logo`, `brand-logo`처럼 복수 SSOT를 생성하는 것을 금지한다.
 - 도메인명 표준이 확정되지 않은 상태에서 신규 파일, 신규 Route, 신규 권한, 신규 페이지 레지스트리 항목을 추가하지 않는다.
 - 도메인명 변경이 필요한 경우 영향 범위를 Route, Controller, Service, Model, View, JS, CSS, Permission, PageRegistry 기준으로 먼저 조사한다.
+- ERP 최상위 진입·공통 현황·캘린더·알림·설정 영역의 SSOT 도메인명은 `Main`(`main`)이다.
+- `Dashboard`(`dashboard`)는 독립 소유 도메인명이 아니라 각 업무 도메인의 현재 상태를 요약하는 기본 진입 화면 역할명으로만 사용한다.
+- Main 도메인의 기본 Dashboard는 `/main`과 `web.main.dashboard`를 사용하며, 다른 업무 도메인의 Dashboard는 해당 도메인 소유 경로와 key를 유지한다.
+- 신규 Namespace·View·JS·CSS·Route 소유 경로에 최상위 `Dashboard` 도메인을 다시 생성하지 않는다.
 
 ### 1. Controller 규칙
 
-- Controller는 요청/응답, 파라미터 수집, 권한 흐름, 트랜잭션 진입점만 담당한다.
+- Controller는 HTTP 요청의 진입점이며 요청/응답, 파라미터 수집, 인증·권한 흐름, Service 호출만 담당한다.
 - 업무 규칙, DB SQL, 복잡한 상태 판단은 Controller에 두지 않는다.
 - API Controller는 도메인 단위로 분리한다.
-- 기준 구조는 `app/Controllers/{Module}/{Domain}Controller.php` 또는 `app/Controllers/Dashboard/Settings/{Domain}Controller.php`이다.
+- 기준 구조는 `app/Controllers/{Module}/{Domain}Controller.php` 또는 `app/Controllers/Main/Settings/{Domain}Controller.php`이다.
 - API 메서드는 `apiList`, `apiDetail`, `apiSave`, `apiDelete`, `apiTrashList`, `apiRestore`, `apiPurge`, `apiReorder` 형식을 사용한다.
 - 화면 렌더링 메서드는 `index`, `webIndex`, `web{Domain}` 중 하나로 일관되게 사용한다.
 - 하나의 Controller가 여러 메뉴의 저장/조회/삭제를 동시에 담당하지 않도록 한다.
 - 비대해진 Controller는 기능 단위 Controller로 분리한다.
 - Controller에서 허용되는 책임은 Request 수집, Service 호출, Response 반환으로 제한한다.
-- Controller에서 업무규칙, 검증, 파일처리, 트랜잭션, 로그 기록, DB 직접 접근을 금지한다.
+- Controller에서 업무규칙, 업무 검증, 파일처리, DB 트랜잭션 시작·Commit·Rollback, 로그 기록, Model/Repository 직접 호출, DB 직접 접근을 금지한다.
 
 ### 2. Service 규칙
 
@@ -102,26 +144,40 @@ DB 변경은 별도 승인 필요.
 - 외부 연동, 상태 전환, 검증, 복합 저장, 트랜잭션 처리 단위는 Service에 둔다.
 - Service 이름은 `{Domain}Service.php` 형식을 사용한다.
 - 동일 도메인 내 복합 기능은 `{Domain}{Purpose}Service.php`로 분리할 수 있다.
-- Service에서 직접 SQL을 작성하는 것은 최소화한다.
+- 런타임 Service에서 실행 가능한 SQL 문자열을 직접 작성하거나 PDO·DB Connection으로 쿼리를 실행하는 것을 금지한다.
+- Service의 모든 DB 접근은 Model 또는 Repository를 통해 수행한다. Migration, 격리 검증도구, 운영 감사도구는 런타임 Service SQL 금지의 예외지만 일반 요청 경로에서 호출하지 않는다.
 - 여러 Model을 조합하는 로직은 Controller가 아니라 Service에 둔다.
 - Service는 업무의 단일 책임 주체이다.
-- Service에서는 업무규칙, 검증, 저장, 수정, 삭제, 복구, 파일처리, 트랜잭션, 로그 기록을 허용한다.
+- Service에서는 업무규칙, 검증, 여러 Model/Repository의 조합, 저장·수정·삭제·복구 흐름, 파일처리, 외부연동, DB 트랜잭션, 업무·감사 로그 기록을 허용한다.
+- DB 트랜잭션의 시작·Commit·Rollback 책임은 Service에만 둔다. Model과 Repository는 전달받은 Connection 범위에서 쿼리만 수행한다.
+- 사용자에게 노출하지 않는 상세 오류 원인과 업무 처리 로그는 Service에서만 기록한다.
 
 ### 3. Model 규칙
 
 - Model은 단일 테이블 또는 명확한 저장소 단위를 담당한다.
 - Model 이름은 `{Domain}Model.php` 형식을 사용한다.
 - Model은 조회, 생성, 수정, 삭제, 정렬, 휴지통 처리 등 DB 접근을 담당한다.
+- Model은 SQL 실행과 DB 결과 반환만 담당하며 업무규칙 판단, 권한 판단, 사용자 메시지 생성, HTTP Request/Response 접근, 파일처리, 외부 API 호출, 트랜잭션 orchestration, 화면 Projection 조립을 금지한다.
 - Controller에서 직접 SQL을 작성하지 않는다.
 - 복수 테이블 조인이 반복되는 경우 Repository 또는 전용 Model 메서드로 분리한다.
 - 테이블 존재 여부, 컬럼 존재 여부 보정 로직은 일반 런타임 CRUD와 분리한다.
 - legacy 테이블명은 신규 Model에 직접 사용하지 않는다.
 - Model에서 로그 기록을 금지한다.
 
+### 3-1. Repository 규칙
+
+- Repository는 복수 테이블 JOIN, 집계, 검색, 통계, 복잡한 Projection처럼 단일 Model 책임을 넘는 DB 조회·저장소 조합을 담당한다.
+- Repository 이름은 `{Domain}Repository.php` 형식을 사용하고 `app/Repositories/{Module}/{Domain}Repository.php`에 둔다.
+- Repository는 SQL 실행과 DB 결과 반환만 담당한다. 업무규칙, 권한 판단, 사용자 메시지, HTTP 처리, 파일처리, 외부연동, 트랜잭션 시작·Commit·Rollback, 로그 기록을 금지한다.
+- Controller가 Repository를 직접 호출하는 것을 금지하며 반드시 Service를 거친다.
+- 단일 테이블 CRUD를 편의상 Repository에 중복 구현하지 않고 기존 Model을 재사용한다.
+
 ### 4. JS 규칙
 
 - JS는 화면 단위 entry 파일을 둔다.
-- 기준 구조는 `public/assets/js/pages/{module}/{group}/{domain}.js` 또는 `public/assets/js/pages/{module}/{domain}/index.js`이다.
+- JS는 사용자 상호작용, 화면 상태, 입력 보조 검증, API 통신, 테이블·모달·Picker 제어를 담당한다.
+- JS에 서버 업무규칙의 최종 판정, 권한의 최종 판정, DB 의미를 대체하는 계산 SSOT를 두지 않는다.
+- 신규 기준 구조는 `public/assets/js/pages/{module}/{group?}/{domain}/index.js`이다. 기존 단일 `{domain}.js`는 전용 규칙에 따른 module shim 또는 전환 전 호환 파일로만 유지한다.
 - API URL은 파일 상단의 `API` 객체 또는 전용 API client 파일에 모은다.
 - 이벤트 바인딩, 테이블 초기화, 모달 제어, API 호출을 섞되, 반복 로직은 공통 component/helper로 분리한다.
 - URL 문자열을 화면 곳곳에 흩뿌리지 않는다.
@@ -129,6 +185,7 @@ DB 변경은 별도 승인 필요.
 - 한 화면 JS가 과도하게 커지면 기능별 모듈로 분리한다.
 - JS 수정 시 브라우저 구문 오류가 없도록 확인한다.
 - JS에서 로그 기록을 금지한다.
+- 운영 로그 전송, 업무 감사 로그 생성, 서버 오류 원문 출력은 금지한다. 개발 중 임시 `console.*`은 완료 전에 제거한다.
 - JS 파일이 1000라인을 초과하면 분리 검토 대상이다.
 - JS 파일이 1500라인을 초과하면 분리 계획 수립이 필수다.
 - JS 파일이 2000라인을 초과하면 최우선 분리 대상으로 분류한다.
@@ -189,13 +246,47 @@ const mergedDefaultColDef = {
 ### 5. View 규칙
 
 - View는 화면 구조와 서버에서 필요한 초기 변수만 담당한다.
-- View 경로는 `app/views/{module}/{group}/{domain}.php` 또는 `app/views/{module}/{domain}/index.php`를 사용한다.
+- View는 HTML 구조, 서버가 전달한 초기값 바인딩, 공용 Partial 조립, JS/CSS Asset 연결을 담당한다.
+- View 신규 기준 경로는 `app/views/{module}/{group?}/{domain}/index.php`이다. 기존 `{domain}.php`는 모듈 전환 전 호환 View로만 유지하고 신규 생성하지 않는다.
 - 모달, 검색 폼, 휴지통, 반복 UI는 partial로 분리한다.
 - View 안에 업무 로직이나 SQL을 두지 않는다.
 - View에서 사용하는 API URL은 JS의 API 객체와 일치해야 한다.
 - 공통 휴지통은 `ui-modal-trash.php` 등 공통 컴포넌트를 사용한다.
 - 화면별 JS/CSS는 `AssetHelper`로 명시한다.
 - View에서 로그 기록을 금지한다.
+- View에서 업무검증, 상태전환, 금액계산, 권한 최종판정, API 호출을 구현하지 않는다.
+
+### 5-1. CSS 규칙
+
+- CSS는 화면의 배치, 크기, 간격, 색상, 시각적 상태와 반응형 표현만 담당한다.
+- CSS로 업무요소를 임의로 숨겨 권한·검증·상태제어를 우회하지 않는다.
+- 업무 상태와 동작 가능 여부는 Service 응답과 JS 상태 제어로 결정하고 CSS는 결정된 상태를 표현만 한다.
+- 공용 Component CSS를 우선 사용하며 페이지 전용 CSS는 해당 도메인 범위로 제한한다.
+- CSS에서 로그, 데이터 가공, 업무값 생성 역할을 구현하지 않는다.
+
+### 5-2. 시스템 로그 책임 규칙
+
+- 업무처리 로그, 감사 로그, 외부연동 로그와 예외의 상세 원인은 Service만 기록한다.
+- Controller, Model, Repository, View, JS, CSS, Adapter, Helper, Event Handler, Command, Job, Scheduler가 업무 Logger를 직접 호출하는 것을 금지하며 이 계층들은 Service를 호출한다.
+- 하위 계층은 예외 또는 구조화된 결과를 Service로 반환하고 Service가 업무 맥락과 Actor를 결합해 기록한다.
+- 웹서버 접근로그, PHP Fatal, Bootstrap 장애처럼 Service 진입 전후의 기반 기술 로그는 공용 Logging Infrastructure의 예외로 인정한다. 이 예외에 업무판단이나 업무 데이터 감사기록을 넣지 않는다.
+- Route의 `log` 메타는 로깅 활성 정책일 뿐 로그 본문을 생성하는 책임이 아니다.
+- 모든 Service에 형식적인 초기화·조회 로그를 일괄 추가하지 않는다. 상태변경, 외부연동, 파일처리, 승인, 생성, 삭제·복구, 운영 배치의 업무 경계 Service가 성공·업무차단·실패를 정확히 한 번 기록한다.
+- 순수 계산, Formatter, Resolver, Policy, 읽기 전용 Projection은 자체 로그를 중복 기록하지 않고 예외 또는 구조화된 결과를 상위 업무 경계 Service로 전달한다.
+- Service 로그는 공용 `LoggerFactory`를 사용하며 임의 `error_log()`, 개별 로그파일 쓰기, 화면별 Logger 생성 방식을 금지한다. 승인된 Backup·Restore 실행 결과파일은 운영 산출물 예외로 분리한다.
+- 로그 채널은 `service-{module}-{domain}`을 사용하고 실제 회전파일은 `service-{module}-{domain}-YYYY-MM-DD.log`를 사용한다. 클래스명, 대소문자, 점과 하이픈을 혼용한 신규 채널명을 금지한다.
+- 로그 메시지는 사용자가 이해할 수 있는 한글 업무문장으로 작성한다. 영문 메서드명, 내부 상태코드, Exception 원문만으로 메시지를 작성하지 않는다.
+- 업무 로그 Context는 가능한 경우 `event_code`, `result`, `service`, `action`, `actor`, `target_type`, `target_id`, `request_id` 또는 `correlation_id`, `error_code`, `duration_ms`를 사용한다.
+- 주민등록번호 원문·암호문·복호화값, 비밀번호, Secret, Token, Authorization, Cookie, Session, API Key, Service Key, 전체 이메일주소, 전체 Request·Payload·설정값을 로그에 기록하지 않는다.
+- 공용 Logger의 Redaction은 최종 방어선이며 호출 Service도 금지값을 Context에 전달하지 않아야 한다. 민감값을 일부 마스킹해 디버깅용으로 남기는 개별 구현도 금지한다.
+- 동일 예외를 하위 Service와 상위 Service가 중복 기록하지 않는다. 예외를 최종적으로 업무결과로 변환하거나 Rollback을 결정하는 업무 경계 Service가 기록한다.
+- 운영 기본 로그레벨은 `INFO`, 개발환경은 `DEBUG`를 허용한다. 정상 단순조회·생성자 초기화·반복 Loop 단위 INFO 로그를 금지하고 집계 Summary 또는 오류만 기록한다.
+- 로그관리 화면은 원문 기술로그를 그대로 사용자에게 노출하지 않는다. 한글 요약을 기본으로 제공하고 Stack Trace와 내부 상세는 권한이 있는 관리자용 접힌 상세로 제한한다.
+- 기존 기능의 오류 수정, 오작동 분석, 데이터 보정, 리팩토링을 시작하기 전에 해당 도메인 Service 로그와 연관 `request_id`·`correlation_id`를 먼저 확인한다. 로그를 확인하지 않은 추측성 수정은 금지한다.
+- 수정 전 로그에서 최초 오류시각, `event_code`, 대상 식별자, 반복 횟수와 연쇄 실패를 확인해 재현 범위를 정하고, 수정 후 동일 경로를 다시 실행해 같은 오류가 재발하지 않는지 로그로 검증한다.
+- 운영 데이터 보정이 필요한 경우 로그는 조사 근거로만 사용한다. 로그 내용만으로 DML을 실행하지 않고 DB 원본·업무 불변식·관련 Evidence·Transaction·Approval 연결을 함께 대조한다.
+- 필요한 진단정보가 로그에 없으면 임시 출력이나 Controller·Model 로그를 추가하지 않는다. 담당 업무 경계 Service에 개인정보를 제외한 구조화 Context와 `event_code`를 추가하고 회귀검증 후 유지 여부를 결정한다.
+- 작업 종료 보고에는 `수정 전 확인한 로그`, `원인 판단에 사용한 event_code 또는 correlation_id`, `수정 후 재발 여부`를 포함한다. 해당 실행 로그가 존재하지 않는 신규 기능은 그 사실과 대체 검증 근거를 명시한다.
 
 ### 6. API 규칙
 
@@ -224,6 +315,8 @@ const mergedDefaultColDef = {
 
 ### 7. DB 네이밍 규칙
 
+- Table·Column·Index·Constraint 이름은 영문 소문자 `snake_case`를 사용한다.
+- 업무 테이블은 복수형 도메인명을 기본으로 하며 기존 확정 SSOT가 단수형인 경우에만 예외로 유지한다.
 - 시스템/기준정보 테이블은 `system_*`을 사용한다.
 - 인증 사용자와 전사 공용 직원·조직 마스터는 `user_*`을 사용한다.
 - 대외기관업무의 페이지 소유 업무 테이블은 `institution_{page_domain}_*`을 사용한다.
@@ -240,10 +333,23 @@ const mergedDefaultColDef = {
 - 이력 테이블은 `{domain}_histories` 형식을 사용한다.
 - 중간 매핑 테이블은 `{source}_{target}_links` 또는 `{domain}_links` 형식을 사용한다.
 - 신규 코드에서 삭제 예정 legacy 테이블을 직접 참조하지 않는다.
+- 기본 PK 컬럼은 `id`를 사용하고 참조 FK 컬럼은 `{target_singular}_id`를 사용한다. UUID·정수 등 실제 타입과 문자셋·Collation은 참조 대상 PK와 정확히 일치시킨다.
+- Boolean 성격은 `is_*`, 보유 여부는 `has_*`, 가능 여부 Projection은 `can_*`을 사용한다.
+- 업무일자는 `*_date`, 시각을 포함한 일시는 `*_at`, 귀속연월은 `*_year_month`를 사용한다.
+- 금액은 `*_amount`, 수량은 `*_quantity`, 요율은 `*_rate`, 건수는 `*_count`, 정렬순서는 `sort_no`를 사용한다.
+- 코드 SSOT 값은 `*_code`, 업무 상태는 `*_status` 또는 도메인에서 확정한 `*_status_code`를 사용하며 같은 의미의 두 컬럼을 중복 생성하지 않는다.
+- 승인 원본 Snapshot은 `raw_*`, 사용자 표시 Projection은 `*_name`, Actor 원본은 `*_by`, Actor 표시명은 `*_by_name` 규칙을 따른다.
+- Index는 `idx_{table}_{purpose}`, UNIQUE는 `uk_{table}_{purpose}`, FK는 `fk_{child}_{parent}_{purpose}`, CHECK는 `chk_{table}_{purpose}` 형식을 사용한다. 이름이 DB 길이 제한을 넘으면 도메인 의미를 보존하는 범위에서 축약한다.
+- 로그·이력·링크 테이블은 각각 `{domain}_logs`, `{domain}_histories`, `{source}_{target}_links`를 기본으로 하며 단수·복수 표기를 한 도메인 안에서 혼용하지 않는다.
 
 ### 7-1. Database Guide
 
-- 기존 Migration 수정은 금지하고 신규 Migration 생성 방식만 사용한다.
+- 확정 Migration 수정은 금지하고 신규 Migration 생성 방식만 사용한다.
+- 확정 Migration은 Git 등록, 공식 Branch·배포본 포함, 운영·개발·테스트 공식 환경 적용, Migration History·checksum 등록, 다른 적용 Migration의 선행조건 참조, 공식 Baseline·Closure 적용본 확정 중 하나라도 해당하는 Migration이다. 확정 Migration은 수정·교체·삭제·이름변경하지 않는다.
+- Draft Migration은 Git 미등록, 공식 Branch·배포본 미포함, 모든 공식 환경 적용 이력 0건, Migration History·checksum 등록 0건, 공식 Baseline 미포함, 다른 적용 Migration의 선행조건 미사용, 기능 Closure 미확정 조건을 모두 증명한 Migration이다.
+- 검증된 Draft Migration은 최초 적용 전에 발견된 실행 불가능 SQL, 확정 SSOT와 충돌하는 검사, 잘못된 테이블·컬럼 참조, 적용 전 무결성 결함, Migration 목적 달성 불가 오류에 한해 직접 정정할 수 있다.
+- Draft 정정으로 적용 이력을 은폐하거나 운영 DB 이력을 재작성하거나 기존 데이터 의미를 변경하거나 승인 범위를 확대하거나 실패를 성공 처리하거나 Migration History·checksum을 조작하거나 기존 Revision·Source·Calculation FK를 변경하지 않는다.
+- Draft 여부가 하나라도 불명확하면 확정 Migration으로 취급한다.
 - 신규 테이블 생성 시 `TableDictionary.md` 갱신이 필수다.
 - 컬럼 추가, 삭제, 타입 변경 전 `Model`, `Service`, `Controller`, `View`, `JS` 영향도 조사를 먼저 수행한다.
 - 컬럼 추가 또는 변경 시 런타임 저장 흐름과 조회 흐름을 분리해서 영향 범위를 검토한다.
@@ -254,12 +360,11 @@ const mergedDefaultColDef = {
 - Service: `{Domain}Service.php`
 - Model: `{Domain}Model.php`
 - Repository: `{Domain}Repository.php`
-- View: `{domain}.php` 또는 `{domain}/index.php`
+- View 신규 표준: `{domain}/index.php`
+- 기존 단일 View: `{domain}.php`는 모듈 전환 전까지 호환 유지할 수 있으나 신규 생성하지 않는다.
 - Partial: `{domain}_modal.php`, `{domain}_form.php`, `{domain}_table.php`
-- JS 단일 파일: `{domain}.js`
-- JS 모듈형: `{domain}/index.js`
-- CSS 단일 파일: `{domain}.css`
-- CSS 모듈형: `{domain}/index.css`
+- JS 신규 표준: `{domain}/index.js`; 기존 `{domain}.js`가 Asset 진입점이면 실제 로직을 두지 않는 module shim으로만 유지한다.
+- CSS 신규 표준: `{domain}/index.css`; 기존 `{domain}.css`는 전환 전 호환 Asset에 한해 유지한다.
 - 파일명은 도메인명을 기준으로 맞춘다.
 - 같은 메뉴에서 `data`, `import`, `evidence`, `seed` 같은 다른 명칭을 혼용하지 않는다.
 - 레거시 명칭은 신규 파일명에 사용하지 않는다.
@@ -370,7 +475,9 @@ const mergedDefaultColDef = {
 - Controller 1,500라인 초과 금지
 - Service 1,500라인 초과 금지
 - Model 1,000라인 초과 금지
+- Repository 1,000라인 초과 금지
 - JS 1,500라인 초과 금지
+- CSS 500라인 초과 시 분리 계획 수립
 
 초과 시 분리 계획을 수립한다.
 
@@ -388,16 +495,19 @@ app/Services/{Module}/{Domain}Service.php
 Model
 app/Models/{Module}/{Domain}Model.php
 
+Repository
+app/Repositories/{Module}/{Domain}Repository.php
+
 View
-app/views/{module}/{domain}/index.php
+app/views/{module}/{group?}/{domain}/index.php
 
 JS
-public/assets/js/pages/{module}/{domain}/index.js
+public/assets/js/pages/{module}/{group?}/{domain}/index.js
 
 CSS
-public/assets/css/pages/{module}/{domain}/index.css
+public/assets/css/pages/{module}/{group?}/{domain}/index.css
 
-신규 파일은 위 구조를 따른다.
+`{group?}`은 실제 메뉴 계층이 있을 때만 사용한다. 신규 파일은 위 구조를 따르며 단일 파일 예외와 기준정보 shim은 각 전용 규칙을 따른다.
 
 
 ### 12. 신규 기능 개발 규칙
@@ -406,7 +516,7 @@ public/assets/css/pages/{module}/{domain}/index.css
 
 Controller
 → Service
-→ Model
+→ Model/Repository
 
 구조로 개발한다.
 
@@ -629,6 +739,14 @@ TableDictionary.md 갱신 필수
 - 공용 Modal, 공용 Form, 공용 휴지통, 공용 엑셀관리 컴포넌트도 동일 원칙을 적용한다.
 - 동일 역할 코드가 두 개 이상 도메인에서 반복되면 공용 컴포넌트 추출 후보로 분류한다.
 
+### 16-5. 참조 목록 정렬 규칙
+
+- 테이블 데이터를 참조해 Select, Picker, Dropdown 등 선택 목록을 만들 때 원본 테이블에 `sort_no`가 있으면 `sort_no ASC`를 기본 정렬로 사용한다.
+- 동일한 `sort_no`의 안정적인 표시를 위해 업무 표시명과 PK를 후속 정렬 기준으로 사용한다.
+- 검색어 일치도, 생성일시, 이름순을 `sort_no`보다 우선하지 않는다. 별도 법정·업무 순서가 명시된 목록만 예외로 한다.
+- DB 조회는 `LIMIT` 적용 전에 `sort_no`로 정렬하고, API Projection은 공용 Picker가 순서를 보존할 수 있도록 `sort_no`를 제거하지 않는다.
+- 화면 JS에서 원본 순서를 임의로 재정렬하지 않고 공용 Picker의 정렬 계약을 사용한다.
+
 ------------------------------------------------
 
 ### 17. 사전 우선 규칙
@@ -822,6 +940,23 @@ TableDictionary.md 검색 필수
 - 프로젝트 종료 후에도 계속 유지할 기준은 규칙 문서 또는 사전 문서로 관리한다.
 - 특정 작업에만 필요한 절차와 체크리스트는 프로젝트 문서로 관리한다.
 
+### 20-1. 문서 효력·우선순위 규칙
+
+- 문서 간 내용이 충돌하면 아래 순서로 효력을 판단한다.
+  1. `AGENTS.md`의 프로젝트 공통 규칙
+  2. 도메인 전용 Architecture·Contract 문서
+  3. `ERPArchitecture.md`의 프로젝트 전체 구조
+  4. 현재 유효한 `DecisionLog.md` 결정
+  5. `CommonDictionary.md`, `ServiceDictionary.md`, `RouteDictionary.md`, `TableDictionary.md`의 현재 구현 인벤토리
+  6. 상태가 `ACTIVE` 또는 `RUNBOOK`인 프로젝트 문서
+  7. `COMPLETED_RECORD`, `SUPERSEDED`, `HISTORICAL_BASELINE` 프로젝트 문서
+- 작성일이 가장 최신이라는 이유만으로 상위 효력 문서나 현재 Runtime 사실을 덮어쓰지 않는다.
+- 프로젝트 문서는 문서 상단에 `ACTIVE`, `RUNBOOK`, `COMPLETED_RECORD`, `SUPERSEDED`, `HISTORICAL_BASELINE` 중 하나의 상태와 현재 사용 범위를 명시한다.
+- `SUPERSEDED`와 `HISTORICAL_BASELINE` 문서는 감사·의사결정 이력으로만 사용하며 신규 구현, Migration, 운영 적용의 지시 기준으로 사용하지 않는다.
+- 과거 Closure의 당시 차단·미완료 판정이 후속 Closure에서 해소된 경우 원문을 삭제하지 않고 상단 상태와 후속 기준 문서를 명시한다.
+- 문서와 코드·DB Runtime이 충돌하면 구현을 중단하고 원인과 영향 범위를 확인한 뒤 현재 계약 문서를 먼저 정비한다.
+- 문서 삭제는 유효 규칙이 상위 문서에 승격되었고, 현재 참조가 없으며, 감사·운영 재현 가치가 없음을 확인한 뒤에만 수행한다. 그 외 완료 문서는 기록용으로 보존한다.
+
 ### 21. UI 표준 규칙
 
 ERP 공용 UI는 표준을 따른다.
@@ -851,6 +986,17 @@ UI 구현 원칙
 
 ### 21-3. 목록형 화면(List Page) 표준 규칙
 
+#### TableSettings 컬럼계약
+
+- 공용 TableSettings의 컬럼순서는 실제 목록 테이블 순서에 적용한다.
+- 공용 TableSettings의 보기 설정(`visibleColumns`)은 DataTable 목록에만 적용하며 Modal/Form 필드의 노출 여부에 영향을 주지 않는다.
+- Modal/Form의 필드 순서·배치·노출 여부는 화면 구조와 업무조건이 담당한다. TableSettings 컬럼순서나 보기 설정으로 Modal/Form DOM을 이동하거나 숨기지 않는다.
+- 공용 TableSettings의 사용컬럼명은 목록 Header와 해당 물리 필드를 입력하는 Modal/Form 라벨 및 Validation 메시지에 동일하게 적용한다.
+- 필수구분이 `필수`이면 Modal/Form 라벨 오른쪽에 빨강 별표, `선택`이면 파랑 별표, `선택안함`이면 별표를 표시하지 않는다.
+- TableSettings의 정적 필수정책은 Modal/Form 저장 검증에 연결하고, Service에서도 API 직접 호출로 우회할 수 없게 검증한다.
+- 업무조건에 따른 조건부 필수는 TableSettings 정적 필수와 합성하며 업무상 필수가 우선한다. 조건부 필드의 노출 여부는 해당 도메인 업무정책으로 제어한다.
+- 페이지별 컬럼명, 필수 배열, 색상 CSS를 중복 구현하지 않고 공용 metadata/TableSettings Resolver를 재사용한다.
+
 - 신규 화면 개발 전 목록형 화면인지 개별업무형 화면인지 먼저 판정한다.
 - 거래처, 프로젝트, 직원, 부서, 직책, 역할, 계정과목, 보조계정, 계좌, 카드, 증빙원본, 거래입력, 전표입력, 근로계약, 인사발령, 근태, 휴가, 성과평가, 보상, 소득자료, 기준·요율, 신고이력 및 앞으로 추가되는 모든 목록형 관리화면에 적용한다.
 - 목록형 화면은 `페이지 제목 → 우측 공용 버튼 → 공용 SearchForm → 공용 DataTable → 공용 Pagination` 순서를 따른다.
@@ -875,13 +1021,28 @@ UI 구현 원칙
 
 ### 21-2. 테이블설정·엑셀관리 SSOT 규칙
 
-- 테이블설정은 테이블 표시 순서, 사용 컬럼명, 모달 필드 순서와 표시명, 필수·선택 표시, 증빙상태 판정의 SSOT다.
+- 테이블설정은 테이블 표시 순서·보기, 사용 컬럼명, 모달 필드 표시명, 필수·선택 표시, 증빙상태 판정의 SSOT다. 테이블 보기·순서 설정은 모달 필드의 노출·배치에 적용하지 않는다.
 - 테이블과 모달의 코드관리·기초정보 참조값 및 Actor는 저장 ID가 아니라 해당 참조 도메인의 설정된 표시명으로 출력한다.
 - 참조 ID는 DB 저장과 API 식별에만 사용하고, 일반 테이블 셀·모달 입력값·엑셀 표시값에 그대로 노출하지 않는다.
 - 참조 표시명은 서버의 표준 `*_name` 필드 또는 공용 Actor/참조 표시 구조를 사용하며 JS에서 ID를 임의 해석하지 않는다.
 - 엑셀관리 컬럼설정은 업로드 양식의 포함 여부·순서·필수구분과 다운로드 표시 여부·순서의 SSOT다.
 - 엑셀 업로드 저장 검증은 엑셀관리 설정을 사용하고, 모달 저장 검증과 증빙상태 판정은 테이블설정을 사용한다.
 - 테이블설정과 엑셀관리의 필수구분을 서로 대체하거나 혼용하지 않는다.
+
+### 21-4. 공용 TableSettings 개발·완료 기준
+
+- 신규 목록 화면은 TableSettings 연결 전에 목록의 실제 물리 소유 테이블을 확정한다. 목록 표시명을 얻기 위한 JOIN 전용 참조·인증·코드·마스터 테이블은 TableSettings 원본 테이블에 등록하지 않는다.
+- 한 물리 테이블의 컬럼을 하나라도 TableSettings 대상으로 사용하면 해당 테이블의 모든 물리컬럼을 `information_schema` 기준으로 제공한다. 페이지 JS에서 필요한 컬럼만 발췌한 목록을 DB 기본 metadata로 만들지 않는다.
+- 복합 도메인은 원본 테이블 등록순서를 명시하고, 각 테이블 내부는 DB `ORDINAL_POSITION`을 따른다. TableSettings의 순번은 첫 테이블부터 마지막 테이블까지 누적한 전역 순번이며 테이블마다 1부터 다시 시작하지 않는다.
+- 복합 도메인의 물리컬럼 설정 key는 충돌과 Projection 별칭 혼입을 방지하도록 안정적인 `table.column`을 사용한다. 원본컬럼명에는 원본 테이블 번호와 실제 물리 컬럼명을 표시하며 화면 표시용 별칭을 원본명이나 key로 사용하지 않는다.
+- 사용컬럼명 기본값은 DB `COLUMN_COMMENT`, 필수구분 기본값은 `IS_NULLABLE=NO`를 그대로 사용한다. 페이지별 label map, JS title, JOIN 표시명으로 DB 기본값을 덮어쓰지 않는다. COMMENT가 비어 있으면 임의 업무명을 영구 기본값으로 만들지 말고 metadata 품질 보완 대상으로 보고한다.
+- FK·참조 컬럼은 물리 FK의 설정 key를 유지한 채 DataTable 셀에서 공용 참조 표시명으로 렌더링한다. 직원식별자와 직원명처럼 동일 의미의 참조 Projection을 별도 가상컬럼으로 TableSettings에 중복 등록하지 않는다.
+- TableSettings에 허용되는 비물리 컬럼은 예약 시스템 가상컬럼(`__select`, `__reorder`, `__actions`)과 `settingsVirtualType`으로 명시한 계산·예외 가상컬럼뿐이다. JOIN 결과나 API Projection은 명시만으로 가상컬럼이 되지 않는다.
+- 시스템 가상컬럼 기본순서는 `__select` 첫 번째, `__reorder` 두 번째, 물리·허용 가상컬럼 본문, `__actions` 마지막이다. 세 시스템 가상컬럼은 페이지의 실제 기능 사용 여부와 관계없이 TableSettings에 항상 포함한다. 페이지가 기능을 제공하지 않으면 공용 Adapter가 보기 기본값을 OFF로 두고, 사용자가 표시하더라도 선택·드래그·관리 동작이 실행되지 않는 비활성 placeholder로 렌더링한다. 페이지별 가짜 업무컬럼이나 임의 이벤트를 만들지 않는다.
+- TABLE의 표시·순서·사용컬럼명·필수구분과 VIEW의 너비·정렬·페이지당 보기·검색영역 상태는 모달 초안으로 편집하며 저장을 누른 뒤에만 실제 DataTable과 기존 사용자 설정에 반영한다. 페이지별 저장 key나 별도 상태를 만들지 않는다.
+- 신규 페이지는 공용 `createDataTable`, 공용 `SearchForm`, 공용 TableSettings renderer/CSS를 재사용한다. 페이지별 TableSettings Grid, 정렬·너비 UI, CSS를 중복 구현하지 않는다.
+- TableSettings 완료 판정에는 원본 테이블 경계 검토, 등록 테이블별 물리컬럼 수 대조, 전역 순번 연속성, DB COMMENT·NULL 허용 기본값, `table.column` key와 렌더 컬럼 연결, JOIN 참조컬럼 미혼입, 시스템·계산 가상컬럼 분류, 기본값 복원, 저장 후 순서·보기·너비·정렬 복원, Console Error 0, 좁은 화면 회귀검증을 모두 포함한다. 이 항목을 통과하지 않은 신규 목록 화면은 TableSettings 완료로 보지 않는다.
+
 ### 22. DecisionLog 운영 규칙
 
 `DecisionLog.md`는 작업 로그가 아니라 결정 문서다.
@@ -1083,8 +1244,8 @@ Controller / Service / Model / JS 분리 기준이 새로 확정된 경우
 표준 폴더 구조
 
 ```text
-public/assets/js/pages/dashboard/settings/base/{domain}.js
-public/assets/js/pages/dashboard/settings/base/{domain}/
+public/assets/js/pages/main/settings/base/{domain}.js
+public/assets/js/pages/main/settings/base/{domain}/
   index.js
   api.js
   table.js
@@ -1369,6 +1530,9 @@ php -l 확인
 작업 실패로 간주한다.
 
 ### 31. 증빙원본 Body Builder 규칙
+
+- Evidence 관련 테이블·컬럼·Service·Migration을 변경하기 전에 `docs/architecture/EvidenceOriginalContract.md`를 반드시 확인한다.
+- 증빙원본의 목적, 공용 정규화 컬럼, `raw_*` 원본 불변성, Transaction·Voucher 책임 경계는 `EvidenceOriginalContract.md`를 최종 SSOT로 사용한다.
 
 - 모든 자료유형은 공용 저장 프레임을 사용한다.
 - 저장 프레임은 다음 순서를 따른다.

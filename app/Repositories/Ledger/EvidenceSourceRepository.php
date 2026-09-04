@@ -2,6 +2,8 @@
 
 namespace App\Repositories\Ledger;
 
+use App\Models\Ledger\DailyEmploymentIncomeEvidenceReadModel;
+use App\Models\Ledger\EvidenceSchemaModel;
 use PDO;
 
 class EvidenceSourceRepository
@@ -113,6 +115,9 @@ class EvidenceSourceRepository
 
     public function find(string $importType, string $evidenceId): ?array
     {
+        if (in_array(strtoupper(trim($importType)), ['DAILY_EMPLOYMENT_INCOME', 'DAILY_WORK_REPORT', 'PAYROLL_WITHHOLDING'], true)) {
+            return $this->findDailyEmploymentIncomeEvidence($evidenceId);
+        }
         $metadata = $this->metadata($importType);
         if (!$metadata || trim($evidenceId) === '') {
             return null;
@@ -158,6 +163,15 @@ class EvidenceSourceRepository
 
         $result = [];
         foreach ($grouped as $importType => $ids) {
+            if (in_array($importType, ['DAILY_EMPLOYMENT_INCOME', 'DAILY_WORK_REPORT', 'PAYROLL_WITHHOLDING'], true)) {
+                foreach (array_keys($ids) as $evidenceId) {
+                    $row = $this->findDailyEmploymentIncomeEvidence($evidenceId);
+                    if ($row !== null) {
+                        $result[$importType . "\0" . $evidenceId] = $row;
+                    }
+                }
+                continue;
+            }
             $metadata = $this->metadata($importType);
             if (!$metadata) continue;
             $table = $this->trustedTable((string) $metadata['source_table']);
@@ -180,6 +194,16 @@ class EvidenceSourceRepository
             }
         }
         return $result;
+    }
+
+    private function findDailyEmploymentIncomeEvidence(string $evidenceId): ?array
+    {
+        if (trim($evidenceId) === '') return null;
+        return (new DailyEmploymentIncomeEvidenceReadModel(
+            $this->pdo,
+            new EvidenceSchemaModel($this->pdo)
+        ))->findById($evidenceId);
+
     }
 
     public function search(string $query, array $policyTypes, int $limit = 100): array
@@ -366,7 +390,8 @@ class EvidenceSourceRepository
         $identityFields = [
             'import_type', 'evidence_id', 'source_table', 'evidence_type', 'sort_no', 'source_type',
             'business_unit', 'operation_type', 'transaction_direction', 'evidence_status', 'client_id',
-            'project_id', 'standard_date_field', 'standard_date', 'client_search_name', 'description',
+            'project_id', 'standard_date_field', 'standard_date', 'client_search_name', 'project_search_name',
+            'employee_search_name', 'description',
             'display_amount', 'created_at', 'updated_at',
         ];
         $projectionFields = array_values(array_filter(array_unique(array_map(
@@ -413,12 +438,32 @@ class EvidenceSourceRepository
             $descriptionExpression = $descriptionField !== '' && isset($columns[$descriptionField])
                 ? "e.`{$descriptionField}`"
                 : "''";
-            $clientJoin = isset($columns['client_id']) && $this->tableExists('system_clients')
-                ? ' LEFT JOIN system_clients client_ref ON client_ref.id = e.client_id AND client_ref.deleted_at IS NULL'
+            $clientColumns = $this->tableExists('system_clients') ? $this->columns('system_clients') : [];
+            $clientJoin = isset($columns['client_id'], $clientColumns['id'])
+                ? ' LEFT JOIN system_clients client_ref ON client_ref.id = e.client_id'
+                    . (isset($clientColumns['deleted_at']) ? ' AND client_ref.deleted_at IS NULL' : '')
                 : '';
             $clientNameExpression = $value(['client_name', 'supplier_name', 'merchant_name', 'raw_counterparty_name'], "''");
             if ($clientJoin !== '') {
                 $clientNameExpression = "COALESCE(NULLIF({$clientNameExpression}, ''), client_ref.client_name, '')";
+            }
+            $projectColumns = $this->tableExists('system_projects') ? $this->columns('system_projects') : [];
+            $projectJoin = isset($columns['project_id'], $projectColumns['id'])
+                ? ' LEFT JOIN system_projects project_ref ON project_ref.id = e.project_id'
+                    . (isset($projectColumns['deleted_at']) ? ' AND project_ref.deleted_at IS NULL' : '')
+                : '';
+            $projectNameExpression = $value(['project_name'], "''");
+            if ($projectJoin !== '') {
+                $projectNameExpression = "COALESCE(NULLIF({$projectNameExpression}, ''), project_ref.project_name, '')";
+            }
+            $employeeColumns = $this->tableExists('user_employees') ? $this->columns('user_employees') : [];
+            $employeeJoin = isset($columns['employee_id'], $employeeColumns['id'])
+                ? ' LEFT JOIN user_employees employee_ref ON employee_ref.id = e.employee_id'
+                    . (isset($employeeColumns['deleted_at']) ? ' AND employee_ref.deleted_at IS NULL' : '')
+                : '';
+            $employeeNameExpression = $value(['employee_name'], "''");
+            if ($employeeJoin !== '') {
+                $employeeNameExpression = "COALESCE(NULLIF({$employeeNameExpression}, ''), employee_ref.employee_name, '')";
             }
             $dynamicProjection = [];
             foreach ($projectionFields as $field) {
@@ -442,12 +487,14 @@ class EvidenceSourceRepository
                 . $literal($standardDateField) . ' AS standard_date_field, '
                 . $standardDateExpression . ' AS standard_date, '
                 . $clientNameExpression . ' AS client_search_name, '
+                . $projectNameExpression . ' AS project_search_name, '
+                . $employeeNameExpression . ' AS employee_search_name, '
                 . $descriptionExpression . ' AS description, '
                 . $value(['total_amount', 'raw_total_amount', 'raw_transaction_amount_krw', 'raw_actual_billing_amount', 'raw_billing_amount', 'raw_deposit_amount', 'raw_withdraw_amount', 'amount', 'transaction_amount', 'billing_amount', 'approved_amount', 'supply_amount'], '0') . ' AS display_amount, '
                 . $value(['created_at'], 'NULL') . ' AS created_at, '
                 . $value(['updated_at'], 'NULL') . ' AS updated_at'
                 . ($dynamicProjection !== [] ? ', ' . implode(', ', $dynamicProjection) : '') . ' '
-                . "FROM `{$table}` e{$clientJoin} WHERE {$where}";
+                . "FROM `{$table}` e{$clientJoin}{$projectJoin}{$employeeJoin} WHERE {$where}";
         }
         return [implode(' UNION ALL ', $parts), $params];
     }
@@ -462,7 +509,7 @@ class EvidenceSourceRepository
         $allowed = [
             'import_type', 'source_type', 'business_unit', 'operation_type', 'transaction_direction',
             'evidence_status', 'client_id', 'project_id', 'standard_date', 'client_search_name',
-            'description', 'sort_no',
+            'project_search_name', 'employee_search_name', 'description', 'sort_no',
             'evidence_type', 'display_amount',
         ];
         foreach (is_array($criteria['projection_fields'] ?? null) ? $criteria['projection_fields'] : [] as $field) {
@@ -476,7 +523,7 @@ class EvidenceSourceRepository
         $params = [];
         $keyword = trim((string) ($criteria['keyword'] ?? ''));
         if ($keyword !== '') {
-            $keywordFields = ['import_type', 'source_type', 'standard_date', 'client_search_name', 'description'];
+            $keywordFields = ['import_type', 'source_type', 'standard_date', 'client_search_name', 'project_search_name', 'employee_search_name', 'description'];
             $keywordClauses = [];
             foreach ($keywordFields as $index => $field) {
                 $key = ':identity_keyword_' . $index;
@@ -486,12 +533,32 @@ class EvidenceSourceRepository
             $clauses[] = '(' . implode(' OR ', $keywordClauses) . ')';
         }
         if (($criteria['unlinked_voucher_only'] ?? false) === true) {
+            $currentVoucherId = trim((string) ($criteria['current_voucher_id'] ?? ''));
+            $releasedClauses = [];
+            foreach (is_array($criteria['released_voucher_evidences'] ?? null) ? $criteria['released_voucher_evidences'] : [] as $index => $evidence) {
+                if (!is_array($evidence)) continue;
+                $importType = strtoupper(trim((string) ($evidence['import_type'] ?? '')));
+                $evidenceId = trim((string) ($evidence['evidence_id'] ?? ''));
+                if ($currentVoucherId === '' || $importType === '' || $evidenceId === '') continue;
+                $typeKey = ':released_voucher_type_' . $index;
+                $idKey = ':released_voucher_evidence_id_' . $index;
+                $releasedClauses[] = "(identity_rows.import_type = {$typeKey} AND identity_rows.evidence_id = {$idKey})";
+                $params[$typeKey] = $importType;
+                $params[$idKey] = $evidenceId;
+            }
+            $currentVoucherReleaseSql = '';
+            if ($releasedClauses !== []) {
+                $params[':released_current_voucher_id'] = $currentVoucherId;
+                $currentVoucherReleaseSql = ' AND NOT (linked_voucher.id = :released_current_voucher_id AND ('
+                    . implode(' OR ', $releasedClauses) . '))';
+            }
             $clauses[] = "NOT EXISTS (SELECT 1 FROM ledger_evidence_links voucher_link"
                 . " INNER JOIN ledger_vouchers linked_voucher ON linked_voucher.id = voucher_link.target_id"
                 . " AND linked_voucher.deleted_at IS NULL"
                 . " WHERE voucher_link.evidence_type = identity_rows.import_type"
                 . " AND voucher_link.evidence_id = identity_rows.evidence_id"
-                . " AND voucher_link.target_type = 'VOUCHER' AND voucher_link.deleted_at IS NULL)";
+                . " AND voucher_link.target_type = 'VOUCHER' AND voucher_link.deleted_at IS NULL"
+                . $currentVoucherReleaseSql . ')';
         }
         if (($criteria['unlinked_transaction_only'] ?? false) === true) {
             $clauses[] = "NOT EXISTS (SELECT 1 FROM ledger_evidence_links transaction_link"
@@ -517,6 +584,8 @@ class EvidenceSourceRepository
             $field = trim((string) ($filter['field'] ?? ''));
             $field = match ($field) {
                 'client_name' => 'client_search_name',
+                'project_name' => 'project_search_name',
+                'employee_name' => 'employee_search_name',
                 'evidence_date' => 'standard_date',
                 default => $field,
             };
@@ -560,6 +629,7 @@ class EvidenceSourceRepository
             'sort_no', 'standard_date', 'source_type', 'import_type',
             'business_unit', 'operation_type', 'transaction_direction', 'evidence_status',
             'client_search_name', 'description', 'created_at', 'updated_at',
+            'project_search_name', 'employee_search_name',
             'display_amount',
         ];
         foreach (is_array($criteria['projection_fields'] ?? null) ? $criteria['projection_fields'] : [] as $field) {
@@ -611,8 +681,13 @@ class EvidenceSourceRepository
             ['id' => 'project_id', 'name' => 'project_name', 'table' => 'system_projects', 'columns' => ['project_name', 'construction_name', 'project_code']],
             ['id' => 'bank_account_id', 'name' => 'bank_account_name', 'table' => 'system_bank_accounts', 'columns' => ['account_name', 'bank_name', 'account_number']],
             ['id' => 'card_id', 'name' => 'card_name', 'table' => 'system_cards', 'columns' => ['card_name', 'card_number', 'card_company_name']],
+            ['id' => 'work_team_id', 'name' => 'work_team_name', 'table' => 'system_work_teams', 'columns' => ['team_name']],
             ['id' => 'team_id', 'name' => 'team_name', 'table' => 'system_work_teams', 'columns' => ['team_name']],
             ['id' => 'employee_id', 'name' => 'employee_name', 'table' => 'user_employees', 'columns' => ['employee_name', 'name', 'username']],
+            ['id' => 'source_personal_expense_item_id', 'name' => 'source_personal_expense_item_name', 'table' => 'approval_personal_expense_items', 'columns' => ['item_name', 'merchant_name', 'expense_category']],
+            ['id' => 'source_regular_employment_income_id', 'name' => 'source_regular_employment_income_name', 'table' => 'institution_regular_employment_incomes', 'columns' => ['title']],
+            ['id' => 'approval_request_id', 'name' => 'approval_request_name', 'table' => 'user_approval_requests', 'columns' => ['sort_no']],
+            ['id' => 'regular_employment_income_item_id', 'name' => 'regular_employment_income_item_name', 'table' => 'institution_regular_employment_income_items', 'columns' => ['employee_name_snapshot']],
         ];
         foreach ($references as $reference) {
             $ids = array_values(array_unique(array_filter(array_map(
@@ -732,7 +807,7 @@ class EvidenceSourceRepository
             $literal((string) $metadata['evidence_type']) . ' AS evidence_type',
             $literal($table) . ' AS source_table',
             $value(['source_key', 'transaction_id', 'approval_no'], 'source_key'),
-            $value(['evidence_date', 'transaction_date', 'issue_date', 'written_date', 'purchase_date'], 'evidence_date'),
+            $value(['evidence_date', 'raw_expense_date', 'transaction_date', 'issue_date', 'written_date', 'purchase_date'], 'evidence_date'),
             $value(['client_name', 'supplier_name', 'merchant_name', 'counterparty_name'], 'client_name'),
             $value(['total_amount', 'amount', 'transaction_amount', 'billing_amount'], 'total_amount'),
             $value(['description', 'summary', 'memo', 'item_name'], 'display_summary'),

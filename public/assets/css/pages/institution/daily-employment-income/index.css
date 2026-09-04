@@ -1,0 +1,147 @@
+.daily-income-page .dt-content-stack { display: flex; flex-direction: column; gap: 1rem; }
+.daily-income-page .table-cross-highlight td, .daily-income-page .table-cross-highlight th { white-space: nowrap; }
+#dailyIncomeModal .modal-dialog { max-width: min(1600px, calc(100vw - 24px)); }
+#dailyIncomeModal .modal-content { height: auto; max-height: calc(100vh - 24px); }
+#dailyIncomeModal .modal-header { flex: 0 0 auto; padding-block: 8px; }
+#dailyIncomeModal .modal-footer { justify-content: flex-end; }
+#dailyIncomeModal .modal-footer #dailyIncomeDelete { margin-right: 0 !important; }
+#dailyIncomeModal .modal-body { min-height: 0; padding: 10px 12px; overflow-x: hidden; }
+#dailyIncomeModal .ui-form-card__body { padding: 10px 12px; }
+#dailyIncomeModal .form-label { margin-bottom: 3px; font-size: 12px; }
+#dailyIncomeModal .form-control, #dailyIncomeModal .form-select { min-height: 32px; }
+.daily-income-section-heading { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
+.daily-income-section-heading h6 { margin: 0; }
+.daily-income-date-field { flex: 0 0 auto; }
+.daily-income-month-field { width: 160px; }
+.daily-income-payment-date-field { width: 185px; }
+.daily-income-title-field { flex: 0 0 auto; width: 320px; }
+.daily-income-description-field { flex: 0 0 auto; width: 320px; }
+.daily-income-memo-field { flex: 1 1 240px; width: auto; min-width: 240px; }
+.daily-income-title-field .form-control, .daily-income-description-field .form-control, .daily-income-memo-field .form-control { width: 100%; }
+.daily-income-date-field .date-input-wrap { position: relative; }
+.daily-income-date-field .date-input-wrap .form-control { min-width: 0; padding-right: 34px; }
+.daily-income-date-field .date-icon { position: absolute; top: 50%; right: 8px; z-index: 2; color: var(--bs-secondary-color); font-size: 14px; line-height: 1; cursor: pointer; opacity: .6; transform: translateY(-50%); transition: opacity .15s ease, transform .15s ease; }
+.daily-income-date-field .date-input-wrap:hover .date-icon { opacity: 1; transform: translateY(-50%) scale(1.1); }
+.daily-income-date-field .date-icon[aria-disabled="true"] { cursor: default; pointer-events: none; opacity: .35; }
+.daily-income-workers { display: grid; gap: 8px; }
+.daily-income-workers > .daily-income-group-card { margin-bottom: 0; }
+.daily-income-entry-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 10px; align-items: start; }
+.daily-income-worker-result { position: sticky; top: -10px; align-self: start; display: flex; flex-direction: column; min-height: 0; padding: 12px; overflow: visible; border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-body-bg); }
+.daily-income-worker-result h6 { margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--bs-border-color); color: var(--bs-emphasis-color); font-size: 15px; font-weight: 800; }
+.daily-income-worker-result h6 .badge { vertical-align: 1px; font-size: 10px; font-weight: 700; }
+.daily-income-result-title-separator { color: var(--bs-secondary-color); }
+.daily-income-result-worker { margin: 10px 0 6px; font-weight: 700; }
+.daily-income-result-status { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 8px; border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: 12px; }
+.daily-income-result-status.is-error { border-color: var(--bs-danger-border-subtle); background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+.daily-income-result-values { display: grid; gap: 8px; margin-bottom: 18px; }
+.daily-income-result-values > div { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.daily-income-result-values strong { color: var(--bs-primary); font-size: 14px; }
+.daily-income-result-values .is-net-payment strong { color: var(--bs-danger); }
+.daily-income-result-section { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--bs-border-color); }
+.daily-income-worker-result h6 + .daily-income-result-section { margin-top: 0; border-top: 0; }
+.daily-income-result-section-title { margin-bottom: 7px; color: var(--bs-emphasis-color); font-size: 13px; font-weight: 800; letter-spacing: .01em; }
+.daily-income-result-section .daily-income-result-values { margin-bottom: 0; }
+.daily-income-result-section.is-final { padding: 10px; border: 1px solid var(--bs-primary-border-subtle); border-radius: 6px; background: var(--bs-primary-bg-subtle); }
+.daily-income-result-empty { color: var(--bs-secondary-color); font-size: 12px; }
+.daily-income-worker-result > h6,
+.daily-income-worker-result > .daily-income-result-worker,
+.daily-income-worker-result > .daily-income-result-status,
+.daily-income-worker-result > .daily-income-result-values { flex: 0 0 auto; }
+.daily-income-institution-detail { min-height: 0; margin-top: 10px; overflow: visible; }
+.daily-income-institution-detail .income-calculation-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.daily-income-worker-card { overflow: visible; }
+.daily-income-worker-header { display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 5px 8px; border-bottom: 1px solid var(--bs-border-color); }
+.daily-income-group-title { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.daily-income-group-title small { color: var(--bs-secondary-color); font-size: 11px; }
+.daily-income-group-fields { display: grid; grid-template-columns: minmax(145px, .7fr) minmax(220px, 1fr) minmax(145px, .7fr) minmax(320px, 1.7fr); gap: 8px; align-items: end; }
+.daily-income-field { display: grid; gap: 4px; min-width: 0; }
+.daily-income-field > span { color: var(--bs-secondary-color); font-size: 12px; }
+.daily-income-group-toolbar { display: flex; justify-content: flex-end; margin: 12px 0 8px; }
+.daily-income-group-grid { width: 100%; }
+.daily-income-worker-card { margin-top: 6px; border: 1px solid var(--bs-primary); border-radius: 6px; background: var(--bs-body-bg); box-shadow: 0 0 0 1px var(--bs-primary); }
+.daily-income-worker-card__header { display: grid; grid-template-columns: 24px 18px max-content max-content max-content minmax(0, 1fr) repeat(3, max-content) repeat(3, 30px); align-items: center; gap: 6px; min-height: 40px; padding: 4px 6px; overflow: hidden; background: var(--bs-tertiary-bg); white-space: nowrap; font-size: 11px; }
+.daily-income-worker-summary { color: var(--bs-secondary-color); font-variant-numeric: tabular-nums; }
+.daily-income-worker-summary--payment { color: var(--bs-emphasis-color); font-weight: 600; }
+.daily-income-worker-calculation-state { display: inline-flex; min-width: 0; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 999px; color: var(--bs-secondary-color); font-size: 10px; }
+.daily-income-worker-calculation-state.is-error { max-width: 180px; overflow: hidden; background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
+.daily-income-worker-calculation-state .spinner-border { width: 10px; height: 10px; border-width: 1px; }
+.daily-income-worker-order { text-align: center; font-variant-numeric: tabular-nums; }
+.daily-income-worker-drag-handle { display: grid; place-items: center; width: 18px; height: 28px; color: var(--bs-secondary-color); cursor: grab; }
+.daily-income-worker-drag-handle:active { cursor: grabbing; }
+.daily-income-worker-select { border: 0; background: transparent; color: inherit; text-align: left; white-space: nowrap; font-weight: 700; }
+.daily-income-worker-type { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: var(--bs-secondary-bg); }
+.daily-income-worker-work-type { white-space: nowrap; }
+.daily-income-worker-description { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.daily-income-worker-duplicate { margin-left: 4px; vertical-align: 1px; font-size: 9px; }
+.daily-income-worker-action { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--bs-secondary-color); }
+.daily-income-worker-action:hover { background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+.daily-income-worker-action.is-danger { color: var(--bs-danger); }
+.daily-income-worker-card.is-dragging { opacity: .55; }
+.daily-income-worker-card__body { padding: 7px 8px; }
+.daily-income-worker-card.is-collapsed .daily-income-worker-card__body { display: none; }
+.daily-income-worker-fields { display: grid; grid-template-columns: 210px 170px minmax(220px,1fr); gap: 8px; margin-bottom: 7px; }
+.daily-income-worker-fields label { display: grid; gap: 4px; }
+.daily-income-worker-fields label > span { font-size: 12px; color: var(--bs-secondary-color); }
+.daily-income-worker-description-field { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 6px; align-items: end; min-width: 0; }
+.daily-income-workday-selection-actions { display: flex; gap: 5px; white-space: nowrap; }
+.daily-income-workday-selection-actions .btn { min-height: 31px; padding-inline: 10px; }
+.daily-income-workday-section { min-width: 0; margin-bottom: 7px; border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-body-bg); }
+.daily-income-workday-heading { display: flex; align-items: center; justify-content: flex-start; gap: 7px; padding: 7px 10px; border-bottom: 1px solid var(--bs-border-color); font-size: 12px; }
+.daily-income-workday-heading span { color: var(--bs-secondary-color); }
+.daily-income-workday-guide { padding: 12px; color: var(--bs-secondary-color); text-align: center; font-size: 12px; }
+.daily-income-workday-calendar-scroll { width: 100%; min-height: 55px; padding: 6px 8px 4px; overflow: hidden; }
+.daily-income-workday-calendar { display: grid; grid-template-columns: repeat(var(--daily-income-days, 31), minmax(0, 1fr)); gap: 2px; width: 100%; }
+.daily-income-day { display: grid; place-items: center; width: 100%; min-width: 0; min-height: 38px; padding: 3px 1px; border: 0; border-radius: 999px; background: var(--bs-body-bg); color: var(--bs-body-color); font-size: 11px; line-height: 1.1; }
+.daily-income-day strong, .daily-income-day small { display: block; }
+.daily-income-day.is-saturday:not(.is-selected) { color: var(--bs-primary); }
+.daily-income-day.is-sunday:not(.is-selected) { color: var(--bs-danger); }
+.daily-income-day.is-selected { color: #fff; border-color: var(--bs-primary); background: var(--bs-primary); }
+.daily-income-workday-grid {
+    min-height: 0; overflow-x: auto;
+    overscroll-behavior-x: contain; overscroll-behavior-y: auto;
+}
+.daily-income-workday-grid .html-grid-empty { min-height: 42px; }
+.daily-income-workday-grid [data-column-key="actual_work_minutes"] .html-grid-cell-editor-slot {
+    display: grid; grid-template-columns: minmax(90px, 0.65fr) minmax(55px, 0.35fr); align-items: center; gap: 4px;
+}
+.daily-income-workday-grid [data-column-key="actual_work_minutes"] .html-grid-editor { width: 100%; min-width: 0; }
+.daily-income-workday-grid .daily-income-work-minutes-display {
+    display: block; min-width: 0; overflow: hidden; color: var(--bs-secondary-color, #6c757d);
+    text-align: left; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+.daily-income-workday-bulk { display: flex; align-items: end; gap: 8px; margin: 0 0 7px; padding: 8px 10px; border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-tertiary-bg); }
+.daily-income-workday-bulk__title { display: flex; align-items: center; align-self: center; gap: 6px; margin-right: auto; color: var(--bs-body-color); font-size: 12px; font-weight: 700; }
+.daily-income-workday-bulk label { display: grid; gap: 3px; color: var(--bs-secondary-color); font-size: 11px; }
+.daily-income-workday-bulk input { width: 126px; height: 30px; padding: 3px 8px; border: 1px solid var(--bs-border-color); border-radius: 4px; color: var(--bs-body-color); background: var(--bs-body-bg); text-align: right; }
+.daily-income-workday-more { display: block; min-width: 210px; margin: 8px auto; }
+.daily-income-worker-totals { display: grid; grid-template-columns: repeat(8, minmax(90px, 1fr)); gap: 1px; margin-top: 7px; overflow: hidden; border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-border-color); font-size: 11px; }
+.daily-income-worker-totals > div { display: grid; gap: 3px; min-width: 0; padding: 8px 9px; background: var(--bs-tertiary-bg); }
+.daily-income-worker-totals span { color: var(--bs-secondary-color); }
+.daily-income-worker-totals strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; text-align: right; }
+.daily-income-worker-totals .is-emphasis { background: var(--bs-primary-bg-subtle); }
+.daily-income-worker-totals .is-emphasis strong { color: var(--bs-primary); }
+.daily-income-group-card.is-collapsed .ui-form-card__body { display: none; }
+.daily-income-document-summary {
+    display: grid; grid-template-columns: repeat(10, minmax(96px, 1fr)); gap: 3px;
+    width: 100%; margin-top: 8px; padding: 6px 8px; overflow-x: auto;
+    border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-tertiary-bg); font-size: 11px;
+}
+.daily-income-document-summary span { display: grid; gap: 0; min-width: 0; white-space: nowrap; }
+.daily-income-system-card { margin-top: 1rem; }
+.daily-income-system-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; }
+.daily-income-system-info-field { display: grid; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr); gap: .5rem; align-items: start; min-width: 0; }
+.daily-income-system-info-label { color: var(--bs-secondary-color); font-size: .8rem; }
+.daily-income-system-info-value { min-width: 0; color: var(--bs-body-color); font-size: .84rem; overflow-wrap: anywhere; }
+.daily-income-system-info-field.is-numeric .daily-income-system-info-value { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 991.98px) {
+    .daily-income-entry-layout { grid-template-columns: 1fr; }
+    .daily-income-worker-result { position: static; min-height: auto; }
+    .daily-income-group-fields { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .daily-income-institution-detail .income-calculation-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    .daily-income-title-field, .daily-income-description-field, .daily-income-memo-field { flex-basis: 100%; width: 100%; min-width: 0; }
+    .daily-income-institution-detail .income-calculation-card-grid { grid-template-columns: 1fr; }
+    .daily-income-system-info-grid { grid-template-columns: 1fr; }
+}

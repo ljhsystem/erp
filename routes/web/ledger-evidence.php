@@ -41,6 +41,7 @@ $registerEvidencePage('/ledger/data/cash-receipt-purchases', 'web.ledger.data.ca
 $registerEvidencePage('/ledger/data/cash-receipt-sales', 'web.ledger.data.cash-receipt-sales');
 $registerEvidencePage('/ledger/data/import-invoices', 'web.ledger.data.import-invoices');
 $registerEvidencePage('/ledger/data/shopping-orders', 'web.ledger.data.shopping-orders');
+$registerEvidencePage('/ledger/data/daily-employment-incomes', 'web.ledger.data.daily-employment-incomes');
 $registerEvidencePage('/ledger/data/payroll-withholdings', 'web.ledger.data.payroll-withholdings');
 $registerEvidencePage('/ledger/data/business-data', 'web.ledger.data.business-data');
 $registerEvidencePage('/ledger/data/payroll', 'web.ledger.data.payroll');

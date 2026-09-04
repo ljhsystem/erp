@@ -76,23 +76,38 @@ class EvidenceSaveController
 
     public function apiSave(): void
     {
-        $result = $this->evidenceGenerationSaveService()->seedRowSave($this->requestPayload());
+        $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
+        $result = $this->evidenceGenerationSaveService()->seedRowSave($payload);
 
         $this->json($result['payload'] ?? ['success' => false], (int) ($result['status'] ?? 200));
     }
 
     public function apiBulkSave(): void
     {
-        $result = $this->evidenceGenerationSaveService()->evidenceBulkSave($this->requestPayload());
+        $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
+        $result = $this->evidenceGenerationSaveService()->evidenceBulkSave($payload);
 
         $this->json($result['payload'] ?? ['success' => false], (int) ($result['status'] ?? 200));
     }
 
     public function apiCreate(): void
     {
-        $result = $this->evidenceGenerationSaveService()->evidenceCreate($this->requestPayload());
+        $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
+        $result = $this->evidenceGenerationSaveService()->evidenceCreate($payload);
 
         $this->json($result['payload'] ?? ['success' => false], (int) ($result['status'] ?? 200));
+    }
+
+    private function rejectReadOnlyEvidenceMutation(array $payload): bool
+    {
+        $type = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? ''));
+        if (!$this->evidenceTypePolicyService()->isReadOnlyStatusViewType($type)) return false;
+
+        $this->json(['success' => false, 'message' => '최종 승인으로 생성된 증빙은 증빙원본에서 변경할 수 없습니다.'], 409);
+        return true;
     }
 
     private function evidenceGenerationSaveService(): EvidenceGenerationSaveService
@@ -100,44 +115,7 @@ class EvidenceSaveController
         if ($this->evidenceGenerationSaveService === null) {
             $this->evidenceGenerationSaveService = new EvidenceGenerationSaveService($this->pdo, [
                 'mappedPayloadForStorage' => fn(array $row): array => $this->evidencePayloadNormalizeService()->mappedPayloadForStorage($row),
-                'normalizeUploadAmountFields' => function (array &$row): void {
-                    $this->evidenceUploadValidationService()->normalizeUploadAmountFields($row);
-                },
-                'uploadVoucherStatus' => fn(string $dataType, array $payload, string $processStatus): string => $this->evidenceStatusHelperService()->uploadVoucherStatus($dataType, $payload, $processStatus),
-                'bankVoucherValidationMessage' => fn(array $payload): ?string => $this->evidenceBankHelperService()->bankVoucherValidationMessage($payload),
-                'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
-                'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
-                'businessRefNameForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefNameForStorage($refType, $payload),
-                'seedSourceKey' => fn(array $row, string $dataType): ?string => $this->evidenceUploadService()->seedSourceKey($row, $dataType),
-                'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
-                'jsonEncodeForStorage' => fn(array $payload): string => $this->evidencePayloadHelperService()->jsonEncodeForStorage($payload),
                 'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                'dateValueOrNull' => fn(mixed $value): ?string => $this->dateValueOrNull($value),
-                'normalizeBankTransactionPayload' => fn(array $row): array => $this->evidenceBankHelperService()->normalizeBankTransactionPayload($row),
-                'businessProjectRuleMessages' => fn(array $payload): array => $this->evidenceUploadValidationService()->businessProjectRuleMessages($payload),
-                'formatWithColumns' => fn(string $id): ?array => null,
-                'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
-                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
-                'shouldSyncTaxInvoiceEvidenceClients' => fn(string $dataType): bool => $this->shouldSyncTaxInvoiceEvidenceClients($dataType),
-                'syncTaxInvoiceEvidenceClientsFromSource' => fn(array $payload, string $evidenceId, string $dataType): array => $this->evidenceClientSyncService()->syncTaxInvoiceEvidenceClientsFromSource($payload, $evidenceId, $dataType),
-                'businessRefNameById' => fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
-                'normalizeEvidenceMappedPayloadForResponse' => fn(array $payload): array => $this->evidencePayloadNormalizeService()->normalizeEvidenceMappedPayloadForResponse($payload),
-                'applyReadinessToEvidenceRow' => function (array &$row): void {
-                    $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
-                },
-                'formatColumnsInOrder' => fn(array $columns): array => $this->evidencePayloadNormalizeService()->formatColumnsInOrder($columns),
-                'ensureEvidenceBusinessInfoColumns' => function (): void {
-                    $this->ensureEvidenceBusinessInfoColumns();
-                },
-                'ensureEvidenceSortColumns' => function (): void {
-                    $this->evidenceSortHelperService()->ensureEvidenceSortColumns();
-                },
-                'number' => fn(mixed $value): float => $this->number($value),
-                'seedRowIdsFromPayload' => fn(array $payload): array => $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
-                'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
-                'isBlankValue' => fn(mixed $value): bool => $this->evidencePayloadHelperService()->isBlankValue($value),
-                'sourceTypeForDataType' => fn(string $dataType): string => $this->evidenceTypePolicyService()->sourceTypeForDataType($dataType),
-                'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
             ]);
         }
 

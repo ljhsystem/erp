@@ -1,0 +1,334 @@
+<?php
+// Path: PROJECT_ROOT . '/app/Controllers/Main/Settings/CardController.php'
+
+namespace App\Controllers\Main\Settings;
+
+use App\Services\System\CardService;
+use Core\DbPdo;
+use Core\Session;
+
+class CardController
+{
+    private CardService $service;
+
+    public function __construct()
+    {
+        $this->service = new CardService(DbPdo::conn());
+    }
+
+    public function apiList(): void
+    {
+        Session::write();
+        $filters = [];
+
+        if (!empty($_GET['filters'])) {
+            $decoded = json_decode((string) $_GET['filters'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $filters = $decoded;
+            }
+        }
+
+        try {
+            $this->jsonResponse([
+                'success' => true,
+                'data' => $this->service->getList($filters),
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 목록 조회 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiDetail(): void
+    {
+        $id = trim((string) ($_GET['id'] ?? ''));
+
+        if ($id === '') {
+            $this->jsonResponse(['success' => false, 'message' => '카드 ID가 없습니다.']);
+        }
+
+        try {
+            $this->jsonResponse([
+                'success' => true,
+                'data' => $this->service->getById($id),
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 상세 조회 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiSearchPicker(): void
+    {
+        $keyword = trim((string) ($_GET['q'] ?? ''));
+
+        $this->jsonResponse([
+            'success' => true,
+            'data' => $this->service->searchPicker($keyword),
+        ]);
+    }
+
+    public function apiSave(): void
+    {
+        try {
+            $payload = [
+                'id' => $_POST['id'] ?? null,
+                'card_name' => trim((string) ($_POST['card_name'] ?? '')),
+                'card_number' => trim((string) ($_POST['card_number'] ?? '')),
+                'client_id' => $_POST['client_id'] ?? null,
+                'account_id' => $_POST['account_id'] ?? null,
+                'expiry_year' => trim((string) ($_POST['expiry_year'] ?? '')),
+                'expiry_month' => trim((string) ($_POST['expiry_month'] ?? '')),
+                'limit_amount' => $_POST['limit_amount'] ?? 0,
+                'note' => trim((string) ($_POST['note'] ?? '')),
+                'memo' => trim((string) ($_POST['memo'] ?? '')),
+                'is_active' => isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1,
+                'delete_card_file' => $_POST['delete_card_file'] ?? '0',
+            ];
+
+            $this->jsonResponse($this->service->save($payload, 'USER', $_FILES));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 저장 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiDelete(): void
+    {
+        $input = json_decode((string) file_get_contents('php://input'), true);
+        $input = is_array($input) ? $input : [];
+        $ids = array_values(array_filter(array_map('strval', is_array($input['ids'] ?? null) ? $input['ids'] : [])));
+        $id = trim((string) ($_POST['id'] ?? $input['id'] ?? $ids[0] ?? ''));
+
+        if ($id === '') {
+            $this->jsonResponse(['success' => false, 'message' => '카드 ID가 없습니다.']);
+        }
+
+        if (count($ids) > 1) {
+            $failed = [];
+            foreach ($ids as $deleteId) {
+                $result = $this->service->delete($deleteId, 'USER');
+                if (empty($result['success'])) {
+                    $failed[] = $result['message'] ?? $deleteId;
+                }
+            }
+            $this->jsonResponse([
+                'success' => $failed === [],
+                'message' => $failed === [] ? '삭제되었습니다.' : ($failed[0] ?? '삭제에 실패했습니다.'),
+                'data' => [
+                    'deleted_count' => count($ids) - count($failed),
+                    'failed_count' => count($failed),
+                ],
+            ]);
+        }
+
+        $this->jsonResponse($this->service->delete($id, 'USER'));
+    }
+
+    public function apiTrashList(): void
+    {
+        $this->jsonResponse([
+            'success' => true,
+            'data' => $this->service->getTrashList(),
+        ]);
+    }
+
+    public function apiRestore(): void
+    {
+        $id = trim((string) ($_POST['id'] ?? ''));
+
+        if ($id === '') {
+            $this->jsonResponse(['success' => false, 'message' => '복원할 카드 ID가 없습니다.']);
+        }
+
+        try {
+            $this->jsonResponse($this->service->restore($id, 'USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 복원 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiRestoreBulk(): void
+    {
+        try {
+            $input = json_decode((string) file_get_contents('php://input'), true);
+            $ids = $input['ids'] ?? [];
+
+            if (empty($ids) || !is_array($ids)) {
+                $this->jsonResponse(['success' => false, 'message' => '복원할 카드를 선택하세요.']);
+            }
+
+            $this->jsonResponse($this->service->restoreBulk($ids, 'USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 일괄 복원 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiRestoreAll(): void
+    {
+        try {
+            $this->jsonResponse($this->service->restoreAll('USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '전체 카드 복원 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiPurge(): void
+    {
+        $id = trim((string) ($_POST['id'] ?? ''));
+
+        if ($id === '') {
+            $this->jsonResponse(['success' => false, 'message' => '영구삭제할 카드 ID가 없습니다.']);
+        }
+
+        try {
+            $this->jsonResponse($this->service->purge($id, 'USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 영구삭제 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiPurgeBulk(): void
+    {
+        try {
+            $input = json_decode((string) file_get_contents('php://input'), true);
+            $ids = $input['ids'] ?? [];
+
+            if (empty($ids) || !is_array($ids)) {
+                $this->jsonResponse(['success' => false, 'message' => '영구삭제할 카드를 선택하세요.']);
+            }
+
+            $this->jsonResponse($this->service->purgeBulk($ids, 'USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '카드 일괄 영구삭제 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiPurgeAll(): void
+    {
+        try {
+            $this->jsonResponse($this->service->purgeAll('USER'));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '전체 카드 영구삭제 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiReorder(): void
+    {
+        try {
+            $input = json_decode((string) file_get_contents('php://input'), true);
+            $changes = $input['changes'] ?? [];
+
+            if (empty($changes) || !is_array($changes)) {
+                $this->jsonResponse(['success' => false, 'message' => '정렬 변경 데이터가 없습니다.']);
+            }
+
+            $this->service->reorder($changes);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => '정렬 순서가 저장되었습니다.',
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '정렬 저장 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiDownloadTemplate(): void
+    {
+        try {
+            if (ob_get_length()) {
+                ob_end_clean();
+            }
+
+            $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+            $this->service->downloadTemplate($columnsCsv);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo '엑셀 템플릿 다운로드 중 오류가 발생했습니다.';
+            exit;
+        }
+    }
+
+    public function apiSaveFromExcel(): void
+    {
+        try {
+            if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
+                $this->jsonResponse(['success' => false, 'message' => '업로드할 엑셀 파일을 선택하세요.']);
+            }
+
+            $fileTmp = (string) $_FILES['excel']['tmp_name'];
+            $fileName = (string) ($_FILES['excel']['name'] ?? '');
+            $fileSize = (int) ($_FILES['excel']['size'] ?? 0);
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+            if (!in_array($ext, ['xlsx', 'xls'], true)) {
+                $this->jsonResponse(['success' => false, 'message' => '엑셀 파일만 업로드할 수 있습니다.']);
+            }
+
+            if ($fileSize > 10 * 1024 * 1024) {
+                $this->jsonResponse(['success' => false, 'message' => '엑셀 파일은 10MB 이하만 업로드할 수 있습니다.']);
+            }
+
+            $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
+            $this->jsonResponse($this->service->saveFromExcelFile($fileTmp, $columnsCsv));
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => '엑셀 업로드 중 오류가 발생했습니다.',
+            ]);
+        }
+    }
+
+    public function apiDownload(): void
+    {
+        try {
+            if (ob_get_length()) {
+                ob_end_clean();
+            }
+
+            $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+            $this->service->downloadExcel($columnsCsv);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo '엑셀 다운로드 중 오류가 발생했습니다.';
+            exit;
+        }
+    }
+
+    private function jsonResponse(array $payload): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}

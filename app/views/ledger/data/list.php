@@ -23,7 +23,7 @@ $layoutOptions = [
 ];
 
 $pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-status.css')
-    . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css');
+    . AssetHelper::css('/assets/css/pages/main/settings/system/code.css');
 $pageScriptPath = $pageScriptPath ?? '/assets/js/pages/ledger/evidence-list.js';
 $pageScriptFullPath = PROJECT_ROOT . '/public' . $pageScriptPath;
 $dataStatusScript = AssetHelper::url($pageScriptPath)
@@ -239,7 +239,7 @@ $deleteAllUrl = '/api/import/evidences/purge-all';
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/work_team_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/base-info/partials/client_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/base-info/partials/work_team_modal.php'; ?>
 <?php endif; ?>

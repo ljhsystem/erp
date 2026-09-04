@@ -14,7 +14,7 @@ final class EvidenceExternalKeyService
         'CARD_APPROVAL' => ['external_key', 'source_key', 'transaction_id', 'approval_number', 'approval_no', 'raw_approval_number', 'raw_approval_no'],
         'SHOPPING_ORDER' => ['external_key', 'source_key', 'order_detail_number', 'settlement_detail_number', 'order_number'],
         'IMPORT_INVOICE' => ['external_key', 'source_key', 'declaration_number', 'receipt_number', 'reference_no'],
-        'PAYROLL_REPORT' => ['source_regular_employment_income_id'],
+        'PAYROLL_REPORT' => ['external_key'],
     ];
 
     private const SOURCE_FIELDS = [
@@ -46,6 +46,14 @@ final class EvidenceExternalKeyService
     public function key(array $row, string $importType): string
     {
         $type = $this->normalizeType($importType);
+        if ($type === 'PAYROLL_REPORT') {
+            $sourceId = $this->normalizeScalar('source_regular_employment_income_id', $row['source_regular_employment_income_id'] ?? null);
+            $itemId = $this->normalizeScalar('regular_employment_income_item_id', $row['regular_employment_income_item_id'] ?? null);
+            if ($sourceId === '' || $itemId === '') {
+                throw new \RuntimeException('직원별 급여 증빙 원본 ID와 급여 Item ID가 필요합니다.');
+            }
+            return hash('sha256', $type . '|' . $sourceId . '|' . $itemId);
+        }
         foreach (self::UNIQUE_FIELDS[$type] ?? [] as $field) {
             $value = $this->normalizeScalar($field, $row[$field] ?? null);
             if ($value !== '') {

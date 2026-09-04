@@ -28,7 +28,7 @@ class LogService
 
         $this->authLogs->write($data);
 
-        $this->logger->info("AuthLog", [
+        $this->logger->info('인증 보안 이벤트를 기록했습니다.', [
             'id'            => $data['id'],
             'user_id'       => $data['user_id']    ?? null,
             'username'      => $data['username']   ?? null,
@@ -151,6 +151,30 @@ class LogService
             'action_type' => '2fa_send',
             'action_detail' => '2FA 인증코드 발송',
             'success'     => 1,
+        ]);
+    }
+
+    public function twoFactorSendFailed(string $userId, string $errorCode, array $context = []): void
+    {
+        $this->writeLog([
+            'user_id' => $userId,
+            'log_type' => 'auth',
+            'action_type' => '2fa_send',
+            'action_detail' => '2FA 인증메일 발송 실패: ' . $errorCode,
+            'success' => 0,
+        ]);
+
+        $this->logger->error('2단계 인증 전달에 실패했습니다.', [
+            'user_id' => $userId,
+            'error_code' => $errorCode,
+            'provider' => $context['provider'] ?? 'SMTP',
+            'sender_profile_code' => $context['sender_profile_code'] ?? null,
+            'recipient_domain' => $context['recipient_domain'] ?? '',
+            'sent' => false,
+            'request_id' => $context['request_id'] ?? null,
+            'message_id' => $context['message_id'] ?? null,
+            'occurred_at' => $context['occurred_at'] ?? date(DATE_ATOM),
+            'duration_ms' => $context['duration_ms'] ?? null,
         ]);
     }
 

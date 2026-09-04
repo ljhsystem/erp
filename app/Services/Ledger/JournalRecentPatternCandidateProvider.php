@@ -12,20 +12,8 @@ class JournalRecentPatternCandidateProvider implements JournalCandidateProviderI
 
     public function provide(array $context): array
     {
-        return array_map(static fn(array $row): array => [
-            'accounts' => [
-                'debit' => (string) ($row['debit_account_id'] ?? ''),
-                'credit' => (string) ($row['credit_account_id'] ?? ''),
-                'vat' => (string) ($row['vat_account_id'] ?? ''),
-            ],
-            'source' => 'RECENT_PATTERN',
-            'source_id' => (string) ($row['id'] ?? ''),
-            'metrics' => [
-                'usage_count' => (int) ($row['usage_count'] ?? 0),
-                'last_used_at' => $row['last_used_at'] ?? null,
-                'client_exact' => $context['client_id'] !== '' && $context['client_id'] === (string) ($row['client_id'] ?? ''),
-                'project_exact' => $context['project_id'] !== '' && $context['project_id'] === (string) ($row['project_id'] ?? ''),
-            ],
-        ], $this->repository->recentPatterns($context));
+        // 기존 Projection은 공식 POSTED 전표와 증빙유형 근거를 보장하지 못하므로
+        // 역할 기반 최근분개 정책이 승인되기 전까지 추천에 사용하지 않는다.
+        return [];
     }
 }

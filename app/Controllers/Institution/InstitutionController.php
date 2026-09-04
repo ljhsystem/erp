@@ -50,6 +50,7 @@ class InstitutionController
         $this->renderPage('/app/views/institution/index.php', [
             'pageTitle' => $pageTitle,
             'isDashboard' => false,
+            'pageNotice' => trim((string) ($meta['page_notice'] ?? '')),
         ]);
     }
 }

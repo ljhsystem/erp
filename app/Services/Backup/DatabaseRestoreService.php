@@ -4,7 +4,9 @@ namespace App\Services\Backup;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 use Throwable;
 use function Core\storage_system_path;
 
@@ -17,11 +19,13 @@ class DatabaseRestoreService
     private readonly PDO $pdo;
     private readonly string $backupDir;
     private readonly DateTimeZone $timezone;
+    private readonly LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
         $this->timezone = new DateTimeZone('Asia/Seoul');
+        $this->logger = LoggerFactory::getLogger('service-backup-database-restore');
 
         $backupPath = storage_system_path('db_backup');
         if (!$backupPath) {
@@ -553,7 +557,7 @@ class DatabaseRestoreService
 
     private function getRestoreTracePath(): string
     {
-        return $this->backupDir . 'active_restore_trace.log';
+        return $this->getRestoreStatusPath();
     }
 
     private function getSyncStatusPath(): string
@@ -563,7 +567,7 @@ class DatabaseRestoreService
 
     private function getSyncTracePath(): string
     {
-        return $this->backupDir . 'secondary_restore_trace.log';
+        return $this->getSyncStatusPath();
     }
 
     private function getSyncLockPath(): string
@@ -591,35 +595,30 @@ class DatabaseRestoreService
 
     private function writeRestoreLog(array $result): void
     {
-        $target = $result['active_db']['label'] ?? '-';
-        $line = sprintf(
-            "[%s] %s: %s / target=%s%s\n",
-            $this->now()->format('Y-m-d H:i:s'),
-            ($result['success'] ?? false) ? 'SUCCESS' : 'FAILED',
-            $result['file'] ?? '-',
-            $target,
-            !empty($result['message']) ? ' / ' . $result['message'] : ''
-        );
-
-        @file_put_contents($this->backupDir . 'active_restore_log.txt', $line, FILE_APPEND);
+        $success = (bool) ($result['success'] ?? false);
+        $context = [
+            'event_code' => $success ? 'DATABASE_RESTORE_COMPLETED' : 'DATABASE_RESTORE_FAILED',
+            'result' => $success ? 'SUCCESS' : 'FAILED',
+            'backup_file' => basename((string) ($result['file'] ?? '')),
+            'target_role' => $result['active_db']['label'] ?? null,
+            'statement_count' => $result['statement_count'] ?? null,
+        ];
+        if ($success) {
+            $this->logger->info('데이터베이스 복원을 완료했습니다.', $context);
+            return;
+        }
+        $this->logger->error('데이터베이스 복원에 실패했습니다.', $context);
     }
 
     private function writeRestoreTrace(string $state, string $stage, string $message, ?string $file = null, array $context = []): void
     {
-        $payload = [
-            'time' => $this->now()->format('Y-m-d H:i:s'),
-            'state' => $state,
+        $level = $state === 'FAILED' ? 'error' : ($state === 'SUCCESS' ? 'info' : 'debug');
+        $this->logger->log($level, '활성 데이터베이스 복원 진행상태가 변경되었습니다.', [
+            'event_code' => 'DATABASE_RESTORE_PROGRESS',
+            'result' => $state,
             'stage' => $stage,
-            'file' => $file,
-            'message' => $message,
-            'context' => $context,
-        ];
-
-        @file_put_contents(
-            $this->getRestoreTracePath(),
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
-            FILE_APPEND
-        );
+            'statement_count' => isset($context['statement_count']) ? (int) $context['statement_count'] : null,
+        ]);
     }
 
     private function readCurrentStage(): string

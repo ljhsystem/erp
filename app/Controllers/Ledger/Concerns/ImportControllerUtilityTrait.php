@@ -76,7 +76,7 @@ trait ImportControllerUtilityTrait
         return [
             'bank_direction' => '은행 거래 방향',
             'business_unit' => '사업부문',
-            'operation_type' => '입출금유형',
+            'operation_type' => '업무유형',
             'transaction_date' => '거래일자',
             'raw_transaction_datetime' => '거래일시',
             'currency_code' => '통화',

@@ -4,12 +4,15 @@ namespace App\Services\Approval;
 
 use Core\Helpers\ColumnPolicyRequestHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
+use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Psr\Log\LoggerInterface;
 
 class PersonalExpenseExcelService
 {
+    private LoggerInterface $logger;
     private const COLUMNS = [
         ['key' => 'sort_no', 'label' => '순번', 'required' => false],
         ['key' => 'expense_date', 'label' => '지출일자', 'required' => true],
@@ -38,9 +41,15 @@ class PersonalExpenseExcelService
 
     public function __construct(private readonly PersonalExpenseService $expenseService)
     {
+        $this->logger = LoggerFactory::getLogger('service-approval-personal-expense-excel');
     }
 
     public function createTemplate(?string $columnsCsv = null): Spreadsheet
+    {
+        return $this->logged('PERSONAL_EXPENSE_EXCEL_TEMPLATE', 'template', [], fn(): Spreadsheet => $this->createTemplateInternal($columnsCsv));
+    }
+
+    private function createTemplateInternal(?string $columnsCsv = null): Spreadsheet
     {
         $columns = $this->columns('template', $columnsCsv);
         return $this->spreadsheet('개인경비 아이템 양식', $columns, [[
@@ -59,6 +68,11 @@ class PersonalExpenseExcelService
 
     public function createDownload(array $rows, ?string $columnsCsv = null): Spreadsheet
     {
+        return $this->logged('PERSONAL_EXPENSE_EXCEL_DOWNLOAD', 'download', ['row_count' => count($rows)], fn(): Spreadsheet => $this->createDownloadInternal($rows, $columnsCsv));
+    }
+
+    private function createDownloadInternal(array $rows, ?string $columnsCsv = null): Spreadsheet
+    {
         $columns = $this->columns('download', $columnsCsv);
         $normalized = [];
         foreach (array_values($rows) as $index => $row) {
@@ -73,6 +87,11 @@ class PersonalExpenseExcelService
     }
 
     public function import(string $filePath, ?string $documentId = null): array
+    {
+        return $this->logged('PERSONAL_EXPENSE_EXCEL_IMPORT', 'import', ['document_id' => $documentId], fn(): array => $this->importInternal($filePath, $documentId));
+    }
+
+    private function importInternal(string $filePath, ?string $documentId = null): array
     {
         if ($documentId !== null && trim($documentId) !== '') {
             $this->expenseService->assertExcelEditable(trim($documentId));
@@ -121,6 +140,21 @@ class PersonalExpenseExcelService
             'message' => '개인경비 아이템 ' . count($validated) . '건을 불러왔습니다.',
             'data' => ['rows' => $validated, 'count' => count($validated)],
         ];
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        try {
+            $result = $operation();
+            $this->logger->info('개인경비 엑셀 처리를 완료했습니다.', ['event_code' => $eventCode, 'result' => 'SUCCESS', 'action' => $action] + $context);
+            return $result;
+        } catch (\InvalidArgumentException|\RuntimeException $exception) {
+            $this->logger->warning('개인경비 엑셀 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context);
+            throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('개인경비 엑셀 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context);
+            throw $exception;
+        }
     }
 
     private function columns(string $type, ?string $columnsCsv): array

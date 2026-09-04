@@ -12,10 +12,13 @@ use App\Services\File\FileService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class TransactionCrudService
 {
+    private $failureInjector;
     private TransactionModel $transactionModel;
     private TransactionItemModel $transactionItemModel;
     private TransactionSettlementModel $transactionSettlementModel;
@@ -25,9 +28,11 @@ class TransactionCrudService
     private EvidenceSourceRepository $evidenceSourceRepository;
     private TransactionEvidenceReferenceService $evidenceReferenceService;
     private TransactionReferenceValidatorService $referenceValidator;
+    private LoggerInterface $logger;
 
-    public function __construct(private readonly PDO $pdo)
+    public function __construct(private readonly PDO $pdo, ?callable $failureInjector = null)
     {
+        $this->failureInjector = $failureInjector;
         $this->transactionModel = new TransactionModel($pdo);
         $this->transactionItemModel = new TransactionItemModel($pdo);
         $this->transactionSettlementModel = new TransactionSettlementModel($pdo);
@@ -37,6 +42,12 @@ class TransactionCrudService
         $this->evidenceSourceRepository = new EvidenceSourceRepository($pdo);
         $this->evidenceReferenceService = new TransactionEvidenceReferenceService($pdo);
         $this->referenceValidator = new TransactionReferenceValidatorService($pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger-transaction');
+    }
+
+    private function checkpoint(string $name): void
+    {
+        if ($this->failureInjector !== null) ($this->failureInjector)('transaction.' . $name);
     }
 
     public function getList(array $filters): array
@@ -94,6 +105,11 @@ class TransactionCrudService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->logged('TRANSACTION_REORDERED','reorder',['requested_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if ($changes === []) {
             throw new \InvalidArgumentException('정렬 데이터가 없습니다.');
@@ -330,6 +346,11 @@ class TransactionCrudService
 
     public function restoreTransactions(array $ids): void
     {
+        $this->logged('TRANSACTION_RESTORED','restore',['requested_count'=>count($ids)],function()use($ids):bool{$this->restoreTransactionsInternal($ids);return true;});
+    }
+
+    private function restoreTransactionsInternal(array $ids): void
+    {
         if ($ids === []) {
             return;
         }
@@ -369,6 +390,11 @@ class TransactionCrudService
     }
 
     public function purgeTransactions(array $ids): void
+    {
+        $this->logged('TRANSACTION_PURGED','purge',['requested_count'=>count($ids)],function()use($ids):bool{$this->purgeTransactionsInternal($ids);return true;},true);
+    }
+
+    private function purgeTransactionsInternal(array $ids): void
     {
         if ($ids === []) {
             return;
@@ -422,6 +448,11 @@ class TransactionCrudService
     }
 
     public function softDelete(string $transactionId): array
+    {
+        return $this->logged('TRANSACTION_DELETED','delete',['target_id'=>$transactionId],fn():array=>$this->softDeleteInternal($transactionId),true);
+    }
+
+    private function softDeleteInternal(string $transactionId): array
     {
         $actor = ActorHelper::user();
         try {
@@ -497,6 +528,11 @@ class TransactionCrudService
 
     public function save(array $data, array $files = []): array
     {
+        return $this->logged('TRANSACTION_SAVED','save',['target_id'=>trim((string)($data['id']??''))?:null],fn():array=>$this->saveInternal($data,$files));
+    }
+
+    private function saveInternal(array $data, array $files = []): array
+    {
         $actor = ActorHelper::user();
         $timestamp = date('Y-m-d H:i:s');
         $transactionId = trim((string) ($data['id'] ?? ''));
@@ -506,13 +542,38 @@ class TransactionCrudService
         }
         $settlements = $this->normalizeSettlements($data['settlements'] ?? [], $data);
         $linkedEvidences = $this->normalizeLinkedEvidences($data['linked_evidences'] ?? []);
+        $evidenceWorkflowPolicy = new EvidenceWorkflowPolicyService();
+        $existingEvidenceIdentities = [];
+        if ($transactionId !== '') {
+            foreach ($this->evidenceLinkModel->getTransactionEvidences($transactionId) as $existingLink) {
+                $existingImportType = strtoupper(trim((string) ($existingLink['import_type'] ?? '')));
+                $existingEvidenceId = trim((string) ($existingLink['evidence_id'] ?? ''));
+                if ($existingImportType !== '' && $existingEvidenceId !== '') {
+                    $existingEvidenceIdentities[$existingImportType . "\0" . $existingEvidenceId] = true;
+                }
+            }
+        }
         foreach ($linkedEvidences as $linkedEvidence) {
+            $identity = $linkedEvidence['import_type'] . "\0" . $linkedEvidence['evidence_id'];
+            $linkPurpose = (string) ($linkedEvidence['link_purpose'] ?? '');
             $evidence = $this->evidenceSourceRepository->find(
                 $linkedEvidence['import_type'],
                 $linkedEvidence['evidence_id']
             );
             if (!$evidence || !in_array((string) ($evidence['evidence_type'] ?? ''), ['DATA', 'BOTH'], true)) {
                 return ['success' => false, 'message' => '증빙정책에서 거래 연결이 허용되지 않은 증빙입니다.'];
+            }
+            if (isset($existingEvidenceIdentities[$identity])) {
+                continue;
+            }
+            if ($linkPurpose === '') {
+                $linkPurpose = EvidenceWorkflowPolicyService::LINK_ACCOUNTING_READY;
+            }
+            if (!$evidenceWorkflowPolicy->canLink(
+                (string) ($evidence['evidence_status'] ?? ''),
+                $linkPurpose
+            )) {
+                return ['success' => false, 'message' => '현재 증빙상태에서는 요청한 목적으로 거래에 연결할 수 없습니다.'];
             }
         }
 
@@ -543,8 +604,8 @@ class TransactionCrudService
                 if (!empty($existing['deleted_at'])) {
                     throw new \RuntimeException('삭제된 거래는 수정할 수 없습니다.');
                 }
-                if (($existing['status'] ?? '') !== 'draft') {
-                    throw new \RuntimeException('작성 중인 거래만 수정할 수 있습니다.');
+                if (!in_array((string) ($existing['status'] ?? ''), ['draft', 'completed'], true)) {
+                    throw new \RuntimeException('마감되거나 취소된 거래는 수정할 수 없습니다.');
                 }
                 $loadedUpdatedAt = trim((string) ($data['loaded_updated_at'] ?? ''));
                 if ($loadedUpdatedAt === '') {
@@ -556,7 +617,11 @@ class TransactionCrudService
 
                 $isUpdate = true;
                 $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
-                $this->referenceValidator->validate($transactionPayload['update'], $existing);
+                $this->referenceValidator->validate(
+                    $transactionPayload['update'],
+                    $existing,
+                    is_array($data['reference_validation_context'] ?? null) ? $data['reference_validation_context'] : []
+                );
                 if (!$this->transactionModel->update($transactionId, $transactionPayload['update'])) {
                     throw new \RuntimeException('거래 수정에 실패했습니다.');
                 }
@@ -564,7 +629,11 @@ class TransactionCrudService
             } else {
                 $transactionId = UuidHelper::generate();
                 $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
-                $this->referenceValidator->validate($transactionPayload['insert']);
+                $this->referenceValidator->validate(
+                    $transactionPayload['insert'],
+                    null,
+                    is_array($data['reference_validation_context'] ?? null) ? $data['reference_validation_context'] : []
+                );
                 $insertPayload = $transactionPayload['insert'];
                 $insertPayload['id'] = $transactionId;
                 $insertPayload['sort_no'] = SequenceHelper::next('ledger_transactions', 'sort_no');
@@ -574,6 +643,7 @@ class TransactionCrudService
                 }
             }
 
+            $this->checkpoint('after_header');
             if (!empty($data['_header_only_retry'])) {
                 $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
                 foreach ($existingItems as $row) {
@@ -583,10 +653,13 @@ class TransactionCrudService
                 }
             } else {
                 $this->recreateItems($transactionId, $items, $actor, $timestamp);
+                $this->checkpoint('after_items');
                 $this->recreateSettlements($transactionId, $settlements, $actor, $timestamp);
+                $this->checkpoint('after_settlements');
             }
             $deletedFilePaths = $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
             $this->evidenceLinkModel->replaceTransactionEvidences($transactionId, $linkedEvidences);
+            $this->checkpoint('after_links');
 
             if ($ownsTransaction) {
                 $this->pdo->commit();
@@ -685,6 +758,7 @@ class TransactionCrudService
             $normalized[$importType . "\0" . $evidenceId] = [
                 'import_type' => $importType,
                 'evidence_id' => $evidenceId,
+                'link_purpose' => strtoupper(trim((string) ($row['link_purpose'] ?? ''))),
             ];
         }
         return array_values($normalized);
@@ -714,6 +788,9 @@ class TransactionCrudService
                 'item_foreign_amount' => $item['item_foreign_amount'],
                 'item_supply_amount' => $item['item_supply_amount'],
                 'item_description' => $item['item_description'],
+                'regular_employment_income_line_item_id' => $item['regular_employment_income_line_item_id'] ?? null,
+                'statutory_standard_revision_id' => $item['statutory_standard_revision_id'] ?? null,
+                'calculation_basis_id' => $item['calculation_basis_id'] ?? null,
                 'created_at' => $timestamp,
                 'created_by' => $actor,
                 'updated_at' => $timestamp,
@@ -741,6 +818,9 @@ class TransactionCrudService
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
                 'transaction_item_id' => null,
+                'regular_employment_income_line_item_id' => $settlement['regular_employment_income_line_item_id'] ?? null,
+                'statutory_standard_revision_id' => $settlement['statutory_standard_revision_id'] ?? null,
+                'calculation_basis_id' => $settlement['calculation_basis_id'] ?? null,
                 'settlement_type' => $settlement['settlement_type'],
                 'amount_sign' => $settlement['amount_sign'],
                 'amount' => $settlement['amount'],
@@ -1028,6 +1108,9 @@ class TransactionCrudService
                 'item_foreign_amount' => $usesForeignAmount ? (float) ($itemForeignAmount ?? 0) : null,
                 'item_supply_amount' => $supplyAmount,
                 'item_description' => $this->nullable($item['item_description'] ?? $item['description'] ?? null),
+                'regular_employment_income_line_item_id' => $this->nullable($item['regular_employment_income_line_item_id'] ?? null),
+                'statutory_standard_revision_id' => $this->nullable($item['statutory_standard_revision_id'] ?? null),
+                'calculation_basis_id' => $this->nullable($item['calculation_basis_id'] ?? null),
             ];
         }
 
@@ -1073,6 +1156,9 @@ class TransactionCrudService
 
             $rows[] = [
                 'transaction_item_id' => null,
+                'regular_employment_income_line_item_id' => $this->nullable($settlement['regular_employment_income_line_item_id'] ?? null),
+                'statutory_standard_revision_id' => $this->nullable($settlement['statutory_standard_revision_id'] ?? null),
+                'calculation_basis_id' => $this->nullable($settlement['calculation_basis_id'] ?? null),
                 'settlement_type' => $settlementType,
                 'amount_sign' => $amountSign,
                 'amount' => round($amount, 2),
@@ -1135,5 +1221,14 @@ class TransactionCrudService
         }
 
         return is_numeric($value) ? $value + 0 : null;
+    }
+
+    private function logged(string$event,string$action,array$context,callable$operation,bool$warning=false):mixed
+    {
+        $started=microtime(true);$base=['service'=>self::class,'action'=>$action,'actor'=>ActorHelper::user()]+$context;
+        try{$result=$operation();$payload=['event_code'=>$event,'result'=>'SUCCESS','duration_ms'=>(int)round((microtime(true)-$started)*1000)]+$base;if($warning)$this->logger->warning('거래 업무 처리가 완료되었습니다.',$payload);else$this->logger->info('거래 업무 처리가 완료되었습니다.',$payload);return$result;}
+        catch(\PDOException$e){$this->logger->error('거래 업무 처리에 실패했습니다.',['event_code'=>$event.'_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,'duration_ms'=>(int)round((microtime(true)-$started)*1000)]+$base);throw$e;}
+        catch(\InvalidArgumentException|\DomainException|\RuntimeException$e){$this->logger->warning('거래 업무 처리가 차단되었습니다.',['event_code'=>$event.'_BLOCKED','result'=>'BLOCKED','error_code'=>get_class($e),'error'=>$e,'duration_ms'=>(int)round((microtime(true)-$started)*1000)]+$base);throw$e;}
+        catch(\Throwable$e){$this->logger->error('거래 업무 처리에 실패했습니다.',['event_code'=>$event.'_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e,'duration_ms'=>(int)round((microtime(true)-$started)*1000)]+$base);throw$e;}
     }
 }

@@ -1,0 +1,67 @@
+.income-document-card .ui-form-card__body { padding: 10px 12px; }
+.income-document-fields { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.income-document-field { min-width: 0; }
+.income-document-field--month { flex: 0 0 160px; width: 160px; }
+.income-document-field--title { flex: 0 0 280px; width: 280px; }
+.income-document-field--description { flex: 0 0 280px; width: 280px; }
+.income-document-field--memo { flex: 1 1 240px; min-width: 240px; }
+.income-document-field .form-control { width: 100%; }
+@media (max-width: 767.98px) {
+    .income-document-field--month, .income-document-field--title, .income-document-field--description, .income-document-field--memo { flex: 1 1 100%; width: 100%; min-width: 0; }
+}
+
+.income-calculation-card-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; margin-top: 10px; }
+.income-calculation-card { --income-card-accent: #6c757d; min-width: 0; padding: 12px; border: 2px solid color-mix(in srgb, var(--income-card-accent) 72%, var(--bs-border-color)); border-left-width: 6px; border-radius: 8px; background: var(--bs-body-bg); box-shadow: 0 2px 7px color-mix(in srgb, var(--income-card-accent) 12%, transparent); }
+.income-calculation-card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.income-calculation-card h6 { margin: 0; color: var(--income-card-accent); }
+.income-calculation-card--daily_worker_income_tax { --income-card-accent: #0d6efd; }
+.income-calculation-card--income_tax { --income-card-accent: #0d6efd; }
+.income-calculation-card--local_income_tax { --income-card-accent: #6f42c1; }
+.income-calculation-card--national_pension { --income-card-accent: #0f766e; }
+.income-calculation-card--health_insurance { --income-card-accent: #198754; }
+.income-calculation-card--long_term_care { --income-card-accent: #6f8f2f; }
+.income-calculation-card--employment_insurance { --income-card-accent: #d97706; }
+.income-calculation-card--employment_insurance_vocational { --income-card-accent: #c2410c; }
+.income-calculation-card--industrial_accident_insurance { --income-card-accent: #dc3545; }
+.income-calculation-status { padding: 2px 7px; border-radius: 999px; background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); font-size: 11px; white-space: nowrap; }
+.insurance-eligibility-disclosure { position: relative; flex: 0 0 auto; min-width: 0; }
+.insurance-eligibility-disclosure > summary { list-style: none; }
+.insurance-eligibility-disclosure > summary::-webkit-details-marker { display: none; }
+.income-calculation-card > header .insurance-eligibility-badge { position: relative; z-index: 1; display: inline-flex; flex: 0 0 auto; align-items: center; width: auto; min-width: 0; padding: 2px 7px; border: 0; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; pointer-events: auto; cursor: pointer; }
+.insurance-eligibility-badge-icon { margin-left: 4px; font-size: 10px; line-height: 1; }
+.insurance-eligibility-badge:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+.insurance-eligibility-badge.is-applicable { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
+.insurance-eligibility-badge.is-partial { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); }
+.insurance-eligibility-badge.is-excluded { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+.insurance-eligibility-badge.is-confirmation { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+.insurance-eligibility-badge.is-error { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+.insurance-eligibility-badge.is-calculation-mode { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); }
+.insurance-eligibility-popover { position: fixed; z-index: 1090; width: max-content; max-width: min(360px, calc(100vw - 24px)); padding: 10px 12px; border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 5px 18px rgba(0, 0, 0, .18); }
+.insurance-eligibility-popover[hidden] { display: none; }
+.insurance-eligibility-popover-list { display: grid; gap: 6px; margin: 0; font-size: 12px; }
+.insurance-eligibility-popover-list > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
+.insurance-eligibility-popover-list strong { color: var(--bs-secondary-color); font-weight: 600; }
+.insurance-eligibility-popover-list span { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.insurance-eligibility-fallback { position: absolute; z-index: 1090; top: calc(100% + 7px); right: 0; width: max-content; max-width: min(360px, calc(100vw - 24px)); padding: 10px 12px; border: 1px solid var(--bs-border-color); border-radius: 8px; background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 5px 18px rgba(0, 0, 0, .18); }
+.insurance-eligibility-disclosure.is-popover-visible .insurance-eligibility-fallback { display: none !important; }
+.income-calculation-card dl { display: grid; grid-template-columns: minmax(108px, .8fr) minmax(0, 1.4fr); margin: 0; font-size: 12px; }
+.income-calculation-card dt, .income-calculation-card dd { margin: 0; padding: 6px 5px; border-bottom: 1px solid var(--bs-border-color-translucent); }
+.income-calculation-card dt { color: var(--bs-secondary-color); font-weight: 500; }
+.income-calculation-card dd { text-align: right; white-space: normal; font-variant-numeric: tabular-nums; }
+.income-calculation-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bs-border-color); }
+.income-calculation-editor label { display: grid; align-content: start; gap: 4px; font-size: 12px; color: var(--bs-secondary-color); }
+.income-calculation-editor .income-calculation-reason, .income-calculation-editor .invalid-feedback { grid-column: 1 / -1; }
+.income-calculation-editor input { text-align: right; }
+.income-calculation-apply-field { min-width: 0; }
+.income-calculation-apply-field .form-control { width: 100%; min-width: 96px; }
+.income-calculation-restore-row { grid-column: 2; min-width: 0; margin-top: -4px; text-align: right; }
+.income-calculation-restore-row:empty { display: none; }
+.income-calculation-editor .income-calculation-restore { width: auto; min-height: 0; padding: 1px 0; color: var(--bs-secondary-color); font-size: 11px; line-height: 1.2; text-decoration: underline; white-space: nowrap; }
+.income-calculation-mode { grid-column: 1 / -1; color: var(--bs-secondary-color); font-size: 11px; }
+.income-calculation-editor.is-invalid .invalid-feedback { display: block; }
+.income-calculation-note { margin: 9px 0 0; color: var(--bs-warning-text-emphasis); font-size: 11px; }
+.income-calculation-settlement, .income-calculation-final { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--bs-border-color); font-size: 12px; }
+.income-calculation-settlement strong, .income-calculation-final strong { text-align: right; }
+.income-calculation-final { border-top-style: solid; font-size: 14px; }
+.daily-income-institution-detail.is-hidden { display: none; }
+@media (max-width: 575.98px) { .income-calculation-editor { grid-template-columns: 1fr; } .income-calculation-editor > * { grid-column: 1 !important; } .income-calculation-apply-field .form-control { min-width: 0; } }

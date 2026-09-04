@@ -2,6 +2,7 @@
 
 namespace App\Services\User;
 
+use App\Services\Concerns\LogsServiceOperations;
 use PDO;
 use App\Models\User\PositionModel;
 use App\Repositories\User\PositionDependencyRepository;
@@ -13,6 +14,7 @@ use Core\LoggerFactory;
 
 class PositionService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private PositionModel $model;
     private PositionDependencyRepository $dependencyRepository;
@@ -40,6 +42,11 @@ class PositionService
 
     public function create(array $data): array
     {
+        return $this->logged('POSITION_CREATE','create',[],fn():array=>$this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
+    {
         $data = $this->validateSaveData($data);
         $name = $data['position_name'];
 
@@ -61,6 +68,11 @@ class PositionService
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->logged('POSITION_UPDATE','update',['position_id'=>$id],fn():array=>$this->updateInternal($id,$data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         if (trim($id) === '') {
             throw new \InvalidArgumentException('직책 ID가 필요합니다.');
@@ -88,6 +100,11 @@ class PositionService
 
     public function delete(string $id): array
     {
+        return $this->logged('POSITION_DELETE','delete',['position_id'=>$id],fn():array=>$this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $id = trim($id);
         if ($id === '') {
             throw new \InvalidArgumentException('직책 ID가 필요합니다.');
@@ -108,15 +125,16 @@ class PositionService
                 'message' => $deleted ? '직책이 영구삭제되었습니다.' : '직책 정보를 찾을 수 없습니다.',
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('position hard delete failed', [
-                'position_id' => $id,
-                'exception' => $e->getMessage(),
-            ]);
-            return ['success' => false, 'message' => '사용 중인 직책이므로 삭제할 수 없습니다.'];
+            return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->runLoggedOperation($this->logger,'직책','POSITION_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -158,6 +176,11 @@ class PositionService
 
             throw $e;
         }
+    }
+
+    private function logged(string $event,string $action,array $context,callable $operation):array
+    {
+        return $this->runLoggedOperation($this->logger,'직책',$event,$action,$context,$operation,'info',true,static function(array$result):string{if(!empty($result['success']))return'SUCCESS';return str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED';});
     }
 
     private function validateSaveData(array $data): array

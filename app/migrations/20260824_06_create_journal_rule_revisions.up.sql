@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `ledger_journal_rule_revisions` (
+    `id` varchar(36) NOT NULL,
+    `company_id` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+    `rule_id` varchar(36) NOT NULL,
+    `revision_no` int unsigned NOT NULL,
+    `action_code` varchar(30) NOT NULL,
+    `before_snapshot` longtext NULL,
+    `after_snapshot` longtext NOT NULL,
+    `change_reason` varchar(1000) NULL,
+    `policy_revision` int unsigned NULL,
+    `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+    `created_by` varchar(100) NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_journal_rule_revision` (`rule_id`,`revision_no`),
+    KEY `idx_journal_rule_revision_scope` (`company_id`,`rule_id`,`created_at`),
+    CONSTRAINT `fk_journal_rule_revision_company` FOREIGN KEY (`company_id`) REFERENCES `system_company` (`id`),
+    CONSTRAINT `chk_journal_rule_revision_action` CHECK (`action_code` IN ('CREATE','UPDATE','ACTIVATE','DEACTIVATE','APPROVE','REJECT','PROMOTE','LOCK','UNLOCK','AUTO_APPLY','PRIORITY','TRASH','RESTORE')),
+    CONSTRAINT `chk_journal_rule_revision_before` CHECK (`action_code`='CREATE' OR `before_snapshot` IS NOT NULL),
+    CONSTRAINT `chk_journal_rule_revision_after` CHECK (JSON_VALID(`after_snapshot`)),
+    CONSTRAINT `chk_journal_rule_revision_before_json` CHECK (`before_snapshot` IS NULL OR JSON_VALID(`before_snapshot`))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='분개규칙 불변 Revision Snapshot';

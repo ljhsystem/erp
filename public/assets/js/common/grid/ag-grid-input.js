@@ -73,5 +73,16 @@ export function createAgGridInputAdapter(host, config = {}) {
         },
     });
     ensureToolbar(host, adapter, config);
+    const destroyAdapter = adapter.destroy.bind(adapter);
+    adapter.destroy = () => {
+        const container = config.toolbarContainer
+            || host.closest(config.toolbarContainerSelector || '.erp-grid-input-wrap')
+            || host.parentElement;
+        if (container?.__erpGridInputToolbarHandler) {
+            container.removeEventListener('click', container.__erpGridInputToolbarHandler);
+            delete container.__erpGridInputToolbarHandler;
+        }
+        destroyAdapter();
+    };
     return adapter;
 }

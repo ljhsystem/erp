@@ -24,12 +24,19 @@ class AttendanceScheduleService
         if((string)$schedule['day_type']!=='WORKDAY')return ['exception'=>null,'contract_id'=>$contract['id'],'start'=>null,'end'=>null,'break_seconds'=>0,'scheduled_seconds'=>0,'workday'=>false];
         $start=$workDate.' '.$schedule['start_time'];$end=date('Y-m-d H:i:s',strtotime($workDate.' '.$schedule['end_time'].' +'.(int)$schedule['end_day_offset'].' day'));
         $breaks=$this->model->scheduleBreaks((string)$schedule['id']);
-        if((int)$schedule['break_minutes']>0&&$breaks===[])throw new \RuntimeException('상세 휴게구간이 입력되지 않은 근로계약입니다.');
-        $breakSeconds=0;$resolvedBreaks=[];
-        foreach($breaks as $break){$breakStart=$workDate.' '.$break['start_time'];$breakEnd=date('Y-m-d H:i:s',strtotime($workDate.' '.$break['end_time'].' +'.(int)$break['end_day_offset'].' day'));if(strtotime($breakStart)<strtotime($start)||strtotime($breakEnd)>strtotime($end)||strtotime($breakEnd)<=strtotime($breakStart))throw new \RuntimeException('상세 휴게구간이 예정 근무구간을 벗어났습니다.');$seconds=strtotime($breakEnd)-strtotime($breakStart);$breakSeconds+=$seconds;$resolvedBreaks[]=['start'=>$breakStart,'end'=>$breakEnd,'seconds'=>$seconds];}
-        if($breakSeconds!==(int)$schedule['break_minutes']*60)throw new \RuntimeException('상세 휴게구간 합계와 계약 휴게시간이 일치하지 않습니다.');
-        $scheduled=max(0,strtotime($end)-strtotime($start)-$breakSeconds);
-        return ['exception'=>null,'contract_id'=>$contract['id'],'work_schedule_type'=>$contract['work_schedule_type']??null,'work_date'=>$workDate,'start'=>$start,'end'=>$end,'break_seconds'=>$breakSeconds,'breaks'=>$resolvedBreaks,'scheduled_seconds'=>$scheduled,'workday'=>true];
+        $breakSeconds=0;$resolvedBreaks=[];$calculationIssue=null;
+        if($breaks!==[]){
+            foreach($breaks as $break){
+                $breakStart=$workDate.' '.$break['start_time'];
+                $breakEnd=date('Y-m-d H:i:s',strtotime($workDate.' '.$break['end_time'].' +'.(int)$break['end_day_offset'].' day'));
+                if(strtotime($breakStart)<strtotime($start)||strtotime($breakEnd)>strtotime($end)||strtotime($breakEnd)<=strtotime($breakStart)){$calculationIssue='BREAK_SCHEDULE_INVALID';$resolvedBreaks=[];$breakSeconds=0;break;}
+                $seconds=strtotime($breakEnd)-strtotime($breakStart);$breakSeconds+=$seconds;$resolvedBreaks[]=['start'=>$breakStart,'end'=>$breakEnd,'seconds'=>$seconds];
+            }
+            if($calculationIssue===null&&$breakSeconds!==(int)$schedule['break_minutes']*60){$calculationIssue='BREAK_SCHEDULE_MISMATCH';$resolvedBreaks=[];$breakSeconds=0;}
+        }
+        $requiredBreakSeconds=(int)$schedule['break_minutes']*60;
+        $scheduled=max(0,strtotime($end)-strtotime($start)-$requiredBreakSeconds);
+        return ['exception'=>null,'calculation_issue_code'=>$calculationIssue,'calculation_issue_message'=>$this->calculationIssueMessage($calculationIssue),'contract_id'=>$contract['id'],'work_schedule_type'=>$contract['work_schedule_type']??null,'work_date'=>$workDate,'start'=>$start,'end'=>$end,'break_seconds'=>$requiredBreakSeconds,'breaks'=>$resolvedBreaks,'scheduled_seconds'=>$scheduled,'workday'=>true];
     }
 
     public function resolveWorkDate(string $employeeId,string $occurredAt): string
@@ -38,5 +45,14 @@ class AttendanceScheduleService
         $eventDate=date('Y-m-d',$eventTime);$candidates=[];
         foreach([date('Y-m-d',strtotime($eventDate.' -1 day')),$eventDate] as $candidate)$candidates[$candidate]=$this->resolve($employeeId,$candidate);
         return $this->calculationPolicy->workDateForEvent($occurredAt,$candidates);
+    }
+
+    private function calculationIssueMessage(?string $code): ?string
+    {
+        return match($code){
+            'BREAK_SCHEDULE_INVALID'=>'근로계약의 상세 휴게시간이 예정 근무구간을 벗어나 근무시간 확인이 필요합니다.',
+            'BREAK_SCHEDULE_MISMATCH'=>'근로계약의 휴게시간 총량과 상세 휴게시간이 일치하지 않아 근무시간 확인이 필요합니다.',
+            default=>null,
+        };
     }
 }

@@ -74,7 +74,7 @@ class ApprovalInboxModel
                        current_step.step_name current_step_name, current_approver.employee_name current_approver_name,
                        COALESCE(p.supply_amount, 0) supply_amount_total,
                        COALESCE(p.vat_amount, 0) vat_amount_total,
-                       COALESCE(p.total_amount, contract_amount.total_amount, 0) total_amount,
+                       COALESCE(p.total_amount, contract_amount.total_amount) total_amount,
                        COALESCE(step_counts.approved_count, 0) approved_step_count,
                        COALESCE(step_counts.step_count, 0) step_count,
                        CASE WHEN actionable.id IS NULL THEN 0 ELSE 1 END can_act
@@ -95,7 +95,7 @@ class ApprovalInboxModel
                    requester.employee_name requester_name,
                    current_step.step_name current_step_name,
                    COALESCE(current_step.updated_at, current_step.created_at, r.requested_at) arrived_at,
-                    COALESCE(p.total_amount, contract_amount.total_amount, 0) total_amount
+                    COALESCE(p.total_amount, contract_amount.total_amount) total_amount
               FROM user_approval_requests r
               INNER JOIN user_approval_request_steps current_step
                 ON current_step.request_id = r.id
@@ -176,14 +176,14 @@ class ApprovalInboxModel
 
     public function requestDetail(string $requestId, string $userId, bool $forUpdate = false): ?array
     {
-        $sql = "SELECT r.*, COALESCE(p.sort_no, contract.sort_no, personnel_action.action_no, leave_request.request_no) document_no,
+        $sql = "SELECT r.*, COALESCE(p.sort_no, contract.sort_no, personnel_action.action_no, leave_request.request_no, r.sort_no) document_no,
                        COALESCE(p.employee_id, contract.employee_id, leave_request.employee_id) employee_id,
                        COALESCE(p.application_date, contract.contract_start_date, personnel_action.action_date, leave_dates.leave_from) application_date,
                        COALESCE(p.title, CONCAT('근로계약 ', contract.contract_no), personnel_action.action_name, CONCAT('휴가신청 ',leave_request.request_no)) title,
                        COALESCE(p.description, contract.note, personnel_action.action_reason, leave_request.reason) description,
                        p.memo memo,
                        COALESCE(p.document_status, contract.contract_status, personnel_action.business_status, leave_request.business_status_code) document_status,
-                       COALESCE(p.total_amount, contract_amount.total_amount, 0) total_amount,
+                       COALESCE(p.total_amount, contract_amount.total_amount) total_amount,
                        requester.employee_name requester_name,
                        COALESCE(applicant.employee_name, contract_employee.employee_name, personnel_action_targets.employee_names, leave_employee.employee_name) applicant_name,
                        department.dept_name department_name,
@@ -400,7 +400,7 @@ class ApprovalInboxModel
             'requester_name' => 'requester.employee_name',
             'application_date' => 'COALESCE(p.application_date, contract.contract_start_date, personnel_action.action_date, leave_dates.leave_from, DATE(r.requested_at))',
             'title' => "COALESCE(p.title, CONCAT('근로계약 ', contract.contract_no), personnel_action.action_name, CONCAT('휴가신청 ',leave_request.request_no), r.document_type)",
-            'total_amount' => 'COALESCE(p.total_amount, contract_amount.total_amount, 0)',
+            'total_amount' => 'COALESCE(p.total_amount, contract_amount.total_amount)',
             'current_step_name' => 'current_step.step_name',
             'requested_at' => 'r.requested_at',
             'approval_status' => 'r.status',

@@ -26,6 +26,15 @@
                                 <h6 class="transaction-card-title">업무 분류정보</h6>
                                 <p class="transaction-card-description">사업구분, 거래구분, 업무유형, 기초정보와 담당 정보를 증빙원본과 같은 카드 구조로 관리합니다.</p>
                             </div>
+                            <fieldset class="transaction-status-confirmation" id="transactionStatusBadge">
+                                <legend class="transaction-status-confirmation-label">거래상태</legend>
+                                <div class="transaction-status-options" role="radiogroup" aria-label="거래상태">
+                                    <label><input type="radio" name="transaction_status_choice" value="draft" checked> 임시저장</label>
+                                    <label><input type="radio" name="transaction_status_choice" value="completed"> 완료</label>
+                                    <label><input type="radio" name="transaction_status_choice" value="closed" data-status-terminal disabled> 마감</label>
+                                    <label><input type="radio" name="transaction_status_choice" value="cancelled" data-status-terminal disabled> 취소</label>
+                                </div>
+                            </fieldset>
                         </div>
 
                         <div class="transaction-modal-grid transaction-business-grid">
@@ -97,10 +106,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="client_id"
-                                        id="client_id"
-                                        data-placeholder="거래처 검색"
-                                        required>
-                                    <option value=""></option>
+                                        id="client_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
 
@@ -111,9 +118,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="project_id"
-                                        id="project_id"
-                                        data-placeholder="프로젝트 검색">
-                                    <option value=""></option>
+                                        id="project_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
 
@@ -124,9 +130,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="bank_account_id"
-                                        id="bank_account_id"
-                                        data-placeholder="계좌 검색">
-                                    <option value="">계좌선택</option>
+                                        id="bank_account_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
 
@@ -137,9 +142,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="card_id"
-                                        id="card_id"
-                                        data-placeholder="카드 검색">
-                                    <option value="">카드선택</option>
+                                        id="card_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
 
@@ -150,9 +154,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="team_id"
-                                        id="team_id"
-                                        data-placeholder="팀 검색">
-                                    <option value="">팀선택</option>
+                                        id="team_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
 
@@ -163,9 +166,8 @@
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="employee_id"
-                                        id="employee_id"
-                                        data-placeholder="직원 검색">
-                                    <option value="">직원선택</option>
+                                        id="employee_id">
+                                    <option value="">선택(없음)</option>
                                 </select>
                             </label>
                         </div>
@@ -415,7 +417,7 @@
                                 aria-controls="transactionSystemInfoCollapse">
                             <span class="transaction-card-heading">
                                 <span class="transaction-card-title">시스템 처리 정보</span>
-                                <span class="transaction-card-description">상태와 생성·수정·삭제 이력을 확인합니다.</span>
+                                <span class="transaction-card-description">생성·수정·삭제 이력을 확인합니다.</span>
                             </span>
                             <i class="bi bi-chevron-down transaction-card-icon" aria-hidden="true"></i>
                         </button>
@@ -448,16 +450,29 @@
             </div>
             <div class="modal-body">
                 <div class="transaction-evidence-table-wrap">
-                    <table id="transaction_evidence_search_table" class="table table-sm align-middle nowrap w-100">
+                    <table id="transaction_evidence_search_table" class="table table-sm align-middle w-100">
                         <thead>
                             <tr>
                                 <th>선택</th>
-                                <th>기준일</th>
-                                <th>증빙구분</th>
+                                <th>증빙 ID</th>
+                                <th>원천유형</th>
                                 <th>자료유형</th>
+                                <th>증빙구분</th>
+                                <th>기준일</th>
+                                <th>증빙상태</th>
+                                <th>사업구분</th>
+                                <th>거래구분</th>
+                                <th>업무유형</th>
                                 <th>거래처</th>
+                                <th>프로젝트</th>
+                                <th>직원</th>
+                                <th>계좌</th>
+                                <th>카드</th>
+                                <th>팀</th>
                                 <th>적요</th>
                                 <th>금액</th>
+                                <th>생성일시</th>
+                                <th>수정일시</th>
                                 <th>관리</th>
                             </tr>
                         </thead>

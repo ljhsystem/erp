@@ -16,15 +16,17 @@ class VoucherQueryService
     private VoucherReviewQueryModel $voucherReviewQueryModel;
     private VoucherLineModel $voucherLineModel;
     private VoucherLineRefService $voucherLineRefService;
+    private VoucherLineSourceRefService $voucherLineSourceRefService;
     private EvidenceLinkModel $evidenceLinkModel;
     private EvidenceSourceRepository $evidenceSourceRepository;
 
-    public function __construct(PDO $pdo)
+    public function __construct(private readonly PDO $pdo)
     {
         $this->voucherModel = new VoucherModel($pdo);
         $this->voucherReviewQueryModel = new VoucherReviewQueryModel($pdo);
         $this->voucherLineModel = new VoucherLineModel($pdo);
         $this->voucherLineRefService = new VoucherLineRefService($pdo);
+        $this->voucherLineSourceRefService = new VoucherLineSourceRefService($pdo);
         $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
         $this->evidenceSourceRepository = new EvidenceSourceRepository($pdo);
     }
@@ -48,6 +50,11 @@ class VoucherQueryService
 
         $voucher['lines'] = $this->voucherLineRefService->hydrateVoucherLines(
             $this->voucherLineModel->getByVoucherId($id)
+        );
+        $voucher['lines'] = $this->voucherLineSourceRefService->hydrateVoucherLines(
+            $this->companyId(),
+            $id,
+            $voucher['lines']
         );
         $voucher['reversal_voucher'] = $this->voucherModel->findActiveReversalOf($id);
         $voucher['original_voucher'] = !empty($voucher['reversal_of'])
@@ -116,5 +123,14 @@ class VoucherQueryService
     public function evidenceSemanticValues(string $importType, array $row): array
     {
         return $this->evidenceSourceRepository->semanticValues($importType, $row);
+    }
+
+    private function companyId(): string
+    {
+        $ids = $this->pdo->query('SELECT id FROM system_company ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (count($ids) !== 1) {
+            throw new \RuntimeException('전표 Source Ref의 회사 범위를 확정할 수 없습니다.');
+        }
+        return (string) $ids[0];
     }
 }

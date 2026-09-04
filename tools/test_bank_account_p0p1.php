@@ -140,7 +140,7 @@ try {
 
     $registry = $pdo->prepare('SELECT default_route_url FROM system_page_registry WHERE page_key = :page_key');
     $registry->execute([':page_key' => 'settings.base_info.bank_accounts']);
-    $assert($registry->fetchColumn() === '/dashboard/settings/base-info/bank-account', 'Page Registry Canonical URL');
+    $assert($registry->fetchColumn() === '/main/settings/base-info/bank-account', 'Page Registry Canonical URL');
 
     echo json_encode(['success' => true, 'checks' => $checks], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), PHP_EOL;
 } finally {

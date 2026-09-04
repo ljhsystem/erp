@@ -44,6 +44,11 @@ class RoleService
 
     public function create(array $data): array
     {
+        return $this->logged('ROLE_CREATE', 'create', [], fn(): array => $this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
+    {
         $data = $this->validateSaveData($data);
 
         if ($this->model->existsKey($data['role_key'])) {
@@ -68,6 +73,11 @@ class RoleService
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->logged('ROLE_UPDATE', 'update', ['role_id' => $id], fn(): array => $this->updateInternal($id, $data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         $id = trim($id);
         if ($id === '') {
@@ -110,6 +120,11 @@ class RoleService
 
     public function delete(string $id): array
     {
+        return $this->logged('ROLE_DELETE', 'delete', ['role_id' => $id], fn(): array => $this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $id = trim($id);
         if ($id === '') {
             throw new \InvalidArgumentException('역할 ID가 필요합니다.');
@@ -143,10 +158,6 @@ class RoleService
             if ($isOuter && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->logger->error('role hard delete failed', [
-                'role_id' => $id,
-                'exception' => $e->getMessage(),
-            ]);
             return ['success' => false, 'message' => '사용 중인 역할이므로 삭제할 수 없습니다.'];
         }
     }
@@ -157,6 +168,11 @@ class RoleService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->logged('ROLE_REORDER', 'reorder', ['change_count' => count($changes)], fn(): bool => $this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -197,6 +213,24 @@ class RoleService
             }
 
             throw $e;
+        }
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        $base = ['service' => self::class, 'action' => $action, 'actor' => ActorHelper::user()] + $context;
+        try {
+            $result = $operation();
+            $outcome = is_array($result) && array_key_exists('success', $result) && !$result['success'] ? 'BLOCKED' : 'SUCCESS';
+            $level = $outcome === 'SUCCESS' ? 'info' : 'warning';
+            $this->logger->{$level}($outcome === 'SUCCESS' ? '역할 업무 처리를 완료했습니다.' : '역할 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . ($outcome === 'BLOCKED' ? '_BLOCKED' : ''), 'result' => $outcome] + $base);
+            return $result;
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            $this->logger->warning('역할 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'error_code' => get_class($exception), 'error' => $exception] + $base);
+            throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('역할 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'error_code' => get_class($exception), 'error' => $exception] + $base);
+            throw $exception;
         }
     }
 

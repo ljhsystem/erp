@@ -18,6 +18,8 @@ class ApprovalDocumentAdapterRegistry
             new LeaveApprovalAdapter($pdo),
             new EmploymentRuleApprovalAdapter($pdo),
             new RegularEmploymentIncomeApprovalAdapter($pdo),
+            new DailyEmploymentIncomeApprovalAdapter($pdo),
+            new BusinessIncomeApprovalAdapter($pdo),
         ] as $adapter) {
             $this->adapters[$adapter->documentType()] = $adapter;
         }

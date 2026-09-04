@@ -29,7 +29,7 @@ class TemplateStepService
         try {
             return $this->model->getSteps($templateId);
         } catch (\Throwable $e) {
-            $this->logger->error('StepService::getSteps 실패', ['template_id' => $templateId, 'error' => $e->getMessage()]);
+            $this->logger->error('결재단계 목록 조회에 실패했습니다.', ['event_code'=>'APPROVAL_TEMPLATE_STEP_LIST_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return [];
         }
     }
@@ -39,12 +39,17 @@ class TemplateStepService
         try {
             return $this->model->getById($id);
         } catch (\Throwable $e) {
-            $this->logger->error('StepService::getById 실패', ['id' => $id, 'error' => $e->getMessage()]);
+            $this->logger->error('결재단계 상세 조회에 실패했습니다.', ['event_code'=>'APPROVAL_TEMPLATE_STEP_DETAIL_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return null;
         }
     }
 
     public function create(array $data): array
+    {
+        return $this->logged('APPROVAL_TEMPLATE_STEP_CREATE', 'create', ['template_id' => $data['template_id'] ?? null], fn(): array => $this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
     {
         try {
             return $this->transaction(function () use ($data): array {
@@ -89,12 +94,17 @@ class TemplateStepService
                 return ['success' => $ok, 'id' => $payload['id'], 'sort_no' => $payload['sort_no']];
             });
         } catch (\Throwable $e) {
-            $this->logger->error('StepService::create 실패', ['data' => $data, 'error' => $e->getMessage()]);
+            $this->logger->error('결재단계 저장에 실패했습니다.', ['event_code' => 'APPROVAL_TEMPLATE_STEP_CREATE_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => 'approval_template_step.create', 'error_code'=>get_class($e),'error'=>$e]);
             return ['success' => false, 'message' => '결재단계 저장 중 오류가 발생했습니다.'];
         }
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->logged('APPROVAL_TEMPLATE_STEP_UPDATE', 'update', ['step_id' => $id], fn(): array => $this->updateInternal($id, $data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         try {
             return $this->transaction(function () use ($id, $data): array {
@@ -151,12 +161,17 @@ class TemplateStepService
                 return ['success' => $ok];
             });
         } catch (\Throwable $e) {
-            $this->logger->error('StepService::update 실패', ['id' => $id, 'data' => $data, 'error' => $e->getMessage()]);
+            $this->logger->error('결재단계 수정에 실패했습니다.', ['event_code' => 'APPROVAL_TEMPLATE_STEP_UPDATE_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => 'approval_template_step.update', 'target_type' => 'APPROVAL_TEMPLATE_STEP', 'target_id' => $id, 'error_code'=>get_class($e),'error'=>$e]);
             return ['success' => false, 'message' => '결재단계 수정 중 오류가 발생했습니다.'];
         }
     }
 
     public function delete(string $id): bool
+    {
+        return $this->logged('APPROVAL_TEMPLATE_STEP_DELETE', 'delete', ['step_id' => $id], fn(): bool => $this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): bool
     {
         try {
             return $this->transaction(function () use ($id): bool {
@@ -176,7 +191,7 @@ class TemplateStepService
                 return true;
             });
         } catch (\Throwable $e) {
-            $this->logger->error('StepService::delete 실패', ['id' => $id, 'error' => $e->getMessage()]);
+            $this->logger->error('결재단계 삭제에 실패했습니다.', ['event_code'=>'APPROVAL_TEMPLATE_STEP_DELETE_FAILED','result'=>'FAILED','error_code'=>get_class($e),'error'=>$e]);
             return false;
         }
     }
@@ -206,6 +221,11 @@ class TemplateStepService
     }
 
     public function reorder(string $templateId, array $changes): bool
+    {
+        return $this->logged('APPROVAL_TEMPLATE_STEP_REORDER', 'reorder', ['template_id' => $templateId, 'change_count' => count($changes)], fn(): bool => $this->reorderInternal($templateId, $changes));
+    }
+
+    private function reorderInternal(string $templateId, array $changes): bool
     {
         return $this->transaction(function () use ($templateId, $changes): bool {
             $this->model->lockTemplate($templateId);
@@ -306,5 +326,19 @@ class TemplateStepService
             return ['success' => false, 'message' => '활성 상태 값이 올바르지 않습니다.'];
         }
         return ['success' => true, 'message' => ''];
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        try {
+            $result = $operation();
+            $blocked = $result === false || (is_array($result) && array_key_exists('success', $result) && !$result['success']);
+            $this->logger->{$blocked ? 'warning' : 'info'}($blocked ? '결재단계 업무 처리가 차단되었습니다.' : '결재단계 업무 처리를 완료했습니다.', ['event_code' => $eventCode . ($blocked ? '_BLOCKED' : ''), 'result' => $blocked ? 'BLOCKED' : 'SUCCESS', 'service' => self::class, 'action' => $action] + $context);
+            return $result;
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            $this->logger->warning('결재단계 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('결재단계 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        }
     }
 }

@@ -18,17 +18,17 @@ $pageScripts = $pageScripts ?? '';
 $sitemap = [
     '대시보드' => [
         '대시보드' => [
-            ['대시보드', '/dashboard'],
-            ['통합보고서', '/dashboard/report'],
-            ['일정/캘린더', '/dashboard/calendar'],
-            ['최근활동', '/dashboard/activity'],
-            ['공지사항', '/dashboard/notice'],
-            ['실적현황', '/dashboard/kpi'],
+            ['대시보드', '/main'],
+            ['통합보고서', '/main/report'],
+            ['일정/캘린더', '/main/calendar'],
+            ['최근활동', '/main/activity'],
+            ['공지사항', '/main/notice'],
+            ['실적현황', '/main/kpi'],
         ],
         '설정' => [
-            ['직원관리', '/dashboard/settings?tab=employee'],
-            ['커버사진관리', '/dashboard/settings?tab=cover'],
-            ['세션관리', '/dashboard/settings?tab=session'],
+            ['직원관리', '/main/settings?tab=employee'],
+            ['커버사진관리', '/main/settings?tab=cover'],
+            ['세션관리', '/main/settings?tab=session'],
         ],
     ],
     '문서관리' => [

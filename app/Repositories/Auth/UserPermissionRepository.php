@@ -11,13 +11,13 @@ class UserPermissionRepository
 
     public function listUsers(): array
     {
-        return $this->db->query("SELECT u.id user_id,u.username,u.approved,u.is_active,u.role_id,
-            r.role_key,r.role_name,r.is_active role_active,e.sort_no,e.employee_name,e.employment_status,e.doc_retire_date,e.real_retire_date,
+        return $this->db->query("SELECT e.*,u.username,u.approved,u.is_active,u.role_id,
+            r.role_key,r.role_name,r.is_active role_active,
             COALESCE(pr.permission_mode,'ROLE') permission_mode,COALESCE(pc.user_permission_count,0) user_permission_count
-          FROM auth_users u LEFT JOIN auth_roles r ON r.id=u.role_id LEFT JOIN user_employees e ON e.user_id=u.id
+          FROM user_employees e JOIN auth_users u ON u.id=e.user_id LEFT JOIN auth_roles r ON r.id=u.role_id
           LEFT JOIN auth_user_permission_profiles pr ON pr.user_id=u.id
           LEFT JOIN (SELECT user_id,COUNT(*) user_permission_count FROM auth_user_permissions GROUP BY user_id) pc ON pc.user_id=u.id
-          ORDER BY u.username")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+          ORDER BY e.sort_no,e.employee_name,u.username")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function userContext(string $userId, bool $lock = false): ?array

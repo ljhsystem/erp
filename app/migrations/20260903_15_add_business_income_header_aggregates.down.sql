@@ -1,0 +1,12 @@
+ALTER TABLE institution_business_incomes
+    DROP CONSTRAINT chk_business_income_header_reconciliation,
+    DROP CONSTRAINT chk_business_income_header_amounts,
+    DROP CONSTRAINT chk_business_income_header_counts,
+    DROP COLUMN total_net_payment_amount,
+    DROP COLUMN total_deduction_amount,
+    DROP COLUMN total_other_deduction_amount,
+    DROP COLUMN total_local_income_tax_amount,
+    DROP COLUMN total_income_tax_amount,
+    DROP COLUMN total_gross_payment_amount,
+    DROP COLUMN item_count,
+    DROP COLUMN group_count;

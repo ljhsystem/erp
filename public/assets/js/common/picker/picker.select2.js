@@ -457,6 +457,13 @@ function bindCommonSelect2Options($el) {
                 if (this.dataset.quickAddEnabled !== 'true') {
                     return;
                 }
+                let emptyOption = Array.from(this.options || []).find((option) => option.value === '');
+                if (!emptyOption) {
+                    emptyOption = new Option('선택(없음)', '', true, true);
+                    this.insertBefore(emptyOption, this.firstChild);
+                }
+                emptyOption.selected = true;
+                window.jQuery(this).val('').trigger('change');
                 this.dispatchEvent(new CustomEvent('picker:add', {
                     bubbles: true,
                     detail: event.params?.data || {}
@@ -510,7 +517,14 @@ function createSelect2(target, options = {}) {
     }
     bindCommonSelect2Options($el);
     $el.off('select2:open.pickerSearchFocusLocal')
-        .on('select2:open.pickerSearchFocusLocal', focusOpenSelect2Search)
+        .on('select2:open.pickerSearchFocusLocal', () => {
+            const width = Math.round($el.next('.select2-container').get(0)?.getBoundingClientRect?.().width || 0);
+            const $dropdown = $el.data('select2')?.$dropdown;
+            if (width > 0 && $dropdown?.css) {
+                $dropdown.css({ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` });
+            }
+            focusOpenSelect2Search();
+        })
         .off('select2:close.pickerFocusFix')
         .on('select2:close.pickerFocusFix', () => {
             window.setTimeout(() => {

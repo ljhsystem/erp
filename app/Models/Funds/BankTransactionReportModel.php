@@ -807,9 +807,6 @@ class BankTransactionReportModel
             'updated_at = NOW()',
         ];
 
-        if ($this->columnExists(self::BANK_TABLE, 'evidence_status')) {
-            $sets[] = "evidence_status = 'DELETED'";
-        }
         if ($this->columnExists(self::BANK_TABLE, 'deleted_by')) {
             $sets[] = 'deleted_by = :deleted_by';
             $params[':deleted_by'] = $actor;
@@ -829,9 +826,6 @@ class BankTransactionReportModel
             'updated_at = NOW()',
         ];
 
-        if ($this->columnExists(self::BANK_TABLE, 'evidence_status')) {
-            $sets[] = "evidence_status = 'ACTIVE'";
-        }
         if ($this->columnExists(self::BANK_TABLE, 'deleted_by')) {
             $sets[] = 'deleted_by = NULL';
         }

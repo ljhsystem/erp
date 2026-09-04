@@ -2,6 +2,7 @@
 
 namespace App\Services\Ledger;
 
+use App\Services\Concerns\LogsServiceOperations;
 use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherLineRefModel;
 use App\Models\Ledger\EvidenceLinkModel;
@@ -24,12 +25,14 @@ use PDO;
 
 class VoucherService
 {
+    use LogsServiceOperations;
     private const SOURCE_TYPE_VALUES = ['TAX', 'HOMETAX', 'CARD', 'CARD_COMPANY', 'BANK', 'SHOPPING', 'TRADE', 'IMPORT', 'MANUAL', 'SYSTEM'];
 
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
     private VoucherLineRefModel $voucherLineRefModel;
     private VoucherLineRefService $voucherLineRefService;
+    private VoucherLineSourceRefService $voucherLineSourceRefService;
     private NotificationService $notificationService;
     private EvidenceLinkModel $evidenceLinkModel;
     private EvidenceSourceRepository $evidenceSourceRepository;
@@ -49,6 +52,7 @@ class VoucherService
         $this->voucherLineModel = new VoucherLineModel($pdo);
         $this->voucherLineRefModel = new VoucherLineRefModel($pdo);
         $this->voucherLineRefService = new VoucherLineRefService($pdo);
+        $this->voucherLineSourceRefService = new VoucherLineSourceRefService($pdo);
         $this->notificationService = new NotificationService($pdo);
         $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
         $this->evidenceSourceRepository = new EvidenceSourceRepository($pdo);
@@ -64,6 +68,11 @@ class VoucherService
     }
 
     public function save(array $data): array
+    {
+        return $this->loggedVoucherOperation('전표 저장', 'VOUCHER_SAVE', 'save', fn(): array => $this->saveInternal($data));
+    }
+
+    private function saveInternal(array $data): array
     {
         $actor = ActorHelper::user();
         $voucherId = trim((string) ($data['id'] ?? ''));
@@ -89,6 +98,7 @@ class VoucherService
         );
         $normalizedLines = $validation['lines'];
         $timestamp = date('Y-m-d H:i:s');
+        $companyId = $this->resolveSingleCompanyId();
 
         try {
             $this->pdo->beginTransaction();
@@ -168,10 +178,15 @@ class VoucherService
                 $savedLines[] = [
                     'id' => $lineId,
                     'refs' => $line['refs'] ?? [],
+                    'source_refs' => $line['source_refs'] ?? [],
+                    'debit' => $line['debit'],
+                    'credit' => $line['credit'],
                 ];
             }
 
             $this->voucherLineRefService->replaceForVoucherLines($savedLines, $actor, $timestamp);
+            $this->voucherLineSourceRefService->persistVoucherLines($companyId, $voucherId, $savedLines);
+            $this->voucherLineSourceRefService->validateVoucher($companyId, $voucherId, $savedLines);
             $this->evidenceLinkModel->replaceVoucherEvidences($voucherId, $linkedEvidences);
             $this->recordVoucherEvidenceActions($voucherId, $previousEvidences, $linkedEvidences);
             $this->tracePersistedVoucherLines('save.persisted', $voucherId);
@@ -241,6 +256,9 @@ class VoucherService
             if (!in_array($policyType, ['DATA', 'FUND', 'BOTH'], true)) {
                 throw new VoucherValidationException('증빙정책에서 전표 연결이 허용되지 않은 증빙입니다.', 'evidence');
             }
+            if (strtoupper(trim((string) ($source['evidence_status'] ?? ''))) !== 'COMPLETED') {
+                throw new VoucherValidationException('완료로 확정된 증빙만 전표에 연결할 수 있습니다.', 'evidence');
+            }
             $normalized[$key] = [
                 'import_type' => $importType,
                 'evidence_id' => $evidenceId,
@@ -251,6 +269,11 @@ class VoucherService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->loggedVoucherOperation('전표 정렬 저장', 'VOUCHER_REORDER', 'reorder', fn(): bool => $this->reorderInternal($changes), ['change_count' => count($changes)]);
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if ($changes === []) {
             return true;
@@ -291,6 +314,11 @@ class VoucherService
 
     public function deleteVoucher(string $voucherId): void
     {
+        $this->loggedVoucherOperation('전표 삭제', 'VOUCHER_DELETE', 'delete', fn() => $this->deleteVoucherInternal($voucherId));
+    }
+
+    private function deleteVoucherInternal(string $voucherId): void
+    {
         $voucherId = trim($voucherId);
         if ($voucherId === '') {
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
@@ -324,6 +352,11 @@ class VoucherService
     }
 
     public function restoreVoucher(string $voucherId): void
+    {
+        $this->loggedVoucherOperation('전표 복구', 'VOUCHER_RESTORE', 'restore', fn() => $this->restoreVoucherInternal($voucherId));
+    }
+
+    private function restoreVoucherInternal(string $voucherId): void
     {
         $voucherId = trim($voucherId);
         if ($voucherId === '') {
@@ -381,6 +414,11 @@ class VoucherService
         }, $this->voucherLineModel->searchLineSummaryTexts($keyword, $limit));
     }
     public function updateStatus(string $voucherId, string $nextStatus): array
+    {
+        return $this->loggedVoucherOperation('전표 상태 변경', 'VOUCHER_STATUS_UPDATE', 'update-status', fn(): array => $this->updateStatusInternal($voucherId, $nextStatus));
+    }
+
+    private function updateStatusInternal(string $voucherId, string $nextStatus): array
     {
         $voucherId = trim($voucherId);
         $nextStatus = VoucherStatus::normalize($nextStatus, '');
@@ -486,7 +524,8 @@ class VoucherService
                         'event_ids' => $feedbackEvents['event_ids'] ?? [],
                         'projection_type' => 'RECENT_AND_CLIENT',
                         'exception' => $e::class,
-                        'error' => $e->getMessage(),
+                        'error_code' => get_class($e),
+                        'error' => $e,
                     ]);
                 }
                 $ruleIds = [];
@@ -510,7 +549,8 @@ class VoucherService
                         'voucher_id' => $voucherId,
                         'rule_ids' => $ruleIds,
                         'exception' => $e::class,
-                        'error' => $e->getMessage(),
+                        'error_code' => get_class($e),
+                        'error' => $e,
                     ]);
                 }
             }
@@ -596,6 +636,11 @@ class VoucherService
 
     public function createReversalVoucher(string $voucherId, string $actorId): array
     {
+        return $this->loggedVoucherOperation('역분개 전표 생성', 'VOUCHER_REVERSAL_CREATE', 'create-reversal', fn(): array => $this->createReversalVoucherInternal($voucherId, $actorId));
+    }
+
+    private function createReversalVoucherInternal(string $voucherId, string $actorId): array
+    {
         $voucherId = trim($voucherId);
         $actor = trim($actorId) !== '' ? trim($actorId) : ActorHelper::user();
 
@@ -676,6 +721,7 @@ class VoucherService
             }
 
             $reversalLines = [];
+            $reversalSourceLineMap = [];
             foreach ($lines as $index => $line) {
                 $newLineId = UuidHelper::generate();
                 $refs = is_array($line['refs'] ?? null) ? array_values($line['refs']) : [];
@@ -709,9 +755,22 @@ class VoucherService
                 }
 
                 $reversalLines[] = ['id' => $newLineId, 'refs' => $refs];
+                $reversalSourceLineMap[(string) ($line['id'] ?? '')] = [
+                    'id' => $newLineId,
+                    'side' => (float) ($line['credit'] ?? 0) > 0 ? 'DEBIT' : 'CREDIT',
+                ];
             }
 
             $this->voucherLineRefService->replaceForVoucherLines($reversalLines, $actor, $timestamp);
+            $companyId = $this->resolveSingleCompanyId();
+            $this->voucherLineSourceRefService->createReversals(
+                $companyId,
+                $voucherId,
+                $newVoucherId,
+                $reversalSourceLineMap
+            );
+            $reversalVoucherLines = $this->voucherLineModel->getByVoucherId($newVoucherId);
+            $this->voucherLineSourceRefService->validateVoucher($companyId, $newVoucherId, $reversalVoucherLines);
             $this->refreshVoucherHeaderSummary($newVoucherId, $actor, $timestamp);
 
             $this->pdo->commit();
@@ -742,6 +801,11 @@ class VoucherService
     }
 
     public function reject(string $voucherId, string $reason): array
+    {
+        return $this->loggedVoucherOperation('전표 반려', 'VOUCHER_REJECT', 'reject', fn(): array => $this->rejectInternal($voucherId, $reason));
+    }
+
+    private function rejectInternal(string $voucherId, string $reason): array
     {
         $voucherId = trim($voucherId);
         $reason = trim($reason);
@@ -967,6 +1031,7 @@ class VoucherService
                     ? strtoupper(trim((string) $line['recommended_line_type'])) : null,
                 'recommended_amount' => ($line['recommended_amount'] ?? null) !== null
                     ? number_format($this->parseAmount($line['recommended_amount']), 2, '.', '') : null,
+                'source_refs' => $this->normalizeLineSourceRefs($line),
             ];
             $lineNo++;
         }
@@ -1021,6 +1086,33 @@ class VoucherService
         }
 
         return $refs;
+    }
+
+    private function normalizeLineSourceRefs(array $line): array
+    {
+        $normalized=[];$seen=[];
+        foreach((array)($line['source_refs']??[])as$sourceRef){
+            if(!is_array($sourceRef))$this->validationError('Source Ref 형식이 올바르지 않습니다.','source_ref');
+            $evidenceType=strtoupper(trim((string)($sourceRef['evidence_type']??'')));
+            $evidenceId=trim((string)($sourceRef['evidence_id']??''));
+            $sourceType=strtoupper(trim((string)($sourceRef['source_type']??'')));
+            $sourceLineKey=trim((string)($sourceRef['source_line_key']??''));
+            $side=strtoupper(trim((string)($sourceRef['debit_credit']??'')));
+            if($evidenceType===''||$evidenceId===''||$sourceType===''||$sourceLineKey===''||!in_array($side,['DEBIT','CREDIT'],true))$this->validationError('Source Ref identity가 완전하지 않습니다.','source_ref');
+            $key=implode('|',[$evidenceType,$evidenceId,$sourceType,$sourceLineKey,$side]);
+            if(isset($seen[$key]))$this->validationError('동일 Source identity를 한 라인에 중복 연결할 수 없습니다.','source_ref_duplicate');
+            $seen[$key]=true;
+            $normalized[]=[
+                'evidence_type'=>$evidenceType,'evidence_id'=>$evidenceId,'source_type'=>$sourceType,'source_line_key'=>$sourceLineKey,
+                'accounting_role_code'=>strtoupper(trim((string)($sourceRef['accounting_role_code']??''))),
+                'debit_credit'=>$side,'source_amount'=>abs((float)($sourceRef['source_amount']??0)),'allocated_amount'=>abs((float)($sourceRef['allocated_amount']??0)),
+                'journal_rule_id'=>trim((string)($sourceRef['journal_rule_id']??''))?:null,
+                'journal_rule_revision_no'=>isset($sourceRef['journal_rule_revision_no'])?(int)$sourceRef['journal_rule_revision_no']:null,
+                'recommendation_source_code'=>strtoupper(trim((string)($sourceRef['recommendation_source_code']??'JOURNAL_RULE'))),
+                'planner_code'=>strtoupper(trim((string)($sourceRef['planner_code']??'PERSONAL_EXPENSE_ITEM_V1'))),
+            ];
+        }
+        return $normalized;
     }
 
     private function validateVoucherSubAccountPolicies(array $lines): void
@@ -1228,7 +1320,15 @@ class VoucherService
 
     private function deleteVoucherChildren(string $voucherId): void
     {
+        $this->voucherLineSourceRefService->deleteForVoucher($this->resolveSingleCompanyId(),$voucherId);
         $this->voucherLineModel->purgeByVoucherId($voucherId);
+    }
+
+    private function resolveSingleCompanyId(): string
+    {
+        $ids=$this->pdo->query('SELECT id FROM system_company ORDER BY id')->fetchAll(PDO::FETCH_COLUMN)?:[];
+        if(count($ids)!==1)throw new \RuntimeException('전표 회사 범위를 확정할 수 없습니다.');
+        return (string)$ids[0];
     }
 
     private function refreshVoucherHeaderSummary(string $voucherId, string $actor, string $timestamp): void
@@ -1387,10 +1487,16 @@ class VoucherService
 
     private function traceVoucherPayload(string $stage, array $payload): void
     {
-        error_log('[VoucherService] ' . $stage . '=' . json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        ));
+        $this->logger->debug('전표 입력자료 처리단계를 확인했습니다.', [
+            'event_code' => 'VOUCHER_PAYLOAD_STAGE',
+            'result' => 'PROGRESS',
+            'service' => self::class,
+            'action' => 'voucher.' . strtolower($stage),
+            'target_type' => 'VOUCHER',
+            'target_id' => (string) ($payload['id'] ?? ''),
+            'input_fields' => array_keys($payload),
+            'line_count' => is_array($payload['lines'] ?? null) ? count($payload['lines']) : null,
+        ]);
     }
 
     private function resolveVoucherNo(array $data, string $voucherDate): string
@@ -1472,6 +1578,17 @@ class VoucherService
         $string = trim((string) ($value ?? ''));
 
         return $string === '' ? null : $string;
+    }
+
+    private function loggedVoucherOperation(string $label, string $eventCode, string $action, callable $operation, array $context = []): mixed
+    {
+        return $this->runLoggedOperation($this->logger, $label, $eventCode, $action, $context, $operation, 'info', false,
+            static function (mixed $result): string {
+                if (is_array($result) && array_key_exists('success', $result)) {
+                    return !empty($result['success']) ? 'SUCCESS' : 'BLOCKED';
+                }
+                return $result === false ? 'BLOCKED' : 'SUCCESS';
+            });
     }
 
     private function normalizeSummaryText(mixed $value): ?string

@@ -60,6 +60,11 @@ class PermissionService
 
     public function create(array $data): array
     {
+        return $this->logged('PERMISSION_CREATE', 'create', [], fn(): array => $this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
+    {
         if (empty($data['permission_key']) || empty($data['permission_name'])) {
             return ['success' => false, 'message' => '권한 키와 권한명은 필수입니다.'];
         }
@@ -80,6 +85,11 @@ class PermissionService
 
     public function update(string $id, array $data): array
     {
+        return $this->logged('PERMISSION_UPDATE', 'update', ['permission_id' => $id], fn(): array => $this->updateInternal($id, $data));
+    }
+
+    private function updateInternal(string $id, array $data): array
+    {
         if (!$id) {
             return ['success' => false, 'message' => '권한 ID가 필요합니다.'];
         }
@@ -94,6 +104,11 @@ class PermissionService
     }
 
     public function delete(string $id): array
+    {
+        return $this->logged('PERMISSION_DELETE', 'delete', ['permission_id' => $id], fn(): array => $this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
     {
         if (!$id) {
             return ['success' => false, 'message' => '권한 ID가 필요합니다.'];
@@ -136,6 +151,11 @@ class PermissionService
 
     public function toggleActive(string $id, int $active): bool
     {
+        return $this->logged('PERMISSION_ACTIVE_CHANGE', 'toggle-active', ['permission_id' => $id, 'is_active' => $active], fn(): bool => $this->toggleActiveInternal($id, $active));
+    }
+
+    private function toggleActiveInternal(string $id, int $active): bool
+    {
         return $this->permModel->toggleActive($id, $active);
     }
 
@@ -164,14 +184,24 @@ class PermissionService
                 return $this->cache[$cacheKey] = true;
             }
 
-            $result = isset($this->getEffectivePermissionKeySet($userId)[$permissionKey]);
+            $effectiveKeys = $this->getEffectivePermissionKeySet($userId);
+            $result = false;
+            foreach ($this->permissionKeyCandidates($permissionKey) as $candidate) {
+                if (isset($effectiveKeys[$candidate])) {
+                    $result = true;
+                    break;
+                }
+            }
 
             return $this->cache[$cacheKey] = $result;
         } catch (\Throwable $e) {
-            $this->logger->error('hasPermission Error', [
+            $this->logger->error('사용자 권한 확인에 실패했습니다.', [
+                'event_code' => 'PERMISSION_CHECK_FAILED',
+                'result' => 'FAILED',
                 'user_id' => $userId,
                 'permission_key' => $permissionKey,
-                'error' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return false;
@@ -218,6 +248,27 @@ class PermissionService
         return $this->effectivePermissionKeyCache[$userId];
     }
 
+    /**
+     * Main 도메인 전환 중 운영 DB의 기존 Dashboard 권한을 함께 해석한다.
+     * 신규 Main 권한이 DB에 반영되면 첫 번째 후보가 그대로 사용된다.
+     *
+     * @return list<string>
+     */
+    private function permissionKeyCandidates(string $permissionKey): array
+    {
+        $candidates = [$permissionKey];
+
+        if ($permissionKey === 'web.main.dashboard') {
+            $candidates[] = 'web.dashboard.main';
+        } elseif (str_starts_with($permissionKey, 'web.main.')) {
+            $candidates[] = 'web.dashboard.' . substr($permissionKey, strlen('web.main.'));
+        } elseif (str_starts_with($permissionKey, 'api.main.')) {
+            $candidates[] = 'api.dashboard.' . substr($permissionKey, strlen('api.main.'));
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
     private function getUser(string $userId)
     {
         if (!isset($this->userCache[$userId])) {
@@ -234,6 +285,11 @@ class PermissionService
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->logged('PERMISSION_REORDER', 'reorder', ['change_count' => count($changes)], fn(): bool => $this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -274,6 +330,20 @@ class PermissionService
             }
 
             throw $e;
+        }
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): mixed
+    {
+        try {
+            $result = $operation();
+            $blocked = $result === false || (is_array($result) && array_key_exists('success', $result) && !$result['success']);
+            $this->logger->{$blocked ? 'warning' : 'info'}($blocked ? '권한 업무 처리가 차단되었습니다.' : '권한 업무 처리를 완료했습니다.', ['event_code' => $eventCode . ($blocked ? '_BLOCKED' : ''), 'result' => $blocked ? 'BLOCKED' : 'SUCCESS', 'service' => self::class, 'action' => $action] + $context);
+            return $result;
+        } catch (\InvalidArgumentException|\DomainException $exception) {
+            $this->logger->warning('권한 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('권한 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
         }
     }
 }

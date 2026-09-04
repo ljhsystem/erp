@@ -5,14 +5,16 @@ use App\Models\Auth\UserPermissionModel;
 use App\Repositories\Auth\UserPermissionRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class UserPermissionService
 {
     private const MODES=['ROLE','EXTEND','REPLACE'];
     private const REQUIRED_KEYS=['web.settings.organization.role_permissions','api.settings.rolepermission.list','api.settings.rolepermission.assign'];
-    private UserPermissionModel $model; private UserPermissionRepository $repository;
-    public function __construct(private readonly PDO $pdo){$this->model=new UserPermissionModel($pdo);$this->repository=new UserPermissionRepository($pdo);}
+    private UserPermissionModel $model; private UserPermissionRepository $repository;private LoggerInterface $logger;
+    public function __construct(private readonly PDO $pdo){$this->model=new UserPermissionModel($pdo);$this->repository=new UserPermissionRepository($pdo);$this->logger=LoggerFactory::getLogger('service-auth-user-permission');}
 
     public function listUsers(string $actorId): array
     { return array_map(function($row)use($actorId){$p=$this->editPolicy($actorId,$row);return $row+['editable'=>$p['editable'],'readonly_reason'=>$p['readonly_reason'],'retired_account_warning'=>$this->isRetired($row)&&(int)$row['is_active']===1];},$this->repository->listUsers()); }
@@ -44,8 +46,8 @@ class UserPermissionService
             if($this->repository->countRecoveryAdministrators(array_keys($required),null,null,$targetId,$mode,$ids)<1)throw new \InvalidArgumentException('권한을 복구할 수 있는 활성 관리자가 최소 1명 이상 필요합니다.');
             $grant=array_values(array_diff($ids,$current));$revoke=array_values(array_diff($current,$ids));$actorValue=ActorHelper::user();$batch=UuidHelper::generate();$this->model->replaceProfile($targetId,$mode,$actorValue);$this->model->deleteMappings($targetId,$revoke);foreach($grant as $id)$this->model->insertMapping($targetId,$id,$actorValue,UuidHelper::generate());
             if($currentMode!==$mode)$this->audit($batch,$target,null,'MODE',$currentMode,$mode,$actorValue,null);foreach($grant as $id)$this->audit($batch,$target,$map[$id],'GRANT',$currentMode,$mode,$actorValue,$id);foreach($revoke as $id){$p=$this->repository->permissionMap([$id])[$id]??['permission_key'=>'','permission_name'=>''];$this->audit($batch,$target,$p,'REVOKE',$currentMode,$mode,$actorValue,$id);}
-            if(!$outer)$this->pdo->commit();return ['changed_count'=>count($grant)+count($revoke)+($currentMode!==$mode?1:0),'state_version'=>$this->stateVersion($mode,$ids)];
-        }catch(\Throwable $e){if(!$outer&&$this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
+            if(!$outer)$this->pdo->commit();$changed=count($grant)+count($revoke)+($currentMode!==$mode?1:0);$this->logger->warning('사용자 개인권한이 저장되었습니다.',['event_code'=>'USER_PERMISSION_SAVED','result'=>'SUCCESS','service'=>self::class,'action'=>'save','actor'=>ActorHelper::user(),'target_id'=>$targetId,'changed_count'=>$changed,'permission_mode'=>$mode]);return ['changed_count'=>$changed,'state_version'=>$this->stateVersion($mode,$ids)];
+        }catch(\InvalidArgumentException|\DomainException $e){if(!$outer&&$this->pdo->inTransaction())$this->pdo->rollBack();$this->logger->warning('사용자 개인권한 저장이 차단되었습니다.',['event_code'=>'USER_PERMISSION_SAVE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'save','actor'=>ActorHelper::user(),'target_id'=>$targetId,'error_code'=>get_class($e),'error'=>$e]);throw $e;}catch(\Throwable $e){if(!$outer&&$this->pdo->inTransaction())$this->pdo->rollBack();$this->logger->error('사용자 개인권한 저장에 실패했습니다.',['event_code'=>'USER_PERMISSION_SAVE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'save','actor'=>ActorHelper::user(),'target_id'=>$targetId,'error_code'=>get_class($e),'error'=>$e]);throw $e;}
     }
 
     private function audit(string $batch,array $user,?array $p,string $type,string $before,string $after,string $actor,?string $permissionId):void{$this->model->insertAudit([':id'=>UuidHelper::generate(),':batch_id'=>$batch,':user_id'=>$user['user_id'],':username_snapshot'=>$user['username'],':employee_name_snapshot'=>$user['employee_name']?:null,':permission_id'=>$permissionId,':permission_key_snapshot'=>$p['permission_key']??null,':permission_name_snapshot'=>$p['permission_name']??null,':change_type'=>$type,':before_mode'=>$before,':after_mode'=>$after,':created_by'=>$actor]);}

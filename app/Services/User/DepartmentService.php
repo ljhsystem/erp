@@ -1,6 +1,7 @@
 <?php
 namespace App\Services\User;
 
+use App\Services\Concerns\LogsServiceOperations;
 use PDO;
 use App\Models\User\DepartmentModel;
 use App\Repositories\User\DepartmentDependencyRepository;
@@ -12,6 +13,7 @@ use Core\LoggerFactory;
 
 class DepartmentService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private DepartmentModel $model;
     private DepartmentDependencyRepository $dependencyRepository;
@@ -44,6 +46,11 @@ class DepartmentService
 
     public function create(array $data): array
     {
+        return $this->logged('DEPARTMENT_CREATE','create',[],fn():array=>$this->createInternal($data));
+    }
+
+    private function createInternal(array $data): array
+    {
         $data = $this->validateSaveData($data);
 
         if ($this->model->existsByName($data['dept_name'])) {
@@ -64,6 +71,11 @@ class DepartmentService
     }
 
     public function update(string $id, array $data): array
+    {
+        return $this->logged('DEPARTMENT_UPDATE','update',['department_id'=>$id],fn():array=>$this->updateInternal($id,$data));
+    }
+
+    private function updateInternal(string $id, array $data): array
     {
         if (trim($id) === '') {
             throw new \InvalidArgumentException('부서 ID가 필요합니다.');
@@ -93,6 +105,11 @@ class DepartmentService
 
     public function delete(string $id): array
     {
+        return $this->logged('DEPARTMENT_DELETE','delete',['department_id'=>$id],fn():array=>$this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $id = trim($id);
         if ($id === '') {
             throw new \InvalidArgumentException('부서 ID가 필요합니다.');
@@ -117,15 +134,16 @@ class DepartmentService
                 'message' => $deleted ? '부서가 영구삭제되었습니다.' : '부서 정보를 찾을 수 없습니다.',
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('department hard delete failed', [
-                'department_id' => $id,
-                'exception' => $e->getMessage(),
-            ]);
-            return ['success' => false, 'message' => '사용 중인 부서이므로 삭제할 수 없습니다.'];
+            return ['success' => false, 'message' => '삭제 중 오류가 발생했습니다.'];
         }
     }
 
     public function reorder(array $changes): bool
+    {
+        return $this->runLoggedOperation($this->logger,'부서','DEPARTMENT_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): bool
     {
         if (empty($changes)) {
             return true;
@@ -167,6 +185,11 @@ class DepartmentService
 
             throw $e;
         }
+    }
+
+    private function logged(string $event,string $action,array $context,callable $operation):array
+    {
+        return $this->runLoggedOperation($this->logger,'부서',$event,$action,$context,$operation,'info',true,static function(array$result):string{if(!empty($result['success']))return'SUCCESS';return str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED';});
     }
 
     private function validateSaveData(array $data, ?array $current = null): array

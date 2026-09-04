@@ -20,7 +20,6 @@ class SettingService
         $this->model  = new SettingConfigModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.SettingService');
 
-        $this->logger->debug('[INIT] SystemSettingService initialized');
     }
 
     public function get(string $key, $default = null)
@@ -39,22 +38,12 @@ class SettingService
     {
         $value = $this->model->get($key, null);
 
-        $this->logger->debug('[GET_INT]', [
-            'key'   => $key,
-            'value' => $value
-        ]);
-
         return is_numeric($value) ? (int)$value : $default;
     }
 
     public function getBool(string $key, bool $default = false): bool
     {
         $value = $this->model->get($key, null);
-
-        $this->logger->debug('[GET_BOOL]', [
-            'key'   => $key,
-            'value' => $value
-        ]);
 
         if ($value === null) return $default;
 
@@ -64,11 +53,6 @@ class SettingService
     public function getJson(string $key, array $default = []): array
     {
         $value = $this->model->get($key, null);
-
-        $this->logger->debug('[GET_JSON]', [
-            'key'   => $key,
-            'value' => $value
-        ]);
 
         if (!$value) return $default;
 
@@ -107,10 +91,6 @@ class SettingService
     ): bool {
         $userId = $userId ?? ActorHelper::user();
 
-        $this->logger->debug('[SAVE_SINGLE] START', compact(
-            'key', 'value', 'category', 'userId', 'description'
-        ));
-
         if (!$this->model->isEditable($key)) {
             $this->logger->warning('[SAVE_SINGLE] NOT EDITABLE', [
                 'key' => $key
@@ -126,13 +106,16 @@ class SettingService
             'user_id'      => $userId,
         ];
 
-        $this->logger->debug('[SAVE_SINGLE] PAYLOAD', $payload);
-
         $result = $this->model->set($payload);
 
-        $this->logger->info('[SAVE_SINGLE] DONE', [
-            'key'    => $key,
-            'result' => $result
+        $this->logger->info('시스템 설정을 저장했습니다.', [
+            'event_code' => 'SYSTEM_SETTING_SAVED',
+            'result' => $result ? 'SUCCESS' : 'FAILED',
+            'service' => self::class,
+            'action' => 'setting.save',
+            'actor' => $userId,
+            'target_type' => 'SYSTEM_SETTING',
+            'target_id' => $key,
         ]);
 
         return $result;
@@ -151,20 +134,10 @@ class SettingService
 
         $userId = $userId ?? ActorHelper::user();
 
-        $this->logger->debug('[SAVE_BATCH] START', [
-            'category' => $category,
-            'input'    => $input
-        ]);
-
         $saved   = [];
         $skipped = [];
 
         foreach ($input as $key => $value) {
-
-            $this->logger->debug('[SAVE_BATCH] ITEM', [
-                'key'   => $key,
-                'value' => $value
-            ]);
 
             $exists = $this->model->exists($key);
 
@@ -185,14 +158,17 @@ class SettingService
                 'user_id'      => $userId,
             ];
 
-            $this->logger->debug('[SAVE_BATCH] MODEL::SET PAYLOAD', $payload);
-
             $this->model->set($payload);
 
             $saved[] = $key;
         }
 
-        $this->logger->info('[SAVE_BATCH] COMPLETE', [
+        $this->logger->info('시스템 설정을 일괄 저장했습니다.', [
+            'event_code' => 'SYSTEM_SETTING_BATCH_SAVED',
+            'result' => 'SUCCESS',
+            'service' => self::class,
+            'action' => 'setting.save_batch',
+            'actor' => $userId,
             'category' => $category,
             'saved'    => $saved,
             'skipped'  => $skipped

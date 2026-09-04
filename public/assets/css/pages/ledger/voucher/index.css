@@ -1686,7 +1686,10 @@ body.modal-open .select2-container--open {
     --voucher-line-dense-font-size: 12px;
     --voucher-line-header-font-size: 12px;
     --voucher-line-dense-control-height: 25px;
-    overflow: visible;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     max-height: none;
     border: 1px solid #e5edf8;
     border-radius: 8px;
@@ -1699,11 +1702,57 @@ body.modal-open .select2-container--open {
 
 #journalModal .voucher-line-grid-host .html-grid-table {
     width: 100%;
+    max-width: 100%;
     min-width: 0;
     margin-bottom: 0;
     table-layout: fixed;
     font-size: var(--voucher-line-dense-font-size);
     border-collapse: collapse;
+}
+
+#journalModal .journal-lines-panel,
+#journalModal .journal-lines-panel .section-body,
+#journalModal .journal-lines-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="line_no"] {
+    width: 6% !important;
+    min-width: 0 !important;
+    max-width: 6% !important;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="account_id"] {
+    width: 22% !important;
+    min-width: 0 !important;
+    max-width: 22% !important;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="refs"] {
+    width: 28% !important;
+    min-width: 0 !important;
+    max-width: 28% !important;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="debit"],
+#journalModal .voucher-line-grid-host [data-column-key="credit"] {
+    width: 10% !important;
+    min-width: 0 !important;
+    max-width: 10% !important;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="line_summary"] {
+    width: 18% !important;
+    min-width: 0 !important;
+    max-width: 18% !important;
+}
+
+#journalModal .voucher-line-grid-host [data-column-key="row_action"] {
+    width: 6% !important;
+    min-width: 0 !important;
+    max-width: 6% !important;
 }
 
 #journalModal .voucher-line-grid-host .html-grid-header-cell,
@@ -1770,8 +1819,22 @@ body.modal-open .select2-container--open {
 #journalModal .voucher-line-grid-host .html-grid-cell-editor-slot {
     display: flex;
     align-items: center;
+    flex: 1 1 0;
     width: 100%;
+    max-width: 100%;
     min-height: 27px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-cell-editor-slot > .html-grid-editor,
+#journalModal .voucher-line-grid-host .html-grid-cell-editor-slot > .form-control,
+#journalModal .voucher-line-grid-host .html-grid-cell-editor-slot > .form-select,
+#journalModal .voucher-line-grid-host .html-grid-cell-editor-slot > .select2-container {
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
 }
 
 #journalModal .voucher-line-grid-host .html-grid-editor,
@@ -1828,7 +1891,7 @@ body.modal-open .select2-container--open {
 }
 
 #journalModal .voucher-line-grid-host .html-grid-column-sort_no {
-    min-width: 48px !important;
+    min-width: 0 !important;
     white-space: nowrap;
 }
 
@@ -1838,7 +1901,7 @@ body.modal-open .select2-container--open {
 }
 
 #journalModal .voucher-line-grid-host .html-grid-column-row_action {
-    min-width: 44px !important;
+    min-width: 0 !important;
 }
 
 #journalModal .voucher-line-grid-host .html-grid-empty {
@@ -1900,6 +1963,36 @@ body.modal-open .select2-container--open {
     font-size: var(--voucher-line-header-font-size) !important;
     font-weight: 400;
     line-height: 1.15 !important;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-order-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-row-handle {
+    display: inline-flex !important;
+    flex: 0 0 18px;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 24px;
+    padding: 0 !important;
+    border: 0;
+    color: #64748b;
+    background: transparent;
+    cursor: grab;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-row-handle:active {
+    cursor: grabbing;
 }
 
 #journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="row_action"] .html-grid-header-cell-content {
@@ -2029,16 +2122,20 @@ body.modal-open .select2-container--open {
 .journal-evidence-grid-host { width: 100%; min-height: 120px; max-height: 260px; overflow: auto; border: 1px solid #dfe6ee; border-radius: 6px; background: #fff; }
 #linked_evidences_grid { height: auto; min-height: 0; max-height: 254px; overflow-x: hidden; overflow-y: auto; }
 #journalEvidenceSearchModal .journal-evidence-grid-host { min-height: 360px; max-height: min(52vh, 520px); }
-.journal-evidence-table-wrap { min-width: 0; flex: 1 1 auto; overflow: hidden; }
-#journalEvidenceSearchModal .dataTables_wrapper { position: relative; display: flex; width: 100%; min-height: 0; height: 100%; flex-direction: column; overflow: hidden; }
-#journalEvidenceSearchModal .dataTables_wrapper .dt-top { position: static !important; top: auto !important; flex: 0 0 auto; justify-content: space-between !important; margin: 0; padding-top: 0; }
+.journal-evidence-table-wrap { min-width: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+#journalEvidenceSearchModal .dataTables_wrapper { position: relative; display: flex; width: 100%; min-height: 0; height: auto; flex-direction: column; overflow: visible; }
+#journalEvidenceSearchModal .dataTables_wrapper .dt-top { position: sticky !important; top: 0 !important; z-index: 4; flex: 0 0 auto; justify-content: space-between !important; margin: 0; padding-top: 0; padding-bottom: 8px; background: #fff; }
 #journalEvidenceSearchModal .dataTables_wrapper .dataTables_filter { margin-right: auto; }
 #journalEvidenceSearchModal .dataTables_wrapper .dataTables_filter input { width: min(420px, 45vw); }
 #journalEvidenceSearchModal .dataTables_wrapper .dataTables_scroll { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
 #journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHead { position: static !important; top: auto !important; display: block !important; flex: 0 0 auto; visibility: visible !important; }
-#journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollBody { min-height: 0; max-height: none !important; flex: 1 1 auto; overflow: auto !important; }
+#journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollBody { min-height: 0; max-height: none !important; flex: 1 1 auto; overflow-x: hidden !important; overflow-y: auto !important; }
 #journalEvidenceSearchModal .dataTables_wrapper .dt-bottom { flex: 0 0 auto; margin-top: 8px; }
-#journalEvidenceSearchModal #journal_evidence_search_table { min-width: 1080px; }
+#journalEvidenceSearchModal #journal_evidence_search_table { width: 100% !important; min-width: 0 !important; max-width: 100% !important; table-layout: fixed; }
+#journalEvidenceSearchModal #journal_evidence_search_table thead th { position: sticky; top: var(--journal-evidence-toolbar-height, 42px); z-index: 3; background: #eef3f9; }
+#journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHead,
+#journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHeadInner { width: 100% !important; overflow: hidden !important; }
+#journalEvidenceSearchModal .dataTables_wrapper .dataTables_scrollHeadInner table { width: 100% !important; min-width: 0 !important; table-layout: fixed; }
 #journalEvidenceSearchModal table.dataTable tbody td { height: 42px; vertical-align: middle; }
 #journalEvidenceSearchModal .dt-row-select:disabled {
     border-color: #cbd5e1;
@@ -2046,7 +2143,7 @@ body.modal-open .select2-container--open {
     opacity: 1;
     cursor: not-allowed;
 }
-#journalEvidenceSearchModal .journal-evidence-summary-cell { min-width: 260px; max-width: 420px; }
+#journalEvidenceSearchModal .journal-evidence-summary-cell { min-width: 0; max-width: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .journal-evidence-grid-host .html-grid-table { width: 100%; min-width: 1244px; table-layout: fixed; border-collapse: collapse; border-spacing: 0; margin: 0; }
 #linked_evidences_grid .html-grid-table { width: 100%; min-width: 0; max-width: 100%; }
 .journal-evidence-grid-host .html-grid-header-cell,
@@ -2056,6 +2153,25 @@ body.modal-open .select2-container--open {
 .journal-evidence-grid-host .html-grid-cell:last-child { border-right: 0; }
 .journal-evidence-grid-host .html-grid-cell-value { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .journal-evidence-grid-host .html-grid-column-selection { text-align: center; }
+#linked_evidences_grid .html-grid-header-cell-selection {
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+#linked_evidences_grid .html-grid-header-cell-selection .html-grid-header-cell-content {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 42px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+}
+#linked_evidences_grid .html-grid-header-cell-selection .html-grid-header-selection {
+    display: block;
+    flex: 0 0 auto;
+    margin: 0;
+}
 .journal-evidence-grid-host .html-grid-column-display_amount { text-align: right; }
 .journal-evidence-grid-host .html-grid-empty { display: flex; min-height: 118px; align-items: center; justify-content: center; color: #64748b; }
 .journal-evidence-grid-host .html-grid-empty.is-hidden { display: none; }

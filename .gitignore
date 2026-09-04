@@ -38,8 +38,8 @@ storage/tmp/
 Thumbs.db
 .DS_Store
 
-# µ¥ÀÌÅÍº£ÀÌ½º ¹é¾÷
+# ë°ì´í„°ë² ì´ìŠ¤ ë°±ì—…
 storage/db_backup/
 
-# »ç¿ëÀÚ ¾÷·Îµå ¹®¼­
+# ë¬¸ì„œ ì—…ë¡œë“œ íŒŒì¼
 public/uploads/documents/

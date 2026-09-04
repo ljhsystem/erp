@@ -12,7 +12,6 @@ class DepartmentDependencyRepository
         ['institution_personnel_actions_changes', 'before_department_id', '인사발령 변경 전 부서'],
         ['institution_personnel_actions_changes', 'after_department_id', '인사발령 변경 후 부서'],
         ['institution_employment_rules', 'owner_department_id', '취업규칙 소유부서'],
-        ['institution_employment_rules_scopes', 'department_id', '취업규칙 적용범위'],
     ];
 
     public function __construct(private readonly PDO $db)

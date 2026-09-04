@@ -82,8 +82,13 @@ class TransactionEvidenceReferenceService
         $entries = $this->repository->semanticEntries($importType, $row);
         $date = $this->firstText($semantics['BASE_DATE'] ?? [])
             ?: trim((string) ($row['standard_date'] ?? $row['evidence_date'] ?? ''));
-        $summary = $this->firstText($semantics['DESCRIPTION'] ?? []) ?: '-';
+        $summary = $this->firstText($semantics['DESCRIPTION'] ?? [])
+            ?: trim((string) ($row['description'] ?? $row['display_summary'] ?? ''))
+            ?: '-';
         $preTaxAmount = $this->firstAmount($semantics['PRE_TAX_AMOUNT'] ?? []);
+        if ($preTaxAmount === 0.0) {
+            $preTaxAmount = $this->numeric($row['pre_tax_amount'] ?? 0);
+        }
         $settlements = [];
         $adjustmentTotal = 0.0;
         foreach ($entries as $entry) {
@@ -112,8 +117,12 @@ class TransactionEvidenceReferenceService
             ];
         }
         $postTaxAmount = $this->firstAmount($semantics['POST_TAX_AMOUNT'] ?? []);
+        if ($postTaxAmount === 0.0) {
+            $postTaxAmount = $this->numeric($row['post_tax_amount'] ?? $row['display_amount'] ?? 0);
+        }
         $displayAmount = $postTaxAmount !== 0.0 ? $postTaxAmount : $preTaxAmount + $adjustmentTotal;
         $clientName = trim((string) ($row['client_name']
+            ?? $row['client_search_name']
             ?? $row['raw_counterparty_name']
             ?? $row['raw_merchant_company_name']
             ?? $row['raw_supplier_company_name']
@@ -122,19 +131,30 @@ class TransactionEvidenceReferenceService
 
         return [
             'import_type' => $importType,
+            'source_type' => strtoupper(trim((string) ($row['source_type'] ?? $importType))),
             'evidence_id' => $evidenceId,
             'evidence_type' => strtoupper(trim((string) ($row['evidence_type'] ?? 'DATA'))) ?: 'DATA',
             'evidence_status' => strtoupper(trim((string) ($row['evidence_status'] ?? $row['status'] ?? ''))),
             'evidence_date' => $date,
             'display_type' => $this->typePolicyService->importTypeLabel($importType),
+            'business_unit' => trim((string) ($row['business_unit'] ?? '')),
+            'transaction_direction' => trim((string) ($row['transaction_direction'] ?? '')),
+            'operation_type' => trim((string) ($row['operation_type'] ?? '')),
             'client_name' => $clientName,
+            'project_name' => trim((string) ($row['project_name'] ?? $row['project_search_name'] ?? '')),
+            'employee_name' => trim((string) ($row['employee_name'] ?? $row['employee_search_name'] ?? $row['user_name'] ?? '')),
+            'bank_account_name' => trim((string) ($row['bank_account_name'] ?? $row['account_name'] ?? '')),
+            'card_name' => trim((string) ($row['card_name'] ?? '')),
+            'team_name' => trim((string) ($row['team_name'] ?? '')),
             'display_summary' => $summary,
             'display_amount' => $displayAmount,
+            'created_at' => trim((string) ($row['created_at'] ?? '')),
+            'updated_at' => trim((string) ($row['updated_at'] ?? '')),
             'business_recommendation' => [
                 'client_id' => trim((string) ($row['client_id'] ?? '')),
                 'client_name' => $clientName === '-' ? '' : $clientName,
                 'project_id' => trim((string) ($row['project_id'] ?? '')),
-                'project_name' => trim((string) ($row['project_name'] ?? '')),
+                'project_name' => trim((string) ($row['project_name'] ?? $row['project_search_name'] ?? '')),
                 'bank_account_id' => trim((string) ($row['bank_account_id'] ?? '')),
                 'bank_account_name' => trim((string) ($row['bank_account_name'] ?? $row['account_name'] ?? '')),
                 'card_id' => trim((string) ($row['card_id'] ?? '')),
@@ -142,7 +162,7 @@ class TransactionEvidenceReferenceService
                 'team_id' => trim((string) ($row['team_id'] ?? '')),
                 'team_name' => trim((string) ($row['team_name'] ?? '')),
                 'employee_id' => trim((string) ($row['employee_id'] ?? '')),
-                'employee_name' => trim((string) ($row['employee_name'] ?? $row['user_name'] ?? '')),
+                'employee_name' => trim((string) ($row['employee_name'] ?? $row['employee_search_name'] ?? $row['user_name'] ?? '')),
             ],
             'overview_recommendation' => [
                 'transaction_date' => $date,

@@ -819,6 +819,7 @@ function legacyResetModal() {
     voucherStatusEl.value = 'DRAFT';
     setStatusFlow('DRAFT');
     setRejectReason('DRAFT', '');
+    state.releasedLinkedEvidenceKeys.clear();
     setLinkedEvidence({});
     lineBody.innerHTML = emptyLineRow();
     setModalTitle('create');

@@ -19,14 +19,14 @@ $routeDescriptionItems = array_values(array_filter(array_map(
 ), static fn($value) => $value !== ''));
 
 $pageMap = [
-    '/dashboard' => ['items' => ['메인', '대시보드']],
-    '/dashboard/report' => ['items' => ['메인', '통합 보고서']],
-    '/dashboard/activity' => ['items' => ['메인', '최근 활동']],
-    '/dashboard/notifications' => ['items' => ['메인', '공지사항']],
-    '/dashboard/kpi' => ['items' => ['메인', '실적 현황']],
-    '/dashboard/calendar' => ['items' => ['메인', '일정/캘린더']],
-    '/dashboard/settings/standard/code' => ['items' => ['메인', '설정', '기준관리', '코드관리']],
-    '/dashboard/settings/standard/statutory-standards' => ['items' => ['메인', '설정', '기준관리', '법정기준관리']],
+    '/main' => ['items' => ['메인', '대시보드']],
+    '/main/report' => ['items' => ['메인', '통합 보고서']],
+    '/main/activity' => ['items' => ['메인', '최근 활동']],
+    '/main/notifications' => ['items' => ['메인', '공지사항']],
+    '/main/kpi' => ['items' => ['메인', '실적 현황']],
+    '/main/calendar' => ['items' => ['메인', '일정/캘린더']],
+    '/main/settings/standard/code' => ['items' => ['메인', '설정', '기준관리', '코드관리']],
+    '/main/settings/standard/statutory-standards' => ['items' => ['메인', '설정', '기준관리', '법정기준관리']],
 
     '/ledger' => ['items' => ['회계관리', '대시보드']],
     '/ledger/settings/accounts' => ['items' => ['회계관리', '기초정보관리', '계정과목']],
@@ -37,6 +37,7 @@ $pageMap = [
     '/ledger/data/upload' => ['items' => ['회계관리', '자료관리', '자료업로드']],
     '/ledger/data/list' => ['items' => ['회계관리', '자료관리', '증빙원본']],
     '/ledger/data/bank-transactions' => ['items' => ['회계관리', '자료관리', '입출금(은행)']],
+    '/ledger/data/daily-employment-incomes' => ['items' => ['회계관리', '자료관리', '일용직(신고)']],
     '/ledger/data/tax-invoices' => ['items' => ['회계관리', '자료관리', '세금계산서매입매출(홈택스)']],
     '/ledger/data/raw' => ['items' => ['회계관리', '자료관리', '원본자료']],
     '/ledger/data' => ['items' => ['회계관리', '자료관리', '증빙원본']],
@@ -56,6 +57,7 @@ $pageMap = [
 
     '/document' => ['items' => ['문서관리', '대시보드']],
     '/approval' => ['items' => ['전자결재', '대시보드']],
+    '/approval/leave-request' => ['items' => ['전자결재', '휴가신청']],
     '/institution' => ['items' => ['대외기관업무', '대시보드']],
     '/institution/human-resources/employment-contracts' => ['items' => ['대외기관업무', '인사·노무관리', '근로계약관리']],
     '/institution/human-resources/personnel-actions' => ['items' => ['대외기관업무', '인사·노무관리', '인사발령관리']],

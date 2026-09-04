@@ -214,7 +214,7 @@ header('Content-Type: text/html; charset=UTF-8');
           // 🔥 성공
           if (data.success) {
             redirecting = true;
-            window.location.replace('/register_success');
+            window.location.replace(data.redirect || '/register_success');
             return;
           }
 

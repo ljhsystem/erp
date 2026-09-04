@@ -26,13 +26,38 @@ class DataTableColumnMetaService
         'statutory-standard' => ['table' => 'system_statutory_standards'],
         'statutory-standard-source' => ['table' => 'system_statutory_standard_sources'],
         'personal-expense' => ['table' => 'approval_personal_expenses'],
+        'leave-request' => ['composite' => 'leave-request'],
+        'leave-status' => ['composite' => 'leave-status'],
+        'leave-balance' => ['composite' => 'leave-balance'],
+        'leave-type' => ['table' => 'institution_leave_types'],
+        'qualification-status' => ['composite' => 'qualification-status'],
+        'education-status' => ['composite' => 'education-status'],
+        'education-session' => ['composite' => 'education-session'],
+        'education-session-target' => ['composite' => 'education-session-target'],
+        'qualification-type' => ['table' => 'institution_qualifications_types'],
+        'education-course' => ['table' => 'institution_educations_courses'],
+        'job-qualification-requirement' => ['composite' => 'job-qualification-requirement'],
+        'job-education-requirement' => ['composite' => 'job-education-requirement'],
         'personal-expense-item' => ['composite' => 'personal-expense-item'],
         'employment-contract' => ['composite' => 'employment-contract'],
+        'employment-rule' => ['composite' => 'employment-rule'],
         'personnel-action' => ['composite' => 'personnel-action'],
         'job-assignment' => ['composite' => 'job-assignment'],
+        'attendance-daily' => ['table' => 'institution_attendance_daily_records'],
+        'attendance-monthly' => ['table' => 'institution_attendance_monthly_closure_histories'],
+        'attendance-exceptions' => ['table' => 'institution_attendance_daily_exceptions'],
+        'attendance-closures' => ['table' => 'institution_attendance_monthly_closures'],
+        'regular-employment-income' => ['composite' => 'regular-employment-income'],
+        'regular-employment-income-detail' => ['table' => 'institution_regular_employment_income_items'],
+        'daily-employment-income' => ['composite' => 'daily-employment-income'],
+        'business-income' => ['composite' => 'business-income'],
+        'business-income-group' => ['table' => 'institution_business_income_groups'],
+        'business-income-item' => ['table' => 'institution_business_income_items'],
+        'business-income-work-line' => ['table' => 'institution_business_income_work_lines'],
         'employment-contract-weekly-schedule' => ['table' => 'institution_employment_contracts_weekly_schedules'],
         'employment-contract-work-schedule-policy' => ['table' => 'institution_employment_contracts_work_schedule_policies'],
         'employment-contract-component' => ['table' => 'institution_employment_contracts_components'],
+        'employment-contract-pay-component' => ['table' => 'institution_employment_contracts_pay_components'],
         'code' => ['table' => 'system_codes'],
         'account-subject-main' => ['table' => 'ledger_accounts'],
         'account-subject-sub' => ['table' => 'ledger_accounts_sub'],
@@ -42,6 +67,8 @@ class DataTableColumnMetaService
         'transaction-settlement' => ['composite' => 'transaction-settlement'],
         'voucher' => ['composite' => 'voucher'],
         'voucher-header' => ['table' => 'ledger_vouchers'],
+        'voucher-evidence-selection' => ['composite' => 'voucher-evidence-selection'],
+        'transaction-evidence-selection' => ['composite' => 'voucher-evidence-selection'],
         'ledger-journal-rule' => ['table' => 'ledger_journal_rules'],
         'evidence-metadata' => ['table' => 'ledger_evidence_metadata'],
         'evidence-create' => ['composite' => 'evidence-create'],
@@ -54,9 +81,14 @@ class DataTableColumnMetaService
         'evidence-card-hometax' => ['table' => 'ledger_evidence_card_hometax'],
         'evidence-card-statement' => ['table' => 'ledger_evidence_card_statement'],
         'evidence-employee-expense-personal' => ['table' => 'ledger_evidence_employee_personal_expense'],
+        'evidence-payroll-report' => ['table' => 'ledger_evidence_salary_report'],
+        'evidence-daily-employment-income' => ['table' => 'ledger_evidence_daily_employment_income'],
+        'evidence-business-income-report' => ['table' => 'ledger_evidence_business_income'],
     ];
 
     private SystemSchemaModel $schemaModel;
+    private array $tableColumnsCache = [];
+    private array $tableCommentCache = [];
 
     public function __construct(PDO $pdo)
     {
@@ -86,8 +118,60 @@ class DataTableColumnMetaService
         if (($config['composite'] ?? '') === 'personal-expense-item') {
             return $this->columnsForPersonalExpenseItemDomain($resolvedDomain);
         }
+        if (($config['composite'] ?? '') === 'leave-request') {
+            return $this->columnsForLeaveRequestDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'leave-status') {
+            return $this->columnsForLeaveStatusDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'leave-balance') {
+            return $this->columnsForLeaveBalanceDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'regular-employment-income') {
+            return $this->columnsForRegularEmploymentIncomeDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'daily-employment-income') {
+            return $this->columnsForDailyEmploymentIncomeDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'business-income') {
+            return $this->columnsForBusinessIncomeDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'qualification-status') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_qualifications_employee_records','institution_qualifications_types']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['employee_name','직원명','varchar','join',['user_employees'],['user_employees.employee_name'],'직원 SSOT 표시명'],['job_name','현재 직무','varchar','join',['institution_job_assignments_jobs'],['institution_job_assignments_jobs.job_name'],'현재 직무 표시명'],['display_status_code','현재상태','varchar','projection',['institution_qualifications_employee_records'],['status_code','valid_to'],'명시상태와 유효기간 기반 상태']], count($columns)));
+        }
+        if (($config['composite'] ?? '') === 'education-status') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_educations_employee_records','institution_educations_courses']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['employee_name','직원명','varchar','join',['user_employees'],['user_employees.employee_name'],'직원 SSOT 표시명'],['job_name','현재 직무','varchar','join',['institution_job_assignments_jobs'],['institution_job_assignments_jobs.job_name'],'현재 직무 표시명'],['session_title','교육 일정명','varchar','join',['institution_educations_sessions'],['institution_educations_sessions.title'],'연결된 회사 교육 일정명'],['next_due_date','다음교육 예정일','date','projection',['institution_educations_employee_records','institution_educations_courses'],['education_end_at','recurrence_policy_code','recurrence_interval_value','recurrence_interval_unit_code'],'마지막 이수일과 재교육 정책 기반 예정일'],['display_status_code','현재상태','varchar','projection',['institution_educations_employee_records','institution_educations_courses'],['completion_status_code','next_due_date'],'이수상태와 재교육 예정일 기반 상태']], count($columns)));
+        }
+        if (($config['composite'] ?? '') === 'education-session') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_educations_sessions','institution_educations_courses']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['course_name','교육과정명','varchar','join',['institution_educations_courses'],['institution_educations_courses.course_name'],'교육과정 표시명'],['organizer_employee_name','담당 직원','varchar','join',['user_employees'],['user_employees.employee_name'],'담당 직원 표시명'],['target_count','대상자 수','int','projection',['institution_educations_session_targets'],['session_id'],'활성 대상자 집계'],['acknowledged_count','확인 수','int','projection',['institution_educations_session_targets'],['acknowledged_at'],'확인 대상자 집계'],['attended_count','참석 수','int','projection',['institution_educations_session_targets'],['attendance_status_code'],'참석 대상자 집계'],['absent_count','불참 수','int','projection',['institution_educations_session_targets'],['attendance_status_code'],'불참 대상자 집계'],['completed_count','이수 수','int','projection',['institution_educations_session_targets'],['completion_status_code'],'이수 대상자 집계'],['not_completed_count','미이수 수','int','projection',['institution_educations_session_targets'],['completion_status_code'],'미이수 대상자 집계']], count($columns)));
+        }
+        if (($config['composite'] ?? '') === 'education-session-target') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_educations_session_targets']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['employee_name','직원명','varchar','join',['user_employees'],['user_employees.employee_name'],'대상 직원 표시명'],['department_name','부서명','varchar','join',['user_departments'],['user_departments.department_name'],'현재 부서 표시명'],['job_name','직무명','varchar','join',['institution_job_assignments_jobs'],['institution_job_assignments_jobs.job_name'],'현재 직무 표시명']], count($columns)));
+        }
+        if (($config['composite'] ?? '') === 'job-qualification-requirement') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_qualifications_job_requirements','institution_qualifications_types']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['job_name','직무명','varchar','join',['institution_job_assignments_jobs'],['institution_job_assignments_jobs.job_name'],'직무 표시명'],['target_name','자격명','varchar','join',['institution_qualifications_types'],['institution_qualifications_types.qualification_name'],'요구 자격 표시명']], count($columns)));
+        }
+        if (($config['composite'] ?? '') === 'job-education-requirement') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, ['institution_educations_job_requirements','institution_educations_courses']);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [['job_name','직무명','varchar','join',['institution_job_assignments_jobs'],['institution_job_assignments_jobs.job_name'],'직무 표시명'],['target_name','교육과정명','varchar','join',['institution_educations_courses'],['institution_educations_courses.course_name'],'요구 교육과정 표시명']], count($columns)));
+        }
         if (($config['composite'] ?? '') === 'employment-contract') {
             return $this->columnsForEmploymentContractDomain($resolvedDomain);
+        }
+        if (($config['composite'] ?? '') === 'employment-rule') {
+            $columns = $this->columnsForMergedTables($resolvedDomain, [
+                'institution_employment_rules',
+                'institution_employment_rules_revisions',
+            ], [], true);
+            return array_merge($columns, $this->projectionMetaColumns($resolvedDomain, [
+                ['regulation_type_name', '규정종류', 'varchar', 'join', ['system_codes'], ['institution_employment_rules.regulation_type_code'], '규정종류 코드의 표시명'],
+                ['is_current', '현재 유효 여부', 'boolean', 'projection', ['institution_employment_rules_revisions'], ['status_code','effective_from','effective_to'], '기준일과 시행기간으로 계산한 현재 유효 여부'],
+            ], count($columns)));
         }
         if (($config['composite'] ?? '') === 'personnel-action') {
             return $this->columnsForPersonnelActionDomain($resolvedDomain);
@@ -110,10 +194,14 @@ class DataTableColumnMetaService
                 'ledger_voucher_lines',
             ]);
         }
+        if (($config['composite'] ?? '') === 'voucher-evidence-selection') {
+            return $this->columnsForVoucherEvidenceSelectionDomain($resolvedDomain);
+        }
         if (($config['composite'] ?? '') === 'evidence-create') {
             return $this->columnsForEvidenceCreateDomain($resolvedDomain);
         }
-        return $this->columnsForTable((string) ($config['table'] ?? ''), $resolvedDomain);
+        $columns = $this->columnsForTable((string) ($config['table'] ?? ''), $resolvedDomain);
+        return $columns;
     }
 
     private function columnsForEvidenceCreateDomain(string $domain): array
@@ -156,6 +244,31 @@ class DataTableColumnMetaService
         return $columns;
     }
 
+    private function columnsForVoucherEvidenceSelectionDomain(string $domain): array
+    {
+        return $this->projectionMetaColumns($domain, [
+            ['evidence_id', '증빙 ID', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.id'], '자료유형별 증빙원본 ID'],
+            ['source_type', '원천유형', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.source_type'], '증빙원본의 원천유형'],
+            ['import_type', '자료유형', 'varchar', 'projection', ['ledger_evidence_metadata'], ['ledger_evidence_metadata.import_type'], '증빙정책의 자료유형 표시명'],
+            ['evidence_type', '증빙구분', 'varchar', 'projection', ['ledger_evidence_metadata'], ['ledger_evidence_metadata.evidence_type'], '자료증빙·자금증빙·겸용 구분'],
+            ['evidence_date', '기준일', 'date', 'projection', ['ledger_evidence_metadata'], ['standard_date_field'], '증빙정책 기준일 컬럼의 값'],
+            ['evidence_status', '증빙상태', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.evidence_status'], '증빙원본 처리상태'],
+            ['business_unit', '사업구분', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.business_unit'], '증빙원본 사업구분'],
+            ['transaction_direction', '거래구분', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.transaction_direction'], '증빙원본 거래방향'],
+            ['operation_type', '업무유형', 'varchar', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.operation_type'], '증빙원본 업무유형'],
+            ['client_name', '거래처', 'varchar', 'join', ['system_clients'], ['Evidence Body.client_id'], '거래처 SSOT 표시명'],
+            ['project_name', '프로젝트', 'varchar', 'join', ['system_projects'], ['Evidence Body.project_id'], '프로젝트 SSOT 표시명'],
+            ['employee_name', '직원', 'varchar', 'join', ['user_employees'], ['Evidence Body.employee_id'], '직원 SSOT 표시명'],
+            ['bank_account_name', '계좌', 'varchar', 'join', ['system_bank_accounts'], ['Evidence Body.bank_account_id'], '계좌 SSOT 표시명'],
+            ['card_name', '카드', 'varchar', 'join', ['system_cards'], ['Evidence Body.card_id'], '카드 SSOT 표시명'],
+            ['team_name', '팀', 'varchar', 'join', ['system_work_teams'], ['Evidence Body.team_id'], '팀 SSOT 표시명'],
+            ['display_summary', '적요', 'varchar', 'projection', ['ledger_evidence_metadata'], ['DESCRIPTION semantic'], '증빙정책 적요 의미값'],
+            ['display_amount', '금액', 'decimal', 'projection', ['ledger_evidence_metadata'], ['금액 semantic'], '증빙정책 금액 의미값'],
+            ['created_at', '생성일시', 'datetime', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.created_at'], '증빙원본 생성일시'],
+            ['updated_at', '수정일시', 'datetime', 'projection', ['ledger_evidence_metadata'], ['Evidence Body.updated_at'], '증빙원본 수정일시'],
+        ], 0);
+    }
+
     public function hasDomain(string $domain): bool
     {
         return isset(self::DOMAIN_MAP[trim($domain)]);
@@ -174,19 +287,36 @@ class DataTableColumnMetaService
 
         $tableComment = $this->queryTableComment($tableName);
 
+        $usesExactPhysicalLabel = str_starts_with($domain, 'evidence-')
+            || $domain === 'funds-bank-transaction';
+
         return array_map(
             fn(array $row): array => $this->normalizeColumnMeta(
                 domain: $domain,
                 table: $tableName,
                 tableComment: $tableComment,
                 column: (string) ($row['COLUMN_NAME'] ?? ''),
-                label: $this->columnLabel((string) ($row['COLUMN_NAME'] ?? ''), (string) ($row['COLUMN_COMMENT'] ?? '')),
+                label: $usesExactPhysicalLabel
+                    ? $this->physicalColumnLabel(
+                        (string) ($row['COLUMN_NAME'] ?? ''),
+                        (string) ($row['COLUMN_COMMENT'] ?? '')
+                    )
+                    : $this->columnLabel(
+                        (string) ($row['COLUMN_NAME'] ?? ''),
+                        (string) ($row['COLUMN_COMMENT'] ?? '')
+                    ),
                 dataType: (string) ($row['DATA_TYPE'] ?? ''),
                 isNullable: (string) ($row['IS_NULLABLE'] ?? 'YES'),
                 ordinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0)
             ),
             $this->queryTableColumns($tableName)
         );
+    }
+
+    private function physicalColumnLabel(string $columnName, string $comment): string
+    {
+        $normalizedComment = trim($comment);
+        return $normalizedComment !== '' ? $normalizedComment : $columnName;
     }
 
     private function columnsForEmployeeDomain(string $domain): array
@@ -254,122 +384,45 @@ class DataTableColumnMetaService
 
     private function columnsForEmploymentContractDomain(string $domain): array
     {
-        $keyMap = [
-            'employee_id' => ['employee_name', '직원명'],
-            'project_id' => ['project_name', '프로젝트명'],
-            'previous_contract_id' => ['previous_contract_no', '이전 계약번호'],
-            'current_approval_request_id' => ['approval_request_no', '결재요청 순번'],
-        ];
-        $tableName = 'institution_employment_contracts';
-        $tableComment = $this->queryTableComment($tableName);
-        $columns = array_values(array_filter(
-            $this->queryTableColumns($tableName),
-            static fn(array $row): bool => (string) ($row['COLUMN_NAME'] ?? '') !== 'employee_identifier_snapshot'
-        ));
-
-        return array_map(
-            function (array $row) use ($domain, $keyMap, $tableName, $tableComment): array {
-                $sourceColumn = (string) ($row['COLUMN_NAME'] ?? '');
-                [$key, $label] = $keyMap[$sourceColumn]
-                    ?? [$sourceColumn, $this->columnLabel($sourceColumn, (string) ($row['COLUMN_COMMENT'] ?? ''))];
-
-                return $this->normalizeColumnMeta(
-                    domain: $domain,
-                    table: $tableName,
-                    tableComment: $tableComment,
-                    column: $key,
-                    label: $label,
-                    dataType: (string) ($row['DATA_TYPE'] ?? ''),
-                    isNullable: (string) ($row['IS_NULLABLE'] ?? 'YES'),
-                    ordinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0),
-                    sourceTitle: $sourceColumn
-                );
-            },
-            $columns
-        );
+        return $this->columnsForMergedTables($domain, [
+            'institution_employment_contracts',
+            'institution_employment_contracts_weekly_schedules',
+            'institution_employment_contracts_work_schedule_policies',
+            'institution_employment_contracts_components',
+        ], [
+            'institution_employment_contracts' => [
+                'employee_id' => ['employee_name', '직원명'],
+                'project_id' => ['project_id', '특정 프로젝트'],
+                'previous_contract_id' => ['previous_contract_no', '이전 계약번호'],
+                'current_approval_request_id' => ['approval_request_no', '결재요청 순번'],
+            ],
+        ]);
     }
 
     private function columnsForPersonnelActionDomain(string $domain): array
     {
-        $keyMap = [
-            'current_approval_request_id' => ['approval_request_no', '결재요청 순번'],
-            'original_action_id' => ['original_action_no', '원본 발령번호'],
-        ];
-        $tableName = 'institution_personnel_actions';
-        $tableComment = $this->queryTableComment($tableName);
-
-        return array_map(
-            function (array $row) use ($domain, $keyMap, $tableName, $tableComment): array {
-                $sourceColumn = (string) ($row['COLUMN_NAME'] ?? '');
-                [$key, $label] = $keyMap[$sourceColumn]
-                    ?? [$sourceColumn, $this->columnLabel($sourceColumn, (string) ($row['COLUMN_COMMENT'] ?? ''))];
-
-                return $this->normalizeColumnMeta(
-                    domain: $domain,
-                    table: $tableName,
-                    tableComment: $tableComment,
-                    column: $key,
-                    label: $label,
-                    dataType: (string) ($row['DATA_TYPE'] ?? ''),
-                    isNullable: (string) ($row['IS_NULLABLE'] ?? 'YES'),
-                    ordinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0),
-                    sourceTitle: $sourceColumn
-                );
-            },
-            $this->queryTableColumns($tableName)
-        );
+        return $this->columnsForMergedTables($domain, [
+            'institution_personnel_actions',
+            'institution_personnel_actions_targets',
+        ], [
+            'institution_personnel_actions' => [
+                'current_approval_request_id' => ['approval_request_no', '결재요청 순번'],
+                'original_action_id' => ['original_action_no', '원본 발령번호'],
+            ],
+        ]);
     }
 
     private function columnsForJobAssignmentDomain(string $domain): array
     {
-        $definitions = [
-            ['user_employees', 'sort_no', 'sort_no', '순번'],
-            ['auth_users', 'username', 'username', '아이디'],
-            ['user_employees', 'employee_name', 'employee_name', '직원명'],
-            ['institution_job_assignments_employment_status_histories', 'status_code', 'employment_status', '재직상태'],
-            ['institution_job_assignments_department_histories', 'department_id', 'department_name', '부서'],
-            ['institution_job_assignments_position_histories', 'position_id', 'position_name', '직위·직책'],
-            ['institution_job_assignments_job_histories', 'job_id', 'job_name', '직무'],
-            ['institution_job_assignments_project_histories', 'project_id', 'primary_project_name', '주 프로젝트'],
-            ['institution_job_assignments_workplace_histories', 'workplace_name_snapshot', 'workplace_name', '근무지'],
-            ['institution_job_assignments_job_histories', 'start_date', 'assignment_start_date', '배치 시작일'],
-            ['institution_job_assignments_job_histories', 'end_date', 'assignment_end_date', '배치 종료일'],
-            ['institution_job_assignments_project_histories', 'status_code', 'assignment_status', '배치상태'],
-            ['institution_job_assignments_project_histories', 'updated_at', 'updated_at', '수정일시'],
-        ];
-
-        $columnsByTable = [];
-        $tableComments = [];
-        foreach (array_unique(array_column($definitions, 0)) as $tableName) {
-            $tableComments[$tableName] = $this->queryTableComment($tableName);
-            foreach ($this->queryTableColumns($tableName) as $row) {
-                $columnsByTable[$tableName][(string) ($row['COLUMN_NAME'] ?? '')] = $row;
-            }
-        }
-
-        $columns = [];
-        foreach ($definitions as $index => [$tableName, $sourceColumn, $key, $label]) {
-            $row = $columnsByTable[$tableName][$sourceColumn] ?? null;
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $columns[] = $this->normalizeColumnMeta(
-                domain: $domain,
-                table: $tableName,
-                tableComment: (string) ($tableComments[$tableName] ?? ''),
-                column: $key,
-                label: $label,
-                dataType: (string) ($row['DATA_TYPE'] ?? ''),
-                isNullable: (string) ($row['IS_NULLABLE'] ?? 'YES'),
-                ordinalPosition: $index + 1,
-                sourceTitle: $sourceColumn,
-                sourceOrdinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0),
-                columnDefault: $row['COLUMN_DEFAULT'] ?? null
-            );
-        }
-
-        return $columns;
+        return $this->columnsForMergedTables($domain, [
+            'user_employees',
+            'institution_job_assignments_employment_status_histories',
+            'institution_job_assignments_department_histories',
+            'institution_job_assignments_position_histories',
+            'institution_job_assignments_job_histories',
+            'institution_job_assignments_project_histories',
+            'institution_job_assignments_workplace_histories',
+        ], [], true);
     }
 
     private function columnsForPermissionAssignmentDomain(string $domain): array
@@ -379,64 +432,9 @@ class DataTableColumnMetaService
 
     private function columnsForIndividualPermissionUsersDomain(string $domain): array
     {
-        $definitions = [
-            'auth_users' => [
-                'id' => ['user_id', null],
-                'username' => ['username', null],
-                'approved' => ['approved', null],
-                'is_active' => ['is_active', null],
-                'role_id' => ['role_id', null],
-            ],
-            'auth_roles' => [
-                'role_key' => ['role_key', null],
-                'role_name' => ['role_name', null],
-                'is_active' => ['role_active', '역할 상태'],
-            ],
-            'user_employees' => [
-                'sort_no' => ['sort_no', null],
-                'employee_name' => ['employee_name', null],
-                'employment_status' => ['employment_status', null],
-                'doc_retire_date' => ['doc_retire_date', null],
-                'real_retire_date' => ['real_retire_date', null],
-            ],
-            'auth_user_permission_profiles' => [
-                'permission_mode' => ['permission_mode', null],
-            ],
-            'auth_user_permissions' => [
-                'id' => ['user_permission_count', '개인권한 수'],
-            ],
-        ];
-
-        $columns = [];
-        $sequence = 1;
-        foreach ($definitions as $tableName => $selectedColumns) {
-            $tableComment = $this->queryTableComment($tableName);
-            foreach ($this->queryTableColumns($tableName) as $row) {
-                $sourceColumn = (string) ($row['COLUMN_NAME'] ?? '');
-                if (!isset($selectedColumns[$sourceColumn])) {
-                    continue;
-                }
-
-                [$key, $labelOverride] = $selectedColumns[$sourceColumn];
-                $isAggregate = $key === 'user_permission_count';
-                $columns[] = $this->normalizeColumnMeta(
-                    domain: $domain,
-                    table: $tableName,
-                    tableComment: $tableComment,
-                    column: $key,
-                    label: $labelOverride
-                        ?? $this->columnLabel($sourceColumn, (string) ($row['COLUMN_COMMENT'] ?? '')),
-                    dataType: $isAggregate ? 'bigint' : (string) ($row['DATA_TYPE'] ?? ''),
-                    isNullable: $isAggregate ? 'YES' : (string) ($row['IS_NULLABLE'] ?? 'YES'),
-                    ordinalPosition: $sequence++,
-                    sourceTitle: $sourceColumn,
-                    sourceOrdinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0),
-                    columnDefault: $isAggregate ? 0 : ($row['COLUMN_DEFAULT'] ?? null)
-                );
-            }
-        }
-
-        return $columns;
+        return $this->columnsForMergedTables($domain, [
+            'user_employees',
+        ], [], true);
     }
 
     private function columnsForPersonalExpenseItemDomain(string $domain): array
@@ -465,23 +463,164 @@ class DataTableColumnMetaService
         return $columns;
     }
 
+    private function columnsForLeaveRequestDomain(string $domain): array
+    {
+        return $this->columnsForLeaveRequestProjection($domain, true);
+    }
+
+    private function columnsForLeaveStatusDomain(string $domain): array
+    {
+        return $this->columnsForLeaveRequestProjection($domain, false);
+    }
+
+    private function columnsForLeaveRequestProjection(string $domain, bool $employeeScreen): array
+    {
+        $columns = $this->columnsForMergedTables($domain, [
+            'institution_leave_requests',
+            'institution_leave_request_items',
+            'institution_leave_types',
+            'user_employees',
+            'auth_users',
+            'user_approval_requests',
+            'user_approval_request_steps',
+        ], [], true);
+        $definitions = [
+            ['employee_name', '직원명', 'varchar', 'join', ['user_employees'], ['user_employees.employee_name'], '직원 식별자의 현재 직원명 표시값'],
+            ['username', '사용자 아이디', 'varchar', 'join', ['auth_users'], ['auth_users.username'], '직원과 연결된 인증 사용자 아이디'],
+            ['leave_from', '시작일', 'date', 'projection', ['institution_leave_request_items'], ['institution_leave_request_items.leave_date'], '휴가 신청항목 사용일의 최솟값'],
+            ['leave_to', '종료일', 'date', 'projection', ['institution_leave_request_items'], ['institution_leave_request_items.leave_date'], '휴가 신청항목 사용일의 최댓값'],
+            ['leave_type_names', '휴가유형', 'varchar', 'projection', ['institution_leave_request_items','institution_leave_types'], ['institution_leave_request_items.leave_type_id','institution_leave_types.type_name'], '신청에 포함된 휴가유형명의 중복 제거 집계'],
+            ['request_unit_names', '신청단위', 'varchar', 'projection', ['institution_leave_request_items'], ['institution_leave_request_items.request_unit_code'], '신청에 포함된 신청단위의 중복 제거 집계'],
+            ['deductible_total_minutes', '차감시간', 'int', 'projection', ['institution_leave_request_items'], ['institution_leave_request_items.deductible_minutes'], '신청항목 차감시간의 합계'],
+            ['approval_status', '결재상태', 'varchar', 'join', ['user_approval_requests'], ['user_approval_requests.status'], '현재 전자결재 요청의 상태 표시값'],
+            ['current_step_name', '현재 결재단계', 'varchar', 'join', ['user_approval_request_steps'], ['user_approval_request_steps.step_name'], '현재 활성 결재단계명'],
+            ['completed_at', '최종처리일시', 'datetime', 'join', ['user_approval_requests'], ['user_approval_requests.completed_at'], '현재 전자결재 요청의 완료일시'],
+        ];
+        if ($employeeScreen) {
+            $definitions[] = ['leave_period', '사용일/기간', 'varchar', 'projection', ['institution_leave_request_items'], ['institution_leave_request_items.leave_date'], '시작일과 종료일을 결합한 화면 표시값'];
+        }
+        $definitions[] = ['__actions', '관리', 'virtual', 'virtual', [], [], '휴가 신청 업무동작 시스템 가상컬럼'];
+        return array_merge($columns, $this->projectionMetaColumns($domain, $definitions, count($columns)));
+    }
+
+    private function columnsForLeaveBalanceDomain(string $domain): array
+    {
+        $columns = $this->columnsForMergedTables($domain, [
+            'user_employees',
+            'institution_leave_types',
+            'institution_leave_ledger_entries',
+        ], [], true);
+        return array_merge($columns, $this->projectionMetaColumns($domain, [
+            ['employee_name', '직원명', 'varchar', 'join', ['user_employees'], ['user_employees.employee_name'], '직원 식별자의 현재 직원명 표시값'],
+            ['type_name', '휴가유형', 'varchar', 'join', ['institution_leave_types'], ['institution_leave_types.type_name'], '휴가유형 식별자의 현재 유형명 표시값'],
+            ['base_year', '기준연도', 'smallint', 'projection', [], [], '검색 요청에서 선택한 기준연도'],
+            ['balance_minutes', '잔액', 'int', 'projection', ['institution_leave_ledger_entries'], ['institution_leave_ledger_entries.amount_minutes'], '직원·휴가유형·기준연도별 원장 증감시간 합계'],
+        ], count($columns)));
+    }
+
+    private function columnsForRegularEmploymentIncomeDomain(string $domain): array
+    {
+        return $this->columnsForTable('institution_regular_employment_incomes', $domain);
+    }
+
+    private function columnsForDailyEmploymentIncomeDomain(string $domain): array
+    {
+        return $this->columnsForTable('institution_daily_employment_incomes', $domain);
+    }
+
+    private function columnsForBusinessIncomeDomain(string $domain): array
+    {
+        $columns = $this->columnsForTable('institution_business_incomes', $domain);
+        $systemColumns = $this->projectionMetaColumns($domain, [
+            ['__select', '선택', 'virtual', 'virtual', [], [], '공용 선택 시스템 가상컬럼'],
+            ['__reorder', '순서', 'virtual', 'virtual', [], [], '공용 순서변경 시스템 가상컬럼'],
+        ], 0);
+        $actions = $this->projectionMetaColumns($domain, [
+            ['__actions', '관리', 'virtual', 'virtual', [], [], '사업소득 상세 업무동작 가상컬럼'],
+        ], count($systemColumns) + count($columns));
+        return array_merge($systemColumns, $columns, $actions);
+    }
+
+    private function projectionMetaColumns(string $domain, array $definitions, int $offset): array
+    {
+        $columns = [];
+        foreach ($definitions as $index => [$key,$label,$dataType,$columnType,$sourceTables,$sourceColumns,$description]) {
+            $column = $this->normalizeColumnMeta(
+                domain: $domain,
+                table: '',
+                tableComment: '',
+                column: $key,
+                label: $label,
+                dataType: $dataType,
+                isNullable: 'YES',
+                ordinalPosition: $offset + $index + 1,
+                sourceTitle: implode(', ', $sourceColumns) ?: $key,
+                columnType: $columnType,
+                sourceRole: $columnType
+            );
+            $column['source_tables'] = $sourceTables;
+            $column['source_columns'] = $sourceColumns;
+            $column['description'] = $description;
+            $column['required'] = false;
+            $columns[] = $column;
+        }
+        return $columns;
+    }
+
     private function columnsForStatutoryTable(string $tableName, string $domain): array
     {
         $hidden = $domain === 'statutory-standard'
             ? ['id', 'created_at', 'created_by']
             : ['id', 'standard_id', 'file_path', 'file_size', 'mime_type', 'created_at', 'created_by', 'updated_at', 'updated_by'];
-        return array_map(static function (array $column) use ($hidden): array {
+        $columns = array_map(static function (array $column) use ($hidden): array {
             if (in_array((string) ($column['key'] ?? ''), $hidden, true)) {
                 $column['settings_visible'] = false;
             }
             return $column;
         }, $this->columnsForTable($tableName, $domain));
+        if ($domain !== 'statutory-standard') return $columns;
+        $valueSummary = $this->projectionMetaColumns($domain, [[
+            'value_summary', '기준값', 'TEXT', 'projection',
+            ['system_statutory_standards'], ['value_data', 'policy_component_code', 'employment_type_code', 'work_scope_code'],
+            '정책 구성요소에 따라 금액·요율·표·가입자격을 표시하는 목록 전용 요약값',
+        ]], count($columns))[0];
+        $valueSummary += [
+            'column_key' => 'value_summary', 'column_name' => '기준값', 'source_type' => 'VIRTUAL',
+            'default_visible' => true, 'default_order' => count($columns) + 1,
+            'sortable' => false, 'searchable' => false, 'hideable' => true,
+            'width' => 220, 'alignment' => 'left',
+            'formatter_code' => 'STATUTORY_VALUE_SUMMARY', 'modal_input' => false,
+        ];
+        foreach ($columns as &$column) {
+            if (($column['key'] ?? null) === 'value_data') {
+                $column['settings_visible'] = false;
+            }
+        }
+        unset($column);
+        $periodStatus = $this->projectionMetaColumns($domain, [[
+            'period_status', '적용상태', 'CODE', 'projection',
+            ['system_statutory_standards'], ['effective_from', 'effective_to'],
+            '회사 업무일 기준 적용기간으로 계산한 적용예정·현재적용·종료 상태',
+        ]], count($columns) + 1)[0];
+        $periodStatus += [
+            'column_key' => 'period_status', 'column_name' => '적용상태', 'source_type' => 'VIRTUAL',
+            'default_visible' => true, 'default_order' => count($columns) + 2,
+            'sortable' => true, 'searchable' => true, 'hideable' => true,
+            'width' => 110, 'alignment' => 'center',
+            'formatter_code' => 'STATUTORY_PERIOD_STATUS_BADGE', 'modal_input' => false,
+        ];
+        return array_merge($columns, [$valueSummary, $periodStatus]);
     }
 
     /**
      * @param list<string> $tableNames
      */
-    private function columnsForMergedTables(string $domain, array $tableNames): array
+    private function columnsForMergedTables(
+        string $domain,
+        array $tableNames,
+        array $keyOverrides = [],
+        bool $fullyQualifiedKeys = false
+    ): array
     {
         $merged = [];
         $sequence = 1;
@@ -501,18 +640,27 @@ class DataTableColumnMetaService
                     continue;
                 }
 
-                $columnKey = $this->mergedTableColumnKey($resolvedTableName, $sourceColumn, $usedKeys);
+                $override = $keyOverrides[$resolvedTableName][$sourceColumn] ?? null;
+                $preferredKey = is_array($override) ? (string) ($override[0] ?? $sourceColumn) : $sourceColumn;
+                $columnKey = $fullyQualifiedKeys
+                    ? $resolvedTableName . '.' . $sourceColumn
+                    : $this->mergedTableColumnKey($resolvedTableName, $preferredKey, $usedKeys);
+                $label = is_array($override) && trim((string) ($override[1] ?? '')) !== ''
+                    ? (string) $override[1]
+                    : $this->columnLabel($sourceColumn, (string) ($row['COLUMN_COMMENT'] ?? ''));
 
                 $merged[$resolvedTableName . '.' . $sourceColumn] = $this->normalizeColumnMeta(
                     domain: $domain,
                     table: $resolvedTableName,
                     tableComment: $tableComment,
                     column: $columnKey,
-                    label: $this->columnLabel($sourceColumn, (string) ($row['COLUMN_COMMENT'] ?? '')),
+                    label: $label,
                     dataType: (string) ($row['DATA_TYPE'] ?? ''),
                     isNullable: (string) ($row['IS_NULLABLE'] ?? 'YES'),
                     ordinalPosition: $sequence++,
-                    sourceTitle: $sourceColumn
+                    sourceTitle: $sourceColumn,
+                    sourceOrdinalPosition: (int) ($row['ORDINAL_POSITION'] ?? 0),
+                    columnDefault: $row['COLUMN_DEFAULT'] ?? null
                 );
             }
         }
@@ -695,7 +843,9 @@ class DataTableColumnMetaService
         int $ordinalPosition,
         string $sourceTitle = '',
         int $sourceOrdinalPosition = 0,
-        mixed $columnDefault = null
+        mixed $columnDefault = null,
+        string $columnType = 'physical',
+        string $sourceRole = ''
     ): array {
         $sensitive = preg_match('/(?:identifier|resident|registration)_.*(?:snapshot|encrypted|cipher)/i', $column) === 1;
         return [
@@ -711,7 +861,8 @@ class DataTableColumnMetaService
             'column_default' => $columnDefault,
             'ordinal_position' => max(0, $ordinalPosition),
             'source_ordinal_position' => max(0, $sourceOrdinalPosition ?: $ordinalPosition),
-            'column_type' => 'physical',
+            'column_type' => $columnType,
+            'source_role' => $sourceRole,
             'required' => strtoupper($isNullable) === 'NO',
             'settings_visible' => !$sensitive,
             'settings_order' => max(0, $ordinalPosition),
@@ -724,7 +875,10 @@ class DataTableColumnMetaService
             return [];
         }
 
-        return $this->schemaModel->getTableColumns($tableName);
+        if (!array_key_exists($tableName, $this->tableColumnsCache)) {
+            $this->tableColumnsCache[$tableName] = $this->schemaModel->getTableColumns($tableName);
+        }
+        return $this->tableColumnsCache[$tableName];
     }
 
     private function queryTableComment(string $tableName): string
@@ -733,7 +887,10 @@ class DataTableColumnMetaService
             return '';
         }
 
-        return trim($this->schemaModel->getTableComment($tableName));
+        if (!array_key_exists($tableName, $this->tableCommentCache)) {
+            $this->tableCommentCache[$tableName] = trim($this->schemaModel->getTableComment($tableName));
+        }
+        return $this->tableCommentCache[$tableName];
     }
 
     private function tableExists(string $tableName): bool

@@ -5,17 +5,20 @@ use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\User\EmployeeModel;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\Security\Crypto;
 use Core\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 class ProfileService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private $users;
     private $employees;
     private $fileService;
-    private $logger;
+    private LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
@@ -43,7 +46,7 @@ class ProfileService
         }
 
         if (!$employeeId) {
-            throw new \Exception('employee_id 조회 실패');
+            throw new \RuntimeException('사용자와 연결된 직원 정보를 찾을 수 없습니다.');
         }
 
         $employee = null;
@@ -60,7 +63,7 @@ class ProfileService
         $userId = $actor['id'] ?? null;
 
         if (!$userId) {
-            throw new \Exception('로그인 정보가 필요합니다.');
+            throw new \RuntimeException('로그인 정보가 필요합니다.');
         }
 
         return $this->getById($userId);
@@ -68,11 +71,26 @@ class ProfileService
 
     public function save(array $data, array $files = []): array
     {
+        return $this->runLoggedOperation(
+            $this->logger,
+            '사용자 프로필 저장',
+            'USER_PROFILE_SAVE',
+            'save',
+            [],
+            fn(): array => $this->saveInternal($data, $files),
+            'info',
+            false,
+            static fn(array $result): string => !empty($result['success']) ? 'SUCCESS' : (((string) ($result['error_type'] ?? '')) === 'system' ? 'FAILED' : 'BLOCKED')
+        );
+    }
+
+    private function saveInternal(array $data, array $files = []): array
+    {
         $actor  = ActorHelper::resolve('USER');
         $userId = $data['id'] ?? null;
 
         if (!$userId) {
-            return ['success' => false, 'message' => 'user_id 없음'];
+            return ['success' => false, 'message' => '사용자 정보가 필요합니다.'];
         }
 
         $deleteAfterCommit = [];
@@ -89,7 +107,7 @@ class ProfileService
             }
 
             if (!$employee) {
-                return ['success' => false, 'message' => '프로필 없음'];
+                return ['success' => false, 'message' => '프로필 정보를 찾을 수 없습니다.'];
             }
 
             $employeeId = $employee['id'];
@@ -102,11 +120,11 @@ class ProfileService
 
             if (!empty($data['new_password'])) {
                 if (empty($data['current_password'])) {
-                    throw new \Exception('현재 비밀번호 필요');
+                    throw new \InvalidArgumentException('현재 비밀번호를 입력해 주세요.');
                 }
 
                 if ($data['new_password'] !== ($data['confirm_password'] ?? '')) {
-                    throw new \Exception('비밀번호 확인 불일치');
+                    throw new \InvalidArgumentException('새 비밀번호와 확인 비밀번호가 일치하지 않습니다.');
                 }
 
                 $authData['password'] = password_hash($data['new_password'], PASSWORD_DEFAULT);
@@ -164,7 +182,8 @@ class ProfileService
                 if (empty($upload['success'])) {
                     return [
                         'success' => false,
-                        'message' => $upload['message'] ?? '프로필 이미지 업로드 실패'
+                        'message' => '프로필 이미지 업로드 중 오류가 발생했습니다.',
+                        'error_type' => 'system'
                     ];
                 }
 
@@ -194,7 +213,7 @@ class ProfileService
                 $current = $this->employees->getById($employeeId);
 
                 if (!$current) {
-                    throw new \Exception('직원 데이터 없음');
+                    throw new \RuntimeException('직원 정보를 찾을 수 없습니다.');
                 }
 
                 $updateData = array_merge($current, $profileData);
@@ -217,20 +236,31 @@ class ProfileService
                 try {
                     $this->fileService->delete($oldFile);
                 } catch (\Throwable $deleteError) {
-                    $this->logger->warning('기존 파일 삭제 실패', [
-                        'user_id' => $userId,
-                        'file'    => $oldFile,
-                        'error'   => $deleteError->getMessage(),
+                    $this->logger->warning('기존 프로필 이미지 정리가 지연되었습니다.', [
+                        'event_code' => 'USER_PROFILE_OLD_IMAGE_DELETE_BLOCKED',
+                        'result' => 'BLOCKED',
+                        'error_code' => get_class($deleteError),
+                        'error' => $deleteError,
                     ]);
                 }
             }
 
             return [
                 'success'          => true,
-                'message'          => '저장 완료',
+                'message'          => '프로필을 저장했습니다.',
                 'profile_image'    => $profileData['profile_image'] ?? $currentProfile,
             ];
 
+        } catch (\InvalidArgumentException|\DomainException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'error_type' => 'business'
+            ];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -238,8 +268,8 @@ class ProfileService
 
             return [
                 'success' => false,
-                'message' => '저장 실패',
-                'error'   => $e->getMessage()
+                'message' => '저장 중 오류가 발생했습니다.',
+                'error_type' => 'system'
             ];
         }
     }
@@ -250,7 +280,7 @@ class ProfileService
         $userId = $actor['id'] ?? null;
 
         if (!$userId) {
-            throw new \Exception('로그인이 필요합니다.');
+            throw new \RuntimeException('로그인이 필요합니다.');
         }
 
         $data['id'] = $userId;

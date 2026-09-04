@@ -60,6 +60,13 @@ class EvidenceGenerationService
         return ($this->normalizeDataType)($type);
     }
 
+    private function canonicalReadDataType(string $type): string
+    {
+        return in_array($type, ['DAILY_WORK_REPORT', 'PAYROLL_WITHHOLDING'], true)
+            ? 'DAILY_EMPLOYMENT_INCOME'
+            : $type;
+    }
+
     private function normalizeImportSourceType(string $sourceType): string
     {
         return ($this->normalizeImportSourceType)($sourceType);
@@ -133,13 +140,15 @@ class EvidenceGenerationService
 
     private function applyReferenceDisplayNames(array &$row, array $mappedPayload): void
     {
+        $row['work_team_id'] = $row['work_team_id'] ?? $mappedPayload['work_team_id'] ?? $row['team_id'] ?? $mappedPayload['team_id'] ?? null;
+        $row['work_team_name'] = $row['work_team_name'] ?? $mappedPayload['work_team_name'] ?? $row['team_name'] ?? $mappedPayload['team_name'] ?? null;
         $referenceMap = [
             'CLIENT' => ['id' => 'client_id', 'name' => 'client_name'],
             'PROJECT' => ['id' => 'project_id', 'name' => 'project_name'],
             'EMPLOYEE' => ['id' => 'employee_id', 'name' => 'employee_name'],
             'ACCOUNT' => ['id' => 'bank_account_id', 'name' => 'bank_account_name'],
             'CARD' => ['id' => 'card_id', 'name' => 'card_name'],
-            'TEAM' => ['id' => 'team_id', 'name' => 'team_name'],
+            'TEAM' => ['id' => 'work_team_id', 'name' => 'work_team_name'],
         ];
 
         foreach ($referenceMap as $refType => $keys) {
@@ -166,6 +175,8 @@ class EvidenceGenerationService
                 $row[$nameKey] = $currentName;
             }
         }
+        $row['team_id'] = $row['work_team_id'] ?? null;
+        $row['team_name'] = $row['work_team_name'] ?? null;
     }
 
     private function applyReadinessToEvidenceRow(array &$row): void
@@ -188,7 +199,9 @@ class EvidenceGenerationService
         $this->query = $query;
         $status = strtoupper(trim((string) ($query['process_status'] ?? $query['status'] ?? '')));
         $requestedSourceType = strtoupper(trim((string) ($query['source_type'] ?? '')));
-        $importType = $this->normalizeDataType((string) ($query['import_type'] ?? $query['data_type'] ?? ''));
+        $importType = $this->canonicalReadDataType(
+            $this->normalizeDataType((string) ($query['import_type'] ?? $query['data_type'] ?? ''))
+        );
         $sourceType = '';
         if ($requestedSourceType !== '') {
             $normalizedRequested = $this->normalizeDataType($requestedSourceType);
@@ -251,7 +264,11 @@ class EvidenceGenerationService
         $recordsFiltered = null;
         $bodyTableTypes = $this->evidenceBodyReadService()->readyBodyImportTypes();
         $bodyQueryTypes = [];
-        if ($importType !== '') {
+        if ($requestedId !== '' && $importType !== '') {
+            // 증빙추가 등 다른 화면에서 활성 메타데이터의 원본을 ID로 직접 여는 경우에는
+            // 목록 화면의 정적 지원 유형에 한정하지 않고 해당 자료유형을 조회한다.
+            $bodyQueryTypes = [$importType];
+        } elseif ($importType !== '') {
             $bodyQueryTypes = in_array($importType, $bodyTableTypes, true) ? [$importType] : [];
         } elseif ($sourceType !== '') {
             $bodyQueryTypes = array_values(array_intersect($this->importTypesForSourceType($sourceType), $bodyTableTypes));
@@ -279,28 +296,53 @@ class EvidenceGenerationService
             array_map(static fn(array $filter): string => trim((string) ($filter['field'] ?? '')), $filters),
             [(string) ($requestedOrdering['field'] ?? '')]
         ))));
-        $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
-        $page = $this->evidenceSourceRepository->pagedProjections([
-            'import_types' => $metadataQueryTypes,
-            'status' => in_array($status, ['READY', 'NOT_READY', 'REVIEW_REQUIRED', 'VERIFY_ONLY'], true) ? '' : $status,
-            'id' => $requestedId,
-            'filters' => $filters,
-            'start' => $isServerPaged ? $pageStart : 0,
-            'length' => $isServerPaged ? $pageLength : 5000,
-            'order_field' => (string) ($requestedOrdering['field'] ?? ''),
-            'order_direction' => (string) ($requestedOrdering['dir'] ?? 'asc'),
-            'projection_fields' => $projectionFields,
-        ]);
-        $recordsTotal = (int) ($page['records_total'] ?? 0);
-        $recordsFiltered = (int) ($page['records_filtered'] ?? 0);
         $rows = [];
-        foreach ($page['projections'] ?? [] as $projection) {
-            if (!is_array($projection) || !is_array($projection['body'] ?? null)) {
-                continue;
+        if (count($bodyQueryTypes) === 1
+            && in_array($bodyQueryTypes[0], ['DAILY_EMPLOYMENT_INCOME', 'DAILY_WORK_REPORT', 'PAYROLL_WITHHOLDING', 'BUSINESS_INCOME_REPORT'], true)) {
+            // 소득자료 승인 증빙은 업로드 metadata가 아니라 전용 Body가 SSOT다.
+            // 탭 건수와 목록이 동일한 Reader를 사용해야 승인 직후 생성된 증빙이 누락되지 않는다.
+            $rows = $this->evidenceBodyReadService()->rowsForTypes([$bodyQueryTypes[0]], $status, $requestedId);
+            $recordsTotal = count($rows);
+            $rows = array_values(array_filter(
+                $rows,
+                fn(array $row): bool => $this->seedRowMatchesFilters($row, $filters)
+            ));
+            $keyword = trim((string) ($query['search']['value'] ?? $query['search'] ?? ''));
+            if ($keyword !== '') {
+                $rows = array_values(array_filter(
+                    $rows,
+                    fn(array $row): bool => $this->seedRowMatchesKeyword($row, $keyword)
+                ));
             }
-            $row = $projection['body'];
-            $row['_evidence_links'] = is_array($projection['links'] ?? null) ? $projection['links'] : [];
-            $rows[] = $row;
+            $recordsFiltered = count($rows);
+            $this->sortEvidenceRowsForResponse($rows, $importType);
+            if ($isServerPaged) {
+                $rows = array_slice($rows, $pageStart, $pageLength);
+            }
+        } else {
+            $this->evidenceSourceRepository ??= new EvidenceSourceRepository($this->pdo);
+            $page = $this->evidenceSourceRepository->pagedProjections([
+                'import_types' => $metadataQueryTypes,
+                'status' => in_array($status, ['READY', 'NOT_READY', 'REVIEW_REQUIRED', 'VERIFY_ONLY'], true) ? '' : $status,
+                'id' => $requestedId,
+                'keyword' => trim((string) ($query['search']['value'] ?? $query['search'] ?? '')),
+                'filters' => $filters,
+                'start' => $isServerPaged ? $pageStart : 0,
+                'length' => $isServerPaged ? $pageLength : 5000,
+                'order_field' => (string) ($requestedOrdering['field'] ?? ''),
+                'order_direction' => (string) ($requestedOrdering['dir'] ?? 'asc'),
+                'projection_fields' => $projectionFields,
+            ]);
+            $recordsTotal = (int) ($page['records_total'] ?? 0);
+            $recordsFiltered = (int) ($page['records_filtered'] ?? 0);
+            foreach ($page['projections'] ?? [] as $projection) {
+                if (!is_array($projection) || !is_array($projection['body'] ?? null)) {
+                    continue;
+                }
+                $row = $projection['body'];
+                $row['_evidence_links'] = is_array($projection['links'] ?? null) ? $projection['links'] : [];
+                $rows[] = $row;
+            }
         }
         $this->logTrashListQueryDiagnostics($status, $importType, '', [], $rows);
         foreach ($rows as &$row) {
@@ -325,12 +367,10 @@ class EvidenceGenerationService
                 $row['import_type'] = $payloadDataType;
                 $row['source_type'] = $this->sourceTypeForDataType($payloadDataType);
             }
-            $row['source_type_name'] = array_key_exists('source_type_name', $row)
-                ? (string) $row['source_type_name']
-                : $this->sourceTypeLabel((string) ($row['source_type'] ?? ''));
-            $row['import_type_name'] = array_key_exists('import_type_name', $row)
-                ? (string) $row['import_type_name']
-                : $this->importTypeLabel((string) ($row['import_type'] ?? $payloadDataType));
+            $row['source_type_name'] = trim((string) ($row['source_type_name'] ?? ''))
+                ?: $this->sourceTypeLabel((string) ($row['source_type'] ?? ''));
+            $row['import_type_name'] = trim((string) ($row['import_type_name'] ?? ''))
+                ?: $this->importTypeLabel((string) ($row['import_type'] ?? $payloadDataType));
             $standardDateField = array_key_exists('standard_date_field', $row)
                 ? (string) $row['standard_date_field']
                 : $this->standardDateField((string) ($row['import_type'] ?? $payloadDataType));
@@ -376,12 +416,22 @@ class EvidenceGenerationService
             );
             $this->applyReferenceDisplayNames($row, $mappedPayload);
             unset($row['raw_json'], $row['parsed_json']);
+            if (in_array((string) ($row['import_type'] ?? ''), ['PAYROLL_REPORT', 'PAYROLL', 'EMPLOYEE_EXPENSE_PERSONAL', 'DAILY_EMPLOYMENT_INCOME'], true)) {
+                unset(
+                    $row['team_id'],
+                    $row['snapshot_json'],
+                    $row['source_hash'],
+                    $row['business_key_hash'],
+                    $row['reconstruction_hash']
+                );
+            }
         }
         unset($row);
         $rows = ActorHelper::enrichActorNames($rows, [
             'created_by_name' => 'created_by',
             'updated_by_name' => 'updated_by',
             'deleted_by_name' => 'deleted_by',
+            'approved_by_name' => 'approved_by',
         ]);
         $this->attachRequiredFormatColumnsToRows($rows);
         foreach ($rows as &$row) {
@@ -625,6 +675,15 @@ class EvidenceGenerationService
             'vat_amount',
             'total_amount',
             'amount',
+            'total_work_days',
+            'total_work_minutes',
+            'total_gross_amount',
+            'total_deduction_amount',
+            'total_net_payment_amount',
+            'total_employer_burden_amount',
+            'transaction_supply_amount',
+            'transaction_settlement_amount',
+            'transaction_final_amount',
         ], true);
     }
 
@@ -794,6 +853,32 @@ class EvidenceGenerationService
         return true;
     }
 
+    private function seedRowMatchesKeyword(array $row, string $keyword): bool
+    {
+        $normalizedKeyword = mb_strtolower(trim($keyword));
+        if ($normalizedKeyword === '') {
+            return true;
+        }
+
+        $searchableValues = [];
+        foreach ($row as $value) {
+            if (is_scalar($value) || $value === null) {
+                $searchableValues[] = (string) $value;
+            }
+        }
+
+        $snapshot = json_decode((string) ($row['snapshot_json'] ?? $row['parsed_json'] ?? ''), true);
+        if (is_array($snapshot)) {
+            array_walk_recursive($snapshot, static function (mixed $value) use (&$searchableValues): void {
+                if (is_scalar($value) || $value === null) {
+                    $searchableValues[] = (string) $value;
+                }
+            });
+        }
+
+        return str_contains(mb_strtolower(implode(' ', $searchableValues)), $normalizedKeyword);
+    }
+
     private function logTrashListQueryDiagnostics(string $status, string $importType, string $whereSql, array $params, array $rows): void
     {
         if (strtoupper($status) !== 'DELETED') {
@@ -812,12 +897,6 @@ class EvidenceGenerationService
                 $rows
             ))), 0, 5),
         ];
-        error_log('[EvidenceGenerationService] trash_list_query=' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-        error_log('[EvidenceGenerationService] trash_list_sample_row=' . json_encode([
-            'list_table' => null,
-            'sample_row' => null,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     private function seedRowFilterValue(array $row, string $field): string

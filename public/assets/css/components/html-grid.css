@@ -26,7 +26,7 @@
 .html-grid-host .html-grid-cell-value {
     display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
-.html-grid-host .html-grid-header-label { display: inline-block; min-width: 0; }
+.html-grid-host .html-grid-header-label { display: inline-block; min-width: 0; text-overflow: clip; }
 .html-grid-host .html-grid-cell-value:not(:only-child) { display: none; }
 .html-grid-host .html-grid-editor {
     box-sizing: border-box; width: 100%; height: 30px; min-height: 30px;
@@ -79,6 +79,18 @@
 .html-grid-host .html-grid-header-required {
     display: inline-block; flex: 0 0 auto; margin-left: 0; color: var(--bs-danger, #dc3545); vertical-align: baseline;
 }
+.html-grid-host .html-grid-row-selection {
+    font-size: var(--bs-body-font-size, 1rem);
+}
+.html-grid-host .html-grid-header-cell-selection .html-grid-header-cell-content {
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.html-grid-host .html-grid-header-selection {
+    flex: 0 0 auto;
+    margin: 0;
+}
 .html-grid-host .html-grid-cell-state-error { background: rgba(220, 53, 69, .06); }
 .html-grid-host .html-grid-cell-state-error .html-grid-editor { border-color: var(--bs-danger, #dc3545); }
 .html-grid-host .html-grid-cell-message { margin-top: .2rem; color: var(--bs-danger, #dc3545); font-size: .72rem; }
@@ -87,3 +99,88 @@
 .html-grid-host .html-grid-empty { display: flex; min-height: 88px; align-items: center; justify-content: center; color: #6c757d; }
 .html-grid-host .html-grid-empty.is-hidden,
 .html-grid-host .html-grid-table.is-hidden { display: none; }
+
+/* 입력 중심 Grid: 공용 Editor와 셀 경계를 일치시키는 조밀한 행 밀도 */
+.html-grid-host.html-grid-variant-compact {
+    scrollbar-gutter: auto;
+    font-size: 12px;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-header-cell,
+.html-grid-host.html-grid-variant-compact .html-grid-cell {
+    height: 34px;
+    padding: 3px 7px 3px 6px;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-header-cell {
+    font-size: 12px;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-header-cell-content {
+    min-height: 26px;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-editor {
+    height: 27px;
+    min-height: 27px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-cell-content,
+.html-grid-host.html-grid-variant-compact .html-grid-cell-editor-slot {
+    box-sizing: border-box;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-cell.has-editor {
+    padding-inline: 0;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-cell-editor-slot {
+    padding-inline: 6px;
+}
+.html-grid-host.html-grid-variant-compact .html-grid-cell-value {
+    line-height: 27px;
+}
+
+/* 설정형 Grid: 공용 설정 Modal에서 사용하는 여유 있는 행·입력기 외형 */
+.html-grid-host.html-grid-variant-settings {
+    background: var(--bs-body-bg, #fff);
+    color: var(--bs-body-color, #212529);
+}
+.html-grid-host.html-grid-variant-settings .html-grid-table {
+    border-collapse: separate; border-spacing: 0;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-header-row {
+    height: 46px;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-header-cell {
+    box-sizing: border-box; height: 46px; min-height: 46px; padding: 10px 12px; background: #f8fafc;
+    color: #475569; font-size: 12px; font-weight: 700;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-header-cell-content {
+    height: 100%; min-height: 24px;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-header-cell:last-child,
+.html-grid-host.html-grid-variant-settings .html-grid-cell:last-child {
+    border-right: 1px solid #e5ebf2;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-cell {
+    height: 56px; padding: 10px 12px; background: var(--bs-body-bg, #fff);
+}
+.html-grid-host.html-grid-variant-settings .html-grid-body-row {
+    transition: background-color .15s ease, box-shadow .15s ease;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-body-row:hover .html-grid-cell {
+    background: #f8fbff;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-body-row.is-selected .html-grid-cell {
+    background: var(--bs-primary-bg-subtle, #e7f1ff);
+}
+.html-grid-host.html-grid-variant-settings .html-grid-body-row.is-selected .html-grid-cell:first-child {
+    box-shadow: inset 3px 0 0 var(--bs-primary, #0d6efd);
+}
+.html-grid-host.html-grid-variant-settings .html-grid-editor {
+    height: 38px; min-height: 38px; padding: .375rem .75rem;
+    border-color: var(--bs-border-color, #dee2e6); border-radius: .5rem;
+    font-size: .875rem;
+}
+.html-grid-host.html-grid-variant-settings .html-grid-editor:focus {
+    border-color: #86b7fe; outline: 0;
+    box-shadow: 0 0 0 .2rem rgb(13 110 253 / 15%);
+}

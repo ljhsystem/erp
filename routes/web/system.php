@@ -105,7 +105,7 @@ $router->get('/auth/logout', 'LoginController@apiLogout', [
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/role', 'DashboardController@settingsOrgRoles', [
+$router->get('/main/settings/organization/role', 'MainController@settingsOrgRoles', [
     'key' => 'web.settings.organization.roles',
     'page' => '역할',
     'page_description' => '역할 설정 화면',
@@ -119,21 +119,21 @@ $router->get('/dashboard/settings/organization/role', 'DashboardController@setti
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/roles', 'DashboardController@redirectOrgRoleLegacy', [
+$router->get('/main/settings/organization/roles', 'MainController@redirectOrgRoleLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/organization/role_permissions', 'DashboardController@redirectOrgPermissionAssignmentLegacy', [
+$router->get('/main/settings/organization/role_permissions', 'MainController@redirectOrgPermissionAssignmentLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/system/site', 'DashboardController@settingsSystemSite', [
+$router->get('/main/settings/system/site', 'MainController@settingsSystemSite', [
     'key' => 'web.settings.system.site',
     'page' => '사이트정보',
     'page_description' => '사이트정보 설정 화면',
@@ -147,7 +147,7 @@ $router->get('/dashboard/settings/system/site', 'DashboardController@settingsSys
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/session', 'DashboardController@settingsSystemSession', [
+$router->get('/main/settings/system/session', 'MainController@settingsSystemSession', [
     'key' => 'web.settings.system.session',
     'page' => '세션관리',
     'page_description' => '세션관리 설정 화면',
@@ -161,7 +161,7 @@ $router->get('/dashboard/settings/system/session', 'DashboardController@settings
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/security', 'DashboardController@settingsSystemSecurity', [
+$router->get('/main/settings/system/security', 'MainController@settingsSystemSecurity', [
     'key' => 'web.settings.system.security',
     'page' => '보안정책',
     'page_description' => '보안정책 설정 화면',
@@ -175,7 +175,7 @@ $router->get('/dashboard/settings/system/security', 'DashboardController@setting
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/api', 'DashboardController@settingsSystemApi', [
+$router->get('/main/settings/system/api', 'MainController@settingsSystemApi', [
     'key' => 'web.settings.system.api',
     'page' => 'API',
     'page_description' => 'API 설정 화면',
@@ -189,7 +189,7 @@ $router->get('/dashboard/settings/system/api', 'DashboardController@settingsSyst
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/external_services', 'DashboardController@settingsSystemExternal', [
+$router->get('/main/settings/system/external_services', 'MainController@settingsSystemExternal', [
     'key' => 'web.settings.system.external_services',
     'page' => '외부서비스',
     'page_description' => '외부서비스 설정 화면',
@@ -203,7 +203,7 @@ $router->get('/dashboard/settings/system/external_services', 'DashboardControlle
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/storage', 'DashboardController@settingsSystemStorage', [
+$router->get('/main/settings/system/storage', 'MainController@settingsSystemStorage', [
     'key' => 'web.settings.system.storage',
     'page' => '파일저장소',
     'page_description' => '파일저장소 설정 화면',
@@ -217,7 +217,7 @@ $router->get('/dashboard/settings/system/storage', 'DashboardController@settings
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/databasebackup', 'DashboardController@settingsSystemBackup', [
+$router->get('/main/settings/system/databasebackup', 'MainController@settingsSystemBackup', [
     'key' => 'web.settings.system.database_backup',
     'page' => '데이터백업',
     'page_description' => '데이터백업 설정 화면',
@@ -231,7 +231,7 @@ $router->get('/dashboard/settings/system/databasebackup', 'DashboardController@s
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/logs', 'DashboardController@settingsSystemLogs', [
+$router->get('/main/settings/system/logs', 'MainController@settingsSystemLogs', [
     'key' => 'web.settings.system.logs',
     'page' => '로그관리',
     'page_description' => '로그관리 설정 화면',
@@ -245,7 +245,7 @@ $router->get('/dashboard/settings/system/logs', 'DashboardController@settingsSys
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/system/logs/download', 'SystemController@webLogDownload', [
+$router->get('/main/settings/system/logs/download', 'SystemController@webLogDownload', [
     'key' => 'web.settings.system.logs.download',
     'page' => '로그 다운로드',
     'page_description' => '로그 다운로드 요청',

@@ -296,24 +296,35 @@ export function registerFiles(ctx) {
 
     async function initModalControls() {
         if (ctx.modalControlsInitialized) return;
+        if (ctx.modalControlsInitializationPromise) {
+            return ctx.modalControlsInitializationPromise;
+        }
 
-        await ctx.ensureAgGridLibrary();
-        ctx.modalControlsInitialized = true;
-        ctx.initTransactionDatePicker();
-        ctx.bindLineHeaderStickiness();
-        ctx.initSettlementGrid();
-        ctx.initClientSelect();
-        ctx.initProjectSelect();
-        ctx.initBankAccountSelect();
-        ctx.initCardSelect();
-        ctx.initTeamSelect();
-        ctx.initEmployeeSelect();
-        bindFileReorderEvents();
-        ctx.modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
-        void loadTransactionFilePolicy();
-        await ctx.initUnitCodeOptions();
-        await initCodeSelectControls(document.getElementById('clientModal'));
-        await initCodeSelectControls(ctx.modalEl);
+        ctx.modalControlsInitializationPromise = (async () => {
+            await ctx.ensureAgGridLibrary();
+            ctx.initTransactionDatePicker();
+            ctx.bindLineHeaderStickiness();
+            ctx.initSettlementGrid();
+            ctx.initClientSelect();
+            ctx.initProjectSelect();
+            ctx.initBankAccountSelect();
+            ctx.initCardSelect();
+            ctx.initTeamSelect();
+            ctx.initEmployeeSelect();
+            bindFileReorderEvents();
+            ctx.modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
+            void loadTransactionFilePolicy();
+            await ctx.initUnitCodeOptions();
+            await initCodeSelectControls(document.getElementById('clientModal'));
+            await initCodeSelectControls(ctx.modalEl);
+            ctx.modalControlsInitialized = true;
+        })();
+
+        try {
+            await ctx.modalControlsInitializationPromise;
+        } finally {
+            ctx.modalControlsInitializationPromise = null;
+        }
     }
 
     function markFileDeleted(fileId) {

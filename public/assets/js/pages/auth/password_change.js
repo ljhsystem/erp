@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       alert(parsed.result?.message || '비밀번호가 변경되었습니다.');
-      window.location.href = parsed.result?.redirect || '/dashboard';
+      window.location.href = parsed.result?.redirect || '/main';
     } catch (error) {
       alert(DEFAULT_ERROR_MESSAGE);
     }
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      window.location.href = parsed.result?.redirect || '/dashboard';
+      window.location.href = parsed.result?.redirect || '/main';
     } catch (error) {
       alert(DEFAULT_ERROR_MESSAGE);
     }

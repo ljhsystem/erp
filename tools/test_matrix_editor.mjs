@@ -23,7 +23,7 @@ const matrixCss = fs.readFileSync(new URL('../public/assets/css/components/struc
 const gridBodySource = fs.readFileSync(new URL('../public/assets/js/common/html-grid/body-renderer.js', import.meta.url), 'utf8');
 const gridCoreSource = fs.readFileSync(new URL('../public/assets/js/common/html-grid/index.js', import.meta.url), 'utf8');
 const gridHeaderSource = fs.readFileSync(new URL('../public/assets/js/common/html-grid/header-renderer.js', import.meta.url), 'utf8');
-const statutoryPageSource = fs.readFileSync(new URL('../public/assets/js/pages/dashboard/settings/statutory-standards/index.js', import.meta.url), 'utf8');
+const statutoryPageSource = fs.readFileSync(new URL('../public/assets/js/pages/main/settings/statutory-standards/index.js', import.meta.url), 'utf8');
 assert.match(matrixSource, /structured-matrix-grid html-grid-host/);
 assert.match(bracketSource, /class BracketEditor extends MatrixEditor/);
 assert.equal(formatOption('TABLE', { options: [{ value: 'TABLE', label: '공식표 기준세액' }] }), '공식표 기준세액');

@@ -1,11 +1,14 @@
 # 법정기준 공식자료 전수 감사
 
+> 문서 상태: `HISTORICAL_BASELINE`
+> 이 문서는 2026-08-12 당시 공식자료 감사 결과를 보존한다. 현재 저장·정정·Resolver 계약은 `ERPArchitecture.md`, `TableDictionary.md`, `StatutoryStandardSupersessionClosure20260903.md`를 따른다.
+
 ## 원칙
 
 - 적용기간은 회사 운영기간이 아니라 법정기준의 실제 효력기간이다.
 - 값과 Source는 공식 1차 자료로 확인된 범위만 등록하며 추정값은 등록하지 않는다.
 - 운영 반영은 `StatutoryStandardService`와 System Actor를 사용한다.
-- DB는 `system_statutory_standards`, `system_statutory_standard_sources` 2테이블을 유지한다.
+- 당시 DB는 `system_statutory_standards`, `system_statutory_standard_sources` 2테이블을 사용했다. 현재는 공용 정정 계보를 위한 `system_statutory_standard_supersessions`를 포함한 3테이블 계약이다.
 
 ## 2026-08-12 감사 결과
 
@@ -14,7 +17,7 @@
 - 부가가치세 10% 최초 적용일을 1977-07-01로 바로잡고 제정법 Source로 교체했다.
 - 2013년 산재보험 Source에 고용노동부 고시 원문 URL을 보강했다.
 - 중간 감사에서 확인한 고용보험 2013-07 이후, 산재보험 2014 이후, 근로소득 간이세액표 2014-02-21 이후 공백은 아래 공식 원자료 확장 조사와 운영 반영으로 해소했다.
-- Source는 해당 적용기간 기준행의 공식 근거자료이며 별도 Correction chain 객체를 사용하지 않는다. Source 수정은 현재 2테이블 계약 안에서 기존 Source ID와 생성 감사값을 보존하는 저장 경로를 사용한다.
+- 당시에는 별도 Correction chain을 사용하지 않았다. 현재 확정 Source는 직접 수정하지 않으며 신규 Revision·신규 Source와 Supersession 관계로 정정한다.
 
 ## 완료 기준선
 

@@ -114,9 +114,9 @@ $deleteAllUrl = '/api/ledger/voucher/purge-all';
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>
 <template id="journal-client-modal-template">
-    <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+    <?php include PROJECT_ROOT . '/app/views/main/settings/base-info/partials/client_modal.php'; ?>
 </template>
 
 <template id="journal-account-modal-template">

@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\Helpers\ExcelValueFormatterHelper;
+use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -13,8 +14,11 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class EvidenceTemplateService
 {
+    private $logger;
+
     public function __construct(private array $callbacks = [])
     {
+        $this->logger = LoggerFactory::getLogger('service-ledger-evidence');
     }
 
     public function downloadTemplate(string $filename, string $title, array $headers, array $samples, array $required = [], array $fields = [], string $dataType = ''): void
@@ -77,7 +81,13 @@ class EvidenceTemplateService
             header('Content-Length: ' . filesize($tempFile));
 
             if (readfile($tempFile) === false) {
-                error_log('[EvidenceTemplateService] Template download failed while streaming XLSX.');
+                $this->logger->error('증빙 엑셀양식 전송에 실패했습니다.', [
+                    'event_code' => 'EVIDENCE_TEMPLATE_STREAM_FAILED',
+                    'result' => 'FAILED',
+                    'service' => self::class,
+                    'action' => 'evidence_template.download',
+                    'error_code' => 'STREAM_FAILED',
+                ]);
             }
         } finally {
             $spreadsheet->disconnectWorksheets();

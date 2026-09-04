@@ -55,12 +55,33 @@ $personalExpenseRoutes = [
     ['GET', '/api/approval/personal-expense/template', 'apiTemplate', 'template', '엑셀양식다운로드', 'view'],
     ['POST', '/api/approval/personal-expense/excel', 'apiExcel', 'excel', '엑셀다운로드', 'view'],
     ['POST', '/api/approval/personal-expense/excel-upload', 'apiExcelUpload', 'excel-upload', '엑셀업로드', 'save'],
+    ['GET', '/api/approval/personal-expense/effective-classifications', 'apiEffectiveClassifications', 'effective-classifications', '유효회계분류조회', 'view'],
+    ['POST', '/api/approval/personal-expense/correct-classification', 'apiCorrectClassification', 'correct-classification', '회계분류정정', 'correct-classification'],
 ];
 foreach ($personalExpenseRoutes as [$method, $url, $action, $keySuffix, $permissionName, $permission]) {
     $router->{strtolower($method)}($url, 'PersonalExpenseController@' . $action, [
         'key' => 'api.approval.personal-expense.' . $keySuffix, 'page' => '개인경비 신청', 'page_description' => '개인경비 신청 및 결재',
         'permission_name' => $permissionName, 'permission_description' => '개인경비 ' . $permissionName,
         'name' => '개인경비 ' . $permissionName, 'description' => '전자결재 > 개인경비 신청 > ' . $permissionName,
+        'category' => '전자결재', 'auth' => true, 'permissions' => [$permission], 'log' => $method !== 'GET' && $action !== 'apiList',
+    ]);
+}
+
+$leaveRequestRoutes = [
+    ['POST', '/api/approval/leave-request/list', 'apiList', 'list', '목록조회', 'view'],
+    ['GET', '/api/approval/leave-request/options', 'apiOptions', 'options', '선택항목조회', 'view'],
+    ['GET', '/api/approval/leave-request/detail', 'apiDetail', 'detail', '상세조회', 'view'],
+    ['POST', '/api/approval/leave-request/save', 'apiSave', 'save', '임시저장', 'save'],
+    ['POST', '/api/approval/leave-request/save-submit', 'apiSaveAndSubmit', 'save-submit', '저장후결재요청', 'save'],
+    ['POST', '/api/approval/leave-request/submit', 'apiSubmit', 'submit', '결재요청', 'save'],
+    ['POST', '/api/approval/leave-request/withdraw', 'apiWithdraw', 'withdraw', '기안회수', 'save'],
+    ['POST', '/api/approval/leave-request/cancel-request', 'apiCancelRequest', 'cancel-request', '취소요청', 'save'],
+];
+foreach ($leaveRequestRoutes as [$method, $url, $action, $keySuffix, $permissionName, $permission]) {
+    $router->{strtolower($method)}($url, 'LeaveRequestController@' . $action, [
+        'key' => 'api.approval.leave-request.' . $keySuffix, 'page' => '휴가신청', 'page_description' => '직원 본인 휴가 신청 및 결재',
+        'permission_name' => $permissionName, 'permission_description' => '휴가신청 ' . $permissionName,
+        'name' => '휴가신청 ' . $permissionName, 'description' => '전자결재 > 휴가신청 > ' . $permissionName,
         'category' => '전자결재', 'auth' => true, 'permissions' => [$permission], 'log' => $method !== 'GET' && $action !== 'apiList',
     ]);
 }

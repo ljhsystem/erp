@@ -2,6 +2,7 @@
 
 namespace App\Services\User;
 
+use App\Services\Concerns\LogsServiceOperations;
 use App\Models\User\ExternalAccountModel;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
@@ -9,6 +10,7 @@ use PDO;
 
 class ExternalAccountService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private ExternalAccountModel $model;
     private $logger;
@@ -47,6 +49,11 @@ class ExternalAccountService
     }
 
     public function saveMyAccount(string $serviceKey, array $input): array
+    {
+        return $this->runLoggedOperation($this->logger,'외부계정','EXTERNAL_ACCOUNT_SAVE','save',['service_code'=>$serviceKey],fn():array=>$this->saveMyAccountInternal($serviceKey,$input),'info',true,static fn(array$result):string=>!empty($result['success'])?'SUCCESS':'FAILED');
+    }
+
+    private function saveMyAccountInternal(string $serviceKey, array $input): array
     {
         $userId = $this->userId();
 
@@ -108,6 +115,11 @@ class ExternalAccountService
 
     public function deleteMyAccount(string $serviceKey): array
     {
+        return $this->runLoggedOperation($this->logger,'외부계정','EXTERNAL_ACCOUNT_DELETE','delete',['service_code'=>$serviceKey],fn():array=>$this->deleteMyAccountInternal($serviceKey),'info',true,static fn(array$result):string=>!empty($result['success'])?'SUCCESS':'FAILED');
+    }
+
+    private function deleteMyAccountInternal(string $serviceKey): array
+    {
         $userId = $this->userId();
 
         $ok = $this->model->deleteByUserAndService($userId, $serviceKey);
@@ -154,6 +166,11 @@ class ExternalAccountService
 
     public function verifyConnection(string $serviceKey): void
     {
+        $this->runLoggedOperation($this->logger,'외부계정 연결','EXTERNAL_ACCOUNT_CONNECTION_VERIFY','verify-connection',['service_code'=>$serviceKey],function()use($serviceKey):bool{$this->verifyConnectionInternal($serviceKey);return true;},'info',false);
+    }
+
+    private function verifyConnectionInternal(string $serviceKey): void
+    {
         if ($serviceKey !== 'synology') {
             return;
         }
@@ -176,12 +193,6 @@ class ExternalAccountService
         if (!$cfg['base_url'] || !$cfg['username']) {
             throw new \RuntimeException('Synology 설정 누락');
         }
-
-        $this->logger->info('verifyConnection start', [
-            'user_id' => $this->userId(),
-            'service_key' => $serviceKey,
-            'account' => $account,
-        ]);
 
         try {
             $client = new \App\Services\Calendar\CalDavClient($cfg);

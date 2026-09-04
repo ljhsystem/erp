@@ -24,17 +24,24 @@ class AuthService
     private TwoFactorService $twoFactorService;
     private $logger;
 
-    public function __construct(PDO $pdo)
+    public function __construct(
+        PDO $pdo,
+        ?MailService $mailService = null,
+        ?AuthSessionService $authSessionService = null,
+        ?TwoFactorService $twoFactorService = null,
+        ?LogService $authLogService = null,
+        ?SecurityPolicyService $securityPolicyService = null
+    )
     {
         $this->pdo = $pdo;
         $this->authUserModel = new UserModel($pdo);
         $this->profileService = new ProfileService($pdo);
-        $this->authLogService = new LogService($pdo);
+        $this->authLogService = $authLogService ?? new LogService($pdo);
         $this->accountLockService = new AccountLockService($pdo);
-        $this->securityPolicyService = new SecurityPolicyService($pdo);
-        $this->authSessionService = new AuthSessionService();
-        $this->mailService = new MailService();
-        $this->twoFactorService = new TwoFactorService();
+        $this->securityPolicyService = $securityPolicyService ?? new SecurityPolicyService($pdo);
+        $this->authSessionService = $authSessionService ?? new AuthSessionService();
+        $this->mailService = $mailService ?? new MailService();
+        $this->twoFactorService = $twoFactorService ?? new TwoFactorService();
         $this->logger = LoggerFactory::getLogger('service-auth.AuthService');
     }
 
@@ -115,39 +122,7 @@ class AuthService
 
         $need2fa = $this->needTwoFactor($user);
         if ($need2fa) {
-            $code = $this->twoFactorService->generateCode();
-            $this->authSessionService->createPendingTwoFactorSession(
-                $user,
-                $this->securityPolicyService->getTwoFactorReasons($user),
-                $this->twoFactorService->hashCode($code),
-                $this->twoFactorService->getTtl(),
-                $this->twoFactorService->getMaxAttempts()
-            );
-
-            try {
-                $this->mailService->sendTwoFactorMail([
-                    'user' => [
-                        'id'              => $userId,
-                        'username'        => $user['username'],
-                        'email'           => $user['email'] ?? null,
-                        'two_factor_code' => $code,
-                    ]
-                ]);
-                $this->authLogService->twoFactorSend($userId);
-            } catch (\Throwable $e) {
-                $this->authSessionService->clearPendingTwoFactor();
-                $this->logger->error('2FA mail send failed', [
-                    'user_id' => $userId,
-                    'error'   => $e->getMessage(),
-                ]);
-                return ['success' => false, 'message' => '2단계 인증 메일 발송에 실패했습니다. 관리자에게 문의하세요.'];
-            }
-
-            return [
-                'success'  => true,
-                'message'  => '2단계 인증 코드를 이메일로 발송했습니다.',
-                'redirect' => '/2fa',
-            ];
+            return $this->beginTwoFactorDelivery($user);
         }
 
         $this->handleLoginSuccess($userId, $this->getClientIp());
@@ -160,7 +135,7 @@ class AuthService
         return [
             'success'  => true,
             'message'  => '로그인되었습니다.',
-            'redirect' => '/dashboard',
+            'redirect' => '/main',
         ];
     }
 
@@ -219,7 +194,7 @@ class AuthService
             'ref_id'    => $userId,
         ]);
 
-        return ['success' => true, 'message' => '로그인되었습니다.', 'redirect' => '/dashboard'];
+        return ['success' => true, 'message' => '로그인되었습니다.', 'redirect' => '/main'];
     }
 
     public function getTwoFactorPageData(): array
@@ -312,7 +287,7 @@ class AuthService
         return [
             'success'  => true,
             'message'  => $result['message'],
-            'redirect' => '/dashboard',
+            'redirect' => '/main',
         ];
     }
 
@@ -334,7 +309,7 @@ class AuthService
 
         $this->authSessionService->createLoginSession($user);
 
-        return ['success' => true, 'redirect' => '/dashboard'];
+        return ['success' => true, 'redirect' => '/main'];
     }
 
     public function refreshCurrentUserSession(): bool
@@ -440,6 +415,11 @@ class AuthService
         $hash = password_hash($newPlainPassword, PASSWORD_DEFAULT);
         $ok = $this->authUserModel->updatePassword($userId, $hash, $updatedBy);
 
+        $this->logger->{$ok ? 'info' : 'warning'}($ok ? '사용자 비밀번호 변경을 완료했습니다.' : '사용자 비밀번호 변경이 차단되었습니다.', [
+            'event_code' => $ok ? 'USER_PASSWORD_UPDATED' : 'USER_PASSWORD_UPDATE_BLOCKED',
+            'result' => $ok ? 'SUCCESS' : 'BLOCKED', 'user_id' => $userId,
+        ]);
+
         if ($ok) {
             return ['success' => true, 'message' => '비밀번호가 변경되었습니다.'];
         }
@@ -488,10 +468,13 @@ class AuthService
                 'resultHtml' => "임시 비밀번호가 발급되었습니다.<br>임시 비밀번호: <strong>{$tempPassword}</strong><br><small>로그인 후 반드시 비밀번호를 변경해 주세요.</small>",
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('recoverPassword failed', [
-                'username' => $username,
-                'email' => $email,
-                'error' => $e->getMessage(),
+            $this->logger->error('비밀번호 복구 처리에 실패했습니다.', [
+                'event_code' => 'PASSWORD_RECOVERY_FAILED',
+                'result' => 'FAILED',
+                'service' => self::class,
+                'action' => 'password.recover',
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -580,6 +563,10 @@ class AuthService
 
             $this->pdo->commit();
 
+            $this->logger->info('사용자와 프로필 생성을 완료했습니다.', [
+                'event_code' => 'USER_WITH_PROFILE_CREATED', 'result' => 'SUCCESS', 'user_id' => $userId,
+            ]);
+
             return [
                 'success' => true,
                 'user_id' => $userId,
@@ -588,10 +575,14 @@ class AuthService
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
 
+            $this->logger->error('사용자와 프로필 생성에 실패했습니다.', [
+                'event_code' => 'USER_WITH_PROFILE_CREATE_FAILED', 'result' => 'FAILED',
+                'error_code' => get_class($e), 'error' => $e,
+            ]);
+
             return [
                 'success' => false,
-                'message' => '사용자 생성 실패',
-                'error'   => $e->getMessage(),
+                'message' => '사용자 생성 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -679,5 +670,108 @@ class AuthService
         return ($external !== '' && $external !== $remote)
             ? "{$external} ({$remote})"
             : $remote;
+    }
+
+    private function twoFactorMailFailureResponse(array $user, string $errorCode): array
+    {
+        $isAdministrator = in_array((string) ($user['role_key'] ?? ''), ['super_admin', 'admin'], true);
+        $authenticationFailed = $errorCode === 'SMTP_AUTHENTICATION_FAILED';
+
+        if ($isAdministrator && $authenticationFailed) {
+            $message = 'Google 앱 비밀번호가 만료되었거나 올바르지 않아 인증 메일을 발송하지 못했습니다.';
+            $detail = 'Google 메일 발송 인증정보가 만료되었거나 올바르지 않습니다. 관리자가 Google 앱 비밀번호를 다시 설정해야 합니다.';
+        } elseif ($isAdministrator) {
+            $message = '인증 메일을 발송하지 못했습니다.';
+            $detail = match ($errorCode) {
+                'SMTP_CONNECTION_FAILED', 'SMTP_TIMEOUT' => '메일 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                'RECIPIENT_REJECTED' => '메일 서버가 수신 주소를 거부했습니다. 등록 이메일과 메일 설정을 확인해 주세요.',
+                'SENDER_IDENTITY_REJECTED' => '선택한 발신주소가 메일 서버에서 승인되지 않았습니다. Gmail 추가 발신주소 설정을 확인해 주세요.',
+                'SMTP_CONFIGURATION_MISSING' => '운영환경의 SMTP Secret 설정을 확인해 주세요.',
+                default => '메일 발송 설정을 확인한 뒤 다시 시도해 주세요.',
+            };
+        } else {
+            $message = '인증 메일을 발송하지 못했습니다.';
+            $detail = '메일 발송 설정에 문제가 있습니다. 관리자에게 문의해 주세요.';
+        }
+
+        return [
+            'success' => false,
+            'message' => $message,
+            'mail_error' => [
+                'title' => '인증 메일을 발송하지 못했습니다.',
+                'detail' => $detail,
+                'can_manage_google_app_password' => $isAdministrator && $authenticationFailed,
+                'management_url' => $isAdministrator && $authenticationFailed
+                    ? 'https://myaccount.google.com/apppasswords'
+                    : null,
+                'notice' => $isAdministrator && $authenticationFailed
+                    ? 'Google 계정 비밀번호를 변경하면 기존 앱 비밀번호가 자동 폐기될 수 있습니다.'
+                    : null,
+                'can_retry' => true,
+            ],
+        ];
+    }
+
+    private function beginTwoFactorDelivery(array $user): array
+    {
+        $userId = (string) ($user['id'] ?? '');
+        $this->authSessionService->clearPendingTwoFactor();
+        $code = $this->twoFactorService->generateCode();
+        $requestId = UuidHelper::generate();
+        $startedAt = microtime(true);
+
+        try {
+            $mailResult = $this->mailService->sendTwoFactorMail([
+                'user' => [
+                    'id' => $userId,
+                    'username' => $user['username'] ?? null,
+                    'email' => $user['email'] ?? null,
+                    'two_factor_code' => $code,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $mailResult = [
+                'success' => false,
+                'sent' => false,
+                'provider' => 'SMTP',
+                'recipient_domain' => $this->recipientDomain((string) ($user['email'] ?? '')),
+                'message_id' => null,
+                'error_code' => 'MAILER_EXCEPTION',
+                'retryable' => false,
+                'occurred_at' => date(DATE_ATOM),
+            ];
+        }
+
+        if (empty($mailResult['success']) || empty($mailResult['sent'])) {
+            $this->authSessionService->clearPendingTwoFactor();
+            $errorCode = (string) ($mailResult['error_code'] ?? 'SMTP_SEND_FAILED');
+            $this->authLogService->twoFactorSendFailed($userId, $errorCode, [
+                ...$mailResult,
+                'request_id' => $requestId,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+            return $this->twoFactorMailFailureResponse($user, $errorCode);
+        }
+
+        $this->authSessionService->createPendingTwoFactorSession(
+            $user,
+            $this->securityPolicyService->getTwoFactorReasons($user),
+            $this->twoFactorService->hashCode($code),
+            $this->twoFactorService->getTtl(),
+            $this->twoFactorService->getMaxAttempts()
+        );
+        $this->authLogService->twoFactorSend($userId);
+
+        return [
+            'success' => true,
+            'message' => '2단계 인증 코드를 이메일로 발송했습니다.',
+            'redirect' => '/2fa',
+        ];
+    }
+
+    private function recipientDomain(string $recipient): string
+    {
+        $position = strrpos($recipient, '@');
+        return $position === false ? '' : strtolower(substr($recipient, $position + 1));
     }
 }

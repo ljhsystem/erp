@@ -296,7 +296,8 @@ class EvidenceLinkModel
             }
         }
         foreach ($identities as [$importType, $evidenceId]) {
-            $conflict = $this->db->prepare("
+            if (!$this->allowsMultipleTransactions($importType)) {
+                $conflict = $this->db->prepare("
                 SELECT l.target_id
                 FROM {$this->table} l
                 INNER JOIN ledger_transactions t ON t.id = l.target_id AND t.deleted_at IS NULL
@@ -308,13 +309,14 @@ class EvidenceLinkModel
                 LIMIT 1
                 FOR UPDATE
             ");
-            $conflict->execute([
-                ':import_type' => $importType,
-                ':evidence_id' => $evidenceId,
-                ':transaction_id' => $transactionId,
-            ]);
-            if ($conflict->fetchColumn()) {
-                throw new \RuntimeException('이미 다른 거래에 연결된 증빙입니다.');
+                $conflict->execute([
+                    ':import_type' => $importType,
+                    ':evidence_id' => $evidenceId,
+                    ':transaction_id' => $transactionId,
+                ]);
+                if ($conflict->fetchColumn()) {
+                    throw new \RuntimeException('이미 다른 거래에 연결된 증빙입니다.');
+                }
             }
             $existing = $this->db->prepare("
                 SELECT id FROM {$this->table}
@@ -358,6 +360,30 @@ class EvidenceLinkModel
                 $this->throwTransactionEvidenceConflict($e);
             }
         }
+    }
+
+    public function upsertAutoTransactionEvidence(string $importType, string $evidenceId, string $transactionId): void
+    {
+        $importType = strtoupper(trim($importType));
+        if ($importType === '' || $evidenceId === '' || $transactionId === '' || !$this->tableExists()) return;
+        $statement = $this->db->prepare(
+            "SELECT id FROM {$this->table} WHERE evidence_type=:import_type AND evidence_id=:evidence_id "
+            . "AND target_type='TRANSACTION' AND target_id=:transaction_id ORDER BY deleted_at IS NULL DESC,updated_at DESC,id LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute([':import_type' => $importType, ':evidence_id' => $evidenceId, ':transaction_id' => $transactionId]);
+        $id = trim((string) ($statement->fetchColumn() ?: ''));
+        if ($id !== '') {
+            $this->db->prepare("UPDATE {$this->table} SET link_type='AUTO',amount=0,deleted_at=NULL,updated_at=NOW() WHERE id=:id")
+                ->execute([':id' => $id]);
+            return;
+        }
+        $this->db->prepare(
+            "INSERT INTO {$this->table} (id,evidence_type,evidence_id,target_type,target_id,link_type,amount,created_at,updated_at) "
+            . "VALUES (:id,:import_type,:evidence_id,'TRANSACTION',:transaction_id,'AUTO',0,NOW(),NOW())"
+        )->execute([
+            ':id' => UuidHelper::generate(), ':import_type' => $importType,
+            ':evidence_id' => $evidenceId, ':transaction_id' => $transactionId,
+        ]);
     }
 
     public function purgeByVoucherId(string $voucherId): void
@@ -437,8 +463,12 @@ class EvidenceLinkModel
             INNER JOIN ledger_transactions active_transaction
                 ON active_transaction.id = active_link.target_id
                AND active_transaction.deleted_at IS NULL
+            LEFT JOIN ledger_evidence_metadata metadata
+                ON metadata.import_type = original_link.evidence_type
+               AND metadata.deleted_at IS NULL
             WHERE original_link.target_type = 'TRANSACTION'
               AND original_link.target_id = :transaction_id
+              AND COALESCE(metadata.transaction_cardinality, 'SINGLE_TRANSACTION') = 'SINGLE_TRANSACTION'
             LIMIT 1
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
@@ -449,8 +479,8 @@ class EvidenceLinkModel
     {
         $driverCode = (int) ($e->errorInfo[1] ?? 0);
         if ($e->getCode() === '23000' && $driverCode === 1062
-            && str_contains((string) ($e->errorInfo[2] ?? $e->getMessage()), 'uk_evl_active_transaction_evidence')) {
-            throw new \RuntimeException('이미 다른 거래에 연결된 증빙입니다.', 0, $e);
+            && str_contains((string) ($e->errorInfo[2] ?? $e->getMessage()), 'uk_evl_active_evidence_target_pair')) {
+            throw new \RuntimeException('이미 연결된 증빙과 거래입니다.', 0, $e);
         }
         throw $e;
     }
@@ -649,5 +679,12 @@ class EvidenceLinkModel
         $cache[$key] = (bool) $stmt->fetchColumn();
 
         return $cache[$key];
+    }
+
+    private function allowsMultipleTransactions(string $importType): bool
+    {
+        $stmt=$this->db->prepare("SELECT transaction_cardinality FROM ledger_evidence_metadata WHERE import_type=:type AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([':type'=>strtoupper(trim($importType))]);
+        return $stmt->fetchColumn()==='MULTI_TRANSACTION';
     }
 }

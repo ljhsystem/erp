@@ -5,7 +5,7 @@ import { createDataTable, setTableSelectedRow } from '/public/assets/js/common/t
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
-import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 import '/public/assets/js/components/trash-manager.js';
 import {
@@ -1078,7 +1078,7 @@ window.AdminPicker = AdminPicker;
         if (!confirm('계정과목을 삭제하시겠습니까?')) return;
 
         try {
-            await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '계정과목을 휴지통으로 이동 중' }, async () => {
+            await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '계정과목을 휴지통으로 이동 중', trashChanged: true }, async () => {
                 const res = await $.post(API.DELETE, { id });
                 if (!res?.success) throw new Error(res?.message || '삭제에 실패했습니다.');
                 notify('success', '삭제되었습니다.');

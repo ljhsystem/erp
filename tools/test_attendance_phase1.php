@@ -133,7 +133,7 @@ try {
     try {$testedService->invalidateClock(['clock_event_id'=>$clockIds[0],'reason'=>'마감 차단 검증','request_key'=>attendanceUuid()]);throw new RuntimeException('마감월 원본 무효화가 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'마감된 월'))throw $exception;}
     try {$testedService->registerAdminClock(['employee_id'=>$employeeId,'event_type_code'=>'CLOCK_OUT','occurred_at'=>$workDate.' 19:00:00','reason'=>'마감 차단 검증','request_key'=>attendanceUuid()]);throw new RuntimeException('마감월 출퇴근 등록이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'마감된 월'))throw $exception;}
     try {$testedService->recalculate(['employee_id'=>$employeeId,'work_date'=>$workDate,'request_key'=>attendanceUuid()]);throw new RuntimeException('마감월 재계산이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'마감된 월'))throw $exception;}
-    try {$testedService->correct(['daily_record_id'=>$daily['id'],'reason'=>'마감 차단 검증','request_key'=>attendanceUuid(),'segments'=>[['segment_type_code'=>'WORK','started_at'=>$workDate.' 09:00:00','ended_at'=>$workDate.' 17:00:00','project_id'=>null,'workplace_assignment_id'=>null]]]);throw new RuntimeException('마감월 관리자 정정이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'마감된 월'))throw $exception;}
+    try {$testedService->correct(['daily_record_id'=>$daily['id'],'work_date'=>$workDate,'reason'=>'마감 차단 검증','request_key'=>attendanceUuid(),'segments'=>[['segment_type_code'=>'WORK','started_at'=>$workDate.' 09:00:00','ended_at'=>$workDate.' 17:00:00','project_id'=>null,'workplace_assignment_id'=>null]]]);throw new RuntimeException('마감월 관리자 정정이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'마감된 월'))throw $exception;}
     try {$testedService->reopen(['employee_id'=>$employeeId,'closing_month'=>'1990-12','reason'=>'요청키 충돌 검증','request_key'=>$closeKey1]);throw new RuntimeException('다른 작업의 요청키 재사용이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'다른 작업'))throw $exception;}
     $testedService->reopen(['employee_id'=>$employeeId,'closing_month'=>'1990-12','reason'=>'rollback 재오픈','request_key'=>attendanceUuid()]);
     $testedService->invalidateClock(['clock_event_id'=>$clockIds[0],'reason'=>'재오픈 후 무효화','request_key'=>attendanceUuid()]);
@@ -153,7 +153,7 @@ try {
         'reason'=>'무효 원본 대체 등록','request_key'=>attendanceUuid(),
     ]);
     $testedService->correct([
-        'daily_record_id'=>$daily['id'],'reason'=>'rollback 관리자 정정','request_key'=>attendanceUuid(),
+        'daily_record_id'=>$daily['id'],'work_date'=>$workDate,'reason'=>'rollback 관리자 정정','request_key'=>attendanceUuid(),
         'segments'=>[[
             'segment_type_code'=>'WORK','started_at'=>$workDate.' 09:00:00','ended_at'=>$workDate.' 17:30:00',
             'project_id'=>null,'workplace_assignment_id'=>null,

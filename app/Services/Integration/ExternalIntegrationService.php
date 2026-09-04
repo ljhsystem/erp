@@ -1,6 +1,8 @@
 <?php
 namespace App\Services\Integration;
 
+use Core\Security\SecretResolver;
+
 class ExternalIntegrationService
 {
 
@@ -30,7 +32,8 @@ class ExternalIntegrationService
         }
 
         $this->baseUrl = $config['BusinessApi']['BaseUrl'];
-        $this->serviceKey = $config['BusinessApi']['ServiceKey'];
+        $credentialCode = trim((string) ($config['BusinessApi']['CredentialCode'] ?? ''));
+        $this->serviceKey = (new SecretResolver())->resolve($credentialCode, 'service_key');
     }
 
     public function getBizStatus(string $bizNo): array
@@ -39,7 +42,7 @@ class ExternalIntegrationService
             "b_no" => [$bizNo]
         ]);
 
-        $url = $this->baseUrl . "?serviceKey=" . $this->serviceKey;
+        $url = $this->buildRequestUrl();
 
         $ch = curl_init($url);
 
@@ -72,6 +75,11 @@ class ExternalIntegrationService
             'success' => true,
             'data' => $data
         ];
+    }
+
+    private function buildRequestUrl(): string
+    {
+        return $this->baseUrl . '?serviceKey=' . rawurlencode($this->serviceKey);
     }
 
 }

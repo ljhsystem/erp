@@ -1,5 +1,55 @@
 # ERP Architecture
 
+## Application layer contract
+
+프로젝트의 기본 서버 실행 흐름은 아래와 같다.
+
+```text
+Route
+  → Controller
+    → Service
+      → Model / Repository
+        → Database
+```
+
+- Route는 URL, 인증·권한 메타와 Controller 진입점을 선언한다.
+- Controller는 HTTP 요청을 수집하고 Service를 호출한 뒤 표준 응답으로 변환한다. 업무규칙, SQL, DB 트랜잭션, 로그를 소유하지 않는다.
+- Service는 업무규칙, 검증, 상태전환, 여러 저장소의 조합, 외부연동, 파일처리, DB 트랜잭션과 업무·감사 로그의 유일한 책임 계층이다.
+- Model은 단일 테이블 중심의 SQL과 CRUD를 담당하고 DB 결과를 반환한다.
+- Repository는 복수 테이블 JOIN, 집계, 검색, 통계와 복잡한 DB Projection을 담당한다.
+- Model과 Repository는 업무판단, 사용자 메시지, HTTP 처리, 외부연동, 트랜잭션 orchestration과 로그를 수행하지 않는다.
+- 런타임 Service는 SQL을 직접 실행하지 않고 Model 또는 Repository를 통해 DB에 접근한다.
+
+프론트엔드 실행 구조는 아래와 같다.
+
+```text
+View (HTML 구조·서버 초기값·Partial·Asset 연결)
+  + JS (상호작용·화면 상태·입력 보조검증·API 통신)
+  + CSS (표현·배치·시각적 상태·반응형)
+```
+
+View·JS·CSS는 함께 UI/UX를 구성하지만 서버 업무규칙의 최종 판정은 Service에만 둔다. JS 검증은 UX를 위한 선행 검증이며 API 직접 호출을 막는 최종 검증이 아니다. 공용 UI Component와 공용 CSS를 우선 재사용하고 화면별 구현은 해당 도메인 범위로 제한한다.
+
+업무처리·감사·외부연동 로그와 예외 상세는 Service만 기록한다. 하위 계층은 예외나 구조화된 실패 결과를 Service로 전달한다. 웹서버 접근로그, PHP Fatal, Bootstrap 장애 등 Service 경계 밖의 기반 기술 로그만 공용 Logging Infrastructure의 예외로 인정하며 업무 감사기록을 포함하지 않는다.
+
+Service 로그는 `LoggerFactory`의 정규화된 `service-{module}-{domain}` 채널과 JSON Line 계약을 사용한다. 상태변경·외부연동·파일처리·승인·삭제복구·운영 배치의 업무 경계에서 성공·차단·실패를 한 번 기록하고, 순수 계산·Resolver·Policy·읽기 Projection은 상위 Service와 중복 기록하지 않는다. 공용 Redaction은 주민등록번호, 인증정보, Secret, Token, Cookie, Session, Key와 전체 이메일주소를 저장 전에 제거한다.
+
+오류 수정과 데이터 보정은 대상 Service의 기존 로그를 먼저 조회해 `event_code`, `request_id` 또는 `correlation_id`, 대상 식별자와 반복 범위를 확인한 뒤 진행한다. 로그만으로 데이터 변경을 결정하지 않으며 DB 원본과 도메인 불변식을 함께 대조한다. 수정 후에는 동일 업무 경로를 재실행하고 같은 사건코드의 실패가 재발하지 않는지 확인한다.
+
+파일과 DB 이름은 하나의 확정 도메인명을 공유한다. 서버 클래스는 `{Domain}Controller`, `{Domain}Service`, `{Domain}Model`, `{Domain}Repository`, 프론트엔드는 `{domain}/index.php`, `{domain}/index.js`, `{domain}/index.css`를 신규 표준으로 사용한다. DB 객체는 소문자 `snake_case`, 도메인별 접두사, 의미별 접미사와 표준 Index·Constraint 이름을 사용한다. 세부 실행 규칙과 예외의 최종 SSOT는 `AGENTS.md`다.
+
+이 Architecture는 고정된 과거 기록이 아니다. Runtime 구조 또는 프로젝트 전반에 재사용될 기준이 확정되면 코드 변경 전에 `AGENTS.md`를 먼저 갱신하고 이 문서의 설명 구조를 함께 맞춘다. 도메인별 과거 Closure 문서는 현재 공통규칙보다 우선하지 않는다.
+
+## Main and dashboard ownership
+
+`Main`은 ERP 최상위 진입, 전사 현황, 캘린더, 알림과 공통 설정을 소유하는 도메인이다. `Dashboard`는 독립 도메인이 아니라 각 도메인의 현재 업무 상태를 한눈에 보여주는 기본 진입 화면 역할이다.
+
+- Main Dashboard: `/main`, `web.main.dashboard`
+- Institution Dashboard: `/institution`, `web.institution.dashboard`
+- Ledger Dashboard: `/ledger`, `web.ledger.dashboard`
+
+Main의 Controller·Model·View·JS·CSS Namespace와 경로는 모두 `Main`/`main`을 사용한다. 다른 도메인의 Dashboard 화면은 해당 도메인 소유권을 유지한다. Dashboard 화면은 원본 업무 데이터를 중복 소유하지 않고 해당 도메인 Service가 제공하는 조회·집계 결과를 사용한다.
+
 ## Settings standard management navigation
 
 설정 메뉴는 `기초정보관리 → 조직관리 → 기준관리 → 시스템설정` 순서를 사용한다. `기준관리`는 공용 설정 탭 구조 아래 `코드`, `법정기준` 탭을 제공한다. 코드관리의 업무 구현과 API·권한은 이동 전 단일 구현을 그대로 재사용한다.
@@ -16,7 +66,13 @@ Physical-column labels and required defaults come from DB `COLUMN_COMMENT` and `
 
 ## Employment rules boundary
 
-`employment_rules` is the company-policy SSOT. The flow is policy → employment contract → attendance → leave → payroll → tax outputs. Approved contract snapshots are not rewritten when a rule changes. Operational domains keep their own ledgers and resolve effective policies through `EmploymentRulePolicyService`.
+`employment_rules` is the SSOT only for official employment-rule and personnel-regulation documents, immutable revisions, approval state, effective periods, and audit history. It is not the calculation-policy SSOT for employment contracts, attendance, leave, payroll, or tax. Date-based document lookup uses `EmploymentRuleResolver`; operational domains retain their own ledgers and policies.
+
+상용근로소득·일용근로소득·사업소득의 계산 및 신고는 `EmploymentRulePolicyService`, 규정 policy item, 규정 본문 문자열을 계산 입력으로 사용하지 않는다. 직원·근로계약·근태·휴가·법정기준과 각 급여·소득자료 도메인의 정식 SSOT만 사용한다.
+
+## Employment contract payment boundary
+
+근로계약은 계약 당시 급여형태, 약정 지급일(`payment_day`), 지급기준(`payment_timing`)과 지급항목을 계약 Snapshot으로 보존한다. 소득자료 문서는 지급예정일을 별도 저장하지 않는다. 상용근로소득의 증빙·거래 기준일은 귀속월 말일, 일용근로소득은 작업자별 최종 근무일, 사업소득은 개인 지급항목의 실제 거래일을 사용한다. 계약의 약정 지급조건은 소득자료의 거래일을 대신하지 않는다.
 
 ## Evidence Read, Policy, and Schema DB Flow
 
@@ -96,6 +152,9 @@ VoucherController -> VoucherEvidenceRecommendationService -> JournalCandidateEng
 - `PermissionRegistry` and `PageKeyResolver` retain their PDO-compatible public constructors but delegate permission and page-registry SQL to Query Services and Models.
 - Backup, restore, and synchronization dump SQL remains limited to the previously approved infrastructure Services. This exception does not extend to ordinary business Services or core files.
 - Calendar code and Calendar-owned SQL are excluded from phase 1-1. Shared contracts used by Calendar remain unchanged.
+- 이 제외는 정상 구조 판정이 아니라 기능 Closure 전 임시 보호·유예다. 아키텍처 감사에서는 Calendar Service 직접 SQL을 일반 업무 위반과 분리해 파일 수와 호출 수를 계속 표시한다.
+- Calendar 이외의 도메인은 이 유예를 직접 SQL 또는 공용 SSOT 우회의 근거로 사용할 수 없다.
+- Calendar 개발 재개 시 신규 기능보다 먼저 Query·CRUD·Trash·Sync SQL을 책임별 Model/Repository로 이전하는 SQL Ownership Closure를 수행한다.
 
 ```text
 Core Middleware / Helper → Domain Service → Domain Model
@@ -136,7 +195,7 @@ Import Controller Trait
 
 ## Settings Permission and Page Metadata Flow
 
-`DashboardController → SettingsNavigationService → MenuRegistryModel/PermissionService → DashboardController → settings.php`
+`MainController → SettingsNavigationService → MenuRegistryModel/PermissionService → MainController → settings.php`
 
 - Settings Views receive prepared menu rows and permission decisions and do not create DB, Model, or Service objects.
 - `PermissionRegistry` retains route permission registration and synchronization ordering; all `auth_permissions` SQL is executed by `PermissionModel` through `PermissionService`.
@@ -304,19 +363,22 @@ Role-permission assignment keeps `auth_role_permissions` as the role Set SSOT. U
 
 - 일반 휴가는 `institution_leave_*`, 장기 휴직은 `institution_job_assignments_leave_periods`를 각각 SSOT로 사용한다.
 - 휴가 잔액은 별도 캐시 없이 불변 원장 합계로 계산하며, 승인된 사용은 근태가 복제하지 않고 직접 조회한다.
+- 휴가 원장은 Grant 귀속을 기준으로 소비·취소복원·이월·소멸 계보를 보존한다. 관리자 조정만 Grant에 귀속하지 않으며 자동발생·자동이월·자동소멸 실행 책임은 아직 두지 않는다.
 - `LEAVE_REQUEST`는 공용 전자결재 요청·단계를 상태 SSOT로 사용하고 휴가 헤더에는 현재 결재 포인터와 업무 projection만 둔다.
 ## 자격·교육관리
 
 - 화면 도메인은 qualification-education, 물리 업무 도메인은 institution_qualifications_*와 institution_educations_*로 구분한다.
 - Controller → QualificationEducationService → Qualification/Education Model 구조를 사용한다.
 - 직원관리의 자격 진입점도 같은 자격·교육관리 URL과 API 원장을 사용하며 직원 마스터에 자격 값을 중복 저장하지 않는다.
+- 정책 계층은 자격 종류·교육과정·직무 요구조건, 결과 계층은 직원별 자격·교육 원장으로 분리한다. 결과 원장은 당시 명칭·발급기관·교육기관을 Snapshot으로 보존하며 현재상태는 공용 Projection으로 계산한다.
 # 법정기준관리 운영 계약
 
-- 업무 저장소는 `system_statutory_standards`, `system_statutory_standard_sources` 두 테이블뿐이다.
-- `system_statutory_standards`의 적용기간별 한 행 자체가 법정기준의 개정 이력이며 `value_data`를 직접 소유한다. 별도 Revision 객체·번호·parent·chain·Draft·Confirm·Correction·History·Audit 저장구조와 별도 적용조건 저장계약은 사용하지 않는다.
-- 종료된 과거 기준은 `effective_from~effective_to`, 종료되지 않은 현행 기준은 `effective_from~NULL`로 표현한다. 새 기준 시행 시 기존 현행 행의 적용종료일을 확정하고 새로운 적용시작일의 행을 신규등록한다.
-- `StatutoryStandardResolver`는 `effective_from <= 기준일 AND (effective_to IS NULL OR effective_to >= 기준일)`인 행을 조회한다. 0건은 적용 기준 없음, 1건은 정상, 2건 이상은 기간 중복 오류다.
-- 근거자료는 기준행에 0~N으로 연결하며 별도 Correction 또는 Audit workflow를 만들지 않는다.
+- 업무 저장소는 `system_statutory_standards`, `system_statutory_standard_sources`, `system_statutory_standard_supersessions` 세 테이블이다.
+- `system_statutory_standards`의 한 행이 불변 Revision이며 적용기간과 `value_data`를 직접 소유한다. `system_statutory_standard_sources`는 해당 Revision의 0~N개 공식 근거자료다.
+- 확정 Revision과 Source는 UPDATE·DELETE하지 않는다. 정정은 신규 Revision·신규 Source를 INSERT하고 `system_statutory_standard_supersessions`에 원 Revision→신규 Revision 관계를 추가한다. 기존 Calculation·Evidence FK는 당시 Revision ID를 계속 보존한다.
+- Supersession은 동일 Type·정책 구성요소·고용형태·업무 Scope·추가 Dimension 안에서만 허용되는 불변 선형 관계다. 자기참조·분기·병합·cycle 차단과 동시성 잠금은 명시적 Application Service가 담당하며 DB Trigger를 사용하지 않는다.
+- 종료된 과거 기준은 `effective_from~effective_to`, 종료되지 않은 현행 기준은 `effective_from~NULL`로 표현한다. 단순 법령 개정은 기존 현행 구간 종료와 신규 구간 INSERT로 관리하고, 확정 데이터의 오류 정정만 Supersession을 사용한다.
+- `StatutoryStandardResolver`는 기준일에 유효한 동일 Grain 후보를 조회한 뒤 같은 chain에서 유효한 descendant가 있는 ancestor를 제외한다. leaf 0건은 적용 기준 없음, leaf 1건은 정상, leaf 복수건은 모호한 정책 오류다.
 - 코드그룹은 `STATUTORY_STANDARD_TYPE`, `STATUTORY_ROUNDING_METHOD`만 사용한다.
 ## Voucher POSTED feedback loop
 
@@ -325,3 +387,16 @@ Role-permission assignment keeps `auth_role_permissions` as the role Set SSOT. U
 - `ledger_journal_recent_patterns`와 `ledger_journal_client_account_patterns`는 Event aggregate에서 deterministic 재계산되는 파생 Projection이다. 추천 GET은 이 테이블을 읽기만 한다.
 - 취소전표는 Event, Projection, Rule usage 모두 0건이다. 수동라인도 Event 대상이지만 추천 원본은 NULL이며, 추천 수정라인은 최초 추천과 최종 계정을 구분해 기록한다.
 - 복수 Evidence Context가 서로 다르면 임의 Context를 선택하지 않고 Context Projection에서 제외한다. 거래↔전표 직접 Link는 만들지 않는다.
+# Evidence Link와 상용근로소득 출력 경계
+
+Evidence↔Transaction Link는 공용 N:M 물리구조이며 Evidence Type별 업무 Cardinality는 Evidence metadata가 소유한다. 상용근로소득은 승인 후 직원별 급여 Evidence와 실지급 거래 및 Link를 원자적으로 준비하고, 거래 기준일은 귀속월 말일로 확정한다. Voucher 생성은 기존 전표 도메인에 위임한다. 급여대장은 Report Dataset까지만 업무 도메인이 제공하고 Layout·인쇄·PDF는 공용 Report 계층이 담당한다.
+# 상용근로소득 원천 경계
+
+- 근로계약: 계약상 기본 급여조건
+- 근태: 실제 근무에 따른 조건부 추가지급·감액 근거
+- 휴가: 유급·무급 정책에 따른 조건부 변동 근거
+- 성과평가: 향후 성과 판단 근거
+- 보상·인센티브: 향후 추가지급 확정 근거
+- 사회보험: 직원별 적용기간과 산정기준
+- 법정기준: 보험요율·세액·산식 Revision
+- 상용근로소득: 해당 월 실제 지급·공제 확정 Snapshot

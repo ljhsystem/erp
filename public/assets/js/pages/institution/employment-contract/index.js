@@ -1,12 +1,17 @@
-import { getCodeOptions } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { getCodeOptions } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import { createEmploymentContractTable } from '/public/assets/js/pages/institution/employment-contract/table.js';
 import { API, badge, escapeHtml, requestKey } from '/public/assets/js/pages/institution/employment-contract/shared.js';
+import '/public/assets/js/pages/institution/employment-contract/pay-component-manager.js';
 
 const trashElement = document.getElementById('employmentContractTrashModal');
 const trashModal = trashElement && window.bootstrap ? new window.bootstrap.Modal(trashElement) : null;
 let table = null;
 let modalRuntimePromise = null;
 let trashRuntimePromise = null;
+
+function runtimeStartTime() {
+    return window.performance?.now?.() ?? Date.now();
+}
 
 function loadModalRuntime() {
     if (!modalRuntimePromise) {
@@ -61,13 +66,25 @@ async function boot() {
         escapeHtml,
         requestKey,
         trashModal,
-        onOpen: id => loadModalRuntime()
-            .then(runtime => runtime.openDetail(id, { table }))
-            .catch(error => window.alert(error.message)),
+        onOpen: id => {
+            const startedAt = runtimeStartTime();
+            return loadModalRuntime()
+                .then(runtime => runtime.openDetail(id, { table, startedAt }))
+                .catch(error => window.alert(error.message));
+        },
         onNew: () => loadModalRuntime()
             .then(runtime => runtime.openCreate({ table }))
             .catch(error => window.alert(error.message)),
     });
+
+    const preload = () => void loadModalRuntime()
+        .then(async runtime => {
+            await runtime.initializeModalRuntime({ table });
+            await runtime.preloadModalReferences();
+        })
+        .catch(() => {});
+    if ('requestIdleCallback' in window) window.requestIdleCallback(preload, { timeout: 2000 });
+    else window.setTimeout(preload, 250);
 }
 
 void boot();

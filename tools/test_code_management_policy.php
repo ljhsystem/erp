@@ -58,7 +58,7 @@ $assert(is_array($typeStatus['references']), '법정기준 종류 참조 결과 
 
 $systemRoutes = file_get_contents(PROJECT_ROOT . '/routes/api/system.php');
 $settingsRoutes = file_get_contents(PROJECT_ROOT . '/routes/api/settings.php');
-$controller = file_get_contents(PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CodeController.php');
+$controller = file_get_contents(PROJECT_ROOT . '/app/Controllers/Main/Settings/CodeController.php');
 $columnRegistry = file_get_contents(PROJECT_ROOT . '/public/assets/js/common/column-meta/domains/code.js');
 $modelSource = file_get_contents(PROJECT_ROOT . '/app/Models/System/CodeModel.php');
 $assert(str_contains($systemRoutes, '/api/settings/system/code/references'), '참조내역 Route가 없습니다.');

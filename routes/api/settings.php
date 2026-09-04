@@ -7,10 +7,10 @@ $statutoryStandardRoutes = [
     ['GET', 'detail', 'apiDetail', 'detail', 'detail'],
     ['GET', 'options', 'apiOptions', 'view', 'options'],
     ['POST', 'save', 'apiSave', 'save', 'save'],
-    ['POST', 'delete', 'apiDelete', 'delete', 'delete'],
-    ['POST', 'reorder', 'apiReorder', 'save', 'reorder'],
     ['GET', 'resolve', 'apiResolve', 'resolve', 'resolve'],
     ['GET', 'source-file', 'apiSourceFile', 'detail', 'source_file'],
+    ['POST', 'correct-revision', 'apiCorrectRevision', 'save', 'correct_revision'],
+    ['GET', 'revision-chain', 'apiRevisionChain', 'detail', 'revision_chain'],
 ];
 foreach ($statutoryStandardRoutes as [$method, $suffix, $action, $permission, $routeKey]) {
     $router->{strtolower($method)}(
@@ -18,9 +18,9 @@ foreach ($statutoryStandardRoutes as [$method, $suffix, $action, $permission, $r
         'StatutoryStandardController@' . $action,
         [
             'key' => 'api.settings.statutory_standards.' . $routeKey,
-            'permission_key' => $routeKey === 'reorder'
+            'permission_key' => in_array($routeKey, ['reorder', 'correct_revision'], true)
                 ? 'api.settings.statutory_standards.save'
-                : null,
+                : ($routeKey === 'revision_chain' ? 'api.settings.statutory_standards.detail' : null),
             'page' => '법정기준관리',
             'page_description' => '법정 세율·요율·계산기준관리',
             'permission_name' => $permission,
@@ -1501,6 +1501,21 @@ $router->get('/api/settings/organization/employee/search-picker', 'EmployeeContr
     'name' => '직원 검색선택',
     'description' => '설정 > 조직관리 > 직원관리 > 검색선택',
     'category' => '설정 > 조직관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/settings/organization/employee/representative-qualifications', 'EmployeeController@apiRepresentativeQualifications', [
+    'key' => 'api.settings.organization.employee.representative_qualifications',
+    'permission_key' => 'api.settings.organization.employee.detail',
+    'page' => '직원관리',
+    'page_description' => '직원 대표자격 후보 조회',
+    'permission_name' => '상세조회',
+    'permission_description' => '직원 상세조회',
+    'name' => '대표자격 후보 조회',
+    'description' => '직원의 검증 완료된 유효 대표자격 후보 조회',
+    'category' => '설정',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,

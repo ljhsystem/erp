@@ -11,7 +11,6 @@ class PositionDependencyRepository
         ['institution_job_assignments_position_histories', 'position_id', '직원 직위·직책 기간이력'],
         ['institution_personnel_actions_changes', 'before_position_id', '인사발령 변경 전 직위·직책'],
         ['institution_personnel_actions_changes', 'after_position_id', '인사발령 변경 후 직위·직책'],
-        ['institution_employment_rules_scopes', 'position_id', '취업규칙 적용범위'],
     ];
 
     public function __construct(private readonly PDO $db)

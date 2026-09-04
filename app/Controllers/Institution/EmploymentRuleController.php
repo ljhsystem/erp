@@ -42,9 +42,14 @@ class EmploymentRuleController
     public function apiRevise(): void { $this->respond(fn() => $this->service->revise($this->input())); }
     public function apiSubmit(): void { $input = $this->input(); $this->respond(fn() => $this->service->submit((string) ($input['id'] ?? ''), $this->userId())); }
     public function apiWithdraw(): void { $input = $this->input(); $this->respond(fn() => $this->service->withdraw((string) ($input['request_id'] ?? ''), $this->userId())); }
-    public function apiActivate(): void { $input = $this->input(); $this->respond(fn() => $this->service->activate((string) ($input['id'] ?? ''))); }
+    public function apiActivate(): void
+    {
+        $input = $this->input();
+        $this->respond(fn() => ($input['action'] ?? '') === 'retire'
+            ? $this->service->retire((string) ($input['id'] ?? ''), (string) ($input['effective_to'] ?? ''), (string) ($input['reason'] ?? ''))
+            : $this->service->activate((string) ($input['id'] ?? '')));
+    }
     public function apiDelete(): void { $input = $this->input(); $this->respond(fn() => $this->service->delete((string) ($input['id'] ?? ''))); }
-    public function apiExcel(): void { $this->service->excel($_GET); }
 
     public function act(string $stepId, string $decision, ?string $comment): array
     {
@@ -61,7 +66,7 @@ class EmploymentRuleController
         $permission = new PermissionService();
         $userId = $this->userId();
         $result = [];
-        foreach (['save', 'delete', 'revise', 'submit', 'withdraw', 'activate', 'history', 'excel'] as $key) {
+        foreach (['save', 'delete', 'revise', 'submit', 'withdraw', 'activate', 'history'] as $key) {
             $result[$key] = $permission->hasPermission($userId, 'api.institution.human_resources.employment_rules.' . $key);
         }
         return $result;
@@ -83,7 +88,6 @@ class EmploymentRuleController
             $result = ['success' => false, 'message' => $e->getMessage()];
             $status = 400;
         } catch (\Throwable $e) {
-            error_log('[EmploymentRuleController] ' . $e->getMessage());
             $result = ['success' => false, 'message' => '취업규칙 처리 중 오류가 발생했습니다.'];
             $status = 500;
         }

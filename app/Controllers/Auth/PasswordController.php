@@ -82,7 +82,7 @@ class PasswordController
                 $result = [
                     'success' => true,
                     'message' => '다음에 변경하도록 처리했습니다.',
-                    'redirect' => '/dashboard',
+                    'redirect' => '/main',
                 ];
             }
         }

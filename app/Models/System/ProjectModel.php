@@ -261,7 +261,6 @@ class ProjectModel
 
         $keyword = trim($keyword);
         $like = '%' . $keyword . '%';
-        $prefix = $keyword . '%';
 
         $sql = "
             SELECT
@@ -280,12 +279,9 @@ class ProjectModel
             )
 
             ORDER BY
-                CASE
-                    WHEN project_name LIKE :prefix THEN 0
-                    ELSE 1
-                END,
                 sort_no ASC,
-                project_name ASC
+                project_name ASC,
+                id ASC
 
             LIMIT {$limit}
         ";
@@ -295,8 +291,6 @@ class ProjectModel
         $stmt->bindValue(':k1', $like, PDO::PARAM_STR);
         $stmt->bindValue(':k2', $like, PDO::PARAM_STR);
         $stmt->bindValue(':k3', $like, PDO::PARAM_STR);
-        $stmt->bindValue(':prefix', $prefix, PDO::PARAM_STR);
-
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

@@ -6,7 +6,7 @@ import { approvalStatusBadge } from '/public/assets/js/common/approval-status.js
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { notify } from '/public/assets/js/common/notification.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { getCodeOptions } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { getCodeOptions } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import { getCachedDataTableMetaColumns, readDataTableSettingsState, resolveDataTableColumnDisplayName, resolveDataTableColumnRequirementPolicy } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -257,7 +257,7 @@ async function command(url, body, confirmText, { softDelete = false } = {}) {
         }
     };
     if (softDelete) {
-        return runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '휴지통으로 이동 중' }, execute);
+        return runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '휴지통으로 이동 중', trashChanged: true }, execute);
     }
     return execute();
 }

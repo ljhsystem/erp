@@ -109,9 +109,13 @@ export function createEvidenceTableModule({
 
     function currentColumnDisplayNameMap(type = state.currentType) {
         const stateValue = currentColumnPolicyState(type);
-        return stateValue.columnDisplayName && typeof stateValue.columnDisplayName === 'object'
+        const displayNames = stateValue.columnDisplayName && typeof stateValue.columnDisplayName === 'object'
             ? stateValue.columnDisplayName
             : {};
+        if (String(displayNames.operation_type || '').replace(/\s+/g, '') === '입출금유형') {
+            return { ...displayNames, operation_type: '업무유형' };
+        }
+        return displayNames;
     }
 
     function currentColumnRequirementPolicyMap(type = state.currentType) {
@@ -123,6 +127,10 @@ export function createEvidenceTableModule({
 
     function resolveDisplayName(key, fallback, type = state.currentType) {
         const configured = currentColumnDisplayNameMap(type)[String(key || '').trim()];
+        if (String(key || '').trim() === 'operation_type'
+            && String(configured || fallback || '').replace(/\s+/g, '') === '입출금유형') {
+            return '업무유형';
+        }
         return String(configured || fallback || key || '').trim() || String(key || '').trim();
     }
 
@@ -132,7 +140,10 @@ export function createEvidenceTableModule({
         activeColumns.forEach((column) => {
             const key = String(column.system_field_name || column.original_column_key || '').trim();
             if (!key) return;
-            map[key] = String(column.excel_column_name || column.label || key).trim() || key;
+            const label = String(column.excel_column_name || column.label || key).trim() || key;
+            map[key] = key === 'operation_type' && label.replace(/\s+/g, '') === '입출금유형'
+                ? '업무유형'
+                : label;
         });
         return map;
     }
@@ -304,17 +315,12 @@ export function createEvidenceTableModule({
     function evidenceStatusDisplay(value) {
             const raw = valueText(value).trim().toUpperCase();
             if (raw === '') return { text: '-', className: 'text-bg-light' };
-            if (['COMPLETED', 'READY', 'VERIFY_ONLY'].includes(raw)) {
+            if (raw === 'COMPLETED') {
                 return { text: '완료', className: 'text-bg-success' };
             }
-            if (['CORRECTION_REQUIRED', 'NOT_READY', 'REVIEW_REQUIRED'].includes(raw)) {
+            if (raw === 'CORRECTION_REQUIRED') {
                 return { text: '보정필요', className: 'text-bg-warning' };
             }
-
-            if (raw === 'ACTIVE') return { text: '활성', className: 'text-bg-success' };
-            if (raw === 'DELETED') return { text: '삭제', className: 'text-bg-secondary' };
-            if (raw === 'ERROR') return { text: '오류', className: 'text-bg-danger' };
-
             return { text: raw, className: 'text-bg-light' };
         }
 
@@ -375,12 +381,10 @@ export function createEvidenceTableModule({
                 || valueText(fallback);
         }
 
-    const actorDisplayFields = new Set(['created_by', 'updated_by', 'deleted_by']);
-
     function actorFieldForColumn(column = {}) {
             return [column.system_field_name, column.original_column_key, column.key, column.data]
                 .map((value) => String(value || '').trim().toLowerCase())
-                .find((key) => actorDisplayFields.has(key)) || '';
+                .find((key) => key.endsWith('_by')) || '';
         }
 
     function actorColumnDisplayValue(row = {}, field = '') {
@@ -391,12 +395,6 @@ export function createEvidenceTableModule({
         }
 
     const referenceDisplayFieldMap = {
-        client_id: 'client_name',
-        project_id: 'project_name',
-        employee_id: 'employee_name',
-        bank_account_id: 'bank_account_name',
-        card_id: 'card_name',
-        team_id: 'team_name',
         source_type: 'source_type_name',
         import_type: 'import_type_name',
         };
@@ -412,6 +410,9 @@ export function createEvidenceTableModule({
             for (const key of keys) {
                 if (referenceDisplayFieldMap[key]) {
                     return referenceDisplayFieldMap[key];
+                }
+                if (key.endsWith('_id') && key !== 'id') {
+                    return `${key.slice(0, -3)}_name`;
                 }
             }
 
@@ -628,7 +629,11 @@ export function createEvidenceTableModule({
                 },
                 ...evidenceColumns,
                 {
-                    key: '__manage',
+                    key: '__actions',
+                    settingsKey: '__actions',
+                    settingsTitle: '관리',
+                    settingsVirtualType: 'system',
+                    __dtColumnKind: 'virtual',
                     data: null,
                     title: '관리',
                     className: 'dt-action-column text-center no-colvis',
@@ -643,7 +648,7 @@ export function createEvidenceTableModule({
                             <button type="button"
                                     class="btn btn-outline-primary btn-sm dt-manage-edit-btn evidence-edit-row-btn"
                                     data-id="${escapeHtml(row?.id || '')}">
-                                수정
+                                ${evidenceTypePolicy(state.currentType)?.readOnly ? '상세' : '수정'}
                             </button>
                         `;
                     },
@@ -719,7 +724,7 @@ export function createEvidenceTableModule({
                 searchTableId: typeTableKey,
                 selectable: true,
                 rowIdField: 'id',
-                deleteButton: true,
+                deleteButton: !evidenceTypePolicy(state.currentType)?.readOnly,
                 deleteApi: API.deleteRows,
                 bulkDelete: true,
                 deletePayload: () => ({
@@ -738,9 +743,9 @@ export function createEvidenceTableModule({
                     title: '테이블 설정',
                     columns,
                     requiredColumns: [],
-                    defaultVisibleColumns: [],
                     defaultColumnDisplayName: defaultColumnDisplayNameMap(),
                     defaultColumnRequirementPolicy: defaultColumnRequirementPolicyMap(),
+                    resetOnColumnSchemaChange: true,
                     onOrderChange: handleEvidenceStatusTableOrderChange,
                 },
                 dataSrc(json) {
@@ -753,7 +758,9 @@ export function createEvidenceTableModule({
                 buttons: [
                     {
                         text: '휴지통',
-                        className: 'btn btn-outline-danger btn-sm evidence-status-trash-btn',
+                        className: evidenceTypePolicy(state.currentType)?.readOnly
+                            ? 'd-none'
+                            : 'btn btn-outline-danger btn-sm evidence-status-trash-btn',
                         action: openEvidenceTrash,
                     },
                     {
@@ -772,7 +779,7 @@ export function createEvidenceTableModule({
                 ],
         });
         arrangeEvidenceToolbar(state.table);
-            bindRowReorder(state.table, {
+            if (!evidenceTypePolicy(state.currentType)?.readOnly) bindRowReorder(state.table, {
                 api: API.reorder,
                 sortNoField: 'sort_no',
                 includeAppliedRows: true,

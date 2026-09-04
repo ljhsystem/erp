@@ -1,6 +1,7 @@
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { formatAmount, formatDateDisplay } from '/public/assets/js/common/format.js';
 import { approvalStatusBadge } from '/public/assets/js/common/approval-status.js';
+import { notify as showNotification } from '/public/assets/js/common/notification.js';
 
 const API = {
     list: '/api/approval/inbox/list',
@@ -27,13 +28,20 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character =>
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
 })[character]);
 const statusBadge = status => approvalStatusBadge(status, escapeHtml);
-const notify = (type, message) => window.showToast ? window.showToast(type, message) : window.alert(message);
+const notify = (type, message) => showNotification(type, message);
 
 async function request(url, options = {}) {
     const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.success === false) {
-        throw new Error(result.message || '요청 처리 중 오류가 발생했습니다.');
+        const correlationId = String(result.correlation_id || '').trim();
+        const baseMessage = result.user_message || result.message || '요청 처리 중 오류가 발생했습니다.';
+        const error = new Error(correlationId ? `${baseMessage} 오류 추적번호: ${correlationId}` : baseMessage);
+        const systemError = response.status >= 500 || ['APPROVAL_PROCESSING_FAILED', 'APPROVAL_SYSTEM_ERROR'].includes(result.result_code);
+        error.notificationType = systemError ? 'error' : 'warning';
+        error.resultCode = result.result_code || result.error_code || null;
+        error.correlationId = correlationId || null;
+        throw error;
     }
     return result;
 }
@@ -50,12 +58,24 @@ function columns() {
         { data: 'requester_name', title: '발의자' },
         { data: 'application_date', title: '신청일자', render: value => escapeHtml(formatDateDisplay(value) || value || '-') },
         { data: 'title', title: '제목', render: value => escapeHtml(value || '-') },
-        { data: 'total_amount', title: '총금액', className: 'text-end', render: value => `${escapeHtml(formatAmount(value || 0))}원` },
+        {
+            data: 'total_amount',
+            title: '총금액',
+            className: 'text-end',
+            render: (value, type, row) => {
+                if (value === null || value === undefined || value === '') return '-';
+                const formatted = `${formatAmount(value)}원`;
+                return type === 'display'
+                    ? `<span title="${escapeHtml(`${row.primary_amount_label || '총금액'} ${formatted}`)}">${escapeHtml(formatted)}</span>`
+                    : value;
+            },
+        },
         { data: 'current_step_name', title: '현재 결재단계', defaultContent: '-' },
         { data: 'requested_at', title: '상신일시', defaultContent: '-' },
         { data: 'approval_status', title: '결재상태', className: 'text-center', render: statusBadge },
         {
             data: null,
+            settingsKey: 'progress',
             title: '진행률',
             className: 'text-center',
             render: (_value, _type, row) => {
@@ -66,6 +86,7 @@ function columns() {
         },
         {
             data: null,
+            settingsKey: '__actions',
             title: '관리',
             className: 'text-center no-colvis',
             orderable: false,
@@ -92,6 +113,8 @@ async function initTable() {
             userSettingPageKey: 'approval.inbox',
             tableKey: 'approval-inbox-table',
             storageKey: 'datatable.settings.approval.inbox.v1',
+            columns: tableColumns,
+            resetOnColumnSchemaChange: true,
             tableLabel: '결재함',
             title: '결재함 보기 설정',
         },
@@ -218,6 +241,12 @@ function renderActions(data) {
     document.getElementById('approvalInboxComment').value = '';
 }
 
+function setActing(value) {
+    acting = value;
+    document.getElementById('approvalInboxApprove').disabled = value;
+    document.getElementById('approvalInboxReject').disabled = value;
+}
+
 async function openDetail(requestId) {
     try {
         const result = await request(`${API.detail}?request_id=${encodeURIComponent(requestId)}`);
@@ -248,7 +277,7 @@ async function act(decision) {
             ? (detail.document.ui?.final_approval_message || '이 문서를 최종 승인하시겠습니까?')
             : '현재 결재단계를 승인하시겠습니까?';
     if (!window.confirm(message)) return;
-    acting = true;
+    setActing(true);
     try {
         const result = await request(API.act, {
             method: 'POST',
@@ -257,12 +286,12 @@ async function act(decision) {
         modal?.hide();
         table.ajax.reload(null, false);
         document.dispatchEvent(new CustomEvent('approval:changed'));
-        notify('success', result.message || '결재 처리가 완료되었습니다.');
+        notify('success', result.user_message || result.message || '결재 처리가 완료되었습니다.');
     } catch (error) {
-        notify('error', error.message);
+        notify(error.notificationType || 'error', error.message);
         if (detail?.request?.id) await openDetail(detail.request.id);
     } finally {
-        acting = false;
+        setActing(false);
     }
 }
 

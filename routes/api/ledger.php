@@ -710,7 +710,7 @@ $router->post('/api/ledger/sub-account/delete', 'SubChartAccountController@apiDe
     'log' => true,
 ]);
 
-$router->post('/api/ledger/voucher/list', 'VoucherController@apiList', [
+$router->get('/api/ledger/voucher/list', 'VoucherController@apiList', [
     'key' => 'api.ledger.voucher.list',
     'page' => '전표입력',
     'page_description' => '전표 입력 관리',
@@ -722,6 +722,21 @@ $router->post('/api/ledger/voucher/list', 'VoucherController@apiList', [
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
+]);
+
+$router->post('/api/ledger/voucher/review-list', 'VoucherController@apiList', [
+    'key' => 'api.ledger.voucher.review_list',
+    'page' => '전표검토·전기',
+    'page_description' => '전표 검토 및 전기 관리',
+    'permission_name' => '조회',
+    'permission_description' => '검토 대상 전표 조회',
+    'name' => '전표검토 목록 조회',
+    'description' => '회계관리 > 전표관리 > 전표검토·전기 > 조회',
+    'category' => '회계관리 > 전표관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+    'permission_key' => 'api.ledger.voucher.list',
 ]);
 
 $router->get('/api/ledger/voucher/detail', 'VoucherController@apiDetail', [

@@ -40,6 +40,9 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                     <option value="transaction_direction">거래구분</option>
                     <option value="client_type">거래처유형</option>
                     <option value="import_type">자료유형</option>
+                    <option value="item_code">비용분류</option>
+                    <option value="accounting_role_code">회계역할</option>
+                    <option value="result_account_name">결과 계정명</option>
                     <option value="debit_account_name">차변 계정명</option>
                     <option value="credit_account_name">대변 계정명</option>
                     <option value="vat_account_name">부가세 계정명</option>
@@ -113,20 +116,28 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                     </section>
 
                     <section class="journal-rule-section mt-3">
-                        <h6 class="section-title">분개 계정 정보</h6>
+                        <h6 class="section-title">역할형 조건과 결과 계정</h6>
                         <div class="row g-3">
+                            <div class="col-md-3"><label class="form-label">Source 유형</label><input class="form-control form-control-sm" name="source_type" maxlength="50"></div>
+                            <div class="col-md-3"><label class="form-label">Source 라인유형</label><input class="form-control form-control-sm" name="source_line_type" maxlength="50"></div>
+                            <div class="col-md-3"><label class="form-label">비용분류</label><select class="form-select form-select-sm" name="item_code" data-code-group="PERSONAL_EXPENSE_CATEGORY"><option value="">전체</option></select></div>
+                            <div class="col-md-3"><label class="form-label">회계역할</label><select class="form-select form-select-sm" name="accounting_role_code" data-code-group="JOURNAL_ACCOUNTING_ROLE"></select></div>
+                        </div>
+                        <div class="row g-3 mt-0">
+                            <div class="col-md-2"><label class="form-label">차대구분</label><select class="form-select form-select-sm" name="debit_credit"><option value="DEBIT">차변</option><option value="CREDIT">대변</option></select></div>
                             <div class="col-md-4">
-                                <label class="form-label">차변 계정</label>
-                                <select class="form-select form-select-sm js-account-select" name="debit_account_id"></select>
+                                <label class="form-label">결과 계정</label>
+                                <select class="form-select form-select-sm js-account-select" name="account_id"></select>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">대변 계정</label>
-                                <select class="form-select form-select-sm js-account-select" name="credit_account_id"></select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">부가세 계정</label>
-                                <select class="form-select form-select-sm js-account-select" name="vat_account_id"></select>
-                            </div>
+                            <div class="col-md-2"><label class="form-label">적용 시작일</label><input type="date" class="form-control form-control-sm" name="effective_from"></div>
+                            <div class="col-md-2"><label class="form-label">적용 종료일</label><input type="date" class="form-control form-control-sm" name="effective_to"></div>
+                            <div class="col-md-2"><label class="form-label">우선순위</label><input type="number" class="form-control form-control-sm" name="priority_no" value="100"></div>
+                        </div>
+                        <div class="row g-3 mt-0">
+                            <div class="col-md-2"><label class="form-label">Origin</label><select class="form-select form-select-sm" name="origin_code"><option value="USER">USER</option></select></div>
+                            <div class="col-md-2"><label class="form-label">규칙상태</label><select class="form-select form-select-sm" name="rule_status"><option value="ACTIVE">ACTIVE</option><option value="CANDIDATE">CANDIDATE</option><option value="INACTIVE">INACTIVE</option><option value="REJECTED">REJECTED</option></select></div>
+                            <div class="col-md-5"><label class="form-label">Condition Hash</label><input class="form-control form-control-sm" name="condition_hash" readonly></div>
+                            <div class="col-md-3"><label class="form-label">Revision</label><input class="form-control form-control-sm" name="latest_revision_id" readonly></div>
                         </div>
                     </section>
 
@@ -155,7 +166,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
         </div>
     </div>
 
-    <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+    <?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>
 
     <?php
     $modalId = 'journalRuleTrashModal';

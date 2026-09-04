@@ -32,8 +32,8 @@ class QueryService
                 c.type,
                 c.is_personal,
                 c.owner_user_id
-            FROM dashboard_calendar_list c
-            JOIN dashboard_calendar_visibility v
+            FROM main_calendar_list c
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = c.id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -75,10 +75,10 @@ class QueryService
 
         $sql = "
             SELECT e.*
-            FROM dashboard_calendar_events e
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_events e
+            JOIN main_calendar_list c
                 ON c.id = e.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = e.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -129,10 +129,10 @@ class QueryService
 
         $sql = "
             SELECT t.*
-            FROM dashboard_calendar_tasks t
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_tasks t
+            JOIN main_calendar_list c
                 ON c.id = t.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = t.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -231,10 +231,10 @@ class QueryService
 
         $sql = "
             SELECT e.*
-            FROM dashboard_calendar_events e
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_events e
+            JOIN main_calendar_list c
                 ON c.id = e.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = e.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -284,10 +284,10 @@ class QueryService
 
         $sql = "
             SELECT t.*
-            FROM dashboard_calendar_tasks t
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_tasks t
+            JOIN main_calendar_list c
                 ON c.id = t.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = t.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -814,10 +814,10 @@ class QueryService
 
         $sql = "
             SELECT t.*
-            FROM dashboard_calendar_tasks t
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_tasks t
+            JOIN main_calendar_list c
                 ON c.id = t.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = t.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -849,10 +849,10 @@ class QueryService
 
         $sql = "
             SELECT t.*
-            FROM dashboard_calendar_tasks t
-            JOIN dashboard_calendar_list c
+            FROM main_calendar_tasks t
+            JOIN main_calendar_list c
                 ON c.id = t.calendar_id
-            JOIN dashboard_calendar_visibility v
+            JOIN main_calendar_visibility v
                 ON v.calendar_id = t.calendar_id
                AND v.synology_login_id = ?
                AND v.is_visible = 1
@@ -886,7 +886,7 @@ class QueryService
     {
         $stmt = $this->pdo->prepare("
             SELECT is_personal, owner_user_id
-            FROM dashboard_calendar_list
+            FROM main_calendar_list
             WHERE id = :id
             LIMIT 1
         ");
@@ -903,7 +903,7 @@ class QueryService
     {
         $stmt = $this->pdo->prepare("
             SELECT calendar_id
-            FROM dashboard_calendar_events
+            FROM main_calendar_events
             WHERE id = :id
             LIMIT 1
         ");
@@ -919,7 +919,7 @@ class QueryService
     {
         $stmt = $this->pdo->prepare("
             SELECT calendar_id
-            FROM dashboard_calendar_tasks
+            FROM main_calendar_tasks
             WHERE id = :id
             LIMIT 1
         ");
@@ -935,7 +935,7 @@ class QueryService
     {
         $stmt = $this->pdo->prepare("
             SELECT collection_href
-            FROM dashboard_calendar_tasks
+            FROM main_calendar_tasks
             WHERE id = :id
             LIMIT 1
         ");
@@ -951,7 +951,7 @@ class QueryService
     {
         $stmt = $this->pdo->prepare("
             SELECT id
-            FROM dashboard_calendar_list
+            FROM main_calendar_list
             WHERE href = :href
             LIMIT 1
         ");

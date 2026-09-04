@@ -4,7 +4,9 @@ namespace App\Controllers\Approval;
 
 use App\Controllers\System\LayoutController;
 use App\Services\Approval\ApprovalInboxService;
+use App\Services\Institution\RegularEmploymentIncomeAccountingException;
 use Core\DbPdo;
+use Core\Helpers\UuidHelper;
 use PDO;
 
 class ApprovalInboxController
@@ -68,14 +70,21 @@ class ApprovalInboxController
         try {
             $result = $callback();
             $status = empty($result['success']) ? 400 : 200;
+        } catch (RegularEmploymentIncomeAccountingException $exception) {
+            $correlationId=$exception->correlationId()??UuidHelper::generate();
+            $userMessage='급여 증빙과 관련 거래를 생성하기 위한 업무 검증을 완료하지 못했습니다. 문서 내용을 확인해 주세요.';
+            $result=['success'=>false,'error_code'=>$exception->errorCode(),'result_code'=>$exception->errorCode(),'correlation_id'=>$correlationId,'message'=>$userMessage,'user_message'=>$userMessage];
+            $status=400;
         } catch (\InvalidArgumentException $exception) {
-            $result = ['success' => false, 'message' => $exception->getMessage()];
+            $result = ['success' => false, 'result_code' => 'VALIDATION_FAILED', 'message' => $exception->getMessage(), 'user_message' => $exception->getMessage()];
             $status = 400;
         } catch (\RuntimeException $exception) {
-            $result = ['success' => false, 'message' => $failureMessage];
+            $correlationId=UuidHelper::generate();
+            $result = ['success' => false, 'result_code' => 'APPROVAL_PROCESSING_FAILED', 'correlation_id' => $correlationId, 'message' => $failureMessage, 'user_message' => $failureMessage];
             $status = 400;
         } catch (\Throwable $exception) {
-            $result = ['success' => false, 'message' => $failureMessage];
+            $correlationId=UuidHelper::generate();
+            $result = ['success' => false, 'result_code' => 'APPROVAL_SYSTEM_ERROR', 'correlation_id' => $correlationId, 'message' => $failureMessage, 'user_message' => $failureMessage];
             $status = 500;
         }
         http_response_code($status);

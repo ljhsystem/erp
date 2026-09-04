@@ -128,7 +128,7 @@ class SystemFieldService
         'transaction_datetime' => '거래일시',
         'transaction_time' => '거래시간',
         'bank_account_id' => '은행계좌',
-        'operation_type' => '입출금유형',
+        'operation_type' => '업무유형',
         'transaction_direction' => '거래구분',
         'bank_direction' => '입출금구분',
         'business_unit' => '사업구분',
@@ -199,7 +199,7 @@ class SystemFieldService
         ['value' => 'exchange_rate', 'label' => '기본환율', 'group' => '기준정보(JSON)'],
         ['value' => 'adjustment_amount', 'label' => '가감금액', 'group' => '금액 후보(JSON)'],
         ['value' => 'business_unit', 'label' => '사업구분', 'group' => '기준정보(JSON)'],
-        ['value' => 'operation_type', 'label' => '입출금유형', 'group' => '기준정보(JSON)'],
+        ['value' => 'operation_type', 'label' => '업무유형', 'group' => '기준정보(JSON)'],
         ['value' => 'client_id', 'label' => '거래처 ID', 'group' => '업무 기준정보(JSON)'],
         ['value' => 'client_name', 'label' => '거래처명', 'group' => '기초정보(JSON)'],
         ['value' => 'client_name_ko', 'label' => '거래처(한글)', 'group' => '기초정보(JSON)'],
@@ -515,7 +515,7 @@ class SystemFieldService
                 'code_group' => 'BUSINESS_UNIT',
             ]),
             $dataType === 'BANK_TRANSACTION'
-                ? $this->tableFieldOption('operation_type', '입출금유형', '기준정보', 'system_codes', 'code', 'varchar', [
+                ? $this->tableFieldOption('operation_type', '업무유형', '기준정보', 'system_codes', 'code', 'varchar', [
                     'code_group' => 'OPERATION_TYPE',
                 ])
                 : null,

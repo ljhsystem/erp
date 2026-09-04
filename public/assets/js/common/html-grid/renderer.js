@@ -108,13 +108,15 @@ export function createGridRenderer(config = {}) {
             loading: Boolean(context.ui.loading),
             error: Boolean(options.error),
             noData: !context.ui.loading && !hasRows,
-            emptyMessage: options.emptyMessage,
+            emptyMessage: options.emptyMessage || config.emptyMessage,
             noDataMessage: options.noDataMessage,
             loadingMessage: options.loadingMessage,
             errorMessage: options.errorMessage,
         });
 
-        structure.table.classList.toggle('is-hidden', !hasRows && !context.ui.loading && !options.error);
+        const keepHeaderWhenEmpty = options.keepHeaderWhenEmpty === true || config.keepHeaderWhenEmpty === true;
+        structure.table.dataset.keepHeaderWhenEmpty = keepHeaderWhenEmpty ? 'true' : 'false';
+        structure.table.classList.toggle('is-hidden', !keepHeaderWhenEmpty && !hasRows && !context.ui.loading && !options.error);
         emptyNode.classList.toggle('is-hidden', hasRows && !context.ui.loading && !options.error);
 
         return structure;

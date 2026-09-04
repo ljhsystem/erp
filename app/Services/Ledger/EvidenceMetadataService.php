@@ -8,7 +8,9 @@ use App\Repositories\Ledger\EvidenceMetadataRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class EvidenceMetadataService
 {
@@ -52,12 +54,14 @@ class EvidenceMetadataService
     private EvidenceMetadataModel $model;
     private EvidenceMetadataColumnModel $columnModel;
     private EvidenceMetadataRepository $repository;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->model = new EvidenceMetadataModel($pdo);
         $this->columnModel = new EvidenceMetadataColumnModel($pdo);
         $this->repository = new EvidenceMetadataRepository($pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger-evidence-metadata');
     }
 
     public function getList(array $filters = []): array
@@ -200,6 +204,11 @@ class EvidenceMetadataService
 
     public function save(array $payload): array
     {
+        return $this->logged('EVIDENCE_METADATA_SAVE', 'save', ['metadata_id' => $payload['id'] ?? null], fn(): array => $this->saveInternal($payload));
+    }
+
+    private function saveInternal(array $payload): array
+    {
         $id = trim((string) ($payload['id'] ?? ''));
         $existing = $id !== '' ? $this->model->getById($id) : null;
         if ($id !== '' && !$existing) {
@@ -267,6 +276,11 @@ class EvidenceMetadataService
 
     public function delete(string $id): array
     {
+        return $this->logged('EVIDENCE_METADATA_DELETE', 'delete', ['metadata_id' => $id], fn(): array => $this->deleteInternal($id));
+    }
+
+    private function deleteInternal(string $id): array
+    {
         $this->assertDeletableRows($this->model->getByIds([$id]));
         $ok = $this->model->delete($id, ActorHelper::user());
         return [
@@ -277,6 +291,11 @@ class EvidenceMetadataService
     }
 
     public function deleteBulk(array $ids): array
+    {
+        return $this->logged('EVIDENCE_METADATA_DELETE_BULK', 'delete-bulk', ['requested_count' => count($ids)], fn(): array => $this->deleteBulkInternal($ids));
+    }
+
+    private function deleteBulkInternal(array $ids): array
     {
         $ids = $this->normalizeIds($ids);
         $rows = $this->model->getByIds($ids);
@@ -298,6 +317,11 @@ class EvidenceMetadataService
 
     public function restore(string $id): array
     {
+        return $this->logged('EVIDENCE_METADATA_RESTORE', 'restore', ['metadata_id' => $id], fn(): array => $this->restoreInternal($id));
+    }
+
+    private function restoreInternal(string $id): array
+    {
         $this->assertRestorableRows($this->model->getByIds([$id], true));
         $this->pdo->beginTransaction();
         try {
@@ -317,12 +341,22 @@ class EvidenceMetadataService
 
     public function restoreBulk(array $ids): array
     {
+        return $this->logged('EVIDENCE_METADATA_RESTORE_BULK', 'restore-bulk', ['requested_count' => count($ids)], fn(): array => $this->restoreBulkInternal($ids));
+    }
+
+    private function restoreBulkInternal(array $ids): array
+    {
         $ids = $this->normalizeIds($ids);
         $count = $this->restoreRows($this->model->getByIds($ids, true), $ids);
         return $this->countResult('restored_count', $count, count($ids), '선택한 증빙정책이 복원되었습니다.', '복원할 증빙정책이 없습니다.');
     }
 
     public function restoreAll(): array
+    {
+        return $this->logged('EVIDENCE_METADATA_RESTORE_ALL', 'restore-all', [], fn(): array => $this->restoreAllInternal());
+    }
+
+    private function restoreAllInternal(): array
     {
         $rows = $this->model->getList([], true);
         $ids = array_column($rows, 'id');
@@ -331,6 +365,11 @@ class EvidenceMetadataService
     }
 
     public function purge(string $id): array
+    {
+        return $this->logged('EVIDENCE_METADATA_PURGE', 'purge', ['metadata_id' => $id], fn(): array => $this->purgeInternal($id));
+    }
+
+    private function purgeInternal(string $id): array
     {
         $rows = $this->model->getByIds([$id], true);
         $this->assertPurgeableRows($rows);
@@ -343,6 +382,11 @@ class EvidenceMetadataService
     }
 
     public function purgeBulk(array $ids): array
+    {
+        return $this->logged('EVIDENCE_METADATA_PURGE_BULK', 'purge-bulk', ['requested_count' => count($ids)], fn(): array => $this->purgeBulkInternal($ids));
+    }
+
+    private function purgeBulkInternal(array $ids): array
     {
         $ids = $this->normalizeIds($ids);
         $rows = $this->model->getByIds($ids, true);
@@ -362,6 +406,11 @@ class EvidenceMetadataService
 
     public function reorder(array $changes): array
     {
+        return $this->logged('EVIDENCE_METADATA_REORDER', 'reorder', ['change_count' => count($changes)], fn(): array => $this->reorderInternal($changes));
+    }
+
+    private function reorderInternal(array $changes): array
+    {
         $actor = ActorHelper::user();
         $this->pdo->beginTransaction();
         try {
@@ -378,6 +427,22 @@ class EvidenceMetadataService
             throw $e;
         }
         return ['success' => true, 'message' => '증빙정책 순서가 저장되었습니다.'];
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): array
+    {
+        $base = ['service' => self::class, 'action' => $action, 'actor' => ActorHelper::user()] + $context;
+        try {
+            $result = $operation();
+            $this->logger->info('증빙정책 업무 처리를 완료했습니다.', ['event_code' => $eventCode, 'result' => 'SUCCESS'] + $base);
+            return $result;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $exception) {
+            $this->logger->warning('증빙정책 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'error_code' => get_class($exception), 'error' => $exception] + $base);
+            throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('증빙정책 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'error_code' => get_class($exception), 'error' => $exception] + $base);
+            throw $exception;
+        }
     }
 
     private function normalizePayload(array $payload): array

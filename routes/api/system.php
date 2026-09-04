@@ -820,6 +820,21 @@ $router->get('/api/system/notifications', 'NotificationController@apiList', [
     'log' => false,
 ]);
 
+$router->get('/api/system/notifications/list', 'NotificationController@apiPage', [
+    'key' => 'api.system.notifications.list',
+    'page' => '알림센터',
+    'page_description' => '내 알림센터',
+    'permission_name' => '목록조회',
+    'permission_description' => '본인 알림 목록 조회',
+    'name' => '알림센터 목록조회',
+    'description' => '대시보드 > 알림센터 > 목록조회',
+    'category' => '대시보드',
+    'auth' => true,
+    'permissions' => ['view'],
+    'skip_permission' => true,
+    'log' => false,
+]);
+
 $router->post('/api/system/notifications/read', 'NotificationController@apiRead', [
     'key' => 'api.system.notifications.read',
     'page' => '알림센터',

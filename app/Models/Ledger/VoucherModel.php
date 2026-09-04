@@ -356,7 +356,6 @@ class VoucherModel
 
             return array_map([$this, 'normalizeVoucherRow'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
         } catch (\Throwable $e) {
-            error_log('[VoucherModel] getList failed: ' . $e->getMessage());
             return $this->getListFallback();
         }
     }

@@ -1,4 +1,4 @@
-import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { openClientQuickCreate } from '/public/assets/js/pages/main/settings/base/client.js';
 
 export function createEvidenceModalModule({
     state,
@@ -57,13 +57,13 @@ export function createEvidenceModalModule({
     const COMMON_BUSINESS_MODAL_FIELDS = Object.freeze([
         { key: 'business_unit', label: '\uC0AC\uC5C5\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
         { key: 'transaction_direction', label: '\uAC70\uB798\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
-        { key: 'operation_type', label: '\uC785\uCD9C\uAE08\uC720\uD615', group: 'business', data_type: 'varchar' },
+        { key: 'operation_type', label: '\uC5C5\uBB34\uC720\uD615', group: 'business', data_type: 'varchar' },
         { key: 'client_id', label: '\uAC70\uB798\uCC98 ID', group: 'business', data_type: 'varchar' },
+        { key: 'employee_id', label: '\uC9C1\uC6D0 ID', group: 'business', data_type: 'varchar' },
         { key: 'project_id', label: '\uD504\uB85C\uC81D\uD2B8 ID', group: 'business', data_type: 'varchar' },
         { key: 'bank_account_id', label: '\uACC4\uC88C ID', group: 'business', data_type: 'varchar' },
         { key: 'card_id', label: '\uCE74\uB4DC ID', group: 'business', data_type: 'varchar' },
-        { key: 'team_id', label: '\uD300 ID', group: 'business', data_type: 'varchar' },
-        { key: 'employee_id', label: '\uC9C1\uC6D0 ID', group: 'business', data_type: 'varchar' },
+        { key: 'work_team_id', label: '\uC791\uC5C5\uD300 ID', group: 'business', data_type: 'varchar' },
     ]);
     const COMMON_BUSINESS_MODAL_FIELD_KEY_SET = new Set(COMMON_BUSINESS_MODAL_FIELDS.map((field) => field.key));
     const BUSINESS_MODAL_FIELD_LABEL_ALIASES = Object.freeze({
@@ -79,8 +79,10 @@ export function createEvidenceModalModule({
         '\uACC4\uC88C ID': 'bank_account_id',
         '\uCE74\uB4DC': 'card_id',
         '\uCE74\uB4DC ID': 'card_id',
-        '\uD300': 'team_id',
-        '\uD300 ID': 'team_id',
+        '\uD300': 'work_team_id',
+        '\uD300 ID': 'work_team_id',
+        '\uC791\uC5C5\uD300': 'work_team_id',
+        '\uC791\uC5C5\uD300 ID': 'work_team_id',
         '\uC9C1\uC6D0': 'employee_id',
         '\uC9C1\uC6D0 ID': 'employee_id',
         '\uC9C1\uC5C5': 'employee_id',
@@ -103,7 +105,7 @@ export function createEvidenceModalModule({
     const BANK_LIKE_MODAL_GROUPS = Object.freeze([
         {
             key: 'business',
-            title: '\uC5C5\uBB34 \uBD84\uB958\uC815\uBCF4',
+            title: '\uC5C5\uBB34\uBD84\uB958\uC815\uBCF4',
             description: '\uAC70\uB798 \uBC0F \uC804\uD45C \uC790\uB3D9 \uBC1C\uD589\uC5D0 \uC0AC\uC6A9\uD558\uB294 \uD575\uC2EC \uBD84\uB958 \uC815\uBCF4\uC785\uB2C8\uB2E4.',
             collapsible: false,
         },
@@ -115,7 +117,7 @@ export function createEvidenceModalModule({
         },
         {
             key: 'system',
-            title: '\uC2DC\uC2A4\uD15C\uCC98\uB9AC\uC815\uBCF4',
+            title: '\uC2DC\uC2A4\uD15C \uCC98\uB9AC\uC815\uBCF4',
             description: '\uCC98\uB9AC \uC0C1\uD0DC \uBC0F \uB0B4\uBD80 \uC2DD\uBCC4 \uC815\uBCF4\uC785\uB2C8\uB2E4. \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.',
             collapsible: true,
             default_open: false,
@@ -127,7 +129,7 @@ export function createEvidenceModalModule({
     const BUSINESS_ONLY_MODAL_GROUPS = Object.freeze([
         {
             key: 'business',
-            title: '\uC5C5\uBB34 \uBD84\uB958\uC815\uBCF4',
+            title: '\uC5C5\uBB34\uBD84\uB958\uC815\uBCF4',
             description: '\uAC70\uB798 \uBC0F \uC804\uD45C \uC790\uB3D9 \uBC1C\uD589\uC5D0 \uC0AC\uC6A9\uD558\uB294 \uD575\uC2EC \uBD84\uB958 \uC815\uBCF4\uC785\uB2C8\uB2E4.',
         },
         {
@@ -137,7 +139,7 @@ export function createEvidenceModalModule({
         },
         {
             key: 'system',
-            title: '\uC2DC\uC2A4\uD15C\uCC98\uB9AC\uC815\uBCF4',
+            title: '\uC2DC\uC2A4\uD15C \uCC98\uB9AC\uC815\uBCF4',
             description: '\uCC98\uB9AC \uC0C1\uD0DC \uBC0F \uB0B4\uBD80 \uC2DD\uBCC4 \uC815\uBCF4\uC785\uB2C8\uB2E4. \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.',
             collapsible: true,
             default_open: false,
@@ -156,6 +158,8 @@ export function createEvidenceModalModule({
         updated_by: '\uC218\uC815\uC790',
         deleted_at: '\uC0AD\uC81C\uC77C\uC2DC',
         deleted_by: '\uC0AD\uC81C\uC790',
+        operation_type: '\uC5C5\uBB34\uC720\uD615',
+        transaction_direction: '\uAC70\uB798\uAD6C\uBD84',
     });
     const MODAL_REQUIRED_VALIDATION_EXCLUDED_KEYS = new Set([
         'external_key',
@@ -195,6 +199,7 @@ export function createEvidenceModalModule({
     ]);
     const MODAL_PAYLOAD_SYSTEM_KEY_SET = new Set(MODAL_PAYLOAD_SYSTEM_KEYS);
     const MODAL_DISPLAY_SYSTEM_KEY_SET = new Set(MODAL_DISPLAY_SYSTEM_KEYS);
+    const COMPLETED_EVIDENCE_STATUS_SET = new Set(['COMPLETED']);
     const MODAL_ACTOR_NAME_FIELDS = Object.freeze({
         created_by: 'created_by_name',
         updated_by: 'updated_by_name',
@@ -213,6 +218,30 @@ export function createEvidenceModalModule({
             .map((value) => String(value || '').trim())
             .map((value) => value.replace(/\s*\*$/u, '').trim())
             .filter(Boolean);
+    }
+
+    function isEvidenceStatusColumn(column = {}) {
+        return specialModalCandidateKeys(column).some((key) => key === 'evidence_status' || key === '\uC99D\uBE59 \uC0C1\uD0DC');
+    }
+
+    function normalizedEvidenceConfirmationStatus(value = '') {
+        return COMPLETED_EVIDENCE_STATUS_SET.has(String(value || '').trim().toUpperCase())
+            ? 'COMPLETED'
+            : 'CORRECTION_REQUIRED';
+    }
+
+    function renderEvidenceStatusSwitch(row = {}) {
+        const completed = normalizedEvidenceConfirmationStatus(row.evidence_status) === 'COMPLETED';
+        return `
+            <div class="evidence-status-confirmation" data-status="${completed ? 'COMPLETED' : 'CORRECTION_REQUIRED'}">
+                <span class="evidence-status-confirmation-label">\uC99D\uBE59\uC0C1\uD0DC</span>
+                <div class="form-check form-switch evidence-status-confirmation-control">
+                    <input class="form-check-input evidence-status-confirmation-switch" type="checkbox"
+                        role="switch" aria-label="\uC99D\uBE59\uC0C1\uD0DC \uC644\uB8CC \uD655\uC815" ${completed ? 'checked' : ''}>
+                    <span class="evidence-status-confirmation-text">${completed ? '\uC644\uB8CC' : '\uBCF4\uC815\uD544\uC694'}</span>
+                </div>
+            </div>
+        `;
     }
 
     function canonicalBusinessModalFieldKey(column = {}) {
@@ -335,11 +364,15 @@ export function createEvidenceModalModule({
 
     function resolvePolicyDisplayName(column = {}, fallback = '') {
         const key = String(column.system_field_name || column.original_column_key || editFieldKey(column) || column.key || '').trim();
-        return resolveDataTableColumnDisplayName(
+        const configuredName = resolveDataTableColumnDisplayName(
             { key, system_field_name: key, original_column_key: key },
             currentPolicyState(state.currentType),
             CANONICAL_MODAL_SYSTEM_FIELD_LABELS[key] || fallback || column.excel_column_name || column.label || key
         );
+        if (key === 'operation_type' && String(configuredName || '').replace(/\s+/g, '') === '\uC785\uCD9C\uAE08\uC720\uD615') {
+            return CANONICAL_MODAL_SYSTEM_FIELD_LABELS.operation_type;
+        }
+        return configuredName;
     }
 
     function resolveValidationFieldKey(column = {}, row = state.editingRow) {
@@ -359,6 +392,7 @@ export function createEvidenceModalModule({
 
     function resolvePolicyRequirementMode(column = {}) {
         const key = resolveValidationFieldKey(column);
+        if (key === 'evidence_status') return 0;
         const policyState = currentPolicyState(state.currentType);
         const requirementPolicyMap = policyState.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
             ? policyState.columnRequirementPolicy
@@ -375,18 +409,6 @@ export function createEvidenceModalModule({
         if (policy === 'required') return 1;
         if (policy === 'optional') return 2;
         return Number(column.requirement_mode || column.is_required || 0);
-    }
-
-    function currentColumnPolicyPayload() {
-        const policyState = currentPolicyState(state.currentType);
-        return {
-            column_display_name: policyState.columnDisplayName && typeof policyState.columnDisplayName === 'object'
-                ? policyState.columnDisplayName
-                : {},
-            column_requirement_policy: policyState.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
-                ? policyState.columnRequirementPolicy
-                : {},
-        };
     }
 
     function fallbackSpecialModalColumn(field = {}, options = {}) {
@@ -416,31 +438,31 @@ export function createEvidenceModalModule({
         };
     }
 
-    function isBusinessModalColumnKey(key = '') {
-        const target = String(key || '').trim();
-        return COMMON_BUSINESS_MODAL_FIELD_KEY_SET.has(target);
-    }
-
-    function isRawModalColumnKey(key = '') {
-        return /^raw_/i.test(String(key || '').trim());
-    }
-
     function isRawModalColumn(column = {}) {
         const group = String(column.system_field_group || column.group || '').trim();
-        return specialModalCandidateKeys(column).some((key) => isRawModalColumnKey(key)) || group.includes('\uC6D0\uBCF8');
+        if (canonicalBusinessModalFieldKey(column) || specialModalCandidateKeys(column).some(isSystemProcessingColumnKey)) {
+            return false;
+        }
+        if (group.includes('\uC2DC\uC2A4\uD15C') || group.includes('\uCC98\uB9AC\uC815\uBCF4')) {
+            return false;
+        }
+        return true;
     }
 
     function isSystemProcessingColumnKey(key = '') {
         const target = String(key || '').trim();
-        return target !== '' && !isBusinessModalColumnKey(target) && !isRawModalColumnKey(target);
+        return MODAL_DISPLAY_SYSTEM_KEY_SET.has(target)
+            || ['source_key', 'format_id', 'process_status', 'error_message'].includes(target)
+            || /^source_.+_id$/i.test(target)
+            || /^(?:current_)?approval_.+_id$/i.test(target);
     }
 
     function isSystemProcessingColumn(column = {}) {
-        if (canonicalSystemModalFieldKey(column)) {
+        if (specialModalCandidateKeys(column).some(isSystemProcessingColumnKey)) {
             return true;
         }
-        const target = canonicalBusinessModalFieldKey(column) || editFieldKey(column);
-        return target !== '' && !isBusinessModalColumnKey(target) && !isRawModalColumn(column);
+        const group = String(column.system_field_group || column.group || '').trim();
+        return group.includes('\uC2DC\uC2A4\uD15C') || group.includes('\uCC98\uB9AC\uC815\uBCF4');
     }
 
     function compareColumnDatabaseOrder(a = {}, b = {}) {
@@ -543,6 +565,7 @@ export function createEvidenceModalModule({
             }));
         const systemColumns = remainingColumns
             .filter((column) => isSystemProcessingColumn(column))
+            .filter((column) => !isEvidenceStatusColumn(column))
             .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
@@ -618,6 +641,7 @@ export function createEvidenceModalModule({
             }));
         const systemColumns = remainingColumns
             .filter((column) => isSystemProcessingColumn(column))
+            .filter((column) => !isEvidenceStatusColumn(column))
             .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
@@ -832,8 +856,11 @@ export function createEvidenceModalModule({
         return `
             <section class="evidence-edit-group-card evidence-edit-group-card-${escapeHtml(group.key)}">
                 <div class="evidence-edit-group-header">
-                    <h6 class="evidence-edit-group-title">${escapeHtml(group.title || '')}</h6>
-                    ${group.description ? `<p class="evidence-edit-group-description">${escapeHtml(group.description)}</p>` : ''}
+                    <div class="evidence-edit-group-heading">
+                        <h6 class="evidence-edit-group-title">${escapeHtml(group.title || '')}</h6>
+                        ${group.description ? `<p class="evidence-edit-group-description">${escapeHtml(group.description)}</p>` : ''}
+                    </div>
+                    ${group.key === 'business' ? renderEvidenceStatusSwitch(row) : ''}
                 </div>
                 <div class="evidence-edit-group-fields">${fieldsHtml}</div>
             </section>
@@ -897,39 +924,7 @@ export function createEvidenceModalModule({
     }
 
     function renderDefaultModalFields(row = {}) {
-        const editableColumns = defaultModalColumns();
-
-        if (editableColumns.length === 0) {
-            state.refs.editFields.innerHTML = '<div class="text-muted text-center py-4">\uC218\uC815 \uAC00\uB2A5\uD55C \uC99D\uBE59 \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uD615\uC2DD \uC124\uC815\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.</div>';
-            return;
-        }
-
-        state.refs.editFields.innerHTML = editableColumns.map((column) => {
-            const key = resolveEditFieldKey(column, state.editingRow);
-            const title = String(column.excel_column_name || key);
-            const systemField = String(column.system_field_name || '').trim();
-            const value = modalFieldDisplayValue(row, column);
-            const cleanTitle = title.replace(/\s*\*$/u, '');
-            const displayStar = requirementStar(column);
-            const infoTone = infoColumnTone(column);
-            const infoToneClass = infoTone ? ` evidence-edit-field-${infoTone}` : '';
-            const titleText = escapeHtml(cleanTitle);
-            const systemFieldText = escapeHtml(systemField || key);
-            const metaTitle = escapeHtml(`${cleanTitle} (${systemField || key})`);
-            return `
-                <label class="evidence-edit-field${infoToneClass}" title="${metaTitle}">
-                    <span class="form-label small mb-1 d-flex align-items-center gap-2">
-                        <span class="evidence-edit-title">
-                            <span class="evidence-edit-title-text" title="${titleText}">${titleText}</span>
-                            ${displayStar}
-                        </span>
-                        ${renderFieldBadge(column)}
-                        <span class="text-muted evidence-edit-field-key" title="${systemFieldText}">${systemFieldText}</span>
-                    </span>
-                    ${renderEditInput(column, value, {}, row)}
-                </label>
-            `;
-        }).join('');
+        renderTaxInvoiceModalFields(row);
     }
 
     function defaultModalColumns() {
@@ -951,9 +946,101 @@ export function createEvidenceModalModule({
         return defaultModalColumns();
     }
 
+    function incomeOriginalValue(value, fallback = '-') {
+        return value === null || value === undefined || value === '' ? fallback : String(value);
+    }
+
+    function renderIncomeOriginalFields(row = {}, kind = '') {
+        const personName = kind === 'salary'
+            ? (row.employee_name || row.regular_employment_income_item_name)
+            : kind === 'daily'
+                ? (row.worker_name || row.worker_client_name || row.client_name)
+                : (row.raw_recipient_name || row.raw_client_name || row.client_name);
+        const amountDefinitions = kind === 'salary'
+            ? [
+                ['공제 전 지급액', row.raw_gross_payment_amount], ['근로소득세', row.raw_income_tax_amount],
+                ['지방소득세', row.raw_local_income_tax_amount], ['국민연금', row.raw_national_pension_amount],
+                ['건강보험', row.raw_health_insurance_amount], ['장기요양보험', row.raw_long_term_care_amount],
+                ['고용보험', row.raw_employment_insurance_amount], ['기타공제', row.raw_other_deduction_amount],
+                ['근로자 공제합계', row.raw_worker_deduction_amount], ['최종지급액', row.raw_net_payment_amount],
+                ['사용자부담', row.raw_employer_burden_amount],
+            ]
+            : kind === 'daily'
+                ? [
+                    ['근무일수', row.raw_work_day_count, false], ['공제 전 지급액', row.raw_gross_payment_amount],
+                    ['근로자 공제합계', row.raw_worker_deduction_amount], ['최종지급액', row.raw_net_payment_amount],
+                    ['사용자부담', row.raw_employer_burden_amount],
+                ]
+                : [
+                    ['공제 전 확정금액', row.raw_gross_payment_amount], ['사업소득세', row.raw_income_tax_amount],
+                    ['개인지방소득세', row.raw_local_income_tax_amount], ['총공제액', row.raw_total_deduction_amount],
+                    ['최종지급액', row.raw_net_payment_amount],
+                ];
+        const amountCards = amountDefinitions.map(([label, value, money = true]) => `
+            <div class="evidence-income-original-amount">
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(money ? `${formatNumber(value || 0)}원` : incomeOriginalValue(value, '0'))}</strong>
+            </div>
+        `).join('');
+        const info = [
+            ['귀속연월', row.raw_income_year_month], ['원천징수일', row.raw_withholding_date],
+            [kind === 'salary' ? '직원' : kind === 'daily' ? '일용근로자' : '사업소득자', personName],
+            ['사업구분', row.business_unit_name || row.raw_business_unit || row.business_unit],
+            ['프로젝트', row.project_name], ['작업팀', row.work_team_name || row.team_name],
+            ['원본상태', row.evidence_status], ['승인자', row.approved_by_name || row.approved_by],
+            ['승인일시', row.approved_at], ['거래 연결', row.transaction_id ? '연결 완료' : '미연결'],
+        ];
+        state.refs.editFields.innerHTML = `
+            <div class="evidence-edit-groups evidence-income-original-groups">
+                <section class="evidence-edit-group-card">
+                    <div class="evidence-edit-group-header"><h6 class="evidence-edit-group-title">승인 원본정보</h6></div>
+                    <div class="evidence-income-original-info">
+                        ${info.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(incomeOriginalValue(value))}</strong></div>`).join('')}
+                    </div>
+                </section>
+                <section class="evidence-edit-group-card">
+                    <div class="evidence-edit-group-header"><h6 class="evidence-edit-group-title">승인 금액 대사</h6></div>
+                    <div class="evidence-income-original-amounts">${amountCards}</div>
+                </section>
+            </div>
+        `;
+    }
+
+    function renderIncomeCalculationLines(row = {}, kind = '') {
+        const lines = Array.isArray(row.raw_lines) ? row.raw_lines : [];
+        const body = lines.length > 0 ? lines.map((line) => {
+            const name = kind === 'salary' ? line.item_name_snapshot : (line.line_name_snapshot || line.line_code);
+            const basis = kind === 'salary' ? line.calculation_basis_amount : line.raw_calculation_basis_amount;
+            const rate = kind === 'salary' ? line.calculation_rate : line.raw_calculation_rate;
+            const amount = kind === 'salary' ? line.final_amount : line.raw_final_amount;
+            const status = kind === 'salary' ? line.application_status_code : line.application_status_code;
+            return `<tr><td>${escapeHtml(incomeOriginalValue(name))}</td><td>${escapeHtml(incomeOriginalValue(status))}</td><td class="text-end">${escapeHtml(formatNumber(basis || 0))}</td><td class="text-end">${escapeHtml(rate === null || rate === '' ? '-' : formatNumber(rate))}</td><td class="text-end fw-semibold">${escapeHtml(formatNumber(amount || 0))}</td></tr>`;
+        }).join('') : '<tr><td colspan="5" class="text-center text-muted py-3">승인 계산 원본 Line이 없습니다.</td></tr>';
+        state.refs.editFields.insertAdjacentHTML('beforeend', `
+            <section class="evidence-edit-group-card evidence-income-original-lines">
+                <div class="evidence-edit-group-header"><div><h6 class="evidence-edit-group-title">승인 계산 원본</h6><p class="evidence-edit-group-description">승인 당시 계산기초·요율·확정금액을 변경 없이 표시합니다.</p></div></div>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>항목</th><th>적용상태</th><th class="text-end">계산기초</th><th class="text-end">요율</th><th class="text-end">확정금액</th></tr></thead><tbody>${body}</tbody></table></div>
+            </section>
+        `);
+    }
+
     function renderEditFieldsByType(row = {}) {
         if (!state.refs.editFields) return;
         clearEditPickerLayers();
+        if (isModalPreset(row, 'business_income_report')) {
+            renderBusinessIncomeReportModalFields(row);
+            return;
+        }
+        if (isModalPreset(row, 'salary_report')) {
+            renderIncomeOriginalFields(row, 'salary');
+            renderIncomeCalculationLines(row, 'salary');
+            return;
+        }
+        if (isModalPreset(row, 'daily_income_report')) {
+            renderIncomeOriginalFields(row, 'daily');
+            renderIncomeCalculationLines(row, 'daily');
+            return;
+        }
         if (isModalPreset(row, 'bank_like')) {
             renderBankModalFields(row);
             return;
@@ -963,6 +1050,72 @@ export function createEvidenceModalModule({
             return;
         }
         renderDefaultModalFields(row);
+    }
+
+    function renderBusinessIncomeReportModalFields(row = {}) {
+        renderIncomeOriginalFields(row, 'business');
+
+        const workLines = Array.isArray(row.work_lines) ? row.work_lines : [];
+        const rawLines = Array.isArray(row.raw_lines) ? row.raw_lines : [];
+        const workBody = workLines.length > 0
+            ? workLines.map((line, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(line.raw_item_name || '-')}</td>
+                    <td>${escapeHtml(line.raw_item_specification || '-')}</td>
+                    <td>${escapeHtml(line.raw_item_unit_name || '-')}</td>
+                    <td class="text-end">${escapeHtml(formatNumber(line.raw_item_quantity || 0))}</td>
+                    <td class="text-end">${escapeHtml(formatNumber(line.raw_item_unit_price || 0))}</td>
+                    <td class="text-end">${escapeHtml(formatNumber(line.raw_calculated_amount || 0))}</td>
+                    <td class="text-end">${escapeHtml(formatNumber(line.raw_adjustment_amount || 0))}</td>
+                    <td>${escapeHtml(line.raw_adjustment_reason || '-')}</td>
+                    <td class="text-end fw-semibold">${escapeHtml(formatNumber(line.raw_final_amount || 0))}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="10" class="text-center text-muted py-3">외주 작업내역이 없습니다.</td></tr>';
+        const rawBody = rawLines.length > 0
+            ? rawLines.map((line) => `
+                <tr>
+                    <td>${escapeHtml(line.raw_line_name || line.raw_line_code || '-')}</td>
+                    <td>${escapeHtml(line.raw_applicability_status || '-')}</td>
+                    <td class="text-end">${escapeHtml(formatNumber(line.raw_calculation_base_amount || 0))}</td>
+                    <td class="text-end">${line.raw_applied_rate === null || line.raw_applied_rate === '' ? '-' : escapeHtml(formatNumber(line.raw_applied_rate))}</td>
+                    <td>${escapeHtml(line.raw_rounding_method || '-')}</td>
+                    <td class="text-end fw-semibold">${escapeHtml(formatNumber(line.raw_calculated_amount || 0))}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="6" class="text-center text-muted py-3">원천징수 계산 원천자료가 없습니다.</td></tr>';
+
+        state.refs.editFields.insertAdjacentHTML('beforeend', `
+            <section class="evidence-edit-group-card evidence-business-income-detail-card">
+                <div class="evidence-edit-group-header">
+                    <div class="evidence-edit-group-heading">
+                        <h6 class="evidence-edit-group-title">외주 작업내역 원본</h6>
+                        <p class="evidence-edit-group-description">승인 당시 소득자 지급액을 산정한 품목별 원본입니다.</p>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 evidence-business-income-detail-table">
+                        <thead><tr><th>순번</th><th>품명</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th><th>증감</th><th>증감사유</th><th>확정금액</th></tr></thead>
+                        <tbody>${workBody}</tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="evidence-edit-group-card evidence-business-income-detail-card">
+                <div class="evidence-edit-group-header">
+                    <div class="evidence-edit-group-heading">
+                        <h6 class="evidence-edit-group-title">원천징수 계산 원천자료</h6>
+                        <p class="evidence-edit-group-description">승인 당시 법정기준과 계산 Revision으로 확정된 공제 원본입니다.</p>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 evidence-business-income-detail-table">
+                        <thead><tr><th>공제항목</th><th>적용상태</th><th>계산기초</th><th>적용요율</th><th>끝수처리</th><th>공제금액</th></tr></thead>
+                        <tbody>${rawBody}</tbody>
+                    </table>
+                </div>
+            </section>
+        `);
     }
 
     function bulkEditableColumns() {
@@ -1408,6 +1561,18 @@ export function createEvidenceModalModule({
     }
 
     function bindEditFieldBehaviors() {
+        const statusSwitch = state.refs.editFields?.querySelector('.evidence-status-confirmation-switch');
+        if (statusSwitch && statusSwitch.dataset.statusBound !== 'true') {
+            statusSwitch.addEventListener('change', () => {
+                const wrapper = statusSwitch.closest('.evidence-status-confirmation');
+                const status = statusSwitch.checked ? 'COMPLETED' : 'CORRECTION_REQUIRED';
+                if (wrapper) wrapper.dataset.status = status;
+                const label = wrapper?.querySelector('.evidence-status-confirmation-text');
+                if (label) label.textContent = statusSwitch.checked ? '\uC644\uB8CC' : '\uBCF4\uC815\uD544\uC694';
+            });
+            statusSwitch.dataset.statusBound = 'true';
+        }
+
         state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
             if (input.dataset.validationResetBound === 'true') return;
             const clear = () => {
@@ -1530,6 +1695,8 @@ export function createEvidenceModalModule({
 
     function collectEditPayload() {
         const next = preserveSystemPayloadFields({}, state.editingRow || {});
+        const statusSwitch = state.refs.editFields?.querySelector('.evidence-status-confirmation-switch');
+        next.evidence_status = statusSwitch?.checked ? 'COMPLETED' : 'CORRECTION_REQUIRED';
         const editedKeys = new Set();
         state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
             const key = input.dataset.key || '';
@@ -1755,7 +1922,6 @@ export function createEvidenceModalModule({
         if (!state.editingRow || isSavingEditingRow) return;
         if (!validateRequiredEditFields()) return;
         const payload = collectEditPayload();
-        const policyPayload = currentColumnPolicyPayload();
         if (!validateBusinessProjectRule(payload)) return;
         const isNew = state.editingRow.__isNew === true;
         const saveButton = state.refs.editSaveBtn;
@@ -1769,8 +1935,6 @@ export function createEvidenceModalModule({
                     id: state.editingRow.id || '',
                     import_type: state.currentType,
                     parsed_json: payload,
-                    column_display_name: policyPayload.column_display_name,
-                    column_requirement_policy: policyPayload.column_requirement_policy,
                 }),
             }).then(async (response) => {
                 const body = await response.json().catch(() => ({}));
@@ -1807,20 +1971,19 @@ export function createEvidenceModalModule({
         state.editingRow = row;
         state.refs.editId.value = row.id;
         const typeLabel = evidenceTypeDisplayName(row);
+        const isReadOnlyEvidence = evidenceTypePolicy(row.import_type || state.currentType)?.readOnly === true;
         if (state.refs.editTitle) {
-            state.refs.editTitle.textContent = `${typeLabel} 증빙 수정`;
+            state.refs.editTitle.textContent = `${typeLabel} ${isReadOnlyEvidence ? '증빙 상세' : '증빙 수정'}`;
         }
         if (state.refs.editSubtitle) {
-            const statusLabel = businessEvidenceStatusText(row.evidence_status || normalizedStatus(row)) || '-';
             state.refs.editSubtitle.textContent = [
                 `순번 ${row.sort_no || '-'}`,
                 typeLabel,
-                statusLabel,
             ].join(' / ');
         }
         renderEditFieldsByType(row);
         bindEditFieldBehaviors();
-        const isEditable = !evidenceTypePolicy(row.import_type || state.currentType)?.readOnly
+        const isEditable = !isReadOnlyEvidence
             && normalizedStatus(row) !== 'PROCESSED' && normalizedStatus(row) !== 'DELETED';
         state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
             input.disabled = !isEditable;
@@ -1831,8 +1994,13 @@ export function createEvidenceModalModule({
         state.refs.editFields?.querySelectorAll('.evidence-edit-date-btn').forEach((button) => {
             button.disabled = !isEditable;
         });
+        const statusSwitch = state.refs.editFields?.querySelector('.evidence-status-confirmation-switch');
+        if (statusSwitch) statusSwitch.disabled = !isEditable;
         applyBankModalLockState(isEditable);
-        if (state.refs.editSaveBtn) state.refs.editSaveBtn.disabled = !isEditable;
+        if (state.refs.editSaveBtn) {
+            state.refs.editSaveBtn.disabled = !isEditable;
+            state.refs.editSaveBtn.hidden = !isEditable;
+        }
         state.editModal = bootstrap.Modal.getOrCreateInstance(state.refs.editModal, { focus: false });
         state.editModal.show();
     }
@@ -1880,7 +2048,10 @@ export function createEvidenceModalModule({
             button.disabled = false;
         });
         applyBankModalLockState(true);
-        if (state.refs.editSaveBtn) state.refs.editSaveBtn.disabled = false;
+        if (state.refs.editSaveBtn) {
+            state.refs.editSaveBtn.disabled = false;
+            state.refs.editSaveBtn.hidden = false;
+        }
         state.editModal = bootstrap.Modal.getOrCreateInstance(state.refs.editModal, { focus: false });
         state.editModal.show();
     }

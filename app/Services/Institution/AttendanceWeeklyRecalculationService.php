@@ -132,7 +132,7 @@ final class AttendanceWeeklyRecalculationService
     private function assertNoClosedMonth(string $employeeId, array $rows): void
     {
         foreach (array_unique(array_map(static fn(array $row): string => substr((string) $row['work_date'], 0, 7), $rows)) as $month) {
-            $closure = $this->model->closure($employeeId, $month);
+            $closure = $this->model->closure($employeeId, $month, true);
             if ($closure && (string) $closure['close_status_code'] === 'CLOSED') {
                 throw new \RuntimeException('마감된 월이 포함된 법정 주간은 자동으로 변경할 수 없습니다. 먼저 해당 월을 재오픈해 주세요.');
             }

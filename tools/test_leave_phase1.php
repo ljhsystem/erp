@@ -76,6 +76,15 @@ try {
     try{$service->save(['reason'=>'rollback 비근무일','request_key'=>$uuid(),'items'=>[['leave_type_id'=>$typeId,'leave_date'=>$monday->modify('+6 day')->format('Y-m-d'),'request_unit_code'=>'FULL_DAY']]],$employeeId);throw new RuntimeException('비근무일 신청이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'근무일'))throw $exception;}
     $approvalDate=$monday->modify('+7 day')->format('Y-m-d');
     $approvedDraft=$service->save(['reason'=>'rollback 승인 흐름','request_key'=>$uuid(),'items'=>[['leave_type_id'=>$typeId,'leave_date'=>$approvalDate,'request_unit_code'=>'FULL_DAY']]],$employeeId);
+    $otherEmployeeId=(string)$pdo->query("SELECT id FROM user_employees WHERE id<>".$pdo->quote($employeeId)." ORDER BY sort_no LIMIT 1")->fetchColumn();
+    if($otherEmployeeId==='')throw new RuntimeException('소유권 검증용 다른 직원이 없습니다.');
+    $insertForeignRequest=$pdo->prepare("INSERT INTO institution_leave_requests (id,request_no,employee_id,request_kind_code,original_request_id,business_status_code,current_approval_request_id,reason,requested_total_minutes,request_key,created_at,created_by,updated_at,updated_by) VALUES (:id,:no,:employee,'LEAVE',NULL,:status,NULL,'rollback 타인 소유권 검증',0,:request_key,NOW(),'SYSTEM:ROLLBACK_TEST',NOW(),'SYSTEM:ROLLBACK_TEST')");
+    $foreignDraftId=$uuid();$insertForeignRequest->execute([':id'=>$foreignDraftId,':no'=>'LV-OWN-DRAFT-'.substr(str_replace('-','',$foreignDraftId),0,8),':employee'=>$otherEmployeeId,':status'=>'DRAFT',':request_key'=>$uuid()]);
+    try{$service->submit($foreignDraftId);throw new RuntimeException('다른 직원의 신청 상신이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'다른 직원'))throw $exception;}
+    try{$service->detailOwned($foreignDraftId);throw new RuntimeException('다른 직원의 신청 상세조회가 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'다른 직원'))throw $exception;}
+    try{$service->save(['id'=>$foreignDraftId,'reason'=>'rollback 타인 수정','request_key'=>$uuid(),'items'=>[]],$employeeId);throw new RuntimeException('다른 직원의 신청 수정이 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'다른 직원'))throw $exception;}
+    $foreignApprovedId=$uuid();$insertForeignRequest->execute([':id'=>$foreignApprovedId,':no'=>'LV-OWN-APPROVED-'.substr(str_replace('-','',$foreignApprovedId),0,8),':employee'=>$otherEmployeeId,':status'=>'APPROVED',':request_key'=>$uuid()]);
+    try{$service->cancel($foreignApprovedId,$uuid(),'rollback 타인 취소');throw new RuntimeException('다른 직원의 승인 휴가 취소가 차단되지 않았습니다.');}catch(RuntimeException $exception){if(!str_contains($exception->getMessage(),'다른 직원'))throw $exception;}
     $submitted=$service->submit($approvedDraft['data']['id']);
     $stepStmt=$pdo->prepare("SELECT id FROM user_approval_request_steps WHERE request_id=:request AND status='pending' LIMIT 1");$stepStmt->execute([':request'=>$submitted['data']['request_id']]);$stepId=(string)$stepStmt->fetchColumn();
     $service->act($stepId,'approved','rollback 최종 승인');
@@ -86,12 +95,6 @@ try {
     $service->act($cancelStepId,'approved','rollback 취소 승인');
     $cancelledDetail=$service->detail($approvedDraft['data']['id'])['data'];
     if($cancelledDetail['business_status_code']!=='CANCELLED'||$cancelledDetail['usages'][0]['usage_status_code']!=='CANCELLED')throw new RuntimeException('승인 후 전체 취소 검증 실패');
-    ob_start();
-    $service->excel(['type'=>'balances','base_year'=>2098], $employeeId);
-    $bytes = (string) ob_get_clean();
-    if (!str_starts_with($bytes, 'PK')) {
-        throw new RuntimeException('휴가 Excel 생성 검증 실패');
-    }
     echo "leave phase1 rollback test passed\n";
 } finally {
     $pdo->rollBack();

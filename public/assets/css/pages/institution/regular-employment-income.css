@@ -1,1 +1,204 @@
-.regular-employment-income-page{min-width:0}.regular-employment-income-page .content-area{display:grid;gap:1rem}#regularIncomeModal .modal-dialog{max-width:min(96vw,1500px)}#regularIncomeItems{min-width:1400px}#regularIncomeItems input{min-width:95px;text-align:right}#regularIncomeItems td:first-child{min-width:140px}
+.regular-employment-income-page { min-width: 0; }
+.regular-employment-income-page .dt-content-stack { min-width: 0; }
+#regularIncomeModal .modal-dialog { max-width: min(96vw, 1500px); }
+.regular-income-date-field { flex: 0 0 auto; }
+.regular-income-month-field { width: 160px; }
+.regular-income-payment-date-field { width: 185px; }
+.regular-income-title-field { width: 320px; }
+.regular-income-description-field { width: 320px; }
+.regular-income-description-field .form-control { width: 100%; }
+.regular-income-memo-field { flex: 1 1 240px; width: auto; min-width: 240px; }
+.regular-income-memo-field .form-control { width: 100%; }
+.regular-income-date-field .date-input-wrap { position: relative; }
+.regular-income-date-field .date-input-wrap .form-control { min-width: 0; padding-right: 34px; }
+.regular-income-date-field .date-icon { position: absolute; top: 50%; right: 8px; z-index: 2; color: var(--bs-secondary-color); font-size: 14px; line-height: 1; cursor: pointer; opacity: .6; transform: translateY(-50%); transition: opacity .15s ease, transform .15s ease; }
+.regular-income-date-field .date-input-wrap:hover .date-icon { opacity: 1; transform: translateY(-50%) scale(1.1); }
+.regular-income-date-field .date-icon[aria-disabled="true"] { cursor: default; pointer-events: none; opacity: .35; }
+#regularIncomeModal .form-control,
+#regularIncomeModal .form-select,
+#regularIncomeModal .select2-container .select2-selection--single .select2-selection__rendered { text-align: left !important; }
+#regularIncomeModal .number-input { text-align: right !important; font-variant-numeric: tabular-nums; }
+#regularIncomeModal .modal-footer { justify-content: flex-end; }
+#regularIncomeModal .modal-footer #regularIncomeDelete { margin-right: 0 !important; }
+.regular-income-grid-host { max-width: 100%; overflow-x: auto; scrollbar-gutter: auto; }
+.regular-income-employee-cards { display: grid; gap: 6px; }
+.regular-income-employee-empty { min-height: 58px; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: 6px; color: var(--bs-secondary-color); background: var(--bs-body-bg); }
+.regular-income-employee-card { overflow: hidden; border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-body-bg); }
+.regular-income-employee-card.is-selected { border-color: var(--bs-primary); box-shadow: 0 0 0 1px var(--bs-primary); }
+.regular-income-employee-card__header { display: grid; grid-template-columns: 24px 18px max-content max-content minmax(110px, 1fr) repeat(3, max-content) max-content 30px; align-items: center; gap: 6px; min-height: 40px; padding: 4px 6px; overflow: hidden; background: var(--bs-tertiary-bg); white-space: nowrap; font-size: 11px; }
+.regular-income-employee-card__header.has-remove-action { grid-template-columns: 24px 18px max-content max-content minmax(110px, 1fr) repeat(3, max-content) max-content repeat(2, 30px); }
+.regular-income-employee-order { text-align: center; font-weight: 700; }
+.regular-income-employee-drag-handle { display: grid; width: 18px; height: 28px; place-items: center; color: var(--bs-secondary-color); cursor: grab; }
+.regular-income-employee-drag-handle:active { cursor: grabbing; }
+.regular-income-employee-drag-handle.is-disabled { cursor: default; opacity: .45; }
+.regular-income-employee-card.is-dragging { opacity: .55; }
+.regular-income-employee-card.is-drag-over { border-color: var(--bs-primary); }
+.regular-income-employee-select { overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--bs-primary); font-weight: 700; text-align: left; text-overflow: ellipsis; }
+.regular-income-employee-badge { padding: 2px 6px; border-radius: 999px; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); font-size: 10px; }
+.regular-income-employee-department { overflow: hidden; text-overflow: ellipsis; }
+.regular-income-employee-payment { font-weight: 700; font-variant-numeric: tabular-nums; }
+.regular-income-employee-action { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--bs-secondary-color); }
+.regular-income-employee-action:hover { background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+.regular-income-employee-action.is-danger { color: var(--bs-danger); }
+.regular-income-employee-card__body { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px; border-top: 1px solid var(--bs-border-color); }
+.regular-income-employee-card__body > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--bs-tertiary-bg); font-size: 12px; }
+.regular-income-employee-card__body span { color: var(--bs-secondary-color); }
+.regular-income-employee-card__body p { grid-column: 1 / -1; margin: 0; color: var(--bs-warning-text-emphasis); font-size: 11px; }
+.regular-income-employee-card.is-collapsed .regular-income-employee-card__body { display: none; }
+.regular-income-employee-card > .regular-income-detail { margin: 0; padding: 10px; border: 0; border-top: 1px solid var(--bs-border-color); border-radius: 0; }
+.regular-income-employee-card.is-collapsed > .regular-income-detail { display: none; }
+.regular-income-grid-host .html-grid-table { width: 100%; min-width: 1060px; }
+.regular-income-grid-host .html-grid-header-cell,
+.regular-income-grid-host .html-grid-cell { padding-right: 6px; padding-left: 6px; font-size: .875rem; }
+.regular-income-grid-host .html-grid-column-calculation_message .html-grid-cell-value { cursor: help; }
+.regular-income-grid-host .html-grid-cell-type-number { text-align: right; }
+.regular-income-grid-host .html-grid-column-row_action,
+.regular-income-grid-host .html-grid-column-row_action .html-grid-cell-content,
+.regular-income-grid-host .html-grid-column-row_action .html-grid-cell-editor-slot { text-align: center; }
+.regular-income-grid-host .html-grid-column-row_action .html-grid-cell-content,
+.regular-income-grid-host .html-grid-column-row_action .html-grid-cell-editor-slot { display: flex; align-items: center; justify-content: center; height: 100%; }
+.regular-income-grid-actions { display: inline-flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; }
+#regularIncomeItemsGrid .regular-income-grid-actions .btn.btn-sm { display: inline-flex; flex: 0 0 39px; align-items: center; justify-content: center; width: 39px; min-width: 39px; height: 26px; min-height: 26px !important; padding: 0 4px !important; border-radius: 6px; font-size: .75rem !important; line-height: 1 !important; white-space: nowrap; word-break: keep-all; }
+.regular-income-summary { margin-top: .75rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--bs-light); font-weight: 600; text-align: right; }
+.regular-income-detail { display: grid; gap: 1rem; margin-top: 1rem; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+.regular-income-detail.is-hidden { display: none; }
+.regular-income-detail-sections { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 1rem; align-items: start; }
+.regular-income-detail-group { min-width: 0; grid-column: 1; padding: .75rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+.regular-income-detail-group .income-calculation-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.regular-income-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.regular-income-line-card { display: grid; gap: .65rem; padding: .75rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-body-bg); }
+.regular-income-line-card h6 { margin: 0; font-weight: 700; }
+.regular-income-line-title { display: flex; align-items: center; justify-content: space-between; gap: .35rem; width: 100%; }
+.regular-income-pay-tax-badge { display: inline-flex; align-items: center; width: fit-content; padding: .1rem .35rem; border-radius: 999px; font-size: .65rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.regular-income-pay-tax-badge.is-taxable { color: var(--bs-danger-text-emphasis); background: var(--bs-danger-bg-subtle); }
+.regular-income-pay-tax-badge.is-non-taxable { color: var(--bs-info-text-emphasis); background: var(--bs-info-bg-subtle); }
+.regular-income-pay-effect-badge { justify-self: start; padding: .1rem .35rem; border-radius: 999px; font-size: .7rem; font-weight: 700; line-height: 1.2; }
+.regular-income-pay-effect-badge.is-increase { color: var(--bs-primary-text-emphasis); background: var(--bs-primary-bg-subtle); }
+.regular-income-pay-effect-badge.is-decrease { color: var(--bs-danger-text-emphasis); background: var(--bs-danger-bg-subtle); }
+.regular-income-pay-effect-editor { grid-column: 1 / -1; }
+.regular-income-pay-grid > .regular-income-line-card { padding: .6rem; background: var(--bs-tertiary-bg); box-shadow: none; }
+.regular-income-pay-effect-editor { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; padding-top: .65rem; border-top: 1px dashed var(--bs-border-color); }
+.regular-income-pay-effect-editor > .regular-income-manual-pay { grid-column: 1 / -1; }
+.regular-income-add-card { display: grid; place-items: center; gap: .15rem; min-height: 74px; padding: .65rem; border: 1px dashed var(--bs-primary); border-radius: .5rem; color: var(--bs-primary); background: transparent; }
+.regular-income-add-card strong { font-size: 1.35rem; line-height: 1; }
+.regular-income-add-card:hover { background: var(--bs-primary-bg-subtle); }
+.regular-income-add-card.is-hidden,
+.regular-income-manual-pay.is-hidden { display: none; }
+.regular-income-line-card { position: relative; min-width: 0; }
+#regularIncomeEmployeeDetail .regular-income-line-remove.btn-sm { position: absolute; top: .4rem; right: .4rem; display: inline-flex; align-items: center; justify-content: center; width: 26px !important; min-width: 26px !important; max-width: 26px !important; min-height: 26px !important; height: 26px !important; max-height: 26px !important; padding: 0 !important; border: 0; border-radius: 50% !important; color: var(--bs-danger); background: transparent; font-size: 0 !important; line-height: 1 !important; aspect-ratio: 1 / 1; }
+#regularIncomeEmployeeDetail .regular-income-line-remove.btn-sm::before { content: '×'; display: block; font-size: 1rem; line-height: 1; transform: translateY(-.5px); }
+#regularIncomeEmployeeDetail .regular-income-line-remove.btn-sm:hover,
+#regularIncomeEmployeeDetail .regular-income-line-remove.btn-sm:focus-visible { color: #fff; background: var(--bs-danger); box-shadow: 0 0 0 .15rem rgba(var(--bs-danger-rgb), .2); }
+.regular-income-employer-burden { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; align-items: center; margin-top: .25rem; padding-top: .65rem; border-top: 1px dashed var(--bs-border-color); }
+.regular-income-employer-burden > h6 { color: var(--bs-secondary-color); font-size: .825rem; }
+.regular-income-employer-burden > strong { justify-self: end; }
+.regular-income-employer-burden > small { grid-column: 1 / -1; color: var(--bs-secondary-color); }
+.regular-income-calculation-facts { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(0, 1.4fr); margin: 0; font-size: .825rem; }
+.regular-income-calculation-facts dt,
+.regular-income-calculation-facts dd { margin: 0; padding: .25rem .35rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
+.regular-income-calculation-facts dt { color: var(--bs-secondary-color); font-weight: 500; }
+.regular-income-applied-amounts { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.regular-income-applied-amounts > div,
+.regular-income-applied-amounts > label,
+.regular-income-adjustment-reason { display: grid; align-content: start; gap: .25rem; font-size: .8rem; color: var(--bs-secondary-color); }
+.regular-income-applied-amounts > div,
+.regular-income-applied-amounts > label { grid-template-rows: auto auto; gap: .1rem; }
+.regular-income-applied-amounts strong { min-height: 31px; display: flex; align-items: center; justify-content: flex-end; color: var(--bs-body-color); text-align: right; font-variant-numeric: tabular-nums; }
+.regular-income-applied-amount-input { min-height: 26px; height: 26px; padding-top: .125rem; padding-bottom: .125rem; text-align: right; }
+.regular-income-adjustment-reason.is-hidden { display: none; }
+.regular-income-auto-label { display: inline-flex; align-items: center; gap: .3rem; }
+.regular-income-auto-apply { display: inline-flex; align-items: center; min-height: 16px; padding: 1px 4px; border: 1px solid var(--bs-secondary-color); border-radius: 3px; background: transparent; color: var(--bs-secondary-color); font-size: .45rem; font-weight: 400; line-height: 1.1; white-space: nowrap; }
+.regular-income-auto-apply:hover,
+.regular-income-auto-apply:focus-visible { border-color: var(--bs-primary); color: var(--bs-primary); outline: none; }
+.regular-income-card-basis { display: grid; gap: .25rem; font-size: .8rem; color: var(--bs-secondary-color); }
+.regular-income-card-basis strong { color: var(--bs-body-color); text-align: right; font-variant-numeric: tabular-nums; }
+.regular-income-card-basis-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .4rem; }
+.regular-income-dependent-stepper { grid-template-columns: 28px 56px auto 28px; justify-content: start; width: fit-content; gap: 4px; }
+.regular-income-dependent-stepper input { width: 56px; min-width: 0; text-align: center !important; appearance: textfield; -moz-appearance: textfield; }
+.regular-income-dependent-stepper input::-webkit-inner-spin-button,
+.regular-income-dependent-stepper input::-webkit-outer-spin-button { margin: 0; appearance: none; -webkit-appearance: none; }
+.regular-income-dependent-step { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: var(--bs-border-radius-sm, 4px); color: var(--bs-secondary-color); background: transparent; }
+.regular-income-dependent-step:hover:not(:disabled),
+.regular-income-dependent-step:focus-visible { border-color: var(--bs-border-color); background: var(--bs-secondary-bg); outline: none; }
+.regular-income-dependent-step:disabled { opacity: .35; cursor: default; }
+.regular-income-dependent-unit { white-space: nowrap; }
+.regular-income-status,
+.regular-income-table-status { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 72px; height: 24px; min-height: 24px; padding: 0 .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; line-height: 1; white-space: nowrap; vertical-align: middle; }
+.regular-income-status.is-valid { color: var(--bs-success-text-emphasis); background: var(--bs-success-bg-subtle); }
+.regular-income-status.is-warning { color: var(--bs-warning-text-emphasis); background: var(--bs-warning-bg-subtle); }
+.regular-income-order-cell { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; width: 100%; }
+#regularIncomeItemsGrid .html-grid-column-sort_no .html-grid-cell-value { display: none; }
+.regular-income-order-handle { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; color: var(--bs-secondary-color); cursor: pointer !important; user-select: none; }
+.regular-income-order-handle:hover,
+.regular-income-order-handle:focus-visible { color: var(--bs-primary); background: var(--bs-primary-bg-subtle); outline: none; }
+.regular-income-order-handle:active { cursor: pointer !important; }
+.regular-income-order-handle.is-disabled { opacity: .35; cursor: pointer !important; }
+.regular-income-order-cell strong { min-width: 1.2em; font-variant-numeric: tabular-nums; text-align: center; }
+.regular-income-final-summary { position: sticky; top: -.5rem; grid-column: 2; grid-row: 1 / span 5; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-body-bg); box-shadow: var(--bs-box-shadow-sm); }
+.regular-income-final-summary > h6 { margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--bs-border-color); color: var(--bs-emphasis-color); font-size: 15px; font-weight: 800; }
+.regular-income-final-summary > h6 .badge { vertical-align: 1px; font-size: 10px; font-weight: 700; }
+.regular-income-result-section { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--bs-border-color); }
+.regular-income-final-summary > h6 + .regular-income-result-section { margin-top: 0; border-top: 0; }
+.regular-income-result-section-title { margin-bottom: 7px; color: var(--bs-emphasis-color); font-size: 13px; font-weight: 800; }
+.regular-income-result-values { display: grid; gap: 8px; }
+.regular-income-result-values > div { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.regular-income-result-values strong { color: var(--bs-primary); font-size: 14px; }
+.regular-income-result-values .is-net-payment strong { color: var(--bs-danger); }
+.regular-income-result-section.is-final { padding: 10px; border: 1px solid var(--bs-primary-border-subtle); border-radius: 6px; background: var(--bs-primary-bg-subtle); }
+.regular-income-adjustment-summary { display: grid; gap: .35rem; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--bs-border-color); font-size: .8rem; }
+.regular-income-adjustment { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(150px, 1.5fr) auto; gap: .4rem; }
+.regular-income-bases { display: grid; gap: .35rem; }
+.regular-income-basis-row { padding: .4rem .6rem; border-radius: .35rem; background: var(--bs-light); font-size: .875rem; }
+.regular-income-detail-actions { display: grid; gap: .5rem; align-items: end; padding: .75rem; border-radius: .5rem; background: var(--bs-light); }
+.regular-income-snapshot-field { display: grid; gap: .25rem; min-width: 0; font-size: .8rem; color: var(--bs-secondary-color); }
+.regular-income-manual-pay { display: grid; grid-template-columns: minmax(112px, .7fr) minmax(200px, 1.35fr) minmax(120px, .8fr) minmax(76px, auto) minmax(180px, 2fr) auto auto; gap: .5rem; align-items: center; }
+.regular-income-adjustment-draft { padding: .55rem; border: 1px solid var(--bs-border-color); border-radius: .45rem; background: var(--bs-tertiary-bg); }
+.regular-income-adjustment-draft .regular-income-tax-policy { display: inline-flex; align-items: center; justify-content: center; justify-self: start; width: auto; min-width: 58px; min-height: 24px; height: 24px; padding: 0 .55rem; overflow: hidden; border: 0; border-radius: 999px; color: var(--bs-secondary-color); background: var(--bs-secondary-bg); font-size: .78rem; font-weight: 600; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.regular-income-tax-badge { cursor: default; }
+.regular-income-tax-badge.is-taxable { color: var(--bs-danger-text-emphasis); background: var(--bs-danger-bg-subtle); }
+.regular-income-tax-badge.is-non-taxable { color: var(--bs-info-text-emphasis); background: var(--bs-info-bg-subtle); }
+.regular-income-tax-badge.is-policy { color: var(--bs-warning-text-emphasis); background: var(--bs-warning-bg-subtle); }
+.regular-income-pay-option-status { grid-column: 1 / 6; min-height: 20px; align-self: center; }
+.regular-income-adjustment-draft > .regular-income-pay-option-status + .btn { grid-column: 6 / 8; justify-self: end; }
+.regular-income-adjustment-draft > .is-hidden { display: none !important; }
+#regularIncomeEmployeeDetail .form-control-sm,
+#regularIncomeEmployeeDetail .form-select-sm { min-height: 26px !important; height: 26px !important; padding: .1rem .4rem !important; font-size: .78rem !important; line-height: 1.1 !important; }
+#regularIncomeEmployeeDetail .select2-container .select2-selection--single { min-height: 26px !important; height: 26px !important; font-size: .78rem !important; }
+#regularIncomeEmployeeDetail .select2-container .select2-selection--single .select2-selection__rendered { line-height: 24px !important; padding-left: .4rem !important; padding-right: 1.5rem !important; }
+#regularIncomeEmployeeDetail .select2-container .select2-selection--single .select2-selection__arrow { height: 24px !important; }
+#regularIncomeEmployeeDetail .regular-income-manual-pay .btn-sm,
+#regularIncomeEmployeeDetail .regular-income-settlement-form .btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 26px !important; height: 26px !important; padding: 0 .5rem !important; font-size: .78rem !important; line-height: 1 !important; white-space: nowrap; }
+.regular-income-manual-pay .number-input,
+.regular-income-settlement-form .number-input,
+.regular-income-card-basis .number-input { text-align: right; }
+.regular-income-settlements { display: grid; gap: .5rem; margin-top: .25rem; padding-top: .65rem; border-top: 1px dashed var(--bs-border-color); }
+.regular-income-settlements > h6 { color: var(--bs-secondary-color); font-size: .825rem; }
+.regular-income-settlement-list { display: grid; gap: .35rem; }
+.regular-income-settlement-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; align-items: center; font-size: .8rem; }
+.regular-income-settlement-toggle { display: inline-flex; align-items: center; justify-content: center; justify-self: start; width: fit-content; white-space: nowrap; }
+body[data-density] #regularIncomeEmployeeDetail .regular-income-settlement-toggle.btn-sm { width: auto !important; min-width: 0 !important; height: 20px !important; min-height: 20px !important; padding: 0 .25rem !important; border-radius: 4px; font-size: .7rem !important; line-height: 1 !important; }
+body[data-density] #regularIncomeEmployeeDetail .regular-income-settlement-remove.btn-sm { width: auto !important; min-width: 0 !important; height: 20px !important; min-height: 20px !important; padding: 0 .25rem !important; border-radius: 4px; font-size: .7rem !important; line-height: 1 !important; white-space: nowrap; }
+.regular-income-settlement-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .4rem; min-width: 0; }
+.regular-income-settlement-form > * { min-width: 0; }
+.regular-income-settlement-field { display: grid; gap: .2rem; min-width: 0; color: var(--bs-secondary-color); font-size: .72rem; }
+.regular-income-settlement-field > span { white-space: nowrap; }
+.regular-income-settlement-field > small { color: var(--bs-secondary-color); font-size: .68rem; line-height: 1.2; }
+.regular-income-settlement-field.is-wide { grid-column: 1 / -1; }
+.regular-income-settlement-form > button { grid-column: 1 / -1; justify-self: end; min-width: 56px; }
+.regular-income-settlement-form.is-hidden { display: none; }
+.regular-income-deduction-final { display: flex; justify-content: space-between; align-items: center; padding-top: .5rem; border-top: 1px solid var(--bs-border-color); }
+.regular-income-system-card { margin-top: 1rem; }
+.regular-income-system-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; }
+.regular-income-system-info-field { display: grid; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr); gap: .5rem; align-items: start; min-width: 0; }
+.regular-income-system-info-label { color: var(--bs-secondary-color); font-size: .8rem; }
+.regular-income-system-info-value { min-width: 0; color: var(--bs-body-color); font-size: .84rem; overflow-wrap: anywhere; }
+.regular-income-system-info-field.is-numeric .regular-income-system-info-value { text-align: right; font-variant-numeric: tabular-nums; }
+.regular-income-detail-actions:has(.regular-income-snapshot-field) { grid-template-columns: repeat(4, minmax(145px, 1fr)) auto; }
+@media (max-width: 1359.98px) { .regular-income-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 991.98px) { .regular-income-detail-sections { grid-template-columns: 1fr; } .regular-income-detail-group, .regular-income-final-summary { grid-column: 1; } .regular-income-final-summary { position: static; grid-row: auto; } .regular-income-detail-actions:has(.regular-income-snapshot-field) { grid-template-columns: repeat(2, minmax(0, 1fr)); } .regular-income-pay-effect-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 991.98px) { .regular-income-employee-card__header { grid-template-columns: 24px 18px minmax(90px, 1fr) max-content 30px; } .regular-income-employee-card__header.has-remove-action { grid-template-columns: 24px 18px minmax(90px, 1fr) max-content repeat(2, 30px); } .regular-income-employee-department, .regular-income-employee-payment, .regular-income-employee-card__header > span:not(.regular-income-employee-order):not(.regular-income-employee-drag-handle):not(.regular-income-employee-badge) { display: none; } .regular-income-employee-card__body { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1199.98px) { .regular-income-detail-group .income-calculation-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575.98px) { .regular-income-detail-group .income-calculation-card-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .regular-income-manual-pay { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 767.98px) { .regular-income-card-grid, .regular-income-system-info-grid { grid-template-columns: 1fr; } .regular-income-title-field, .regular-income-description-field, .regular-income-memo-field { flex-basis: 100%; width: 100%; min-width: 0; } }
+@media (max-width: 575.98px) { .regular-income-adjustment, .regular-income-detail-actions, .regular-income-manual-pay, .regular-income-settlement-form, .regular-income-pay-effect-editor { grid-template-columns: 1fr; } .regular-income-summary { text-align: left; } .regular-income-applied-amounts { grid-template-columns: 1fr; } }

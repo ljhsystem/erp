@@ -68,13 +68,26 @@ export function hideDeleteProgress() {
     document.getElementById(PANEL_ID)?.classList.remove('is-active');
 }
 
-export async function runDeleteProgress({ total = 1, title = '삭제 처리 중', step = '삭제 요청 처리 중' } = {}, callback) {
+export async function runDeleteProgress({
+    total = 1,
+    title = '삭제 처리 중',
+    step = '삭제 요청 처리 중',
+    trashChanged = false,
+} = {}, callback) {
     updateDeleteProgress({ total, processed: 0, title, step });
     try {
         const result = await callback();
         updateDeleteProgress({ total, processed: total, title, step: '삭제 처리 완료' });
+        if (trashChanged) {
+            markTrashButtonsHasData(Math.max(1, Number(total) || 1));
+            document.dispatchEvent(new CustomEvent('datatable:soft-delete-completed', {
+                bubbles: true,
+                detail: { total: Math.max(1, Number(total) || 1) },
+            }));
+        }
         return result;
     } finally {
         hideDeleteProgress();
     }
 }
+import { markTrashButtonsHasData } from './trash/trash-button-state.js';

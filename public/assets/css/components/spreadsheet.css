@@ -52,8 +52,18 @@
   font-size: var(--spreadsheet-font-size, calc(var(--font-size, 14px) - 2px));
   font-weight: 700;
   line-height: 1.25;
-  white-space: normal;
+  white-space: nowrap;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.spreadsheet-shell .ag-header-cell-label,
+.spreadsheet-shell .ag-header-cell-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
 }
 
 .spreadsheet-shell .ag-cell {

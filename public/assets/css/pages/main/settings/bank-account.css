@@ -1,0 +1,293 @@
+/* =========================================================
+   PAGE (유지)
+========================================================= */
+.account-page{
+    width:100%;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+.account-page .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.account-page .page-header h5{
+    margin-bottom:0;
+}
+
+.account-count,
+.account-page .page-count{
+    display:inline-flex;
+    align-items:center;
+    font-size:1rem;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
+}
+
+/* =========================================================
+   MODAL (🔥 핵심 수정)
+========================================================= */
+#accountModal .modal-dialog{
+    max-width:900px;
+}
+
+#accountModal .modal-content{
+    border-radius:12px;
+    overflow:hidden;
+}
+
+#accountModal .modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+/* =========================================================
+   CARD (🔥 거래처와 동일)
+========================================================= */
+#accountModal .card{
+    border:1px solid #e1e6ef;
+    border-radius:10px;
+    background:#ffffff;
+}
+
+#accountModal .card-header{
+    background:#f1f3f7;
+    font-weight:600;
+    font-size:13px;
+    padding:4px 8px;
+}
+
+#accountModal .card-body{
+    padding:8px;
+}
+
+/* =========================================================
+   INPUT (🔥 거래처 동일)
+========================================================= */
+#accountModal .form-control,
+#accountModal .form-select{
+    height:30px;
+    font-size:13px;
+}
+
+#accountModal textarea.form-control{
+    height:auto;
+}
+
+#accountModal .account-system-card{
+    margin-top:1rem;
+}
+
+#accountModal .account-system-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:10px 16px;
+}
+
+#accountModal .account-system-info-field{
+    min-width:0;
+    display:grid;
+    grid-template-columns:92px minmax(0, 1fr);
+    gap:8px;
+    align-items:start;
+}
+
+#accountModal .account-system-info-label{
+    color:var(--color-text-muted, #667085);
+    font-size:.82rem;
+}
+
+#accountModal .account-system-info-value{
+    min-width:0;
+    overflow-wrap:anywhere;
+    font-size:.86rem;
+}
+
+/* =========================================================
+   FILE UPLOAD (🔥 거래처 스타일)
+========================================================= */
+.file-upload-box{
+    border:2px dashed #d0d5dd;
+    border-radius:8px;
+    padding:14px;
+    text-align:center;
+    cursor:pointer;
+    background:#fafafa;
+    transition:all .2s ease;
+    font-size:12px;
+}
+
+.file-upload-box:hover{
+    background:#f1f5ff;
+    border-color:#3b82f6;
+}
+
+.file-upload-box.drag-over{
+    background:#eef4ff;
+    border-color:#3b82f6;
+}
+
+/* =========================================================
+   FILE LIST
+========================================================= */
+.file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-top:6px;
+}
+
+.file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:6px 10px;
+    font-size:12px;
+    background:#fff;
+}
+
+/* =========================================================
+   TEXTAREA (🔥 메모 스크롤)
+========================================================= */
+#accountModal textarea{
+    max-height:120px;
+    overflow:auto;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
+#accountModal .modal-footer{
+    display:flex;
+    justify-content:flex-end;
+    gap:6px;
+}
+
+/* =========================================================
+   TABLE
+========================================================= */
+#account-table{
+    width:100%;
+}
+
+#account-table td,
+#account-table th{
+    vertical-align:middle;
+}
+
+#account-table .account-nowrap{
+    white-space:nowrap;
+}
+
+#account-table .account-note-cell{
+    min-width:120px;
+    max-width:260px;
+    overflow:hidden;
+    white-space:nowrap;
+}
+
+/* 통장사본 영역 강화 */
+#accountModal #bankBookUpload{
+    min-height:120px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+/* 파일 리스트 정리 */
+#accountModal .file-item{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:4px;
+}
+
+/* 파일 액션 줄 정리 */
+#accountModal .file-actions{
+    font-size:11px;
+}
+
+/* 메모 영역 줄이기 */
+#accountModal .memo-area{
+    max-height:80px;
+}
+
+/* 비고 input 더 슬림 */
+#accountModal input[name="note"]{
+    height:28px;
+}
+
+
+
+
+.account-page .account-active-toggle{
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.account-page .account-active-toggle:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.account-page .account-active-toggle:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.account-page .account-active-toggle:disabled{
+    cursor: wait;
+    opacity: .65;
+}
+
+.account-page .account-edit-btn{
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.account-page .account-edit-btn:hover,
+.account-page .account-edit-btn:focus{
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.account-page .account-edit-btn:active{
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+@media (max-width:900px){
+
+    #accountModal .modal-dialog{
+        max-width:98vw;
+        width:98vw;
+    }
+
+}
+
+@media (max-width:767.98px){
+    #accountModal .account-system-info-grid{
+        grid-template-columns:1fr;
+    }
+}

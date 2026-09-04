@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
-const view = read('app/views/dashboard/settings/organization/permission-assignment.php');
-const entry = read('public/assets/js/pages/dashboard/settings/organization/permission-assignment/index.js');
-const user = read('public/assets/js/pages/dashboard/settings/organization/permission-assignment/user-permission.js');
-const role = read('public/assets/js/pages/dashboard/settings/organization/permission-assignment.js');
+const view = read('app/views/main/settings/organization/permission-assignment.php');
+const entry = read('public/assets/js/pages/main/settings/organization/permission-assignment/index.js');
+const user = read('public/assets/js/pages/main/settings/organization/permission-assignment/user-permission.js');
+const role = read('public/assets/js/pages/main/settings/organization/permission-assignment.js');
 const routes = read('routes/api/system.php');
 const metaService = read('app/Services/System/DataTableColumnMetaService.php');
-const sticky = read('public/assets/js/pages/dashboard/settings/organization/permission-assignment/sticky-layout.js');
-const permissionCss = read('public/assets/css/pages/dashboard/settings/permission-assignment.css');
+const sticky = read('public/assets/js/pages/main/settings/organization/permission-assignment/sticky-layout.js');
+const permissionCss = read('public/assets/css/pages/main/settings/permission-assignment.css');
 const rolePermissionColumns = role.slice(role.indexOf('function buildPermissionColumns()'));
 
 const permissionColumns = [

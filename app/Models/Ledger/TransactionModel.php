@@ -24,19 +24,6 @@ class TransactionModel
         $orderDirection = strtolower(trim((string) ($filters['_order_direction'] ?? ''))) === 'asc'
             ? 'ASC'
             : 'DESC';
-        $usesLineStatusJoin = $orderField === 'transaction_line_status';
-        $lineStatusJoin = $usesLineStatusJoin ? $this->lineStatusJoinSql() : '';
-        $lineStatusSelect = $usesLineStatusJoin
-            ? "COALESCE(tls.item_count, 0) AS transaction_line_count,
-                COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
-                CASE
-                    WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
-                    WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
-                    ELSE 'COMPLETE'
-                END AS transaction_line_status"
-            : "0 AS transaction_line_count,
-                0 AS transaction_line_incomplete_count,
-                'NONE' AS transaction_line_status";
         $hasOperationType = $this->tableColumnExists($this->table, 'operation_type');
         $operationTypeSelect = $hasOperationType
             ? "COALESCE(ot.code_name, '') AS operation_type_name,
@@ -92,8 +79,7 @@ class TransactionModel
                 COALESCE(NULLIF(sba.account_name, ''), '') AS bank_account_id,
                 COALESCE(NULLIF(scd.card_name, ''), '') AS card_id,
                 COALESCE(NULLIF(swt.team_name, ''), '') AS team_id,
-                COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id,
-                {$lineStatusSelect}
+                COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id
         ";
         $fromSql = "
             FROM {$this->table} t
@@ -274,11 +260,6 @@ class TransactionModel
             'currency' => "COALESCE(cur.code_name, t.currency, '')",
             'currency_name' => "COALESCE(cur.code_name, '')",
             'exchange_rate' => 't.transaction_exchange_rate',
-            'transaction_line_status' => "CASE
-                WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
-                WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
-                ELSE 'COMPLETE'
-            END",
             'description' => 't.transaction_description',
             'status' => 't.status',
             'note' => 't.transaction_note',
@@ -290,7 +271,7 @@ class TransactionModel
             'deleted_at' => 't.deleted_at',
             'deleted_by' => 't.deleted_by',
         ];
-        $sql = $selectSql . $fromSql . $lineStatusJoin . $whereSql;
+        $sql = $selectSql . $fromSql . $whereSql;
         $countSql = 'SELECT COUNT(DISTINCT t.id)' . $fromSql . $whereSql;
         if (isset($orderFieldMap[$orderField])) {
             $sql .= " ORDER BY {$orderFieldMap[$orderField]} {$orderDirection}, t.created_at DESC, t.id DESC";
@@ -313,9 +294,6 @@ class TransactionModel
             $countStmt = $this->db->prepare($countSql);
             $countStmt->execute($params);
             $this->lastFilteredCount = (int) $countStmt->fetchColumn();
-        }
-        if (!$usesLineStatusJoin) {
-            $rows = $this->hydrateLineStatuses($rows);
         }
         $rows = ActorHelper::enrichActorNames($rows, [
             'created_by_name' => 'created_by',
@@ -358,68 +336,6 @@ class TransactionModel
         if ($stmt->rowCount() !== 1 && !$this->activeExists($id)) {
             throw new \RuntimeException('정렬할 거래를 찾을 수 없습니다.');
         }
-    }
-
-    private function hydrateLineStatuses(array $rows): array
-    {
-        $transactionIds = array_values(array_unique(array_filter(array_map(
-            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
-            $rows
-        ))));
-        if ($transactionIds === []) {
-            return $rows;
-        }
-
-        $placeholders = implode(', ', array_fill(0, count($transactionIds), '?'));
-        $stmt = $this->db->prepare("
-            SELECT
-                transaction_id,
-                COUNT(*) AS item_count,
-                SUM(CASE
-                    WHEN TRIM(COALESCE(item_name, '')) = '' OR COALESCE(item_supply_amount, 0) = 0 THEN 1
-                    ELSE 0
-                END) AS incomplete_count
-            FROM ledger_transaction_items
-            WHERE transaction_id IN ({$placeholders})
-            GROUP BY transaction_id
-        ");
-        $stmt->execute($transactionIds);
-
-        $statusByTransactionId = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $statusRow) {
-            $statusByTransactionId[(string) $statusRow['transaction_id']] = $statusRow;
-        }
-
-        return array_map(static function (array $row) use ($statusByTransactionId): array {
-            $status = $statusByTransactionId[(string) ($row['id'] ?? '')] ?? [];
-            $itemCount = (int) ($status['item_count'] ?? 0);
-            $incompleteCount = (int) ($status['incomplete_count'] ?? 0);
-            $row['transaction_line_count'] = $itemCount;
-            $row['transaction_line_incomplete_count'] = $incompleteCount;
-            $row['transaction_line_status'] = $itemCount === 0
-                ? 'NONE'
-                : ($incompleteCount > 0 ? 'INCOMPLETE' : 'COMPLETE');
-
-            return $row;
-        }, $rows);
-    }
-
-    private function lineStatusJoinSql(): string
-    {
-        return "
-            LEFT JOIN (
-                SELECT
-                    transaction_id,
-                    COUNT(*) AS item_count,
-                    SUM(CASE
-                        WHEN TRIM(COALESCE(item_name, '')) = '' OR COALESCE(item_supply_amount, 0) = 0 THEN 1
-                        ELSE 0
-                    END) AS incomplete_count
-                FROM ledger_transaction_items
-                GROUP BY transaction_id
-            ) tls
-                ON tls.transaction_id = t.id
-        ";
     }
 
     private function tableColumnExists(string $tableName, string $columnName): bool

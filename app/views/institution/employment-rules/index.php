@@ -2,38 +2,52 @@
 use Core\Helpers\AssetHelper;
 $pageStyles = AssetHelper::css('/assets/css/pages/institution/employment-rules/index.css');
 $pageScripts = AssetHelper::module('/assets/js/pages/institution/employment-rules/index.js');
-$bootstrapData = htmlspecialchars(json_encode(['options' => $options, 'capabilities' => $cap], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8');
-$tabs = ['COMPANY'=>'회사 기본규정','WORK'=>'근무규정','LEAVE'=>'휴가규정','PAYROLL'=>'급여규정','EDUCATION'=>'교육규정','QUALIFICATION'=>'자격규정','PROMOTION'=>'승진규정','REWARD'=>'포상규정','DISCIPLINE'=>'징계규정','WELFARE'=>'복리후생','OTHER'=>'기타'];
+$bootstrapData = htmlspecialchars(json_encode(['options'=>$options, 'capabilities'=>$cap], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8');
 ?>
 <main class="employment-rules-page" data-bootstrap="<?= $bootstrapData ?>">
   <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <div><h5 class="fw-bold"><i class="bi bi-journal-check me-2"></i>취업규칙·인사규정</h5><p class="text-muted small">회사 정책과 승인된 개정·시행 이력을 관리합니다.</p></div>
-      <div><?php if ($cap['save'] ?? false): ?><button class="btn btn-primary btn-sm" id="ruleAdd">규정 등록</button><?php endif; ?> <?php if ($cap['excel'] ?? false): ?><a class="btn btn-outline-success btn-sm" href="/api/institution/human-resources/employment-rules/excel">Excel 다운로드</a><?php endif; ?></div>
+    <div class="mb-3">
+      <h5 class="fw-bold"><i class="bi bi-journal-check me-2"></i>취업규칙·인사규정</h5>
+      <p class="text-muted small mb-0">회사 공식 규정문서와 개정·시행 이력을 관리합니다.</p>
     </div>
-    <ul class="nav nav-tabs mb-3" id="ruleTabs"><?php foreach ($tabs as $key => $label): ?><li class="nav-item"><button type="button" class="nav-link<?= $key === 'COMPANY' ? ' active' : '' ?>" data-type="<?= $key ?>"><?= $label ?></button></li><?php endforeach; ?></ul>
     <div class="dt-content-stack">
-      <?php $searchId='employmentRules'; $dateOptions='<option value="effective_from">시행일</option>'; $searchFieldOptions='<option value="status_code">상태</option><option value="rule_code">규정코드</option><option value="title">규정명</option>'; include PROJECT_ROOT.'/app/views/components/ui-search.php'; ?>
+      <?php
+      $searchId='employmentRules';
+      $dateOptions='<option value="effective_from">시행일</option><option value="revision_date">제정·개정일</option>';
+      $searchFieldOptions='<option value="regulation_type_code">규정종류</option><option value="status_code">상태</option><option value="is_current">현재 유효 여부(1/0)</option><option value="regulation_code">규정코드</option><option value="title">규정명</option>';
+      $dateInputAttrs='readonly autocomplete="off"';
+      include PROJECT_ROOT.'/app/views/components/ui-search.php';
+      ?>
       <?php $tableId='employmentRulesTable'; $ajaxUrl='/api/institution/human-resources/employment-rules/list'; $columnsType='employmentRules'; $enableButtons=true; $enableSearch=true; $enablePaging=true; $enableReorder=false; include PROJECT_ROOT.'/app/views/components/ui-table.php'; ?>
     </div>
   </div>
 </main>
+
 <div class="modal fade" id="ruleModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><form class="modal-content" id="ruleForm">
-  <div class="modal-header"><h5 class="modal-title">규정 개정본</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body"><input type="hidden" name="id"><input type="hidden" name="company_id"><input type="hidden" name="request_key">
+  <div class="modal-header"><div><h5 class="modal-title">규정 개정본</h5><p class="small text-muted mb-0" data-rule-mode-label>신규 규정 또는 초안을 작성합니다.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><input type="hidden" name="id"><input type="hidden" name="company_id"><input type="hidden" name="request_key"><input type="hidden" name="document_file_path"><input type="hidden" name="document_file_name">
     <div class="row g-3">
-      <div class="col-md-3"><label class="form-label">규정코드</label><input class="form-control" name="rule_code" required></div>
-      <div class="col-md-3"><label class="form-label">종류</label><select class="form-select" name="rule_type_code" required></select></div>
-      <div class="col-md-6"><label class="form-label">규정명</label><input class="form-control" name="title" required></div>
-      <div class="col-md-6"><label class="form-label">개정본 제목</label><input class="form-control" name="revision_title" required></div>
-      <div class="col-md-3"><label class="form-label">시행일</label><input type="date" class="form-control admin-date" name="effective_from" required></div>
-      <div class="col-md-3"><label class="form-label">종료일</label><input type="date" class="form-control admin-date" name="effective_to"></div>
-      <div class="col-12"><label class="form-label">개정 사유</label><input class="form-control" name="revision_reason" required></div>
-      <div class="col-12"><label class="form-label">규정 본문</label><textarea class="form-control" rows="7" name="content_text"></textarea></div>
-      <div class="col-12"><div class="d-flex justify-content-between"><label class="form-label">구조화 정책</label><button type="button" class="btn btn-outline-primary btn-sm" id="addPolicy">정책 추가</button></div><div id="policyRows"></div></div>
-      <div class="col-12"><div class="d-flex justify-content-between"><label class="form-label">적용범위</label><button type="button" class="btn btn-outline-primary btn-sm" id="addScope">범위 추가</button></div><div id="scopeRows"></div></div>
+      <div class="col-md-3"><label class="form-label">규정종류</label><select class="form-select" name="regulation_type_code" required></select></div>
+      <div class="col-md-3"><label class="form-label">규정코드</label><input class="form-control" name="regulation_code" required></div>
+      <div class="col-md-6"><label class="form-label">규정명</label><input class="form-control" name="regulation_title" required></div>
+      <div class="col-md-6"><label class="form-label">개정본 제목</label><input class="form-control" name="title" required></div>
+      <div class="col-md-3"><label class="form-label">제정·개정일</label><span class="date-input"><input type="text" class="form-control admin-date" name="revision_date" placeholder="YYYY-MM-DD" readonly required><i class="fa fa-calendar-days date-icon"></i></span></div>
+      <div class="col-md-3"><label class="form-label">소관부서</label><select class="form-select" name="owner_department_id"></select></div>
+      <div class="col-md-3"><label class="form-label">시행일</label><span class="date-input"><input type="text" class="form-control admin-date" name="effective_from" placeholder="YYYY-MM-DD" readonly required><i class="fa fa-calendar-days date-icon"></i></span></div>
+      <div class="col-md-3"><label class="form-label">종료일</label><span class="date-input"><input type="text" class="form-control admin-date" name="effective_to" placeholder="YYYY-MM-DD" readonly><i class="fa fa-calendar-days date-icon"></i></span></div>
+      <div class="col-md-6"><label class="form-label">변경요약</label><input class="form-control" name="change_summary"></div>
+      <div class="col-md-6"><label class="form-label">변경사유</label><input class="form-control" name="change_reason" required></div>
+      <div class="col-12"><label class="form-label">설명</label><input class="form-control" name="description"></div>
+      <div class="col-12"><label class="form-label">규정 본문</label><textarea class="form-control" rows="12" name="content_text"></textarea></div>
+      <div class="col-12"><div class="border rounded p-3 bg-light"><strong>원본파일</strong><div class="small text-muted mt-1" data-file-metadata>공용 파일관리 연계 전까지 기존 파일 metadata만 조회합니다.</div></div></div>
     </div>
   </div>
-  <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button><button class="btn btn-primary">저장</button></div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary me-auto" id="ruleHistory">개정이력</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button><button class="btn btn-primary" data-save-rule>저장</button></div>
 </form></div></div>
-<div id="employmentRuleTimePicker" class="picker admin-picker is-hidden"></div>
+
+<div class="modal fade" id="ruleHistoryModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">개정이력</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div class="table-responsive"><table class="table table-sm table-bordered align-middle"><thead><tr><th>Revision</th><th>제목</th><th>개정일</th><th>시행기간</th><th>상태</th><th>변경요약</th></tr></thead><tbody id="ruleHistoryRows"></tbody></table></div></div>
+</div></div></div>
+
+<div id="employmentRuleDatePicker" class="picker admin-picker is-hidden"></div>

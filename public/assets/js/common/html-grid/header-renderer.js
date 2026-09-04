@@ -20,10 +20,19 @@ function createHeaderCell(documentRef, column, options = {}) {
     const content = documentRef.createElement('div');
     content.className = 'html-grid-header-cell-content';
 
-    const label = documentRef.createElement('span');
-    label.className = 'html-grid-header-label';
-    label.textContent = column.label;
-    content.appendChild(label);
+    if (column.type === 'selection' && column.headerSelection === true) {
+        th.classList.add('html-grid-header-cell-selection');
+        const checkbox = documentRef.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input html-grid-row-selection html-grid-header-selection';
+        checkbox.setAttribute('aria-label', column.headerSelectionLabel || '전체 선택 또는 해제');
+        content.appendChild(checkbox);
+    } else {
+        const label = documentRef.createElement('span');
+        label.className = 'html-grid-header-label';
+        label.textContent = column.label;
+        content.appendChild(label);
+    }
 
     if (options.showSortUi === true) {
         const sortSlot = documentRef.createElement('span');

@@ -174,9 +174,11 @@ class EmployeeModel
 
                 d.dept_name AS department_name,
                 s.position_name,
-                rq.qualification_name AS representative_qualification_name,
-                rq.attachment_path AS representative_qualification_file,
-                rq.attachment_name AS representative_qualification_file_name,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.qualification_name END AS representative_qualification_name,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.attachment_path END AS representative_qualification_file,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.attachment_name END AS representative_qualification_file_name,
+                CASE WHEN rq.id IS NOT NULL AND rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN 1 ELSE 0 END AS representative_qualification_is_valid,
+                CASE WHEN p.representative_qualification_id IS NOT NULL AND NOT (rq.id IS NOT NULL AND rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE())) THEN 1 ELSE 0 END AS representative_qualification_requires_reassignment,
                 (SELECT COUNT(*) FROM institution_qualifications_employee_records qc WHERE qc.employee_id = p.id AND qc.deleted_at IS NULL) AS qualification_count,
                 (SELECT COUNT(*) FROM institution_educations_employee_records ec WHERE ec.employee_id = p.id AND ec.deleted_at IS NULL) AS education_count,
 
@@ -472,9 +474,11 @@ class EmployeeModel
 
                 d.dept_name AS department_name,
                 s.position_name,
-                rq.qualification_name AS representative_qualification_name,
-                rq.attachment_path AS representative_qualification_file,
-                rq.attachment_name AS representative_qualification_file_name,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.qualification_name END AS representative_qualification_name,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.attachment_path END AS representative_qualification_file,
+                CASE WHEN rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN rq.attachment_name END AS representative_qualification_file_name,
+                CASE WHEN rq.id IS NOT NULL AND rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE()) THEN 1 ELSE 0 END AS representative_qualification_is_valid,
+                CASE WHEN p.representative_qualification_id IS NOT NULL AND NOT (rq.id IS NOT NULL AND rq.deleted_at IS NULL AND rq.status_code = 'ACTIVE' AND rq.verified_at IS NOT NULL AND (rq.valid_from IS NULL OR rq.valid_from <= CURDATE()) AND (rq.valid_to IS NULL OR rq.valid_to >= CURDATE())) THEN 1 ELSE 0 END AS representative_qualification_requires_reassignment,
 
                 u.id AS auth_user_id,
                 u.username,
@@ -617,13 +621,12 @@ class EmployeeModel
         return $row ?: null;
     }
 
-    public function searchPicker(string $q = '', int $limit = 20): array
+    public function searchPicker(string $q = '', int $limit = 20, bool $includeInactive = false): array
     {
         $limit = max(1, min(100, (int)$limit));
 
         $q = trim($q);
         $keyword = '%' . $q . '%';
-        $prefixKeyword = $q . '%';
 
         $sql = "
             SELECT
@@ -642,7 +645,7 @@ class EmployeeModel
             LEFT JOIN user_departments d ON p.department_id = d.id
             LEFT JOIN user_positions s ON p.position_id = s.id
 
-            WHERE u.is_active = 1
+            WHERE " . ($includeInactive ? '1=1' : 'u.is_active = 1') . "
             AND (
                 p.employee_name LIKE :keyword1
                 OR CAST(p.sort_no AS CHAR) LIKE :keyword2
@@ -651,11 +654,9 @@ class EmployeeModel
             )
 
             ORDER BY
-                CASE
-                    WHEN p.employee_name LIKE :prefixKeyword THEN 0
-                    ELSE 1
-                END,
-                p.employee_name ASC
+                p.sort_no ASC,
+                p.employee_name ASC,
+                p.id ASC
 
             LIMIT {$limit}
         ";
@@ -666,8 +667,6 @@ class EmployeeModel
         $stmt->bindValue(':keyword2', $keyword, PDO::PARAM_STR);
         $stmt->bindValue(':keyword3', $keyword, PDO::PARAM_STR);
         $stmt->bindValue(':keyword4', $keyword, PDO::PARAM_STR);
-        $stmt->bindValue(':prefixKeyword', $prefixKeyword, PDO::PARAM_STR);
-
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

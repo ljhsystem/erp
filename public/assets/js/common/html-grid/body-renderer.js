@@ -49,6 +49,10 @@ function normalizePluginNames(plugins = []) {
 function buildCellClassNames(column, row, cellStates = []) {
     const classNames = ['html-grid-cell'];
 
+    if (column.editor) {
+        classNames.push('has-editor');
+    }
+
     if (column.type) {
         classNames.push(`html-grid-cell-type-${column.type}`);
     }

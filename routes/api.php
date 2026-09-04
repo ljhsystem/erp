@@ -3,12 +3,14 @@ error_log('[ROUTES] api.php LOADED');
 
 global $router;
 
-require __DIR__ . '/api/dashboard.php';
+require __DIR__ . '/api/main.php';
 require __DIR__ . '/api/settings.php';
 require __DIR__ . '/api/materials.php';
 require __DIR__ . '/api/ledger.php';
 require __DIR__ . '/api/approval.php';
 require __DIR__ . '/api/institution.php';
+require __DIR__ . '/api/daily-employment-income.php';
+require __DIR__ . '/api/business-income.php';
 require __DIR__ . '/api/system.php';
 require __DIR__ . '/api/user-settings.php';
 require __DIR__ . '/api/shop.php';

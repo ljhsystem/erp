@@ -4,17 +4,21 @@ namespace App\Services\Funds;
 
 use App\Models\Funds\BankTransactionReportModel;
 use App\Models\System\BankAccountModel;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class BankTransactionReportService
 {
     private BankTransactionReportModel $model;
     private BankAccountModel $accountModel;
+    private LoggerInterface $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->model = new BankTransactionReportModel($pdo);
         $this->accountModel = new BankAccountModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-funds-bank-transaction-report');
     }
 
     public function account(string $id): ?array
@@ -49,11 +53,11 @@ class BankTransactionReportService
 
     public function softDelete(string $id, string $actor): bool
     {
-        return $this->model->softDelete($id, $actor);
+        $result=$this->model->softDelete($id,$actor);$context=['event_code'=>'BANK_TRANSACTION_REPORT_DELETED','result'=>$result?'SUCCESS':'FAILED','service'=>self::class,'action'=>'delete','actor'=>$actor,'target_id'=>$id];if($result)$this->logger->warning('은행거래내역이 삭제되었습니다.',$context);else$this->logger->error('은행거래내역 삭제에 실패했습니다.',$context);return$result;
     }
 
     public function restore(string $id, string $actor): bool
     {
-        return $this->model->restore($id, $actor);
+        $result=$this->model->restore($id,$actor);$context=['event_code'=>'BANK_TRANSACTION_REPORT_RESTORED','result'=>$result?'SUCCESS':'FAILED','service'=>self::class,'action'=>'restore','actor'=>$actor,'target_id'=>$id];if($result)$this->logger->info('은행거래내역이 복구되었습니다.',$context);else$this->logger->error('은행거래내역 복구에 실패했습니다.',$context);return$result;
     }
 }

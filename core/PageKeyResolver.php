@@ -22,6 +22,7 @@ class PageKeyResolver
 
     /** @var array<string,string> */
     private array $legacyPrefixMap = [
+        'api.main.calendar.' => 'dashboard.calendar',
         'api.settings.base-info.company.' => 'settings.base_info.company',
         'api.settings.base-info.brand.' => 'settings.base_info.brand',
         'api.settings.base-info.cover.' => 'settings.base_info.cover',
@@ -53,6 +54,7 @@ class PageKeyResolver
         'api.funds.bank_transactions.' => 'ledger.funds.bank_transactions',
         'api.approval.personal-expense.' => 'approval.personal_expense',
         'api.approval.inbox.' => 'approval.inbox',
+        'api.institution.human_resources.employment_rules.' => 'web.institution.human_resources.employment_rules',
         'api.import.format.' => 'ledger.data.formats',
         'api.import.formats.' => 'ledger.data.formats',
         'api.import.seed_row.' => 'ledger.data.upload',
@@ -62,6 +64,14 @@ class PageKeyResolver
 
     /** @var array<string,string> */
     private array $legacyExactMap = [
+        'web.main.dashboard' => 'dashboard.main',
+        'web.main.report' => 'dashboard.report',
+        'web.main.activity' => 'dashboard.activity',
+        'web.main.notifications' => 'dashboard.notifications',
+        'web.main.kpi' => 'dashboard.kpi',
+        'web.main.calendar' => 'dashboard.calendar',
+        'web.main.settings' => 'dashboard.settings',
+        'api.main.profile_summary' => 'dashboard.main',
         'code.view' => 'settings.system.codes',
         'code.save' => 'settings.system.codes',
         'code.delete' => 'settings.system.codes',

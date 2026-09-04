@@ -1,0 +1,10 @@
+DROP TRIGGER IF EXISTS trg_client_tax_profile_no_overlap_insert;
+DROP TRIGGER IF EXISTS trg_client_tax_profile_no_overlap_update;
+DROP TRIGGER IF EXISTS trg_business_income_evidence_canonical_insert;
+DROP TRIGGER IF EXISTS trg_statutory_supersession_bi;
+DROP TRIGGER IF EXISTS trg_statutory_supersession_bu;
+DROP TRIGGER IF EXISTS trg_statutory_supersession_bd;
+DROP TRIGGER IF EXISTS trg_statutory_standard_bu;
+DROP TRIGGER IF EXISTS trg_statutory_standard_bd;
+DROP TRIGGER IF EXISTS trg_statutory_standard_source_bu;
+DROP TRIGGER IF EXISTS trg_statutory_standard_source_bd;

@@ -2,7 +2,7 @@
 
 global $router;
 
-$router->get('/dashboard/settings/standard/statutory-standards', 'StatutoryStandardController@index', [
+$router->get('/main/settings/standard/statutory-standards', 'StatutoryStandardController@index', [
     'key' => 'web.settings.statutory_standards.manage', 'page' => '법정 세율·요율·계산기준관리',
     'page_description' => 'ERP 공통 법정기준 SSOT 관리', 'permission_name' => '법정기준관리 조회',
     'permission_description' => '법정기준관리 화면 조회', 'name' => '법정기준관리',
@@ -10,7 +10,7 @@ $router->get('/dashboard/settings/standard/statutory-standards', 'StatutoryStand
     'auth' => true, 'permissions' => ['view'], 'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/company', 'DashboardController@settingsBaseInfoCompany', [
+$router->get('/main/settings/base-info/company', 'MainController@settingsBaseInfoCompany', [
     'key' => 'web.settings.base-info.company',
     'page' => '회사정보',
     'page_description' => '회사정보 설정 화면',
@@ -24,7 +24,7 @@ $router->get('/dashboard/settings/base-info/company', 'DashboardController@setti
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/brand', 'DashboardController@settingsBaseInfoBrand', [
+$router->get('/main/settings/base-info/brand', 'MainController@settingsBaseInfoBrand', [
     'key' => 'web.settings.base-info.brand_logo',
     'page' => '브랜드',
     'page_description' => '브랜드 설정 화면',
@@ -38,14 +38,14 @@ $router->get('/dashboard/settings/base-info/brand', 'DashboardController@setting
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/brand-logo', 'DashboardController@redirectBaseInfoBrandLegacy', [
+$router->get('/main/settings/base-info/brand-logo', 'MainController@redirectBaseInfoBrandLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/cover', 'DashboardController@settingsBaseInfoCover', [
+$router->get('/main/settings/base-info/cover', 'MainController@settingsBaseInfoCover', [
     'key' => 'web.settings.base-info.cover',
     'page' => '커버이미지',
     'page_description' => '커버이미지 설정 화면',
@@ -59,7 +59,7 @@ $router->get('/dashboard/settings/base-info/cover', 'DashboardController@setting
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/standard/code', 'DashboardController@settingsStandardCode', [
+$router->get('/main/settings/standard/code', 'MainController@settingsStandardCode', [
     'key' => 'code.view',
     'page' => '코드관리',
     'page_description' => '공통 코드 관리 화면',
@@ -73,7 +73,7 @@ $router->get('/dashboard/settings/standard/code', 'DashboardController@settingsS
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/client', 'DashboardController@settingsBaseInfoClient', [
+$router->get('/main/settings/base-info/client', 'MainController@settingsBaseInfoClient', [
     'key' => 'web.settings.base-info.clients',
     'page' => '거래처',
     'page_description' => '거래처 설정 화면',
@@ -87,14 +87,14 @@ $router->get('/dashboard/settings/base-info/client', 'DashboardController@settin
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/clients', 'DashboardController@redirectBaseInfoClientLegacy', [
+$router->get('/main/settings/base-info/clients', 'MainController@redirectBaseInfoClientLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/project', 'DashboardController@settingsBaseInfoProject', [
+$router->get('/main/settings/base-info/project', 'MainController@settingsBaseInfoProject', [
     'key' => 'web.settings.base-info.projects',
     'page' => '프로젝트',
     'page_description' => '프로젝트 설정 화면',
@@ -108,14 +108,14 @@ $router->get('/dashboard/settings/base-info/project', 'DashboardController@setti
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/projects', 'DashboardController@redirectBaseInfoProjectLegacy', [
+$router->get('/main/settings/base-info/projects', 'MainController@redirectBaseInfoProjectLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/bank-account', 'DashboardController@settingsBaseInfoBankAccount', [
+$router->get('/main/settings/base-info/bank-account', 'MainController@settingsBaseInfoBankAccount', [
     'key' => 'web.settings.base-info.accounts',
     'page' => '계좌',
     'page_description' => '계좌 설정 화면',
@@ -129,14 +129,14 @@ $router->get('/dashboard/settings/base-info/bank-account', 'DashboardController@
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/bank-accounts', 'DashboardController@redirectBaseInfoBankAccountLegacy', [
+$router->get('/main/settings/base-info/bank-accounts', 'MainController@redirectBaseInfoBankAccountLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/card', 'DashboardController@settingsBaseInfoCard', [
+$router->get('/main/settings/base-info/card', 'MainController@settingsBaseInfoCard', [
     'key' => 'web.settings.base-info.cards',
     'page' => '카드',
     'page_description' => '카드 설정 화면',
@@ -150,21 +150,21 @@ $router->get('/dashboard/settings/base-info/card', 'DashboardController@settings
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/base-info/cards', 'DashboardController@redirectBaseInfoCardLegacy', [
+$router->get('/main/settings/base-info/cards', 'MainController@redirectBaseInfoCardLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/work-teams', 'DashboardController@redirectBaseInfoWorkTeamLegacy', [
+$router->get('/main/settings/base-info/work-teams', 'MainController@redirectBaseInfoWorkTeamLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/base-info/work-team', 'DashboardController@settingsBaseInfoWorkTeams', [
+$router->get('/main/settings/base-info/work-team', 'MainController@settingsBaseInfoWorkTeams', [
     'key' => 'work_team.view',
     'page' => '팀',
     'page_description' => '팀 설정 화면',
@@ -178,7 +178,7 @@ $router->get('/dashboard/settings/base-info/work-team', 'DashboardController@set
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/employee', 'DashboardController@settingsOrgEmployees', [
+$router->get('/main/settings/organization/employee', 'MainController@settingsOrgEmployees', [
     'key' => 'web.settings.organization.employees',
     'page' => '직원',
     'page_description' => '직원 설정 화면',
@@ -192,14 +192,14 @@ $router->get('/dashboard/settings/organization/employee', 'DashboardController@s
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/employees', 'DashboardController@redirectOrgEmployeeLegacy', [
+$router->get('/main/settings/organization/employees', 'MainController@redirectOrgEmployeeLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/organization/department', 'DashboardController@settingsOrgDepartments', [
+$router->get('/main/settings/organization/department', 'MainController@settingsOrgDepartments', [
     'key' => 'web.settings.organization.departments',
     'page' => '부서',
     'page_description' => '부서 설정 화면',
@@ -213,14 +213,14 @@ $router->get('/dashboard/settings/organization/department', 'DashboardController
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/departments', 'DashboardController@redirectOrgDepartmentLegacy', [
+$router->get('/main/settings/organization/departments', 'MainController@redirectOrgDepartmentLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/organization/position', 'DashboardController@settingsOrgPositions', [
+$router->get('/main/settings/organization/position', 'MainController@settingsOrgPositions', [
     'key' => 'web.settings.organization.positions',
     'page' => '직책',
     'page_description' => '직책 설정 화면',
@@ -234,14 +234,14 @@ $router->get('/dashboard/settings/organization/position', 'DashboardController@s
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/positions', 'DashboardController@redirectOrgPositionLegacy', [
+$router->get('/main/settings/organization/positions', 'MainController@redirectOrgPositionLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],
     'log' => false,
 ]);
 
-$router->get('/dashboard/settings/organization/permission-assignment', 'DashboardController@settingsOrgPermissionAssignment', [
+$router->get('/main/settings/organization/permission-assignment', 'MainController@settingsOrgPermissionAssignment', [
     'key' => 'web.settings.organization.role_permissions',
     'page' => '권한부여',
     'page_description' => '권한부여 설정 화면',
@@ -255,7 +255,7 @@ $router->get('/dashboard/settings/organization/permission-assignment', 'Dashboar
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/approval-template', 'DashboardController@settingsOrgApprovalTemplate', [
+$router->get('/main/settings/organization/approval-template', 'MainController@settingsOrgApprovalTemplate', [
     'key' => 'web.settings.organization.approval',
     'page' => '결재템플릿',
     'page_description' => '결재템플릿 설정 화면',
@@ -269,7 +269,7 @@ $router->get('/dashboard/settings/organization/approval-template', 'DashboardCon
     'log' => true,
 ]);
 
-$router->get('/dashboard/settings/organization/approval', 'DashboardController@redirectOrgApprovalLegacy', [
+$router->get('/main/settings/organization/approval', 'MainController@redirectOrgApprovalLegacy', [
     'skip_permission' => true,
     'auth' => true,
     'permissions' => [],

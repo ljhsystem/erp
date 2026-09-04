@@ -9,7 +9,9 @@ use App\Models\Ledger\EvidenceCardPurchaseModel;
 use App\Models\Ledger\EvidenceCashReceiptModel;
 use App\Models\Ledger\EvidenceTaxInvoiceManualModel;
 use App\Models\Ledger\EvidenceTaxInvoiceModel;
+use App\Models\Ledger\SalaryReportEvidenceModel;
 use Core\Helpers\SequenceHelper;
+use Core\LoggerFactory;
 use PDO;
 
 class EvidenceBodyWriteService
@@ -20,6 +22,7 @@ class EvidenceBodyWriteService
     private const CASH_TABLE = 'ledger_evidence_cash_receipt';
     private const CARD_HOMETAX_TABLE = 'ledger_evidence_card_hometax';
     private const CARD_STATEMENT_TABLE = 'ledger_evidence_card_statement';
+    private const SALARY_REPORT_TABLE = 'ledger_evidence_salary_report';
 
     private PDO $pdo;
     private EvidenceBankModel $bankModel;
@@ -28,10 +31,13 @@ class EvidenceBodyWriteService
     private EvidenceCashReceiptModel $cashReceiptModel;
     private EvidenceCardHometaxModel $cardHometaxModel;
     private EvidenceCardPurchaseModel $cardPurchaseModel;
+    private SalaryReportEvidenceModel $salaryReportModel;
     private EvidenceBodyStorageModel $bodyStorageModel;
     private array $tableExistsCache = [];
     private array $tableColumnsCache = [];
     private array $existingRowCache = [];
+    private $logger;
+
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
@@ -41,7 +47,9 @@ class EvidenceBodyWriteService
         $this->cashReceiptModel = new EvidenceCashReceiptModel($pdo);
         $this->cardHometaxModel = new EvidenceCardHometaxModel($pdo);
         $this->cardPurchaseModel = new EvidenceCardPurchaseModel($pdo);
+        $this->salaryReportModel = new SalaryReportEvidenceModel($pdo);
         $this->bodyStorageModel = new EvidenceBodyStorageModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger-evidence');
     }
 
     public function save(array $evidence): array
@@ -55,7 +63,8 @@ class EvidenceBodyWriteService
             ];
         }
 
-        $target = $this->syncTarget($sourceType);
+        $importType = strtoupper(trim((string) ($evidence['import_type'] ?? '')));
+        $target = $this->syncTarget($importType !== '' ? $importType : $sourceType);
         if ($target !== null) {
             $payload = $this->buildBodyPayloadForTable($evidence, $target['table'], $sourceType);
             return $this->persistAndVerify($target['table'], $payload, $target['writer']);
@@ -113,6 +122,13 @@ class EvidenceBodyWriteService
             ];
         }
 
+        if (in_array($sourceType, ['PAYROLL', 'PAYROLL_REPORT'], true)) {
+            return [
+                'table' => self::SALARY_REPORT_TABLE,
+                'writer' => fn(array $payload): bool => $this->salaryReportModel->upsertById($payload),
+            ];
+        }
+
         return null;
     }
 
@@ -124,7 +140,7 @@ class EvidenceBodyWriteService
                 'target_table' => $targetTable,
                 'message' => 'payload build failed',
             ];
-            error_log('[EvidenceBodyWriteService] failed target=' . $targetTable . ' reason=' . $result['message']);
+            $this->logWriteResult($result);
             return $result;
         }
 
@@ -134,7 +150,7 @@ class EvidenceBodyWriteService
                 'target_table' => $targetTable,
                 'message' => 'target table not exists',
             ];
-            error_log('[EvidenceBodyWriteService] failed target=' . $targetTable . ' reason=' . $result['message']);
+            $this->logWriteResult($result);
             return $result;
         }
 
@@ -145,7 +161,7 @@ class EvidenceBodyWriteService
                 'target_table' => $targetTable,
                 'message' => 'filtered payload missing id',
             ];
-            error_log('[EvidenceBodyWriteService] failed target=' . $targetTable . ' reason=' . $result['message']);
+            $this->logWriteResult($result);
             return $result;
         }
 
@@ -156,7 +172,7 @@ class EvidenceBodyWriteService
                 'target_table' => $targetTable,
                 'message' => 'upsert failed',
             ];
-            error_log('[EvidenceBodyWriteService] failed target=' . $targetTable . ' id=' . (string) ($payload['id'] ?? '') . ' reason=' . $result['message']);
+            $this->logWriteResult($result, (string) ($payload['id'] ?? ''));
             return $result;
         }
 
@@ -167,7 +183,7 @@ class EvidenceBodyWriteService
                 'target_table' => $targetTable,
                 'message' => 'post-save verify select not found',
             ];
-            error_log('[EvidenceBodyWriteService] failed target=' . $targetTable . ' id=' . (string) ($payload['id'] ?? '') . ' reason=' . $result['message']);
+            $this->logWriteResult($result, (string) ($payload['id'] ?? ''));
             return $result;
         }
 
@@ -176,8 +192,24 @@ class EvidenceBodyWriteService
             'target_table' => $targetTable,
             'message' => 'verified',
         ];
-        error_log('[EvidenceBodyWriteService] success target=' . $targetTable . ' id=' . (string) ($payload['id'] ?? ''));
+        $this->logWriteResult($result, (string) ($payload['id'] ?? ''));
         return $result;
+    }
+
+    private function logWriteResult(array $result, string $evidenceId = ''): void
+    {
+        $success = (bool) ($result['success'] ?? false);
+        $context = [
+            'event_code' => $success ? 'EVIDENCE_BODY_WRITE_SUCCEEDED' : 'EVIDENCE_BODY_WRITE_FAILED',
+            'result' => $success ? 'SUCCESS' : 'FAILED',
+            'service' => self::class,
+            'action' => 'evidence_body.write',
+            'target_type' => (string) ($result['target_table'] ?? ''),
+            'target_id' => $evidenceId,
+            'error_code' => $success ? null : (string) ($result['message'] ?? 'EVIDENCE_BODY_WRITE_FAILED'),
+        ];
+        $message = $success ? '증빙원본 본문을 저장했습니다.' : '증빙원본 본문 저장에 실패했습니다.';
+        $success ? $this->logger->info($message, $context) : $this->logger->error($message, $context);
     }
 
     private function buildBodyPayloadForTable(array $legacy, string $targetTable, string $sourceType): ?array
@@ -215,6 +247,10 @@ class EvidenceBodyWriteService
         $payload['sort_no'] = $this->sortNo($legacy, $targetTable);
         $payload['source_type'] = $this->sourceTypeForBody($resolvedSourceType);
         $payload['import_type'] = $this->importTypeForBody($currentPayload, $resolvedSourceType);
+        if ($targetTable === self::SALARY_REPORT_TABLE) {
+            $payload['source_type'] = strtoupper(trim((string) ($legacy['source_type'] ?? $existing['source_type'] ?? 'APPROVAL'))) ?: 'APPROVAL';
+            $payload['import_type'] = 'PAYROLL_REPORT';
+        }
         $payload['evidence_status'] = $this->evidenceStatus($legacy);
         $payload['external_key'] = $this->firstNonMissingValue(
             ['external_key', 'source_key'],
@@ -486,36 +522,10 @@ class EvidenceBodyWriteService
         $status = strtoupper(trim((string) ($legacy['evidence_status'] ?? '')));
 
         return match ($status) {
-            'COMPLETED', 'READY', 'VERIFY_ONLY', '완료' => 'COMPLETED',
-            'CORRECTION_REQUIRED', 'NOT_READY', 'REVIEW_REQUIRED', 'INVALID', 'ERROR', '보정필요' => 'CORRECTION_REQUIRED',
+            'COMPLETED' => 'COMPLETED',
+            'CORRECTION_REQUIRED' => 'CORRECTION_REQUIRED',
             default => 'CORRECTION_REQUIRED',
         };
-    }
-
-    private function storedEvidenceStatusForSync(string $sourceType, string $id): string
-    {
-        $id = trim($id);
-        if ($id === '') {
-            return 'CORRECTION_REQUIRED';
-        }
-
-        $table = match (true) {
-            $this->isBankSource($sourceType) => self::BANK_TABLE,
-            $this->isTaxInvoiceSource($sourceType) => $sourceType === 'TAX_INVOICE_MANUAL' ? self::TAX_MANUAL_TABLE : self::TAX_TABLE,
-            $this->isCashReceiptSource($sourceType) => self::CASH_TABLE,
-            $sourceType === 'CARD_HOMETAX' => self::CARD_HOMETAX_TABLE,
-            $this->isCardPurchaseSource($sourceType) => self::CARD_STATEMENT_TABLE,
-            default => '',
-        };
-
-        if ($table === '') {
-            return 'CORRECTION_REQUIRED';
-        }
-
-        $existing = $this->existingRow($table, $id);
-        $status = strtoupper(trim((string) ($existing['evidence_status'] ?? '')));
-
-        return $status !== '' ? $this->evidenceStatus(['evidence_status' => $status]) : 'CORRECTION_REQUIRED';
     }
 
     private function firstValue(array $source, array $keys): mixed

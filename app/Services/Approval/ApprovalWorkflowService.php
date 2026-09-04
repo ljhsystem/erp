@@ -8,6 +8,8 @@ use App\Models\User\ApprovalTemplateModel;
 use App\Models\User\ApprovalTemplateStepModel;
 use App\Models\User\EmployeeModel;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use PDO;
 
 class ApprovalWorkflowService
@@ -17,6 +19,7 @@ class ApprovalWorkflowService
     private ApprovalTemplateModel $templates;
     private ApprovalTemplateStepModel $templateSteps;
     private EmployeeModel $employees;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -25,9 +28,15 @@ class ApprovalWorkflowService
         $this->templates = new ApprovalTemplateModel($pdo);
         $this->templateSteps = new ApprovalTemplateStepModel($pdo);
         $this->employees = new EmployeeModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-approval-workflow');
     }
 
     public function submit(string $documentType, string $documentId, string $userId, string $actor): array
+    {
+        return $this->logged('APPROVAL_REQUEST_SUBMIT', 'submit', ['document_type' => $documentType, 'document_id' => $documentId, 'actor' => $actor], fn(): array => $this->submitInternal($documentType, $documentId, $userId, $actor));
+    }
+
+    private function submitInternal(string $documentType, string $documentId, string $userId, string $actor): array
     {
         $latest = $this->requests->latestForDocument($documentType, $documentId, true);
         if ($latest && !in_array((string) $latest['status'], ['rejected', 'withdrawn'], true)) {
@@ -109,6 +118,12 @@ class ApprovalWorkflowService
                 throw new \RuntimeException('결재단계 스냅샷을 생성하지 못했습니다.');
             }
         }
+        $this->logger->info('결재요청이 생성되었습니다.', [
+            'event_code' => 'APPROVAL_REQUEST_SUBMITTED', 'result' => 'SUCCESS',
+            'service' => self::class, 'action' => 'submit', 'actor' => $actor,
+            'document_type' => $documentType, 'document_id' => $documentId,
+            'request_id' => $requestId, 'current_step' => $firstApprovalSortNo,
+        ]);
         return ['request_id' => $requestId, 'current_step' => $firstApprovalSortNo];
     }
 
@@ -120,6 +135,10 @@ class ApprovalWorkflowService
         string $userId,
         string $actor
     ): array {
+        return $this->logged('APPROVAL_STEP_ACT', 'act', ['document_type' => $documentType, 'step_id' => $stepId, 'actor' => $actor], fn(): array => $this->actInternal($stepId, $documentType, $decision, $comment, $userId, $actor));
+    }
+
+    private function actInternal(string $stepId, string $documentType, string $decision, ?string $comment, string $userId, string $actor): array {
         $decision = strtolower(trim($decision));
         if (!in_array($decision, ['approved', 'rejected'], true)) {
             throw new \InvalidArgumentException('결재 처리구분이 올바르지 않습니다.');
@@ -150,6 +169,7 @@ class ApprovalWorkflowService
         if ($decision === 'rejected') {
             $this->steps->cancelRemaining((string) $request['id'], $actor);
             $this->requests->updateStatus((string) $request['id'], 'rejected', $actor);
+            $this->logDecision($actor, $documentType, $request, $stepId, 'REJECTED');
             return ['state' => 'REJECTED', 'request' => $request];
         }
         foreach ($this->steps->getSteps((string) $request['id']) as $next) {
@@ -161,10 +181,12 @@ class ApprovalWorkflowService
                 $this->requests->updateCurrentStep(
                     (string) $request['id'], (int) $next['sort_no'], $actor
                 );
+                $this->logDecision($actor, $documentType, $request, $stepId, 'IN_PROGRESS');
                 return ['state' => 'IN_PROGRESS', 'request' => $request];
             }
         }
         $this->requests->updateStatus((string) $request['id'], 'approved', $actor);
+        $this->logDecision($actor, $documentType, $request, $stepId, 'APPROVED');
         return ['state' => 'APPROVED', 'request' => $request];
     }
 
@@ -174,6 +196,10 @@ class ApprovalWorkflowService
         string $userId,
         string $actor
     ): array {
+        return $this->logged('APPROVAL_REQUEST_WITHDRAW', 'withdraw', ['document_type' => $documentType, 'request_id' => $requestId, 'actor' => $actor], fn(): array => $this->withdrawInternal($requestId, $documentType, $userId, $actor));
+    }
+
+    private function withdrawInternal(string $requestId, string $documentType, string $userId, string $actor): array {
         $request = $this->requests->getById($requestId, true);
         if (!$request || (string) $request['document_type'] !== $documentType
             || (string) $request['requester_id'] !== $userId
@@ -181,6 +207,34 @@ class ApprovalWorkflowService
             throw new \RuntimeException('현재 상태에서는 기안을 회수할 수 없습니다.');
         }
         $this->steps->cancelRemaining($requestId, $actor);
+        $this->logger->info('결재요청이 회수되었습니다.', [
+            'event_code' => 'APPROVAL_REQUEST_WITHDRAWN', 'result' => 'SUCCESS',
+            'service' => self::class, 'action' => 'withdraw', 'actor' => $actor,
+            'document_type' => $documentType, 'document_id' => (string) $request['document_id'],
+            'request_id' => $requestId,
+        ]);
         return $request;
+    }
+
+    private function logged(string $eventCode, string $action, array $context, callable $operation): array
+    {
+        try { return $operation(); }
+        catch (\PDOException $exception) {
+            $this->logger->error('결재 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $exception) {
+            $this->logger->warning('결재 업무 처리가 차단되었습니다.', ['event_code' => $eventCode . '_BLOCKED', 'result' => 'BLOCKED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        } catch (\Throwable $exception) {
+            $this->logger->error('결재 업무 처리에 실패했습니다.', ['event_code' => $eventCode . '_FAILED', 'result' => 'FAILED', 'service' => self::class, 'action' => $action, 'error_code' => get_class($exception), 'error' => $exception] + $context); throw $exception;
+        }
+    }
+
+    private function logDecision(string $actor, string $documentType, array $request, string $stepId, string $state): void
+    {
+        $this->logger->info('결재단계가 처리되었습니다.', [
+            'event_code' => 'APPROVAL_STEP_ACTED', 'result' => 'SUCCESS',
+            'service' => self::class, 'action' => 'act', 'actor' => $actor,
+            'document_type' => $documentType, 'document_id' => (string) $request['document_id'],
+            'request_id' => (string) $request['id'], 'step_id' => $stepId, 'state' => $state,
+        ]);
     }
 }

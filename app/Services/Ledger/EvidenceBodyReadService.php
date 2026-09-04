@@ -8,6 +8,7 @@ use App\Models\Ledger\CardHometaxEvidenceReadModel;
 use App\Models\Ledger\CardStatementEvidenceReadModel;
 use App\Models\Ledger\CashReceiptEvidenceReadModel;
 use App\Models\Ledger\ConstructionEvidenceReadModel;
+use App\Models\Ledger\DailyEmploymentIncomeEvidenceReadModel;
 use App\Models\Ledger\PayrollEvidenceReadModel;
 use App\Models\Ledger\TaxInvoiceReadModel;
 use App\Models\Ledger\EvidenceBodyStatusProjectionModel;
@@ -26,6 +27,7 @@ class EvidenceBodyReadService
     private ?CardStatementEvidenceReadModel $cardStatementReadModel = null;
     private ?BusinessDataEvidenceReadModel $businessDataReadModel = null;
     private ?PayrollEvidenceReadModel $payrollReadModel = null;
+    private ?DailyEmploymentIncomeEvidenceReadModel $dailyEmploymentIncomeReadModel = null;
     private ?ConstructionEvidenceReadModel $constructionReadModel = null;
     private ?EvidenceSourceRepository $evidenceSourceRepository = null;
 
@@ -47,6 +49,8 @@ class EvidenceBodyReadService
             'CARD_STATEMENT',
             'EMPLOYEE_EXPENSE_PERSONAL',
             'PAYROLL',
+            'DAILY_EMPLOYMENT_INCOME',
+            'BUSINESS_INCOME_REPORT',
         ];
     }
 
@@ -56,7 +60,7 @@ class EvidenceBodyReadService
         $rows = [];
 
         foreach ($resolvedTypes as $type) {
-            $normalizedType = $this->normalizeDataType((string) $type);
+            $normalizedType = $this->canonicalReadType($this->normalizeDataType((string) $type));
             if ($normalizedType === '') {
                 continue;
             }
@@ -73,7 +77,7 @@ class EvidenceBodyReadService
         $count = 0;
 
         foreach ($resolvedTypes as $type) {
-            $normalizedType = $this->normalizeDataType((string) $type);
+            $normalizedType = $this->canonicalReadType($this->normalizeDataType((string) $type));
             if ($normalizedType === '') {
                 continue;
             }
@@ -98,6 +102,16 @@ class EvidenceBodyReadService
         return ($this->normalizeDataType)($type);
     }
 
+    private function canonicalReadType(string $type): string
+    {
+        if ($type === 'BUSINESS_INCOME') {
+            return 'BUSINESS_INCOME_REPORT';
+        }
+        return in_array($type, ['DAILY_WORK_REPORT', 'PAYROLL_WITHHOLDING'], true)
+            ? 'DAILY_EMPLOYMENT_INCOME'
+            : $type;
+    }
+
     private function rowsForType(string $normalizedType, string $status, string $requestedId): array
     {
         return match ($normalizedType) {
@@ -106,9 +120,12 @@ class EvidenceBodyReadService
             'CASH_RECEIPT' => $this->cashReceiptReadModel()->findList($status, $requestedId),
             'CARD_HOMETAX' => $this->cardHometaxReadModel()->findList($status, $requestedId),
             'CARD_STATEMENT', 'CARD_APPROVAL' => $this->cardStatementReadModel()->findList($normalizedType, $status, $requestedId),
-            'SHOPPING_ORDER', 'IMPORT_INVOICE', 'BUSINESS_DATA', 'BUSINESS_INCOME', 'EMPLOYEE_EXPENSE'
+            'SHOPPING_ORDER', 'IMPORT_INVOICE', 'BUSINESS_DATA', 'BUSINESS_INCOME_REPORT', 'EMPLOYEE_EXPENSE'
                 => $this->businessDataReadModel()->findList($normalizedType, $status, $requestedId),
-            'PAYROLL', 'PAYROLL_WITHHOLDING' => $this->payrollReadModel()->findList($normalizedType, $status, $requestedId),
+            'PAYROLL' => $this->payrollReadModel()->findList($normalizedType, $status, $requestedId),
+            'DAILY_EMPLOYMENT_INCOME' => $requestedId !== ''
+                ? array_values(array_filter([$this->dailyEmploymentIncomeReadModel()->findById($requestedId)]))
+                : $this->dailyEmploymentIncomeReadModel()->findList($status, ''),
             'CONSTRUCTION' => $this->constructionReadModel()->findList($status, $requestedId),
             'EMPLOYEE_EXPENSE_PERSONAL' => $this->personalExpenseRows($status, $requestedId),
             default => [],
@@ -123,9 +140,10 @@ class EvidenceBodyReadService
             'CASH_RECEIPT' => $this->cashReceiptReadModel()->findCount($status, $requestedId),
             'CARD_HOMETAX' => $this->cardHometaxReadModel()->findCount($status, $requestedId),
             'CARD_STATEMENT', 'CARD_APPROVAL' => $this->cardStatementReadModel()->findCount($normalizedType, $status, $requestedId),
-            'SHOPPING_ORDER', 'IMPORT_INVOICE', 'BUSINESS_DATA', 'BUSINESS_INCOME', 'EMPLOYEE_EXPENSE'
+            'SHOPPING_ORDER', 'IMPORT_INVOICE', 'BUSINESS_DATA', 'BUSINESS_INCOME_REPORT', 'EMPLOYEE_EXPENSE'
                 => $this->businessDataReadModel()->findCount($normalizedType, $status, $requestedId),
-            'PAYROLL', 'PAYROLL_WITHHOLDING' => $this->payrollReadModel()->findCount($normalizedType, $status, $requestedId),
+            'PAYROLL' => $this->payrollReadModel()->findCount($normalizedType, $status, $requestedId),
+            'DAILY_EMPLOYMENT_INCOME' => $this->dailyEmploymentIncomeReadModel()->findCount($status, $requestedId),
             'CONSTRUCTION' => $this->constructionReadModel()->findCount($status, $requestedId),
             'EMPLOYEE_EXPENSE_PERSONAL' => $this->personalExpenseCount($status, $requestedId),
             default => 0,
@@ -266,6 +284,14 @@ class EvidenceBodyReadService
         }
 
         return $this->payrollReadModel;
+    }
+
+    private function dailyEmploymentIncomeReadModel(): DailyEmploymentIncomeEvidenceReadModel
+    {
+        return $this->dailyEmploymentIncomeReadModel ??= new DailyEmploymentIncomeEvidenceReadModel(
+            $this->pdo,
+            $this->schemaService()
+        );
     }
 
     private function constructionReadModel(): ConstructionEvidenceReadModel

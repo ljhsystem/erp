@@ -2,7 +2,7 @@
 
 global $router;
 
-require __DIR__ . '/web/dashboard.php';
+require __DIR__ . '/web/main.php';
 require __DIR__ . '/web/settings.php';
 require __DIR__ . '/web/materials.php';
 require __DIR__ . '/web/ledger.php';

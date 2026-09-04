@@ -22,6 +22,8 @@ $enableDeleteAll = $enableDeleteAll ?? true;
      id="<?= $modalId ?>"
      tabindex="-1"
      aria-hidden="true"
+     data-bs-backdrop="true"
+     data-bs-keyboard="true"
      data-type="<?= htmlspecialchars($type, ENT_QUOTES) ?>"
      data-list-url="<?= $listUrl ?? '' ?>"
      data-restore-url="<?= $restoreUrl ?? '' ?>"
@@ -35,7 +37,7 @@ $enableDeleteAll = $enableDeleteAll ?? true;
 
             <div class="modal-header">
                 <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES, 'UTF-8') ?></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-trash-close aria-label="휴지통 닫기"></button>
             </div>
 
             <div class="modal-body trash-body">

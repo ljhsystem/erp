@@ -317,6 +317,22 @@ export function createHtmlGrid(config = {}) {
         rootHost.addEventListener('change', (event) => {
             const checkbox = event.target.closest?.('.html-grid-row-selection');
             if (!checkbox) return;
+            if (checkbox.classList.contains('html-grid-header-selection')) {
+                const selectedRowIds = checkbox.checked
+                    ? state.rows
+                        .filter((row) => row.values?.selection_disabled !== true)
+                        .map((row) => row.rowId)
+                    : [];
+                state.selection = {
+                    ...(state.selection || {}),
+                    selectedRowIds,
+                };
+                eventBus.emit('selection:changed', {
+                    selection: state.selection,
+                    selectedAll: checkbox.checked,
+                });
+                return;
+            }
             const rowIndex = state.rows.findIndex((row) => row.rowId === checkbox.dataset.rowId);
             if (rowIndex < 0) return;
             const result = checkbox.checked
@@ -365,7 +381,7 @@ export function createHtmlGrid(config = {}) {
     }
 
     function bindEditorFocus() {
-        if (!rootHost?.addEventListener || editorFocusUnbind) return;
+        if (config.editorFocusSelectsRow === false || !rootHost?.addEventListener || editorFocusUnbind) return;
         const handler = (event) => {
             const cell = event.target?.closest?.('[data-row-id][data-column-key]');
             if (!cell || !rootHost.contains(cell)) return;
@@ -435,6 +451,7 @@ export function createHtmlGrid(config = {}) {
         applyColumnWidths(rootHost, columnManager.getVisibleColumns(), columnManager.getState());
         pluginRegistry.mount(rootHost, getPluginContext());
         pluginRegistry.update(rootHost, getPluginContext());
+        syncSelectionDom();
         return renderedStructure;
     }
 
@@ -447,13 +464,21 @@ export function createHtmlGrid(config = {}) {
         const isLoading = Boolean(state.ui?.loading);
         const hasError = Boolean(options.error);
 
-        renderedStructure.table.classList.toggle('is-hidden', !hasRows && !isLoading && !hasError);
+        const keepHeaderWhenEmpty = renderedStructure.table.dataset.keepHeaderWhenEmpty === 'true';
+        renderedStructure.table.classList.toggle('is-hidden', !keepHeaderWhenEmpty && !hasRows && !isLoading && !hasError);
         renderedStructure.empty.classList.toggle('is-hidden', hasRows && !isLoading && !hasError);
     }
 
     function syncSelectionDom() {
         if (!rootHost?.querySelectorAll) return;
         const selectedRowIds = new Set(state.selection?.selectedRowIds || []);
+        const selectableRows = state.rows.filter((row) => row.values?.selection_disabled !== true);
+        const selectedSelectableCount = selectableRows.filter((row) => selectedRowIds.has(row.rowId)).length;
+        rootHost.querySelectorAll('.html-grid-header-selection').forEach(checkbox => {
+            checkbox.checked = selectableRows.length > 0 && selectedSelectableCount === selectableRows.length;
+            checkbox.indeterminate = selectedSelectableCount > 0 && selectedSelectableCount < selectableRows.length;
+            checkbox.disabled = selectableRows.length === 0;
+        });
         rootHost.querySelectorAll('.html-grid-body-row[data-row-id]').forEach(row => {
             const selected = selectedRowIds.has(String(row.dataset.rowId || ''));
             row.classList.toggle('is-selected', selected);

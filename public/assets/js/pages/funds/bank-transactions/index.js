@@ -392,7 +392,7 @@ async function deleteBankTransaction(id) {
         return false;
     }
 
-    return runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '입출금 원본을 휴지통으로 이동 중' }, async () => {
+    return runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '입출금 원본을 휴지통으로 이동 중', trashChanged: true }, async () => {
         const json = await postJson(API.delete, { id });
         notify('success', json.message || '입출금 원본을 휴지통으로 이동했습니다.');
         return true;

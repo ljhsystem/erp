@@ -20,9 +20,8 @@ class FileService
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->logger = LoggerFactory::getLogger('service-file.FileService');
+        $this->logger = LoggerFactory::getLogger('service-file-file');
         $this->policyModel = new FileUploadPoliciesModel($pdo);
-        $this->logger->info("📦 FileService 초기화 완료");
     }
 
     private function runUpload(
@@ -30,31 +29,20 @@ class FileService
         string $bucket,
         array $extList,
         int $maxSize,
-        array $mimeList
+        array $mimeList,
+        bool $writeLog = true
     ): array {
-        $this->logger->info("📤 업로드 요청", [
-            'bucket'     => $bucket,
-            'orig_name'  => $file['name'] ?? null,
-            'size'       => $file['size'] ?? 0,
-            'ext_allow'  => $extList,
-            'mime_allow' => $mimeList
-        ]);
+        try {
+            $result = storage_upload($file, $bucket, $extList, $maxSize, $mimeList);
+        } catch (\Throwable $exception) {
+            if ($writeLog) $this->logger->error('파일 업로드에 실패했습니다.', ['event_code'=>'FILE_UPLOAD_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'upload','bucket_code'=>$this->bucketCode($bucket),'file_size'=>(int)($file['size']??0),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        }
 
-        $result = storage_upload($file, $bucket, $extList, $maxSize, $mimeList);
-
-        if ($result['success'] ?? false) {
-            $this->logger->info("✅ 업로드 성공", [
-                'bucket'  => $bucket,
-                'db_path' => $result['db_path'] ?? null,
-                'file'    => $result['file'] ?? null,
-                'size'    => $result['size'] ?? null,
-                'mime'    => $result['mime'] ?? null
-            ]);
-        } else {
-            $this->logger->warning("⚠ 업로드 실패", [
-                'bucket'  => $bucket,
-                'code'    => $result['code'] ?? '',
-                'message' => $result['message'] ?? ''
+        if ($writeLog) {
+            $success = (bool) ($result['success'] ?? false);
+            $this->logger->{$success?'info':'warning'}($success?'파일 업로드를 완료했습니다.':'파일 업로드가 차단되었습니다.', [
+                'event_code'=>$success?'FILE_UPLOAD_COMPLETED':'FILE_UPLOAD_BLOCKED','result'=>$success?'SUCCESS':'BLOCKED','service'=>self::class,'action'=>'upload','bucket_code'=>$this->bucketCode($bucket),'file_size'=>(int)($result['size']??$file['size']??0),'mime_type'=>$success?($result['mime']??null):null,'reason_code'=>$success?null:($result['code']??'UPLOAD_REJECTED')
             ]);
         }
 
@@ -181,51 +169,37 @@ class FileService
 
     public function delete(?string $dbPath): bool
     {
+        return $this->deleteFile($dbPath, true);
+    }
+
+    private function deleteFile(?string $dbPath, bool $writeLog): bool
+    {
+        $pathRef=$this->pathRef($dbPath);
         if (!$dbPath) {
-            $this->logger->warning("⚠ 삭제 요청: dbPath 없음");
+            if($writeLog)$this->logger->warning('파일 삭제가 차단되었습니다.',['event_code'=>'FILE_DELETE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'delete','reason_code'=>'PATH_REQUIRED']);
             return false;
         }
 
-        $this->logger->info("🗑 삭제 요청", ['dbPath' => $dbPath]);
-
         $abs = storage_resolve_abs($dbPath);
         if (!$abs || !is_file($abs)) {
-            $this->logger->warning("⚠ 삭제 실패: 파일 없음", ['dbPath' => $dbPath, 'abs' => $abs]);
+            if($writeLog)$this->logger->warning('파일 삭제가 차단되었습니다.',['event_code'=>'FILE_DELETE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'delete','path_ref'=>$pathRef,'reason_code'=>'FILE_NOT_FOUND']);
             return false;
         }
 
         $success = @unlink($abs);
-
-        $this->logger->info($success ? "🗑 삭제 성공" : "⚠ 삭제 실패", [
-            'dbPath' => $dbPath,
-            'abs'    => $abs
-        ]);
+        if($writeLog)$this->logger->{$success?'info':'error'}($success?'파일 삭제를 완료했습니다.':'파일 삭제에 실패했습니다.',['event_code'=>$success?'FILE_DELETE_COMPLETED':'FILE_DELETE_FAILED','result'=>$success?'SUCCESS':'FAILED','service'=>self::class,'action'=>'delete','path_ref'=>$pathRef]);
 
         return $success;
     }
 
     public function resolveAbsolute(string $dbPath): ?string
     {
-        $abs = storage_resolve_abs($dbPath);
-
-        $this->logger->info("📍 절대경로 변환", [
-            'dbPath' => $dbPath,
-            'abs'    => $abs
-        ]);
-
-        return $abs;
+        return storage_resolve_abs($dbPath);
     }
 
     public function url(string $dbPath): ?string
     {
-        $url = storage_to_url($dbPath);
-
-        $this->logger->info("🌐 URL 변환", [
-            'dbPath' => $dbPath,
-            'url'    => $url
-        ]);
-
-        return $url;
+        return storage_to_url($dbPath);
     }
 
     public function replace(
@@ -237,18 +211,10 @@ class FileService
         array $mimeList = []
     ): array {
 
-        $this->logger->info("🔄 파일 교체 요청", [
-            'old_file' => $oldDbPath,
-            'bucket'   => $bucket
-        ]);
-
-        $upload = $this->runUpload($newFile, $bucket, $extList, $size, $mimeList);
+        $upload = $this->runUpload($newFile, $bucket, $extList, $size, $mimeList, false);
 
         if (empty($upload['success'])) {
-            $this->logger->warning("⚠ 새 파일 업로드 실패 → 기존 파일 유지", [
-                'old_file' => $oldDbPath,
-                'error'    => $upload['message'] ?? ''
-            ]);
+            $this->logger->warning('파일 교체가 차단되었습니다.',['event_code'=>'FILE_REPLACE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'replace','old_path_ref'=>$this->pathRef($oldDbPath),'bucket_code'=>$this->bucketCode($bucket),'reason_code'=>$upload['code']??'UPLOAD_REJECTED']);
 
             return [
                 'success' => false,
@@ -258,7 +224,7 @@ class FileService
         }
 
         if ($oldDbPath) {
-            $this->delete($oldDbPath);
+            $this->deleteFile($oldDbPath, false);
         }
 
         $result = [
@@ -272,7 +238,7 @@ class FileService
             'size'     => $upload['size'],
         ];
 
-        $this->logger->info("🔄 교체 성공", $result);
+        $this->logger->info('파일 교체를 완료했습니다.',['event_code'=>'FILE_REPLACE_COMPLETED','result'=>'SUCCESS','service'=>self::class,'action'=>'replace','old_path_ref'=>$this->pathRef($oldDbPath),'new_path_ref'=>$this->pathRef((string)$upload['db_path']),'bucket_code'=>$this->bucketCode($bucket),'file_size'=>(int)($upload['size']??0),'mime_type'=>$upload['mime']??null]);
 
         return $result;
     }
@@ -342,13 +308,13 @@ class FileService
 
         if (!empty($data['id'])) {
             $data['updated_by'] = ActorHelper::user();
-            return $this->policyModel->update($data['id'], $data);
+            $ok=$this->policyModel->update($data['id'], $data);$this->logPolicyResult('FILE_POLICY_UPDATE',$ok,(string)$data['id']);return$ok;
         }
 
         $data['id'] = UuidHelper::generate();
         $data['created_by'] = ActorHelper::user();
 
-        return $this->policyModel->create($data);
+        $ok=$this->policyModel->create($data);$this->logPolicyResult('FILE_POLICY_CREATE',$ok,(string)$data['id']);return$ok;
     }
 
     public function updatePolicy(array $data): bool
@@ -358,16 +324,20 @@ class FileService
         }
 
         $data['updated_by'] = ActorHelper::user();
-        return $this->policyModel->update($data['id'], $data);
+        $ok=$this->policyModel->update($data['id'], $data);$this->logPolicyResult('FILE_POLICY_UPDATE',$ok,(string)$data['id']);return$ok;
     }
 
     public function deletePolicy(string $id): bool
     {
-        return $this->policyModel->delete($id);
+        $ok=$this->policyModel->delete($id);$this->logPolicyResult('FILE_POLICY_DELETE',$ok,$id);return$ok;
     }
 
     public function setPolicyActive(string $id, int $isActive): bool
     {
-        return $this->policyModel->setActive($id, (bool)$isActive, ActorHelper::user());
+        $ok=$this->policyModel->setActive($id,(bool)$isActive,ActorHelper::user());$this->logPolicyResult('FILE_POLICY_ACTIVE_CHANGE',$ok,$id,['is_active'=>$isActive]);return$ok;
     }
+
+    private function logPolicyResult(string $event,bool $success,string $id,array $context=[]):void{$this->logger->{$success?'info':'error'}($success?'파일정책 업무 처리를 완료했습니다.':'파일정책 업무 처리에 실패했습니다.',['event_code'=>$event.($success?'':'_FAILED'),'result'=>$success?'SUCCESS':'FAILED','service'=>self::class,'action'=>strtolower($event),'target_id'=>$id]+$context);}
+    private function pathRef(?string $path):?string{return $path?substr(hash('sha256',$path),0,16):null;}
+    private function bucketCode(string $bucket):string{return strtoupper((string)preg_replace('/[^a-z0-9]+/i','_',trim($bucket)));}
 }

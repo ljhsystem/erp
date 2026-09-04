@@ -23,7 +23,7 @@ class ProjectTrashService
     {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('delete() called', [
+        $this->logger->info('프로젝트 삭제를 시작합니다.', [
             'id' => $id,
             'actorType' => $actorType,
             'actor' => $actor,
@@ -33,7 +33,7 @@ class ProjectTrashService
             $item = $this->model->getById($id);
 
             if (!$item) {
-                $this->logger->warning('delete() not found', [
+                $this->logger->warning('삭제할 프로젝트를 찾을 수 없습니다.', [
                     'id' => $id,
                 ]);
 
@@ -44,7 +44,7 @@ class ProjectTrashService
             }
 
             if (!$this->model->deleteById($id, $actor)) {
-                $this->logger->error('delete() DB failed', [
+                $this->logger->error('프로젝트 삭제 저장에 실패했습니다.', [
                     'id' => $id,
                     'actor' => $actor,
                 ]);
@@ -55,15 +55,16 @@ class ProjectTrashService
                 ];
             }
 
-            $this->logger->info('delete() success', [
+            $this->logger->info('프로젝트를 삭제했습니다.', [
                 'id' => $id,
             ]);
 
             return ['success' => true];
         } catch (\Throwable $e) {
-            $this->logger->error('delete() exception', [
+            $this->logger->error('프로젝트 삭제 중 예외가 발생했습니다.', [
                 'id' => $id,
-                'exception' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -75,13 +76,14 @@ class ProjectTrashService
 
     public function getTrashList(): array
     {
-        $this->logger->info('getTrashList() called');
+        $this->logger->info('삭제된 프로젝트 목록을 조회합니다.');
 
         try {
             return $this->model->getDeleted();
         } catch (\Throwable $e) {
-            $this->logger->error('getTrashList() exception', [
-                'exception' => $e->getMessage(),
+            $this->logger->error('삭제된 프로젝트 목록 조회 중 예외가 발생했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [];
@@ -92,7 +94,7 @@ class ProjectTrashService
     {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restore() called', [
+        $this->logger->info('프로젝트 복구를 시작합니다.', [
             'id' => $id,
             'actorType' => $actorType,
             'actor' => $actor,
@@ -102,7 +104,7 @@ class ProjectTrashService
             $project = $this->model->getById($id);
 
             if (!$project) {
-                $this->logger->warning('restore() not found', [
+                $this->logger->warning('복구할 프로젝트를 찾을 수 없습니다.', [
                     'id' => $id,
                 ]);
 
@@ -113,7 +115,7 @@ class ProjectTrashService
             }
 
             if (!$this->model->restoreById($id, $actor)) {
-                $this->logger->error('restore() DB failed', [
+                $this->logger->error('프로젝트 복구 저장에 실패했습니다.', [
                     'id' => $id,
                     'actor' => $actor,
                 ]);
@@ -124,7 +126,7 @@ class ProjectTrashService
                 ];
             }
 
-            $this->logger->info('restore() success', [
+            $this->logger->info('프로젝트를 복구했습니다.', [
                 'id' => $id,
             ]);
 
@@ -132,10 +134,11 @@ class ProjectTrashService
                 'success' => true,
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('restore() exception', [
+            $this->logger->error('프로젝트 복구 중 예외가 발생했습니다.', [
                 'id' => $id,
                 'actor' => $actor,
-                'exception' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -149,14 +152,14 @@ class ProjectTrashService
     {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreBulk() called', [
+        $this->logger->info('프로젝트 일괄복구를 시작합니다.', [
             'ids' => $ids,
             'actorType' => $actorType,
             'actor' => $actor,
         ]);
 
         if (empty($ids)) {
-            $this->logger->warning('restoreBulk() empty ids');
+            $this->logger->warning('복구할 프로젝트를 선택하지 않았습니다.');
 
             return [
                 'success' => false,
@@ -178,10 +181,11 @@ class ProjectTrashService
                 'message' => "선택 복구가 완료되었습니다. ({$success}건)",
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('restoreBulk() exception', [
+            $this->logger->error('프로젝트 일괄복구 중 예외가 발생했습니다.', [
                 'ids' => $ids,
                 'actor' => $actor,
-                'exception' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -195,7 +199,7 @@ class ProjectTrashService
     {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreAll() called', [
+        $this->logger->info('프로젝트 전체복구를 시작합니다.', [
             'actorType' => $actorType,
             'actor' => $actor,
         ]);
@@ -215,9 +219,10 @@ class ProjectTrashService
                 'message' => "전체 복구가 완료되었습니다. ({$success}건)",
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('restoreAll() exception', [
+            $this->logger->error('프로젝트 전체복구 중 예외가 발생했습니다.', [
                 'actor' => $actor,
-                'exception' => $e->getMessage(),
+                'error_code' => get_class($e),
+                'error' => $e,
             ]);
 
             return [
@@ -269,7 +274,7 @@ class ProjectTrashService
             $this->pdo->commit();
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            $this->logger->error('purgeProjects() failed', ['exception' => $e->getMessage(), 'ids' => $ids]);
+            $this->logger->error('프로젝트 영구삭제에 실패했습니다.', ['event_code' => 'PROJECT_PURGE_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
             return ['success' => false, 'message' => '영구삭제 중 오류가 발생했습니다.', 'deleted_count' => 0, 'skipped_count' => count($ids), 'data' => ['deleted_count' => 0, 'skipped_count' => count($ids)]];
         }
         return $this->purgeResult($deletedCount, count($blocked), $blocked);
@@ -290,9 +295,6 @@ class ProjectTrashService
     public function reorder(array $changes): bool
     {
         if ($this->logger) {
-            $this->logger->info('reorder() called', [
-                'changes' => $changes,
-            ]);
         }
 
         if (empty($changes)) {
@@ -331,7 +333,7 @@ class ProjectTrashService
             }
 
             if ($this->logger) {
-                $this->logger->info('reorder() success');
+                $this->logger->info('프로젝트 정렬을 저장했습니다.');
             }
 
             return true;
@@ -341,9 +343,10 @@ class ProjectTrashService
             }
 
             if ($this->logger) {
-                $this->logger->error('reorder() failed', [
-                    'exception' => $e->getMessage(),
-                    'changes' => $changes,
+                $this->logger->error('프로젝트 정렬 저장에 실패했습니다.', [
+                    'error_code' => get_class($e),
+                    'error' => $e,
+                    'change_count' => count($changes),
                 ]);
             }
 

@@ -147,8 +147,41 @@
 }
 
 .evidence-edit-group-header {
-    display: grid;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 4px;
+}
+
+.evidence-status-confirmation {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    margin-left: 18px;
+}
+
+.evidence-status-confirmation-label,
+.evidence-status-confirmation-text {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.evidence-status-confirmation[data-status="COMPLETED"] .evidence-status-confirmation-text {
+    color: var(--bs-success, #198754);
+}
+
+.evidence-status-confirmation[data-status="CORRECTION_REQUIRED"] .evidence-status-confirmation-text {
+    color: var(--bs-warning-text-emphasis, #664d03);
+}
+
+.evidence-status-confirmation-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    min-height: auto;
 }
 
 .evidence-edit-group-toggle {
@@ -478,9 +511,16 @@ textarea.evidence-edit-input {
     font-weight: 700;
 }
 
-.ledger-data-status-page #evidenceStatusTable_wrapper table.dataTable th,
 .ledger-data-status-page #evidenceStatusTable_wrapper table.dataTable td {
     white-space: nowrap;
+    vertical-align: middle;
+}
+
+.ledger-data-status-page #evidenceStatusTable_wrapper table.dataTable th {
+    white-space: normal;
+    word-break: keep-all;
+    overflow: visible;
+    text-overflow: clip;
     vertical-align: middle;
 }
 
@@ -496,7 +536,6 @@ textarea.evidence-edit-input {
     max-width: 100% !important;
 }
 
-.ledger-data-status-page #evidenceStatusTable_wrapper table.dataTable th.evidence-data-column,
 .ledger-data-status-page #evidenceStatusTable_wrapper table.dataTable td.evidence-data-column {
     max-width: 280px;
     overflow: hidden;
@@ -658,6 +697,70 @@ textarea.evidence-edit-input {
     text-align: center;
 }
 
+.evidence-business-income-detail-card .table-responsive {
+    padding: 0 16px 16px;
+}
+
+.evidence-business-income-detail-table {
+    min-width: 920px;
+    font-size: 0.8125rem;
+}
+
+.evidence-business-income-detail-table th {
+    background: var(--color-surface-subtle, #f5f7fa);
+    white-space: nowrap;
+}
+
+.evidence-income-original-info,
+.evidence-income-original-amounts {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    padding: 14px 16px 16px;
+}
+
+.evidence-income-original-info > div,
+.evidence-income-original-amount {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border, #dfe5ec);
+    border-radius: 7px;
+    background: var(--color-surface-subtle, #f7f9fb);
+}
+
+.evidence-income-original-info span,
+.evidence-income-original-amount span {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--color-text-muted, #6c757d);
+    font-size: 0.75rem;
+}
+
+.evidence-income-original-info strong,
+.evidence-income-original-amount strong {
+    display: block;
+    overflow: hidden;
+    color: var(--color-text, #1f2937);
+    font-size: 0.875rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.evidence-income-original-amount strong {
+    text-align: right;
+}
+
+.evidence-income-original-lines .table-responsive {
+    padding: 0 16px 16px;
+}
+
+@media (max-width: 1199.98px) {
+    .evidence-income-original-info,
+    .evidence-income-original-amounts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 991.98px) {
     .evidence-bulk-fields {
         grid-template-columns: 1fr;
@@ -665,6 +768,10 @@ textarea.evidence-edit-input {
 }
 
 @media (max-width: 575.98px) {
+    .evidence-income-original-info,
+    .evidence-income-original-amounts {
+        grid-template-columns: 1fr;
+    }
     .evidence-edit-group-header,
     .evidence-edit-group-toggle,
     .evidence-edit-group-fields {
@@ -674,6 +781,17 @@ textarea.evidence-edit-input {
 
     .evidence-edit-group-fields {
         grid-template-columns: 1fr;
+    }
+
+    .evidence-edit-group-header {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .evidence-status-confirmation {
+        width: 100%;
+        justify-content: space-between;
+        margin-left: 0;
     }
 
     .evidence-bulk-field {

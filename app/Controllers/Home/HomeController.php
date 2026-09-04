@@ -62,7 +62,7 @@ class HomeController
             return;
         }
 
-        header('Location: /dashboard');
+        header('Location: /main');
         exit;
     }
 

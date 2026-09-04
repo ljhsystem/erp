@@ -19,6 +19,12 @@
   will-change: transform;
 }
 
+.sidebar.sidebar-initializing,
+.sidebar.sidebar-initializing *,
+.sidebar.sidebar-initializing + .sidebar-right-border {
+  transition: none !important;
+}
+
 /* 접힘: 변수 기반 폭 유지(완전 0px가 아님) */
 .sidebar.collapsed {
   transform: translate3d(calc(-1 * var(--sidebar-width, 240px)), 0, 0);
@@ -77,7 +83,7 @@
 
   cursor: pointer;
   pointer-events: auto;
-  transition: all .15s ease;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 
@@ -171,4 +177,14 @@ body.is-sidebar-collapsed .sidebar-right-border {
 
 .sidebar .collapse.show {
   display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-right-border,
+  .sidebar .nav .nav-link,
+  .sidebar ul,
+  .sidebar ul.collapse {
+    transition: none !important;
+  }
 }

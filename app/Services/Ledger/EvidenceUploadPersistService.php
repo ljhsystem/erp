@@ -6,12 +6,15 @@ use App\Models\Ledger\EvidenceBodyStorageModel;
 use App\Models\Ledger\EvidenceSchemaModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class EvidenceUploadPersistService
 {
     private EvidenceBodyStorageModel $bodyStorageModel;
     private EvidenceSchemaModel $schemaModel;
+    private LoggerInterface $logger;
     public function __construct(
         private PDO $pdo,
         private EvidenceUploadService $evidenceUploadService,
@@ -24,6 +27,7 @@ class EvidenceUploadPersistService
     ) {
         $this->bodyStorageModel = new EvidenceBodyStorageModel($pdo);
         $this->schemaModel = new EvidenceSchemaModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger-evidence-upload-persist');
     }
 
     public function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
@@ -33,6 +37,7 @@ class EvidenceUploadPersistService
         $fileName = trim((string) ($file['name'] ?? 'upload'));
         $dataType = $this->normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
         if (!$this->hasWritableBodyTable($dataType)) {
+            $this->logger->warning('증빙 업로드 저장이 차단되었습니다.',['event_code'=>'EVIDENCE_UPLOAD_PERSIST_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'upload-save','actor'=>$actor,'batch_id'=>$batchId,'import_type'=>$dataType,'reason'=>'지원되는 증빙원본 테이블이 없습니다.']);
             return [
                 'success' => false,
                 'message' => '증빙 업로드 저장 기능을 사용할 수 없습니다.',
@@ -57,9 +62,7 @@ class EvidenceUploadPersistService
 
                 $rowState = $this->evidenceBatchSaveService->buildUploadRowState(
                     $row,
-                    $dataType,
-                    is_array($format['evidence_status_column_display_name'] ?? null) ? $format['evidence_status_column_display_name'] : [],
-                    is_array($format['evidence_status_column_requirement_policy'] ?? null) ? $format['evidence_status_column_requirement_policy'] : []
+                    $dataType
                 );
                 $parsedPayload = $rowState['parsed_payload'];
                 $processStatus = $rowState['process_status'];
@@ -196,17 +199,18 @@ class EvidenceUploadPersistService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            $this->logger->error('증빙 업로드 저장에 실패했습니다.',['event_code'=>'EVIDENCE_UPLOAD_PERSIST_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'upload-save','actor'=>$actor,'batch_id'=>$batchId,'import_type'=>$dataType,'row_count'=>count($rows),'error_code'=>get_class($e),'error'=>$e]);
             throw $e;
         }
 
-        return $this->evidenceBatchSaveService->buildBatchResult(
+        $result=$this->evidenceBatchSaveService->buildBatchResult(
             $counters,
             $batchId,
             $fileName,
             $dataType,
             (string) ($format['id'] ?? ''),
             count($rows)
-        );
+        );$this->logger->info('증빙 업로드 저장이 완료되었습니다.',['event_code'=>'EVIDENCE_UPLOAD_PERSIST_COMPLETED','result'=>'SUCCESS','service'=>self::class,'action'=>'upload-save','actor'=>$actor,'batch_id'=>$batchId,'import_type'=>$dataType,'row_count'=>count($rows)]);return$result;
     }
 
     private function normalizeDataType(string $type): string

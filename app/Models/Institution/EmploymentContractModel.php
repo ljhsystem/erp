@@ -30,6 +30,7 @@ class EmploymentContractModel
         $filterColumns = [
             'keyword' => null,
             'contract_no' => 'c.contract_no',
+            'contract_date' => 'c.contract_date',
             'employee_name' => 'e.employee_name',
             'contract_period_type' => 'c.contract_period_type',
             'employment_category' => 'c.employment_category',
@@ -87,6 +88,7 @@ class EmploymentContractModel
         $orderColumns = [
             'sort_no' => 'c.sort_no',
             'contract_no' => 'c.contract_no',
+            'contract_date' => 'c.contract_date',
             'employee_name' => 'e.employee_name',
             'contract_period_type' => 'c.contract_period_type',
             'employment_category' => 'c.employment_category',
@@ -116,12 +118,52 @@ class EmploymentContractModel
             "SELECT c.*,e.employee_name,p.project_name,
                     previous_contract.contract_no previous_contract_no,
                     approval_request.sort_no approval_request_no,
+                    contract_type_code.code_name contract_type_name,
+                    contract_period_code.code_name contract_period_type_name,
+                    employment_category_code.code_name employment_category_name,
+                    working_time_code.code_name working_time_type_name,
+                    fixed_reason_code.code_name fixed_term_reason_code_name,
+                    work_location_code.code_name work_location_type_name,
+                    work_schedule_code.code_name work_schedule_type_name,
+                    salary_type_code.code_name salary_type_name,
+                    payment_timing_code.code_name payment_timing_name,
+                    termination_reason_code.code_name termination_reason_name,
                     status_code.code_name contract_status_name
               FROM institution_employment_contracts c
               JOIN user_employees e ON e.id = c.employee_id
               LEFT JOIN system_projects p ON p.id = c.project_id
               LEFT JOIN institution_employment_contracts previous_contract ON previous_contract.id = c.previous_contract_id
               LEFT JOIN user_approval_requests approval_request ON approval_request.id = c.current_approval_request_id
+             LEFT JOIN system_codes contract_type_code
+               ON contract_type_code.code_group = 'EMPLOYMENT_CONTRACT_TYPE'
+              AND contract_type_code.code = c.contract_type
+             LEFT JOIN system_codes contract_period_code
+               ON contract_period_code.code_group = 'EMPLOYMENT_CONTRACT_PERIOD_TYPE'
+              AND contract_period_code.code = c.contract_period_type
+             LEFT JOIN system_codes employment_category_code
+               ON employment_category_code.code_group = 'EMPLOYMENT_CATEGORY'
+              AND employment_category_code.code = c.employment_category
+             LEFT JOIN system_codes working_time_code
+               ON working_time_code.code_group = 'EMPLOYMENT_WORKING_TIME_TYPE'
+              AND working_time_code.code = c.working_time_type
+             LEFT JOIN system_codes fixed_reason_code
+               ON fixed_reason_code.code_group = 'EMPLOYMENT_CONTRACT_FIXED_TERM_REASON'
+              AND fixed_reason_code.code = c.fixed_term_reason_code
+             LEFT JOIN system_codes work_location_code
+               ON work_location_code.code_group = 'WORK_LOCATION_TYPE'
+              AND work_location_code.code = c.work_location_type
+             LEFT JOIN system_codes work_schedule_code
+               ON work_schedule_code.code_group = 'WORK_SCHEDULE_TYPE'
+              AND work_schedule_code.code = c.work_schedule_type
+             LEFT JOIN system_codes salary_type_code
+               ON salary_type_code.code_group = 'SALARY_TYPE'
+              AND salary_type_code.code = c.salary_type
+             LEFT JOIN system_codes payment_timing_code
+               ON payment_timing_code.code_group = 'PAYMENT_TIMING'
+              AND payment_timing_code.code = c.payment_timing
+             LEFT JOIN system_codes termination_reason_code
+               ON termination_reason_code.code_group = 'EMPLOYMENT_TERMINATION_REASON'
+              AND termination_reason_code.code = c.termination_reason
              LEFT JOIN system_codes status_code
                ON status_code.code_group = 'EMPLOYMENT_CONTRACT_STATUS'
               AND status_code.code = c.contract_status
@@ -172,9 +214,8 @@ class EmploymentContractModel
     public function employeeSnapshotSource(string $employeeId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT e.employee_name, e.address, e.address_detail, e.rrn, pos.position_name
+            'SELECT e.employee_name, e.address, e.address_detail, e.rrn
              FROM user_employees e
-             LEFT JOIN user_positions pos ON pos.id = e.position_id
              WHERE e.id = :id
              LIMIT 1'
         );

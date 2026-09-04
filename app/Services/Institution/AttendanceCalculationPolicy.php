@@ -12,8 +12,10 @@ final class AttendanceCalculationPolicy
         $workIntervals = $this->intervals($segments, ['WORK']);
         $breakIntervals = $this->intervals($segments, ['BREAK', 'OUTSIDE']);
         $workSeconds = $this->unionSeconds($workIntervals);
-        $actualBreakSeconds = $this->intersectionSeconds($workIntervals, $breakIntervals);
-        $actualWorkSeconds = max(0, $workSeconds - $actualBreakSeconds);
+        $excludedWorkSeconds = $this->intersectionSeconds($workIntervals, $breakIntervals);
+        $workEnvelope = $workIntervals === [] ? [] : [[min(array_column($workIntervals, 0)), max(array_column($workIntervals, 1))]];
+        $actualBreakSeconds = $this->intersectionSeconds($workEnvelope, $breakIntervals);
+        $actualWorkSeconds = max(0, $workSeconds - $excludedWorkSeconds);
 
         $leaveSeconds = array_sum(array_map(
             static fn(array $usage): int => max(0, (int) ($usage['used_minutes'] ?? 0) * 60),
@@ -50,6 +52,7 @@ final class AttendanceCalculationPolicy
         $nightSeconds = $workingStandard ? $this->nightSeconds($workIntervals, $breakIntervals, (string) ($workingStandard['value_data']['night_start_time'] ?? ''), (string) ($workingStandard['value_data']['night_end_time'] ?? '')) : 0;
         $needsConfirmation = !$supported
             || !empty($schedule['exception'])
+            || !empty($schedule['calculation_issue_code'])
             || !$statutoryReady || $dailyLegal===0 || $weeklyLegal===0
             || ((int) ($schedule['break_seconds'] ?? 0) > 0 && $actualBreakSeconds === 0);
 

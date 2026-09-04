@@ -50,7 +50,7 @@ include(__DIR__ . '/../layout/sidebar.php');
 
                 <div class="d-flex justify-content-end">
                     <button type="submit" class="btn btn-primary">저장</button>
-                    <a href="/dashboard/sukhyang/view.php" class="btn btn-secondary ms-2">취소</a>
+                    <a href="/main/sukhyang/view.php" class="btn btn-secondary ms-2">취소</a>
                 </div>
             </div>
         </div>

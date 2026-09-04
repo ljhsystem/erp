@@ -103,6 +103,8 @@ function normalizeColumnDefinition(column = {}, index = 0, options = {}) {
         pinned: String(column.pinned || '').trim() || null,
         editable: column.editable !== false,
         required: Boolean(column.required),
+        headerSelection: column.headerSelection === true,
+        headerSelectionLabel: String(column.headerSelectionLabel || ''),
         readonly: Boolean(column.readonly),
         disabled: Boolean(column.disabled),
         sticky: Boolean(column.sticky),
@@ -138,4 +140,3 @@ export function createRuntimeSchema(columns = [], options = {}) {
 
     return deepFreeze(schema);
 }
-

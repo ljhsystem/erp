@@ -113,6 +113,7 @@ class JobAssignmentModel
         $count = $this->db->prepare("SELECT COUNT(DISTINCT e.id) {$joins} WHERE {$whereSql}");$count->execute($params);$filtered=(int)$count->fetchColumn();
         $start = max(0, (int) ($query['start'] ?? 0));
         $length = max(1, min(200, (int) ($query['length'] ?? 50)));
+        $orderSql = $this->listOrderSql($query);
         $sql = "SELECT e.id employee_id,e.sort_no,u.username,e.employee_name,
                        COALESCE(esh.status_code,e.employment_status) employment_status,employment_code.code_name employment_status_name,
                        COALESCE(d.dept_name,master_department.dept_name) department_name,
@@ -125,12 +126,40 @@ class JobAssignmentModel
                        pp.assignment_status,assignment_code.code_name assignment_status_name,
                        NULLIF(GREATEST(COALESCE(jp.updated_at,'1000-01-01'),COALESCE(pp.updated_at,'1000-01-01'),COALESCE(wproj.updated_at,'1000-01-01')),'1000-01-01') updated_at
                 {$joins} WHERE {$whereSql}
-                ORDER BY e.sort_no LIMIT {$start},{$length}";
+                ORDER BY {$orderSql} LIMIT {$start},{$length}";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $rows=$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
         foreach($rows as &$row){$count=(int)($row['other_project_count']??0);$first=(string)($row['other_project_first_name']??'');$row['other_project_summary']=$count===0?null:($count===1?$first:$first.' 외 '.($count-1).'건');}unset($row);
         return ['rows' => $rows, 'total' => $total, 'filtered' => $filtered, 'as_of_date' => $asOfDate];
+    }
+
+    private function listOrderSql(array $query): string
+    {
+        $order = is_array($query['order'][0] ?? null) ? $query['order'][0] : [];
+        $columnIndex = filter_var($order['column'] ?? null, FILTER_VALIDATE_INT);
+        $columns = is_array($query['columns'] ?? null) ? $query['columns'] : [];
+        $column = $columnIndex !== false && is_array($columns[$columnIndex] ?? null)
+            ? $columns[$columnIndex]
+            : [];
+        $key = trim((string) ($column['data'] ?? ''));
+        $direction = strtolower((string) ($order['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+        $expressions = [
+            'sort_no' => 'e.sort_no',
+            'employee_name' => 'e.employee_name',
+            'employment_status' => 'COALESCE(esh.status_code,e.employment_status)',
+            'department_name' => 'COALESCE(d.dept_name,master_department.dept_name)',
+            'position_name' => 'COALESCE(pos.position_name,master_position.position_name)',
+            'job_name' => 'jp.job_name',
+            'primary_project_name' => 'pp.primary_project_name',
+            'workplace_name' => 'wproj.workplace_name',
+            'assignment_start_date' => 'jp.start_date',
+            'assignment_end_date' => 'jp.end_date',
+            'assignment_status' => 'pp.assignment_status',
+        ];
+        $expression = $expressions[$key] ?? 'e.sort_no';
+
+        return "{$expression} {$direction}, e.sort_no ASC";
     }
 
     public function detail(string $employeeId): ?array

@@ -11,7 +11,9 @@ use App\Models\System\ProjectModel;
 use App\Models\User\EmployeeModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class PersonalExpenseService
 {
@@ -22,6 +24,8 @@ class PersonalExpenseService
     private ClientModel $clients;
     private ProjectModel $projects;
     private ApprovalInboxModel $approvalInbox;
+    private PersonalExpenseClassificationProjectionService $classificationProjection;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -32,6 +36,8 @@ class PersonalExpenseService
         $this->clients = new ClientModel($pdo);
         $this->projects = new ProjectModel($pdo);
         $this->approvalInbox = new ApprovalInboxModel($pdo);
+        $this->classificationProjection = new PersonalExpenseClassificationProjectionService($pdo);
+        $this->logger = LoggerFactory::getLogger('service-approval-personal-expense-document');
     }
 
     public function formOptions(): array
@@ -84,9 +90,18 @@ class PersonalExpenseService
             }
         }
         unset($request);
+        $classificationRows = $this->classificationProjection->forDocument($id);
+        $classificationByItem = [];
+        foreach ($classificationRows as $classificationRow) {
+            $classificationByItem[(string) $classificationRow['personal_expense_item_id']] = $classificationRow;
+        }
+        $items = array_map(
+            static fn (array $item): array => array_merge($item, $classificationByItem[(string) $item['id']] ?? []),
+            $this->items->listForHeader($id)
+        );
         return ['success' => true, 'data' => [
             'header' => $header,
-            'items' => $this->items->listForHeader($id),
+            'items' => $items,
             'approval' => [
                 'request_id' => $header['latest_request_id'] ?? null,
                 'status' => $header['approval_status'] ?? 'draft',
@@ -168,12 +183,22 @@ class PersonalExpenseService
             $this->recalculateHeaderAggregates($id, $actor, true);
             if (!$outer) {
                 $this->pdo->commit();
+                $this->logger->info('개인경비 문서 변경이 완료되었습니다.',['event_code'=>'PERSONAL_EXPENSE_DOCUMENT_CHANGED','result'=>'SUCCESS','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user()]);
             }
             return ['success' => true, 'data' => ['id' => $id], 'message' => '저장되었습니다.'];
-        } catch (\Throwable $exception) {
+        } catch (\PDOException $exception) {
             if (!$outer && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            if(!$outer)$this->logger->error('개인경비 문서 변경에 실패했습니다.',['event_code'=>'PERSONAL_EXPENSE_DOCUMENT_CHANGE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        } catch (\InvalidArgumentException|\DomainException|\RuntimeException $exception) {
+            if (!$outer && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if(!$outer)$this->logger->warning('개인경비 문서 변경이 차단되었습니다.',['event_code'=>'PERSONAL_EXPENSE_DOCUMENT_CHANGE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
+            throw $exception;
+        } catch (\Throwable $exception) {
+            if (!$outer && $this->pdo->inTransaction()) {$this->pdo->rollBack();}
+            if(!$outer)$this->logger->error('개인경비 문서 변경에 실패했습니다.',['event_code'=>'PERSONAL_EXPENSE_DOCUMENT_CHANGE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'change','actor'=>ActorHelper::user(),'error_code'=>get_class($exception),'error'=>$exception]);
             throw $exception;
         }
     }

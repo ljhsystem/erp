@@ -5,14 +5,17 @@ namespace App\Services\System;
 use App\Models\System\ClientModel;
 use App\Models\System\ProjectModel;
 use App\Models\User\EmployeeModel;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 class ProjectService
 {
+    use LogsServiceOperations;
     private readonly ProjectModel $model;
     private readonly ClientModel $clientModel;
     private readonly EmployeeModel $employeeModel;
@@ -20,7 +23,7 @@ class ProjectService
     private readonly ProjectReferenceResolver $referenceResolver;
     private readonly ProjectTrashService $trashService;
     private readonly ProjectExcelService $excelService;
-    private mixed $logger;
+    private LoggerInterface $logger;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -52,7 +55,7 @@ class ProjectService
                 $text .= ' / ' . $row['construction_name'];
             }
             if (!empty($row['sort_no'])) $text .= ' [' . $row['sort_no'] . ']';
-            return ['id' => $row['id'], 'text' => $text];
+            return ['id' => $row['id'], 'text' => $text, 'sort_no' => (int) ($row['sort_no'] ?? 0)];
         }, $this->model->searchPicker($keyword, 20));
     }
 
@@ -73,17 +76,19 @@ class ProjectService
 
     public function saveWithFiles(array $input, array $files = [], string $actorType = 'USER'): array
     {
-        try {
+        return $this->loggedProjectMutation('프로젝트 저장', 'PROJECT_SAVE', 'save', function () use ($input, $files, $actorType): array {
             $payload = $this->normalizePayload($input);
             $validation = $this->validatePayload($payload);
-            return empty($validation['success']) ? $validation : $this->save($payload, $actorType, $files);
-        } catch (\Throwable $e) {
-            $this->logger->error('saveWithFiles() failed', ['exception' => $e->getMessage()]);
-            return ['success' => false, 'message' => '저장 중 오류가 발생했습니다.'];
-        }
+            return empty($validation['success']) ? $validation : $this->saveInternal($payload, $actorType, $files);
+        });
     }
 
     public function save(array $data, string $actorType = 'USER', array $files = []): array
+    {
+        return $this->loggedProjectMutation('프로젝트 저장', 'PROJECT_SAVE', 'save', fn(): array => $this->saveInternal($data, $actorType, $files));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
         $data = $this->payloadService->normalizeNullableProjectFields($data);
@@ -136,20 +141,19 @@ class ProjectService
             return ['success' => true, 'id' => $id, 'sort_no' => $sortNo];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            $this->logger->error('save() failed', ['exception' => $e->getMessage(), 'file_keys' => array_keys($files)]);
             return ['success' => false, 'message' => '저장 중 오류가 발생했습니다.'];
         }
     }
 
-    public function delete(string $id, string $actorType = 'USER'): array { return $this->trashService->delete($id, $actorType); }
+    public function delete(string $id, string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 삭제','PROJECT_DELETE','delete',fn():array=>$this->trashService->delete($id,$actorType)); }
     public function getTrashList(): array { return $this->trashService->getTrashList(); }
-    public function restore(string $id, string $actorType = 'USER'): array { return $this->trashService->restore($id, $actorType); }
-    public function restoreBulk(array $ids, string $actorType = 'USER'): array { return $this->trashService->restoreBulk($ids, $actorType); }
-    public function restoreAll(string $actorType = 'USER'): array { return $this->trashService->restoreAll($actorType); }
-    public function purge(string $id, string $actorType = 'USER'): array { return $this->trashService->purge($id, $actorType); }
-    public function purgeBulk(array $ids, string $actorType = 'USER'): array { return $this->trashService->purgeBulk($ids, $actorType); }
-    public function purgeAll(string $actorType = 'USER'): array { return $this->trashService->purgeAll($actorType); }
-    public function reorder(array $changes): bool { return $this->trashService->reorder($changes); }
+    public function restore(string $id, string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 복구','PROJECT_RESTORE','restore',fn():array=>$this->trashService->restore($id,$actorType)); }
+    public function restoreBulk(array $ids, string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 일괄복구','PROJECT_RESTORE_BULK','restore-bulk',fn():array=>$this->trashService->restoreBulk($ids,$actorType)); }
+    public function restoreAll(string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 전체복구','PROJECT_RESTORE_ALL','restore-all',fn():array=>$this->trashService->restoreAll($actorType)); }
+    public function purge(string $id, string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 영구삭제','PROJECT_PURGE','purge',fn():array=>$this->trashService->purge($id,$actorType)); }
+    public function purgeBulk(array $ids, string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 일괄 영구삭제','PROJECT_PURGE_BULK','purge-bulk',fn():array=>$this->trashService->purgeBulk($ids,$actorType)); }
+    public function purgeAll(string $actorType = 'USER'): array { return $this->loggedProjectMutation('프로젝트 전체 영구삭제','PROJECT_PURGE_ALL','purge-all',fn():array=>$this->trashService->purgeAll($actorType)); }
+    public function reorder(array $changes): bool { return $this->runLoggedOperation($this->logger,'프로젝트 정렬 저장','PROJECT_REORDER','reorder',['change_count'=>count($changes)],fn():bool=>$this->trashService->reorder($changes),'info',false,static fn(bool $result):string=>$result?'SUCCESS':'BLOCKED'); }
 
     public function downloadTemplate(?string $columnsCsv = null): void { $this->excelService->downloadTemplate($columnsCsv); }
     public function saveFromExcelFile(string $filePath): array
@@ -163,4 +167,10 @@ class ProjectService
         return $this->excelService->saveFromMigrationExcelFile($filePath, fn(array $payload): array => $this->save($payload, 'SYSTEM'), $columnsCsv);
     }
     public function downloadMigrationExcel(?string $columnsCsv = null): void { $this->excelService->downloadMigrationExcel($columnsCsv); }
+
+    private function loggedProjectMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
+    }
 }

@@ -1,4 +1,4 @@
-import { getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { getCodeName } from '/public/assets/js/pages/main/settings/system/code-select.js';
 
 export const API = Object.freeze({
     list: '/api/institution/human-resources/employment-contract/list',
@@ -14,6 +14,8 @@ export const API = Object.freeze({
     restore: '/api/institution/human-resources/employment-contract/restore',
     purge: '/api/institution/human-resources/employment-contract/purge',
     options: '/api/institution/human-resources/employment-contract/options',
+    statutoryProjection: '/api/institution/human-resources/employment-contract/statutory-projection',
+    payComponentOptions: '/api/institution/human-resources/pay-component/options',
     employeeSearch: '/api/settings/organization/employee/search-picker',
     projectSearch: '/api/settings/base-info/project/search-picker',
 });

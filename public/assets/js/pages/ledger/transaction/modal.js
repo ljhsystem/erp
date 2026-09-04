@@ -5,7 +5,7 @@ import { runDeleteProgress } from '/public/assets/js/common/delete-progress.js';
 export function registerModal(ctx) {
     const { AdminPicker } = ctx;
     const evidenceIdentity = (row = {}) => `${String(row.import_type || '').toUpperCase()}:${String(row.evidence_id || row.id || '')}`;
-    const isEvidenceComplete = (row = {}) => ['COMPLETED', 'READY', 'VERIFY_ONLY']
+    const isEvidenceComplete = (row = {}) => ['COMPLETED']
         .includes(String(row.evidence_status || '').trim().toUpperCase());
     const evidencePolicyLabel = (value) => ({ DATA: '자료증빙', BOTH: '겸용' }[String(value || '').toUpperCase()] || '-');
     const formatEvidenceAmount = (value) => formatAmount(value);
@@ -79,6 +79,9 @@ export function registerModal(ctx) {
                 supply_amount: row.supply_amount,
                 item_supply_amount: row.supply_amount,
                 description: String(row.description || '').trim(),
+                regular_employment_income_line_item_id: row.regular_employment_income_line_item_id || null,
+                statutory_standard_revision_id: row.statutory_standard_revision_id || null,
+                calculation_basis_id: row.calculation_basis_id || null,
             }));
     }
 
@@ -94,6 +97,9 @@ export function registerModal(ctx) {
                 amount_sign: ctx.amountSignCodeFromCell(row.amount_sign || 'PLUS'),
                 amount: ctx.numberValue(row.amount),
                 settlement_description: String(row.description || '').trim(),
+                regular_employment_income_line_item_id: row.regular_employment_income_line_item_id || null,
+                statutory_standard_revision_id: row.statutory_standard_revision_id || null,
+                calculation_basis_id: row.calculation_basis_id || null,
             }));
     }
 
@@ -142,7 +148,7 @@ export function registerModal(ctx) {
             host: ctx.linkedEvidencesGridEl,
             gridId: 'transaction-linked-evidences',
             columns: [
-                { key: 'selection', label: '선택', type: 'selection', width: 56 },
+                { key: 'selection', label: '', type: 'selection', headerSelection: true, width: 56 },
                 { key: 'link_state', label: '연결변경상태', formatter: 'text', width: 110 },
                 { key: 'evidence_policy', label: '증빙구분', formatter: 'text', width: 96 },
                 { key: 'evidence_date', label: '증빙일자', formatter: 'date', width: 112 },
@@ -259,6 +265,15 @@ export function registerModal(ctx) {
         });
     }
 
+    function resetTransactionModalViewport() {
+        const restoreTop = () => {
+            if (ctx.modalBodyEl) ctx.modalBodyEl.scrollTop = 0;
+            if (ctx.modalEl) ctx.modalEl.scrollTop = 0;
+        };
+        restoreTop();
+        window.requestAnimationFrame(() => window.requestAnimationFrame(restoreTop));
+    }
+
     function bindDetailCardCollapses() {
         if (!ctx.modalEl || !window.bootstrap?.Collapse) {
             return;
@@ -326,7 +341,7 @@ export function registerModal(ctx) {
             resetModal();
             ctx.markTransactionModalClean();
             setTransactionModalLoading(false);
-            ctx.focusInitialLineGridCell();
+            resetTransactionModalViewport();
         } catch (error) {
             ctx.notify('error', error.message || '거래 신규 등록 화면을 여는 중 오류가 발생했습니다.');
             setTransactionModalLoading(false);
@@ -405,10 +420,12 @@ export function registerModal(ctx) {
         ctx.setTransactionModalEditable(!data.deleted_at && !['closed', 'cancelled'].includes(transactionStatus));
         ctx.markTransactionModalClean();
         setTransactionModalLoading(false);
-        ctx.focusInitialLineGridCell();
+        resetTransactionModalViewport();
     }
 
     async function saveTransaction() {
+        ctx.lineGrid?.stopEditing?.(false);
+        ctx.settlementGrid?.stopEditing?.(false);
         const lines = collectLines();
         const settlements = collectSettlements();
         const formData = new FormData(ctx.form);
@@ -417,6 +434,7 @@ export function registerModal(ctx) {
         formData.set('linked_evidences', JSON.stringify(ctx.linkedEvidences.map((evidence) => ({
             import_type: evidence.import_type || evidence.source_type || '',
             evidence_id: evidence.evidence_id || evidence.id || '',
+            link_purpose: evidence.link_purpose || '',
         }))));
         formData.delete('evidence_id');
         ctx.normalizeHeaderAmountFormData(formData);
@@ -437,18 +455,22 @@ export function registerModal(ctx) {
             formData.set('transaction_exchange_rate', formData.get('exchange_rate') || '');
         }
 
-        await ctx.fetchJson(ctx.API.save, { method: 'POST', body: formData });
+        try {
+            await ctx.fetchJson(ctx.API.save, { method: 'POST', body: formData });
 
-        ctx.notify('success', '거래가 저장되었습니다.');
-        ctx.allowModalClose = true;
-        ctx.markTransactionModalClean();
-        ctx.modal?.hide();
-        ctx.reloadTable();
+            ctx.notify('success', '거래가 저장되었습니다.');
+            ctx.allowModalClose = true;
+            ctx.markTransactionModalClean();
+            ctx.modal?.hide();
+            ctx.reloadTable();
+        } catch (error) {
+            ctx.notify('error', error?.message || '수정 중 오류가 발생했습니다.');
+        }
     }
 
     async function deleteTransaction(id) {
         if (!id) return;
-        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '거래를 휴지통으로 이동 중' }, async () => {
+        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '거래를 휴지통으로 이동 중', trashChanged: true }, async () => {
             const formData = new FormData();
             formData.set('transaction_id', id);
             await ctx.fetchJson(ctx.API.remove, { method: 'POST', body: formData });
@@ -502,17 +524,46 @@ export function registerModal(ctx) {
                 document.body.classList.add('modal-open');
             }
         });
-        ctx.selectEvidenceBtn.addEventListener('click', () => {
+        document.addEventListener('hidden.bs.modal', (event) => {
+            if (event.target?.id === 'dtColumnSettingsModal' && ctx.evidenceSearchModalEl?.classList.contains('show')) {
+                document.body.classList.add('modal-open');
+            }
+        });
+        let evidenceSearchOpening = false;
+        ctx.selectEvidenceBtn.addEventListener('click', async () => {
             if (!ctx.evidenceSearchModalEl || !window.bootstrap) return;
+            if (evidenceSearchOpening) return;
+            evidenceSearchOpening = true;
+            ctx.selectEvidenceBtn.disabled = true;
+            ctx.selectEvidenceBtn.setAttribute('aria-busy', 'true');
             ctx.pendingEvidenceKeys = new Set();
             ctx.pendingEvidenceRows = new Map(
                 ctx.evidenceSearchRows.map((row) => [evidenceIdentity(row), row])
             );
             ctx.evidenceSearchTable?.clearSelectedIds?.();
             updateEvidenceSelectionCount();
-            bootstrap.Modal.getOrCreateInstance(ctx.evidenceSearchModalEl).show();
-            const table = ctx.ensureTransactionEvidenceSelectionTable?.();
-            table?.ajax?.reload(() => table.columns?.adjust?.(), false);
+            try {
+                const table = await ctx.ensureTransactionEvidenceSelectionTable?.();
+                if (!table) {
+                    ctx.notify('warning', '증빙 추가 목록을 불러올 수 없습니다.');
+                    return;
+                }
+                await new Promise((resolve) => {
+                    if (!table.ajax?.reload) {
+                        resolve();
+                        return;
+                    }
+                    table.ajax.reload(() => resolve(), false);
+                });
+                bootstrap.Modal.getOrCreateInstance(ctx.evidenceSearchModalEl).show();
+                window.requestAnimationFrame(() => table.columns?.adjust?.());
+            } catch (error) {
+                ctx.notify('error', error?.message || '증빙 추가 목록을 불러오는 중 오류가 발생했습니다.');
+            } finally {
+                evidenceSearchOpening = false;
+                ctx.selectEvidenceBtn.disabled = false;
+                ctx.selectEvidenceBtn.removeAttribute('aria-busy');
+            }
         });
         ctx.clearEvidenceBtn?.addEventListener('click', () => {
             const selected = new Set(ctx.linkedEvidenceGrid?.getState()?.selection?.selectedRowIds || []);

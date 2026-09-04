@@ -507,7 +507,7 @@ import '/public/assets/js/components/trash-manager.js';
             confirmClass: 'btn-danger',
         });
         if (!confirmed) return;
-        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '증빙정책을 휴지통으로 이동 중' }, async () => {
+        await runDeleteProgress({ total: 1, title: '소프트삭제 처리 중', step: '증빙정책을 휴지통으로 이동 중', trashChanged: true }, async () => {
             const json = await fetchJson(API.delete, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

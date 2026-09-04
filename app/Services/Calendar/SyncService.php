@@ -2,10 +2,10 @@
 namespace App\Services\Calendar;
 
 use PDO;
-use App\Models\Dashboard\CalendarListModel;
-use App\Models\Dashboard\CalendarEventModel;
-use App\Models\Dashboard\CalendarTaskModel;
-use App\Models\Dashboard\CalendarVisibilityModel;
+use App\Models\Main\CalendarListModel;
+use App\Models\Main\CalendarEventModel;
+use App\Models\Main\CalendarTaskModel;
+use App\Models\Main\CalendarVisibilityModel;
 use App\Models\User\ExternalAccountModel;
 use App\Services\Calendar\CrudService;
 use App\Services\Calendar\Time;
@@ -45,7 +45,7 @@ class SyncService
     {
         $stmt = $this->pdo->prepare("
             SELECT is_running, started_at
-            FROM dashboard_calendar_sync_state
+            FROM main_calendar_sync_state
             WHERE synology_login_id = :login
             LIMIT 1
         ");
@@ -62,7 +62,7 @@ class SyncService
             $this->logger->warning('[SYNC] stale lock - force unlock');
 
             $this->pdo->prepare("
-                UPDATE dashboard_calendar_sync_state
+                UPDATE main_calendar_sync_state
                 SET is_running = 0,
                     started_at = NULL,
                     actor = NULL
@@ -82,7 +82,7 @@ class SyncService
     ): void {
 
         $sql = "
-            INSERT INTO dashboard_calendar_sync_state
+            INSERT INTO main_calendar_sync_state
                 (synology_login_id, is_running, started_at, actor)
             VALUES
                 (:login, :running, :started_at, :actor)
@@ -1186,7 +1186,7 @@ class SyncService
     public function trySyncLock(string $loginId): bool
     {
         $stmt = $this->pdo->prepare("
-            UPDATE dashboard_calendar_sync_state
+            UPDATE main_calendar_sync_state
             SET started_at = NOW()
             WHERE synology_login_id = :login
             AND (
@@ -1202,7 +1202,7 @@ class SyncService
         }
 
         $this->pdo->prepare("
-            INSERT IGNORE INTO dashboard_calendar_sync_state
+            INSERT IGNORE INTO main_calendar_sync_state
             (synology_login_id, started_at)
             VALUES (:login, NOW())
         ")->execute([':login' => $loginId]);

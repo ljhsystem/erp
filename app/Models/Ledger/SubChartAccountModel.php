@@ -189,6 +189,19 @@ class SubChartAccountModel
         ]);
     }
 
+    public function updateSortNo(string $id, int $sortNo, string $actor): bool
+    {
+        $stmt = $this->db->prepare("UPDATE ledger_accounts_sub
+            SET sort_no = :sort_no, updated_by = :updated_by
+            WHERE id = :id");
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':sort_no' => $sortNo,
+            ':updated_by' => $actor,
+        ]);
+    }
+
     public function deleteByAccountId(string $accountId, ?string $subType = null): bool
     {
         $sql = "

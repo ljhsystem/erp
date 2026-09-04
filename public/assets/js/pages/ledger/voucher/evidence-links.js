@@ -5,7 +5,7 @@ const identity = (row = {}) => `${String(row.import_type || '').toUpperCase()}:$
 const policyLabel = (value) => ({ DATA: '자료증빙', FUND: '자금증빙', BOTH: '겸용' }[String(value || '').toUpperCase()] || '-');
 const formatSignedAmount = (value, { row } = {}) => `${row?.values?.display_amount_sign || ''}${formatAmount(value)}`;
 const columns = [
-    { key: 'selection', label: '선택', type: 'selection', width: 56 },
+    { key: 'selection', label: '', type: 'selection', headerSelection: true, width: 56 },
     { key: 'link_state', label: '연결변경상태', formatter: 'text', width: 110 },
     { key: 'evidence_policy', label: '증빙구분', formatter: 'text', width: 96 },
     { key: 'evidence_date', label: '증빙일자', formatter: 'date', width: 112 },
@@ -14,6 +14,7 @@ const columns = [
     { key: 'display_summary', label: '적요', formatter: 'text', minWidth: 220 },
     { key: 'display_amount', label: '금액', formatter: 'signedAmount', width: 140 },
 ];
+
 function gridRow(row = {}) {
     return { rowId: identity(row), rowState: 'readonly', values: {
         selection: '', link_state: row._link_state === 'PENDING' ? '추가 예정' : '연결됨',
@@ -23,6 +24,27 @@ function gridRow(row = {}) {
         display_amount_sign: row.display_amount_sign || '',
     }, meta: { evidence: row } };
 }
+
+function sortedLinkedEvidences(rows = []) {
+    const text = (value) => String(value || '').trim();
+    const compareText = (left, right) => left.localeCompare(right, 'ko-KR', {
+        numeric: true,
+        sensitivity: 'base',
+    });
+    return [...rows].sort((left, right) => {
+        const leftDate = text(left?.evidence_date);
+        const rightDate = text(right?.evidence_date);
+        if (leftDate !== rightDate) {
+            if (leftDate === '') return 1;
+            if (rightDate === '') return -1;
+            return leftDate.localeCompare(rightDate, 'en');
+        }
+        return compareText(text(left?.client_name), text(right?.client_name))
+            || compareText(text(left?.display_summary), text(right?.display_summary))
+            || compareText(identity(left), identity(right));
+    });
+}
+
 export function registerEvidenceLinks(ctx) {
     const { state, linkedEvidencesGridEl } = ctx;
     if (linkedEvidencesGridEl) {
@@ -31,15 +53,22 @@ export function registerEvidenceLinks(ctx) {
         }, capabilities: {
             addRow: false, deleteRow: false, insertRow: false, reorder: false, selection: true, multiSelection: true,
             keyboard: false, clipboard: false, footer: false, validation: false, columnHide: false, columnMove: false, columnResize: false,
-        }});
+        }, editorFocusSelectsRow: false });
         state.linkedEvidenceGrid.render({ noDataMessage: '조회된 데이터가 없습니다.' });
     }
-    ctx.renderLinkedEvidenceGrid = () => state.linkedEvidenceGrid?.setState({ ...state.linkedEvidenceGrid.getState(), rows: state.linkedEvidences.map(gridRow) });
+    ctx.renderLinkedEvidenceGrid = () => state.linkedEvidenceGrid?.setState({
+        ...state.linkedEvidenceGrid.getState(),
+        rows: sortedLinkedEvidences(state.linkedEvidences).map(gridRow),
+    });
     ctx.clearSelectedLinkedEvidences = () => {
         const selected = new Set(state.linkedEvidenceGrid?.getState()?.selection?.selectedRowIds || []);
         if (!selected.size) return false;
+        state.linkedEvidences
+            .filter((row) => selected.has(identity(row)) && row._link_state !== 'PENDING')
+            .forEach((row) => state.releasedLinkedEvidenceKeys.add(identity(row)));
         state.linkedEvidences = state.linkedEvidences.filter((row) => !selected.has(identity(row)));
         ctx.setLinkedEvidence({ linked_evidences: state.linkedEvidences });
+        state.linkedEvidenceGrid?.clearSelection?.();
         ctx.clearJournalRecommendations?.();
         return true;
     };

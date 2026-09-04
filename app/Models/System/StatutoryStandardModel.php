@@ -4,6 +4,7 @@ namespace App\Models\System;
 
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use App\Services\System\StatutoryStandardPeriodStatusProjection;
 use PDO;
 
 class StatutoryStandardModel
@@ -16,6 +17,10 @@ class StatutoryStandardModel
     {
         $params = [];
         $where = [];
+        $dimensionSelect = $this->hasInsuranceDimensionColumns()
+            ? 's.policy_component_code,s.employment_type_code,s.work_scope_code,'
+            : 'NULL policy_component_code,NULL employment_type_code,NULL work_scope_code,';
+        $periodStatusSql = StatutoryStandardPeriodStatusProjection::sql('s');
         $filters = json_decode((string) ($query['filters'] ?? '[]'), true);
         foreach (is_array($filters) ? $filters : [] as $filter) {
             $field = (string) ($filter['field'] ?? '');
@@ -46,19 +51,10 @@ class StatutoryStandardModel
                 $params[':as_of_from'] = $value;
                 $params[':as_of_to'] = $value;
             } elseif ($field === 'period_status') {
-                $status = strtoupper($value);
-                $status = match ($status) {
-                    'CURRENT', '현재 적용', '현행' => 'CURRENT',
-                    'ENDED', '종료' => 'ENDED',
-                    'SCHEDULED', '적용 예정', '예정' => 'SCHEDULED',
-                    default => '',
-                };
-                if ($status === 'CURRENT') {
-                    $where[] = 's.effective_from<=CURRENT_DATE AND (s.effective_to IS NULL OR s.effective_to>=CURRENT_DATE)';
-                } elseif ($status === 'ENDED') {
-                    $where[] = 's.effective_to IS NOT NULL AND s.effective_to<CURRENT_DATE';
-                } elseif ($status === 'SCHEDULED') {
-                    $where[] = 's.effective_from>CURRENT_DATE';
+                $status = StatutoryStandardPeriodStatusProjection::normalizeFilter($value);
+                if ($status !== '') {
+                    $where[] = $periodStatusSql . '=:period_status';
+                    $params[':period_status'] = $status;
                 }
             } elseif ($field === 'note') {
                 $where[] = 's.note LIKE :note';
@@ -67,46 +63,41 @@ class StatutoryStandardModel
         }
         $search = trim((string) ($query['search']['value'] ?? ''));
         if ($search !== '') {
-            $where[] = '(c.code_name LIKE :query OR s.standard_type_code LIKE :query OR s.note LIKE :query)';
-            $params[':query'] = '%' . $search . '%';
+            $where[] = '(c.code_name LIKE :search_type_name'
+                . ' OR s.standard_type_code LIKE :search_type_code'
+                . ' OR s.note LIKE :search_note'
+                . ' OR ' . $periodStatusSql . ' LIKE :search_period_status)';
+            $searchPattern = '%' . $search . '%';
+            $params[':search_type_name'] = $searchPattern;
+            $params[':search_type_code'] = $searchPattern;
+            $params[':search_note'] = $searchPattern;
+            $params[':search_period_status'] = $searchPattern;
         }
         $clause = $where ? ' WHERE ' . implode(' AND ', $where) : '';
         $baseFrom = ' FROM system_statutory_standards s'
             . " JOIN system_codes c ON c.code_group='STATUTORY_STANDARD_TYPE'"
-            . ' AND c.code=s.standard_type_code';
+            . ' AND c.code=s.standard_type_code AND c.is_active=1';
         $from = $baseFrom . $clause;
         $count = $this->db->prepare('SELECT COUNT(*)' . $from);
         $count->execute($params);
         $filtered = (int) $count->fetchColumn();
-        $total = (int) $this->db->query('SELECT COUNT(*) FROM system_statutory_standards')->fetchColumn();
+        $total = (int) $this->db->query("SELECT COUNT(*) FROM system_statutory_standards s JOIN system_codes c ON c.code_group='STATUTORY_STANDARD_TYPE' AND c.code=s.standard_type_code AND c.is_active=1")->fetchColumn();
         $start = max(0, (int) ($query['start'] ?? 0));
         $length = max(1, min(200, (int) ($query['length'] ?? 50)));
-        $orderMap = [
-            'standard_type_code' => 's.standard_type_code',
-            'standard_type_name' => 'c.code_name',
-            'effective_year' => 's.effective_from',
-            'effective_from' => 's.effective_from',
-            'effective_to' => 's.effective_to',
-            'sort_no' => 's.sort_no',
-            'note' => 's.note',
-            'created_at' => 's.created_at',
-            'updated_at' => 's.updated_at',
-        ];
-        $orderIndex = (int) ($query['order'][0]['column'] ?? -1);
-        $orderKey = (string) ($query['columns'][$orderIndex]['data'] ?? '');
-        $orderColumn = $orderMap[$orderKey] ?? 's.effective_from';
-        $orderDirection = strtolower((string) ($query['order'][0]['dir'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
+        [$orderColumn, $orderDirection] = $this->resolveOrder($query, $periodStatusSql);
         $statement = $this->db->prepare(
-            'SELECT s.id,s.sort_no,s.standard_type_code,c.code_name standard_type_name,'
+            'SELECT s.id,s.sort_no,s.standard_type_code,' . $dimensionSelect . 'c.code_name standard_type_name,'
             . 's.effective_from,s.effective_to,s.value_data,s.note,'
             . 's.created_at,s.created_by,s.updated_at,s.updated_by,'
-            . "CASE WHEN s.effective_from>CURRENT_DATE THEN 'SCHEDULED'"
-            . " WHEN s.effective_to IS NULL OR s.effective_to>=CURRENT_DATE THEN 'CURRENT'"
-            . " ELSE 'ENDED' END period_status,"
-            . 'COALESCE(src.source_count,0) source_count'
+            . $periodStatusSql . ' period_status,'
+            . 'COALESCE(src.source_count,0) source_count,'
+            . 'incoming.predecessor_revision_id,outgoing.successor_revision_id,'
+            . 'COALESCE(incoming.correction_reason,outgoing.correction_reason) correction_reason'
             . $baseFrom
             . ' LEFT JOIN (SELECT standard_id,COUNT(*) source_count'
             . ' FROM system_statutory_standard_sources GROUP BY standard_id) src ON src.standard_id=s.id'
+            . ' LEFT JOIN system_statutory_standard_supersessions incoming ON incoming.successor_revision_id=s.id'
+            . ' LEFT JOIN system_statutory_standard_supersessions outgoing ON outgoing.predecessor_revision_id=s.id'
             . $clause
             . ' ORDER BY ' . $orderColumn . ' ' . $orderDirection . ',s.sort_no DESC,s.id DESC'
             . ' LIMIT ' . $start . ',' . $length
@@ -117,6 +108,51 @@ class StatutoryStandardModel
             'total' => $total,
             'filtered' => $filtered,
         ];
+    }
+
+    private function resolveOrder(array $query, string $periodStatusSql): array
+    {
+        $orderMap = [
+            'standard_type_code' => 's.standard_type_code',
+            'standard_type_name' => 'c.code_name',
+            'effective_year' => 's.effective_from',
+            'effective_from' => 's.effective_from',
+            'effective_to' => 's.effective_to',
+            'sort_no' => 's.sort_no',
+            'note' => 's.note',
+            'created_at' => 's.created_at',
+            'updated_at' => 's.updated_at',
+            'period_status' => $periodStatusSql,
+        ];
+        $order = $query['order'][0] ?? null;
+        if (!is_array($order)) return ['s.effective_from', 'DESC'];
+
+        $orderIndex = filter_var($order['column'] ?? null, FILTER_VALIDATE_INT);
+        if ($orderIndex === false || !isset($query['columns'][$orderIndex]) || !is_array($query['columns'][$orderIndex])) {
+            throw new \InvalidArgumentException('정렬 컬럼 위치가 올바르지 않습니다.');
+        }
+        $column = $query['columns'][$orderIndex];
+        $orderKey = trim((string)($column['name'] ?? ''));
+        if ($orderKey === '') $orderKey = trim((string)($column['data'] ?? ''));
+        if (!isset($orderMap[$orderKey])) {
+            throw new \InvalidArgumentException('지원하지 않는 정렬 컬럼입니다.');
+        }
+        $direction = strtolower(trim((string)($order['dir'] ?? '')));
+        if (!in_array($direction, ['asc', 'desc'], true)) {
+            throw new \InvalidArgumentException('정렬 방향이 올바르지 않습니다.');
+        }
+        return [$orderMap[$orderKey], strtoupper($direction)];
+    }
+
+    private function hasInsuranceDimensionColumns(): bool
+    {
+        $statement = $this->db->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS"
+            . " WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='system_statutory_standards'"
+            . " AND COLUMN_NAME IN('policy_component_code','employment_type_code','work_scope_code')"
+        );
+        $statement->execute();
+        return (int)$statement->fetchColumn() === 3;
     }
 
     public function detail(string $id, bool $lock = false): ?array
@@ -136,7 +172,30 @@ class StatutoryStandardModel
             'SELECT * FROM system_statutory_standard_sources WHERE standard_id=:id ORDER BY sort_no,id',
             [':id' => $id]
         );
+        $row['supersession_chain'] = (new StatutoryStandardSupersessionModel($this->db))->chain($id);
         return ActorHelper::enrichActorNamesRow($row, ['created_by', 'updated_by']);
+    }
+
+    public function supersessionEdges(string $type, ?string $component, ?string $employmentType, ?string $workScope, ?string $dimensionKey): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT relation.predecessor_revision_id,relation.successor_revision_id'
+            . ' FROM system_statutory_standard_supersessions relation'
+            . ' JOIN system_statutory_standards predecessor ON predecessor.id=relation.predecessor_revision_id'
+            . ' WHERE predecessor.standard_type_code=:type'
+            . ' AND predecessor.policy_component_code<=>:component'
+            . ' AND predecessor.employment_type_code<=>:employment_type'
+            . ' AND predecessor.work_scope_code<=>:work_scope'
+            . ' AND predecessor.additional_dimension_key<=>:dimension_key'
+        );
+        $statement->execute([
+            ':type' => $type,
+            ':component' => $component,
+            ':employment_type' => $employmentType,
+            ':work_scope' => $workScope,
+            ':dimension_key' => $dimensionKey,
+        ]);
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function create(array $data): string
@@ -148,60 +207,35 @@ class StatutoryStandardModel
 
     public function update(string $id, array $data): void
     {
-        $params = [':id' => $id];
-        $sets = [];
-        foreach ($data as $field => $value) {
-            $sets[] = $field . '=:' . $field;
-            $params[':' . $field] = $value;
-        }
-        $statement = $this->db->prepare('UPDATE system_statutory_standards SET ' . implode(',', $sets) . ' WHERE id=:id');
-        $statement->execute($params);
+        throw new \LogicException('확정된 법정기준 Revision은 수정할 수 없습니다. 신규 Correction을 등록하세요.');
     }
 
     public function delete(string $id): void
     {
-        $statement = $this->db->prepare('DELETE FROM system_statutory_standards WHERE id=:id');
-        $statement->execute([':id' => $id]);
-        if ($statement->rowCount() !== 1) {
-            throw new \RuntimeException('삭제할 법정기준을 찾을 수 없습니다.');
-        }
+        throw new \LogicException('확정된 법정기준 Revision은 삭제할 수 없습니다.');
     }
 
     public function reorder(array $changes, string $actor): void
     {
-        $statement = $this->db->prepare(
-            'UPDATE system_statutory_standards'
-            . ' SET sort_no=:sort_no,updated_at=:updated_at,updated_by=:updated_by WHERE id=:id'
-        );
-        $now = date('Y-m-d H:i:s');
-        foreach ($changes as $change) {
-            $id = trim((string) ($change['id'] ?? ''));
-            $sortNo = (int) ($change['newSortNo'] ?? 0);
-            if ($id === '' || $sortNo < 1) {
-                throw new \InvalidArgumentException('순서 변경 정보가 올바르지 않습니다.');
-            }
-            $statement->execute([
-                ':id' => $id,
-                ':sort_no' => $sortNo,
-                ':updated_at' => $now,
-                ':updated_by' => $actor,
-            ]);
-            if ($statement->rowCount() > 1) {
-                throw new \RuntimeException('순서 저장 중 오류가 발생했습니다.');
-            }
-        }
+        throw new \LogicException('확정된 법정기준 Revision의 순서는 변경할 수 없습니다.');
     }
 
-    public function overlappingPeriods(string $type, string $from, ?string $to, string $excludeId = ''): array
+    public function overlappingPeriods(string $type, ?string $component, ?string $employmentType, ?string $workScope, ?string $dimensionKey, string $from, ?string $to, string $excludeId = ''): array
     {
         $statement = $this->db->prepare(
             'SELECT id,effective_from,effective_to FROM system_statutory_standards WHERE standard_type_code=:type'
+            . ' AND policy_component_code<=>:component AND employment_type_code<=>:employment_type AND work_scope_code<=>:work_scope'
+            . ' AND additional_dimension_key<=>:dimension_key'
             . ' AND id<>:exclude_id'
             . " AND effective_from<=COALESCE(:effective_to,'9999-12-31')"
             . ' AND (effective_to IS NULL OR effective_to>=:effective_from) FOR UPDATE'
         );
         $statement->execute([
             ':type' => $type,
+            ':component' => $component,
+            ':employment_type' => $employmentType,
+            ':work_scope' => $workScope,
+            ':dimension_key' => $dimensionKey,
             ':exclude_id' => $excludeId,
             ':effective_from' => $from,
             ':effective_to' => $to,
@@ -224,7 +258,7 @@ class StatutoryStandardModel
     {
         $statement = $this->db->prepare(
             'SELECT code value,code_name label,extra_data FROM system_codes'
-            . ' WHERE code_group=:code_group AND is_active=1 ORDER BY sort_no'
+            . ' WHERE code_group=:code_group AND is_active=1 ORDER BY sort_no,code_name,id'
         );
         $statement->execute([':code_group' => $group]);
         return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];

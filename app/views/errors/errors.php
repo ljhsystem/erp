@@ -32,7 +32,7 @@ $message = $message ?? "요청하신 페이지를 찾을 수 없습니다.";
   <p><?= $message ?></p>
 
   <!-- ⭐ 홈으로 버튼 -->
-  <a href="<?= $isLoggedIn ? '/dashboard' : '/' ?>" class="btn btn-warning">
+  <a href="<?= $isLoggedIn ? '/main' : '/' ?>" class="btn btn-warning">
       🔐 홈으로 돌아가기
   </a>
 </div>

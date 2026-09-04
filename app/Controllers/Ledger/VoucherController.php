@@ -4,6 +4,8 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use App\Services\Ledger\EvidenceTypePolicyService;
+use App\Services\Ledger\JournalRecommendationGuardService;
+use App\Services\Ledger\JournalRecommendationGuardException;
 use App\Services\Ledger\VoucherEvidenceRecommendationService;
 use App\Services\Ledger\VoucherNumberService;
 use App\Services\Ledger\VoucherPurgeService;
@@ -28,6 +30,7 @@ class VoucherController
     private VoucherQueryService $queryService;
     private EvidenceTypePolicyService $evidenceTypePolicyService;
     private VoucherEvidenceRecommendationService $evidenceRecommendationService;
+    private JournalRecommendationGuardService $recommendationGuardService;
 
     public function __construct()
     {
@@ -39,6 +42,7 @@ class VoucherController
         $this->queryService = new VoucherQueryService($this->pdo);
         $this->evidenceTypePolicyService = new EvidenceTypePolicyService(null, $this->pdo);
         $this->evidenceRecommendationService = new VoucherEvidenceRecommendationService($this->pdo);
+        $this->recommendationGuardService = new JournalRecommendationGuardService($this->pdo);
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -223,11 +227,32 @@ class VoucherController
                 'display_amount' => 'display_amount',
                 'import_type', 'evidence_type' => 'import_type',
                 'client_name' => 'client_search_name',
+                'project_name' => 'project_search_name',
+                'employee_name' => 'employee_search_name',
                 'description', 'display_summary' => 'description',
                 default => 'standard_date',
             };
             $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
             $currentLinks = $currentVoucherId !== '' ? $this->queryService->getVoucherEvidences($currentVoucherId) : [];
+            $releasedEvidences = json_decode((string) ($_GET['released_evidences'] ?? '[]'), true);
+            $releasedEvidences = is_array($releasedEvidences) ? array_values(array_filter(
+                $releasedEvidences,
+                static fn(mixed $item): bool => is_array($item)
+                    && trim((string) ($item['import_type'] ?? '')) !== ''
+                    && trim((string) ($item['evidence_id'] ?? '')) !== ''
+            )) : [];
+            $releasedKeys = array_fill_keys(array_map(
+                static fn(array $item): string => strtoupper(trim((string) $item['import_type']))
+                    . ':' . trim((string) $item['evidence_id']),
+                $releasedEvidences
+            ), true);
+            $currentLinks = array_values(array_filter(
+                $currentLinks,
+                static fn(array $item): bool => !isset($releasedKeys[
+                    strtoupper(trim((string) ($item['import_type'] ?? '')))
+                    . ':' . trim((string) ($item['evidence_id'] ?? ''))
+                ])
+            ));
             $requestedExclusions = json_decode((string) ($_GET['exclude_evidences'] ?? '[]'), true);
             $requestedExclusions = is_array($requestedExclusions) ? array_values(array_filter(
                 $requestedExclusions,
@@ -240,6 +265,8 @@ class VoucherController
                 'import_types' => $importType === 'ALL' ? [] : [$importType],
                 'keyword' => $query,
                 'unlinked_voucher_only' => true,
+                'current_voucher_id' => $currentVoucherId,
+                'released_voucher_evidences' => $releasedEvidences,
                 'exclude_evidences' => [...$currentLinks, ...$requestedExclusions],
                 'start' => ($page - 1) * $perPage,
                 'length' => $perPage,
@@ -249,7 +276,7 @@ class VoucherController
             $rows = array_map(function (array $projection): array {
                 $row = $this->normalizeEvidenceSearchRow(array_merge($projection['body'] ?? [], $projection['identity'] ?? []));
                 $evidenceStatus = strtoupper(trim((string) ($row['evidence_status'] ?? '')));
-                $row['processing_status_label'] = in_array($evidenceStatus, ['COMPLETED', 'READY', 'VERIFY_ONLY'], true)
+                $row['processing_status_label'] = $evidenceStatus === 'COMPLETED'
                     ? '완료'
                     : '미완료';
                 $row['processing_status_reason'] = '';
@@ -288,13 +315,16 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $input = json_decode((string) file_get_contents('php://input'), true);
             $evidences = is_array($input['evidences'] ?? null) ? $input['evidences'] : [];
-            $results = $this->evidenceRecommendationService->recommend($evidences);
+            $accountingDate = trim((string) ($input['accounting_date'] ?? ''));
+            $this->recommendationGuardService->assertRecommendationAllowed($evidences);
+            $results = $this->evidenceRecommendationService->recommend($evidences, $accountingDate);
             return [
                 'success' => true,
                 'message' => '분개 추천을 조회했습니다.',
                 'data' => [
                     'results' => $results,
                     'recommendations' => $this->evidenceRecommendationService->recommendationSets($results),
+                    'coverage' => $this->evidenceRecommendationService->coverage($results),
                 ],
             ];
         });
@@ -322,6 +352,7 @@ class VoucherController
             $payload = $_POST;
             $payload['lines'] = json_decode((string) ($_POST['lines'] ?? '[]'), true) ?? [];
             $payload['linked_evidences'] = json_decode((string) ($_POST['linked_evidences'] ?? '[]'), true) ?? [];
+            $this->recommendationGuardService->assertApplicationAllowed($payload['linked_evidences'], $payload['lines']);
             $result = $this->service->save($payload);
 
             return [
@@ -622,7 +653,6 @@ class VoucherController
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            error_log('[VoucherController] API error uri=' . ($_SERVER['REQUEST_URI'] ?? '') . ' message=' . $e->getMessage());
 
             $payload = [
                 'success' => false,
@@ -630,6 +660,9 @@ class VoucherController
             ];
             if ($e instanceof VoucherValidationException) {
                 $payload['validation_type'] = $e->getValidationType();
+            }
+            if ($e instanceof JournalRecommendationGuardException) {
+                $payload['reason_code'] = $e->reasonCode();
             }
 
             http_response_code(400);
@@ -670,6 +703,7 @@ class VoucherController
         $sourceType = strtoupper(trim((string) ($row['source_type'] ?? '')));
         $row['display_type'] = $this->evidenceTypePolicyService->importTypeLabel((string) ($row['import_type'] ?? $sourceType));
         $row['evidence_date'] = $row['standard_date']
+            ?? $row['raw_expense_date']
             ?? $row['raw_transaction_datetime']
             ?? $row['raw_approval_date']
             ?? $row['raw_written_date']
@@ -711,6 +745,11 @@ class VoucherController
             'counterparty_account_holder_name',
             'account_holder',
         ]);
+        $row['project_name'] = trim((string) ($row['project_name'] ?? ''));
+        $row['employee_name'] = trim((string) ($row['employee_name'] ?? ''));
+        $row['bank_account_name'] = trim((string) ($row['bank_account_name'] ?? ''));
+        $row['card_name'] = trim((string) ($row['card_name'] ?? ''));
+        $row['team_name'] = trim((string) ($row['team_name'] ?? ''));
         unset($row['mapped_payload_json']);
 
         return $row;

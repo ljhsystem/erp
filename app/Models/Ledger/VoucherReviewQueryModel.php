@@ -18,8 +18,20 @@ final class VoucherReviewQueryModel
         'debit_total' => 'v.debit_total',
         'credit_total' => 'v.credit_total',
         'line_count' => 'v.line_count',
+        'summary_account_id' => 'a.account_name',
+        'summary_client_id' => 'c.client_name',
+        'summary_project_id' => 'p.project_name',
+        'summary_bank_account_id' => 'b.account_name',
+        'summary_card_id' => 'cd.card_name',
+        'summary_employee_id' => 'e.employee_name',
+        'summary_line_summary' => 'v.summary_line_summary',
+        'reject_reason' => 'v.reject_reason',
+        'is_reversal' => 'v.is_reversal',
+        'reversal_of' => 'v.reversal_of',
         'created_at' => 'v.created_at',
+        'created_by' => 'v.created_by',
         'updated_at' => 'v.updated_at',
+        'updated_by' => 'v.updated_by',
     ];
 
     public function __construct(private PDO $db)

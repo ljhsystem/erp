@@ -78,6 +78,11 @@ class EvidenceUploadController
 
     public function apiUpload(): void
     {
+        $type = self::normalizeDataType((string) ($_POST['import_type'] ?? $_POST['data_type'] ?? ''));
+        if ($this->evidenceTypePolicyService()->isReadOnlyStatusViewType($type)) {
+            $this->json(['success' => false, 'message' => '최종 승인으로 생성되는 증빙은 엑셀로 등록할 수 없습니다.'], 409);
+            return;
+        }
         $this->handleSeedUpload();
     }
 
@@ -117,8 +122,6 @@ class EvidenceUploadController
                 $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
                 return;
             }
-            $format['evidence_status_column_display_name'] = $this->decodeRequestMap($_POST['evidence_status_column_display_name'] ?? null);
-            $format['evidence_status_column_requirement_policy'] = $this->decodeRequestMap($_POST['evidence_status_column_requirement_policy'] ?? null);
 
             try {
                 if (!$this->isAllowedDataType($dataType)) {
@@ -157,6 +160,11 @@ class EvidenceUploadController
 
         $this->evidenceUploadService()->uploadTrace('preview_payload_reading', $this->evidenceUploadService()->buildPreviewPayloadReadTraceContext($startedAt));
         $payload = $this->requestPayload();
+        $previewType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? ''));
+        if ($this->evidenceTypePolicyService()->isReadOnlyStatusViewType($previewType)) {
+            $this->json(['success' => false, 'message' => '최종 승인으로 생성되는 증빙은 엑셀로 등록할 수 없습니다.'], 409);
+            return;
+        }
 
         try {
             $previewState = $this->evidenceUploadService()->preparePreviewConfirmation($payload, $startedAt);
@@ -363,7 +371,6 @@ class EvidenceUploadController
                 'businessRefNameForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefNameForStorage($refType, $payload),
                 'number' => fn(mixed $value): float => $this->number($value),
                 'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
-                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
                 'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
                 'applyReadinessToEvidenceRow' => function (array &$row): void {
                     $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);

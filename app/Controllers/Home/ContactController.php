@@ -5,28 +5,6 @@ use App\Services\Mail\MailService;
 
 class ContactController
 {
-    private array $smtp = [];
-    private array $config = [];
-
-    public function __construct()
-    {
-        $configFile = PROJECT_ROOT . '/config/appsetting.json';
-
-        if (!file_exists($configFile)) {
-            exit("❌ 설정 파일(appsetting.json)을 찾을 수 없습니다.");
-        }
-
-
-        $raw = file_get_contents($configFile);
-        $raw = preg_replace('#^\s*//.*$#m', '', $raw);
-        $raw = preg_replace('#/\*.*?\*/#s', '', $raw);
-
-        $cfg = json_decode($raw, true) ?: [];
-
-        $this->config = $cfg;
-        $this->smtp   = $cfg['SmtpSettings'] ?? ($cfg['Smtp'] ?? []);
-    }
-
     public function apiSend()
     {
         $name    = trim($_POST['FullName']  ?? '');
@@ -36,16 +14,6 @@ class ContactController
 
         if (!$name || !$email || !$subject || !$message) {
             return $this->fail("모든 항목을 입력해주세요.");
-        }
-
-        $adminEmail = $this->smtp['AdminEmail']
-            ?? $this->smtp['SenderEmail']
-            ?? $this->smtp['UserName']
-            ?? null;
-
-        if (!$adminEmail) {
-            error_log('[Contact] 관리자 이메일 미설정');
-            return $this->fail("서버 설정 오류가 발생했습니다.");
         }
 
         // 메일 발송
@@ -61,23 +29,38 @@ class ContactController
 
             $result = $mailer->sendContactMail($payload);
 
-            if (empty($result['sent'])) {
-                $status = $result['status'] ?? 'unknown-error';
-                error_log("[Contact] 메일 전송 실패: {$status}");
-                return $this->fail("메일 전송에 실패했습니다. 다시 시도해주세요.");
+            if (empty($result['success']) || empty($result['sent'])) {
+                $errorCode = (string) ($result['error_code'] ?? 'CONTACT_MAIL_FAILED');
+                $requestId = (string) ($result['request_id'] ?? '');
+                return $this->fail($this->mailFailureMessage($errorCode), 503);
             }
 
             // 성공 화면 로드
             include PROJECT_ROOT . '/app/views/home/contact_email_confirmation.php';
             exit;
         } catch (\Throwable $e) {
-            error_log('[Contact] 예외 발생: ' . $e->getMessage());
             return $this->fail("메일 전송 중 오류가 발생했습니다.");
         }
     }
 
-    private function fail(string $message)
+    private function mailFailureMessage(string $errorCode): string
     {
+        return match ($errorCode) {
+            'SMTP_SECRET_NOT_CONFIGURED', 'SMTP_CONFIGURATION_MISSING' =>
+                '현재 메일 발송 설정이 완료되지 않아 문의를 전달하지 못했습니다.',
+            'SMTP_AUTHENTICATION_FAILED' =>
+                '메일 발송 인증정보 오류로 문의를 전달하지 못했습니다.',
+            'SENDER_IDENTITY_REJECTED' =>
+                '등록된 발신주소를 사용할 수 없어 문의를 전달하지 못했습니다.',
+            'SMTP_CONNECTION_FAILED', 'SMTP_TIMEOUT' =>
+                '메일서버에 연결할 수 없어 문의를 전달하지 못했습니다.',
+            default => '문의 전달 중 오류가 발생했습니다.',
+        };
+    }
+
+    private function fail(string $message, int $httpStatus = 400)
+    {
+        http_response_code($httpStatus);
         echo "<script>alert('{$message}'); history.back();</script>";
         exit;
     }

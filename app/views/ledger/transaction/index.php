@@ -19,8 +19,8 @@ $layoutOptions = [
     'wrapper' => 'single',
 ];
 
-$pageStyles = AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
-    . AssetHelper::css('/assets/css/pages/dashboard/settings/client.css')
+$pageStyles = AssetHelper::css('/assets/css/pages/main/settings/system/code.css')
+    . AssetHelper::css('/assets/css/pages/main/settings/client.css')
     . AssetHelper::css('/assets/css/pages/ledger/data-status.css')
     . AssetHelper::css('/assets/css/pages/ledger/transaction/index.css');
 $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction/index.js');
@@ -102,8 +102,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction/index.js
 </main>
 
 <?php include __DIR__ . '/partials/transaction_modal.php'; ?>
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/main/settings/base-info/partials/client_modal.php'; ?>
 <?php
 $modalId = 'transactionTrashModal';
 $type = 'transaction';

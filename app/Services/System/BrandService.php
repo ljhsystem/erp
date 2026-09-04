@@ -108,6 +108,7 @@ class BrandService
             ]);
 
             $this->pdo->commit();
+            $this->logger->info('브랜드 자산 저장을 완료했습니다.', ['event_code'=>'BRAND_ASSET_SAVED','result'=>'SUCCESS','service'=>self::class,'action'=>'save','asset_type'=>$assetType]);
 
             return [
                 'success' => true,
@@ -120,11 +121,11 @@ class BrandService
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
-            $this->logger->error('[BRAND] save failed', ['error' => $e->getMessage(), 'asset_type' => $assetType]);
+            $failed=$e instanceof \PDOException;$this->logger->{$failed?'error':'warning'}($failed?'브랜드 자산 저장에 실패했습니다.':'브랜드 자산 저장이 차단되었습니다.',['event_code'=>$failed?'BRAND_ASSET_SAVE_FAILED':'BRAND_ASSET_SAVE_BLOCKED','result'=>$failed?'FAILED':'BLOCKED','service'=>self::class,'action'=>'save','asset_type'=>$assetType,'error_code'=>get_class($e),'error'=>$e]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $failed ? '저장 중 오류가 발생했습니다.' : $e->getMessage(),
             ];
         }
     }
@@ -150,6 +151,7 @@ class BrandService
             }
 
             $this->pdo->commit();
+            $this->logger->warning('브랜드 자산 영구삭제를 완료했습니다.', ['event_code'=>'BRAND_ASSET_PURGED','result'=>'SUCCESS','service'=>self::class,'action'=>'purge','target_id'=>$fileId]);
 
             return [
                 'success' => true,
@@ -157,11 +159,11 @@ class BrandService
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
-            $this->logger->error('[BRAND] purge failed', ['error' => $e->getMessage(), 'file_id' => $fileId]);
+            $failed=$e instanceof \PDOException;$this->logger->{$failed?'error':'warning'}($failed?'브랜드 자산 영구삭제에 실패했습니다.':'브랜드 자산 영구삭제가 차단되었습니다.',['event_code'=>$failed?'BRAND_ASSET_PURGE_FAILED':'BRAND_ASSET_PURGE_BLOCKED','result'=>$failed?'FAILED':'BLOCKED','service'=>self::class,'action'=>'purge','target_id'=>$fileId,'error_code'=>get_class($e),'error'=>$e]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $failed ? '영구삭제 중 오류가 발생했습니다.' : $e->getMessage(),
             ];
         }
     }
@@ -181,6 +183,7 @@ class BrandService
             $this->model->updateStatusById($fileId, 1, $actor);
 
             $this->pdo->commit();
+            $this->logger->info('브랜드 자산 활성화를 완료했습니다.', ['event_code'=>'BRAND_ASSET_ACTIVATED','result'=>'SUCCESS','service'=>self::class,'action'=>'activate','target_id'=>$fileId]);
 
             return [
                 'success' => true,
@@ -188,10 +191,11 @@ class BrandService
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
+            $failed=$e instanceof \PDOException;$this->logger->{$failed?'error':'warning'}($failed?'브랜드 자산 활성화에 실패했습니다.':'브랜드 자산 활성화가 차단되었습니다.',['event_code'=>$failed?'BRAND_ASSET_ACTIVATE_FAILED':'BRAND_ASSET_ACTIVATE_BLOCKED','result'=>$failed?'FAILED':'BLOCKED','service'=>self::class,'action'=>'activate','target_id'=>$fileId,'error_code'=>get_class($e),'error'=>$e]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $failed ? '수정 중 오류가 발생했습니다.' : $e->getMessage(),
             ];
         }
     }
@@ -203,6 +207,7 @@ class BrandService
         try {
             $this->model->updateStatusById($fileId, 0, ActorHelper::user());
             $this->pdo->commit();
+            $this->logger->info('브랜드 자산 비활성화를 완료했습니다.', ['event_code'=>'BRAND_ASSET_DEACTIVATED','result'=>'SUCCESS','service'=>self::class,'action'=>'deactivate','target_id'=>$fileId]);
 
             return [
                 'success' => true,
@@ -210,10 +215,11 @@ class BrandService
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
+            $failed=$e instanceof \PDOException;$this->logger->{$failed?'error':'warning'}($failed?'브랜드 자산 비활성화에 실패했습니다.':'브랜드 자산 비활성화가 차단되었습니다.',['event_code'=>$failed?'BRAND_ASSET_DEACTIVATE_FAILED':'BRAND_ASSET_DEACTIVATE_BLOCKED','result'=>$failed?'FAILED':'BLOCKED','service'=>self::class,'action'=>'deactivate','target_id'=>$fileId,'error_code'=>get_class($e),'error'=>$e]);
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $failed ? '수정 중 오류가 발생했습니다.' : $e->getMessage(),
             ];
         }
     }

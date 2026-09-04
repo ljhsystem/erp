@@ -12,15 +12,6 @@ const renderTransactionStatus = (value) => {
     const labels = { draft: '임시저장', completed: '완료', closed: '마감', cancelled: '취소' };
     return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
 };
-const renderLineStatus = (_value, _type, row = {}) => {
-    const status = String(row.transaction_line_status || 'NONE').toUpperCase();
-    const count = Number(row.transaction_line_count || 0);
-    const incomplete = Number(row.transaction_line_incomplete_count || 0);
-    if (status === 'COMPLETE') return `<span class="badge text-bg-success">완성 ${count}</span>`;
-    if (status === 'INCOMPLETE') return `<span class="badge text-bg-warning" title="보완 필요 ${incomplete}건">미완성 ${count}</span>`;
-    return '<span class="badge text-bg-secondary" title="거래 화면에서 거래내역을 추가해 주세요.">내역 없음</span>';
-};
-
 export function registerTable(ctx) {
     const {
         bindTableHighlight,
@@ -28,7 +19,7 @@ export function registerTable(ctx) {
         SearchForm,
         bindRowReorder,
     } = ctx;
-    const TRANSACTION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.transaction.transaction-table.v1';
+    const TRANSACTION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.transaction.transaction-table.v2';
 
     function buildTransactionDataColumns() {
         const textColumn = (data, title, options = {}) => ({
@@ -96,17 +87,17 @@ export function registerTable(ctx) {
             }),
             textColumn('transaction_date', '거래일자', { visible: true }),
             textColumn('business_unit', '사업구분'),
-            textColumn('client_id', '거래처ID', { visible: false }),
             {
-                data: 'client_name',
+                data: 'client_id',
+                settingsKey: 'client_id',
                 title: '거래처',
                 render(data, type, row) {
                     return escapeHtml(data || row.client_name || '-');
                 },
             },
-            textColumn('project_id', '프로젝트ID', { visible: false }),
             {
-                data: 'project_name',
+                data: 'project_id',
+                settingsKey: 'project_id',
                 title: '프로젝트',
                 defaultContent: '',
                 visible: false,
@@ -121,14 +112,8 @@ export function registerTable(ctx) {
             textColumn('currency', '\uD1B5\uD654'),
             textColumn('exchange_rate', '\uD658\uC728', { className: 'text-end' }),
             {
-                data: 'transaction_line_status',
-                title: '\uAC70\uB798\uB77C\uC778\uC0C1\uD0DC',
-                className: 'text-center text-nowrap',
-                visible: true,
-                render: renderLineStatus,
-            },
-            {
                 data: 'description',
+                settingsKey: 'transaction_description',
                 title: '\uC801\uC694',
                 className: '',
                 defaultContent: '',
@@ -206,6 +191,7 @@ export function registerTable(ctx) {
                 description: ctx.TRANSACTION_PAGE_DESCRIPTION,
                 tableLabel: '거래헤더',
                 title: '거래헤더 테이블 설정',
+                resetOnColumnSchemaChange: true,
             },
             buttons: [
                 {

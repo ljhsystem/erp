@@ -6,6 +6,27 @@ function normalizeKey(event = {}) {
     return String(event.key || '').trim();
 }
 
+export function isHtmlGridNativeEditorTarget(target = null) {
+    if (!target || typeof target !== 'object') {
+        return false;
+    }
+
+    if (target.isContentEditable === true) {
+        return true;
+    }
+
+    const tagName = String(target.tagName || '').trim().toUpperCase();
+    if (tagName === 'TEXTAREA' || tagName === 'SELECT') {
+        return true;
+    }
+    if (tagName !== 'INPUT') {
+        return false;
+    }
+
+    const inputType = String(target.type || 'text').trim().toLowerCase();
+    return !['button', 'checkbox', 'radio', 'submit', 'reset', 'file', 'image', 'hidden'].includes(inputType);
+}
+
 function buildCellPosition(row, rowIndex, columnKey) {
     return {
         rowId: row?.rowId || '',
@@ -114,6 +135,11 @@ export function createKeyboardController(config = {}) {
     function handleKeyDown(event = {}) {
         const key = normalizeKey(event);
         const capabilities = api.getCapabilities?.() || {};
+        const nativeEditorTarget = isHtmlGridNativeEditorTarget(event.target);
+
+        if (nativeEditorTarget && !['Tab', 'Enter', 'Escape'].includes(key)) {
+            return { executed: false, reason: 'native-editor-key' };
+        }
 
         if (key === 'Tab') {
             event.preventDefault?.();

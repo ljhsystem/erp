@@ -72,7 +72,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     </div>
 
     <?php include __DIR__ . '/partials/account_modal.php'; ?>
-    <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+    <?php include PROJECT_ROOT . '/app/views/main/settings/system/partials/code_modal.php'; ?>
 
     <?php
     $modalId = 'accountTrashModal';

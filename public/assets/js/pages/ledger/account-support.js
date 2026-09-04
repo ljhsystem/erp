@@ -1,6 +1,6 @@
 import { formatNumber } from '/public/assets/js/common/format.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
-import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/main/settings/system/code-select.js';
 import {
     readDataTableSettingsState,
     resolveDataTableColumnDisplayName,

@@ -12,12 +12,14 @@ class ApprovalInboxService
     private ApprovalInboxModel $inbox;
     private ApprovalDocumentAdapterRegistry $adapters;
     private EmployeeModel $employees;
+    private ApprovalDocumentSummaryResolver $summaries;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->inbox = new ApprovalInboxModel($pdo);
         $this->adapters = new ApprovalDocumentAdapterRegistry($pdo);
         $this->employees = new EmployeeModel($pdo);
+        $this->summaries = new ApprovalDocumentSummaryResolver($pdo);
     }
 
     public function list(array $query): array
@@ -25,6 +27,7 @@ class ApprovalInboxService
         $userId = $this->userId();
         $box = trim((string) ($query['box'] ?? 'actionable'));
         $page = $this->inbox->page($userId, $box, $query);
+        $page['rows'] = $this->summaries->resolve($page['rows']);
         foreach ($page['rows'] as &$row) {
             $row['document_type_name'] = $this->adapters
                 ->metadata((string) $row['document_type'])['display_name'];

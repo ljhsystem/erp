@@ -1,0 +1,129 @@
+.business-income-page .ui-table-wrap { min-height: 360px; }
+#businessIncomeModal { overflow-x: hidden; overflow-y: hidden; }
+#businessIncomeModal .modal-dialog { max-width: min(1580px, calc(100vw - 24px)); }
+#businessIncomeModal .modal-body { overflow-x: hidden; overflow-y: auto; }
+#businessIncomeModal .modal-footer { justify-content: flex-end; }
+#businessIncomeModal .modal-footer #businessIncomeDelete { margin-right: 0 !important; }
+.business-income-group { border: 1px solid var(--bs-border-color); border-radius: .65rem; margin-bottom: 1rem; overflow: visible; background: var(--bs-body-bg); }
+.business-income-entry-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 10px; align-items: start; }
+.business-income-recipient-result { position: sticky; top: -10px; display: flex; min-height: 0; padding: 12px; flex-direction: column; border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-body-bg); }
+.business-income-recipient-result h6 { margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--bs-border-color); font-size: 15px; font-weight: 800; }
+.business-income-recipient-result h6 .badge { vertical-align: 1px; font-size: 10px; }
+.business-income-result-empty { padding: 12px 0; color: var(--bs-secondary-color); font-size: 12px; }
+.business-income-result-status { margin-top: 8px; padding: 6px 8px; border-radius: 4px; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); font-size: 11px; }
+.business-income-result-status.is-error { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+.business-income-result-section { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--bs-border-color); }
+.business-income-recipient-result h6 + .business-income-result-section { margin-top: 0; border-top: 0; }
+.business-income-result-section-title { margin-bottom: 7px; font-size: 13px; font-weight: 800; }
+.business-income-result-values { display: grid; gap: 5px; }
+.business-income-result-values > div { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.business-income-result-values span { color: var(--bs-secondary-color); }
+.business-income-result-section.is-final { padding: 10px; border: 1px solid var(--bs-primary-border-subtle); border-radius: 6px; background: var(--bs-primary-bg-subtle); }
+.business-income-result-separator { color: var(--bs-secondary-color); }
+.business-income-group__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem; background: var(--bs-tertiary-bg); }
+.business-income-group__header { border-bottom: 1px solid var(--bs-border-color); }
+.business-income-group.is-collapsed .business-income-group__header { border-bottom: 0; }
+.business-income-group.is-collapsed .business-income-group__body, .business-income-item.is-collapsed .business-income-item__body { display: none; }
+.business-income-group__summary { display: flex; min-width: 0; flex-direction: column; gap: 1px; font-size: .82rem; }
+.business-income-group__summary strong { font-size: .9rem; }
+.business-income-group__summary small { color: var(--bs-secondary-color); font-size: 11px; }
+.business-income-group__actions { display: flex; gap: .4rem; flex: 0 0 auto; }
+.business-income-group__body { padding: 1rem; }
+.business-income-empty { min-height: 58px; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; color: var(--bs-secondary-color); background: var(--bs-body-bg); }
+.business-income-items { display: grid; gap: .75rem; margin-top: 1rem; }
+.business-income-item { border: 1px solid var(--bs-border-color); border-radius: .55rem; overflow: hidden; background: var(--bs-body-bg); }
+.business-income-item.is-selected { border-color: var(--bs-primary); box-shadow: 0 0 0 1px var(--bs-primary); }
+.business-income-item__header { display: grid; grid-template-columns: 24px max-content max-content max-content minmax(100px, 1fr) max-content max-content repeat(3, 30px); align-items: center; gap: 6px; min-height: 40px; padding: 4px 6px; overflow: hidden; background: var(--bs-tertiary-bg); white-space: nowrap; font-size: 11px; }
+.business-income-item__order { text-align: center; font-weight: 700; }
+.business-income-item__select { overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--bs-primary); font-weight: 700; text-overflow: ellipsis; }
+.business-income-item__type { padding: 2px 6px; border-radius: 999px; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); font-size: 10px; }
+.business-income-item__description { overflow: hidden; text-overflow: ellipsis; }
+.business-income-item__payment { font-weight: 700; font-variant-numeric: tabular-nums; }
+.business-income-item__action { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--bs-secondary-color); }
+.business-income-item__action:hover { background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+.business-income-item__action.is-danger { color: var(--bs-danger); }
+.business-income-item__body { padding: .8rem; border-top: 1px solid var(--bs-border-color); }
+.business-income-work-lines { margin-top: 14px; padding: 10px; border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-tertiary-bg); }
+.business-income-work-lines > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.business-income-work-lines > header div { display: flex; flex-direction: column; }
+.business-income-work-lines > header small { color: var(--bs-secondary-color); font-size: 11px; }
+.business-income-work-line-grid { min-height: 92px; overflow-x: hidden; border-top: 1px solid var(--bs-border-color); overscroll-behavior-x: contain; overscroll-behavior-y: auto; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="sort_no"] { width: 5% !important; min-width: 5% !important; max-width: 5% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="item_name"] { width: 21% !important; min-width: 21% !important; max-width: 21% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="item_specification"] { width: 15% !important; min-width: 15% !important; max-width: 15% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="item_unit_name"] { width: 8% !important; min-width: 8% !important; max-width: 8% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="item_quantity"] { width: 8% !important; min-width: 8% !important; max-width: 8% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="item_unit_price"] { width: 10% !important; min-width: 10% !important; max-width: 10% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="calculated_amount"] { width: 10% !important; min-width: 10% !important; max-width: 10% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="adjustment_action"] { width: 6% !important; min-width: 6% !important; max-width: 6% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="final_amount"] { width: 10% !important; min-width: 10% !important; max-width: 10% !important; }
+.business-income-work-line-grid :is(.html-grid-header-cell, .html-grid-cell)[data-column-key="row_action"] { width: 7% !important; min-width: 7% !important; max-width: 7% !important; }
+.business-income-work-line-grid .html-grid-empty { min-height: 42px; }
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-header-cell,
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-cell { height: 36px; }
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-cell.has-editor { padding-block: 1px; }
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-cell-content,
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-cell-editor-slot { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-cell-editor-slot { padding-inline: 1px; }
+.business-income-work-line-grid.html-grid-variant-compact .html-grid-editor { display: block; width: 100%; max-width: none; height: 32px; min-height: 32px; padding: 2px 5px; }
+.business-income-work-line-grid .html-grid-column-item_unit_name .select2-container { display: block; width: 100% !important; height: 32px !important; min-height: 32px !important; }
+.business-income-work-line-grid .html-grid-column-item_unit_name .select2-selection--single { height: 32px !important; min-height: 32px !important; padding: 0 20px 0 6px !important; border-color: #ced4da; border-radius: 3px; }
+.business-income-work-line-grid .html-grid-column-item_unit_name .select2-selection--single .select2-selection__rendered { padding: 0 !important; line-height: 30px !important; font-size: 12px !important; }
+.business-income-work-line-grid .html-grid-column-item_unit_name .select2-selection--single .select2-selection__arrow { height: 30px !important; }
+.business-income-work-line-actions { display: flex; gap: 1px; justify-content: center; }
+.business-income-work-line-action { display: grid; width: 30px; height: 30px; min-width: 30px; padding: 0; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--bs-secondary-color); font-size: 12px; line-height: 1; }
+.business-income-work-line-action:hover, .business-income-work-line-action:focus-visible { background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+.business-income-work-line-action.is-primary { color: var(--bs-primary); }
+.business-income-work-line-action.is-danger { color: var(--bs-danger); }
+.business-income-work-line-action[aria-expanded="true"] { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); }
+.business-income-work-order { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.business-income-work-drag-handle { cursor: grab; color: var(--bs-secondary-color); }
+.business-income-work-drag-handle:active { cursor: grabbing; }
+.business-income-work-adjustment { display: grid; grid-template-columns: minmax(220px,1.1fr) 150px minmax(260px,2fr); gap: 8px; align-items: end; padding: 8px 10px; border-top: 1px solid var(--bs-border-color); background: var(--bs-body-bg); }
+.business-income-work-adjustment.is-hidden { display: none; }
+.business-income-work-adjustment__title { display: flex; min-width: 0; flex-direction: column; align-self: center; }
+.business-income-work-adjustment__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.business-income-work-adjustment__title small, .business-income-work-adjustment label span { color: var(--bs-secondary-color); font-size: 11px; }
+.business-income-work-adjustment label { min-width: 0; }
+.business-income-work-adjustment label span { display: block; margin-bottom: 3px; }
+.business-income-work-adjustment .form-control { height: 32px; min-height: 32px; padding: 2px 7px; font-size: 12px; line-height: 1.2; }
+.business-income-item__totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; }
+.business-income-preview-grid { display: grid; grid-template-columns: repeat(8, minmax(96px, 1fr)); gap: .35rem; overflow-x: auto; }
+.business-income-group-totals { display: grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap: 1px; margin-top: .8rem; overflow: hidden; border: 1px solid var(--bs-border-color); border-radius: 5px; background: var(--bs-border-color); }
+.business-income-group-totals .business-income-amount { border-radius: 0; background: var(--bs-tertiary-bg); }
+.business-income-institution-detail { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--bs-border-color); }
+.business-income-institution-heading { display: flex; flex-direction: column; gap: 2px; }
+.business-income-institution-heading small { color: var(--bs-secondary-color); font-size: 11px; }
+.business-income-institution-detail .income-calculation-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.business-income-institution-detail .income-calculation-status { display: none; }
+.business-income-document-summary { padding: .45rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; background: var(--bs-tertiary-bg); }
+.business-income-document-summary .business-income-amount { padding: .35rem .55rem; background: transparent; text-align: left; }
+.business-income-document-summary .business-income-amount strong { font-size: .85rem; }
+.business-income-item__totals { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--bs-border-color); }
+.business-income-amount { min-width: 0; padding: .55rem .65rem; border-radius: .4rem; background: var(--bs-tertiary-bg); text-align: right; font-variant-numeric: tabular-nums; }
+.business-income-amount span { display: block; color: var(--bs-secondary-color); font-size: .72rem; }
+.business-income-amount strong { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 1rem; }
+.business-income-other-help { display: block; margin-top: .35rem; color: var(--bs-secondary-color); font-size: .75rem; }
+.business-income-system-card { margin-top: 1rem; }
+.business-income-system-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; }
+.business-income-system-info-field { display: grid; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr); gap: .5rem; align-items: start; min-width: 0; }
+.business-income-system-info-label { color: var(--bs-secondary-color); font-size: .8rem; }
+.business-income-system-info-value { min-width: 0; color: var(--bs-body-color); font-size: .84rem; overflow-wrap: anywhere; }
+.business-income-system-info-field.is-numeric .business-income-system-info-value { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 992px) {
+    #businessIncomeModal .modal-dialog { max-width: calc(100vw - 16px); }
+    .business-income-entry-layout { grid-template-columns: 1fr; }
+    .business-income-recipient-result { position: static; }
+    .business-income-group__header { align-items: flex-start; flex-direction: column; }
+    .business-income-group__actions { width: 100%; justify-content: flex-end; }
+    .business-income-item__header { grid-template-columns: 24px minmax(90px, 1fr) max-content repeat(3, 30px); }
+    .business-income-item__work-type, .business-income-item__description, .business-income-item__payment, .business-income-item__header > .badge { display: none; }
+    .business-income-item__totals, .business-income-preview-grid, .business-income-group-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .business-income-institution-detail .income-calculation-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .business-income-work-adjustment { grid-template-columns: 1fr 1fr; }
+    .business-income-work-adjustment__title, .business-income-work-adjustment .is-reason { grid-column: 1 / -1; }
+}
+@media (max-width: 576px) {
+    .business-income-item__totals, .business-income-preview-grid, .business-income-group-totals, .business-income-system-info-grid { grid-template-columns: 1fr; }
+    .business-income-institution-detail .income-calculation-card-grid { grid-template-columns: 1fr; }
+}

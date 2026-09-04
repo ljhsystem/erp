@@ -102,8 +102,8 @@ class AuthMiddleware
         try {
             $permissionService = new PermissionService();
 
-            if ($permissionService->hasPermission((string) $userId, 'web.dashboard.main')) {
-                return '/dashboard';
+            if ($permissionService->hasPermission((string) $userId, 'web.main.dashboard')) {
+                return '/main';
             }
         } catch (\Throwable) {
             // Fall back to the public home page if permission resolution fails.

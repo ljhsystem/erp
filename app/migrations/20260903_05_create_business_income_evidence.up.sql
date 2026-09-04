@@ -1,0 +1,81 @@
+CREATE TABLE ledger_evidence_business_income (
+    id VARCHAR(36) NOT NULL,
+    sort_no INT UNSIGNED NOT NULL,
+    source_type VARCHAR(40) NOT NULL,
+    import_type VARCHAR(50) NOT NULL,
+    business_unit VARCHAR(50) NOT NULL,
+    transaction_direction VARCHAR(10) NOT NULL,
+    operation_type VARCHAR(50) NOT NULL,
+    external_key VARCHAR(120) NOT NULL,
+    evidence_date DATE NOT NULL,
+    client_id VARCHAR(36) NULL,
+    employee_id VARCHAR(36) NULL,
+    project_id VARCHAR(36) NULL,
+    bank_account_id VARCHAR(36) NULL,
+    card_id VARCHAR(36) NULL,
+    work_team_id VARCHAR(36) NULL,
+    raw_client_name VARCHAR(255) NULL,
+    evidence_status VARCHAR(30) NOT NULL,
+    raw_income_year_month CHAR(7) NOT NULL,
+    raw_payment_date DATE NOT NULL,
+    raw_recipient_name VARCHAR(200) NOT NULL,
+    raw_service_type_code VARCHAR(50) NOT NULL,
+    raw_service_description VARCHAR(1000) NULL,
+    raw_business_unit VARCHAR(50) NOT NULL,
+    raw_project_id VARCHAR(36) NULL,
+    raw_work_team_id VARCHAR(36) NULL,
+    raw_gross_payment_amount DECIMAL(18,2) NOT NULL,
+    raw_income_tax_amount DECIMAL(18,2) NOT NULL,
+    raw_local_income_tax_amount DECIMAL(18,2) NOT NULL,
+    raw_other_deduction_amount DECIMAL(18,2) NOT NULL,
+    raw_total_deduction_amount DECIMAL(18,2) NOT NULL,
+    raw_net_payment_amount DECIMAL(18,2) NOT NULL,
+    income_date DATE NULL,
+    provider_name VARCHAR(120) NULL,
+    provider_reg_no VARCHAR(40) NULL,
+    supply_amount DECIMAL(18,2) NOT NULL,
+    vat_amount DECIMAL(18,2) NOT NULL,
+    service_amount DECIMAL(18,2) NULL,
+    total_amount DECIMAL(18,2) NOT NULL,
+    memo TEXT NULL,
+    source_business_income_id VARCHAR(36) NOT NULL,
+    business_income_group_id VARCHAR(36) NOT NULL,
+    business_income_item_id VARCHAR(36) NOT NULL,
+    approval_request_id VARCHAR(36) NOT NULL,
+    calculation_revision_id VARCHAR(36) NOT NULL,
+    approved_at DATETIME NOT NULL,
+    approved_by VARCHAR(100) NOT NULL,
+    snapshot_json JSON NOT NULL,
+    snapshot_version INT UNSIGNED NOT NULL,
+    source_hash CHAR(64) NOT NULL,
+    business_key_hash CHAR(64) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100) NOT NULL,
+    deleted_at DATETIME NULL,
+    deleted_by VARCHAR(100) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_business_income_evidence_item (business_income_item_id),
+    UNIQUE KEY uk_business_income_evidence_external (external_key),
+    KEY idx_business_income_evidence_list (raw_income_year_month,raw_payment_date,sort_no,id),
+    KEY idx_business_income_evidence_client (client_id,evidence_date),
+    CONSTRAINT fk_business_income_evidence_header FOREIGN KEY (source_business_income_id) REFERENCES institution_business_incomes(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_business_income_evidence_group FOREIGN KEY (business_income_group_id) REFERENCES institution_business_income_groups(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_business_income_evidence_item FOREIGN KEY (business_income_item_id) REFERENCES institution_business_income_items(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_business_income_evidence_revision FOREIGN KEY (calculation_revision_id) REFERENCES institution_business_income_calculation_revisions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT chk_business_income_evidence_hashes CHECK (source_hash REGEXP '^[0-9a-f]{64}$' AND business_key_hash REGEXP '^[0-9a-f]{64}$'),
+    CONSTRAINT chk_business_income_evidence_amounts CHECK (raw_gross_payment_amount-raw_total_deduction_amount=raw_net_payment_amount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='최종승인 사업소득 Evidence 원본';
+
+DELIMITER $$
+CREATE TRIGGER trg_business_income_evidence_canonical_insert
+BEFORE INSERT ON ledger_evidence_business_income FOR EACH ROW
+BEGIN
+    IF NEW.source_type<>'INTERNAL_APPROVAL' OR NEW.import_type<>'BUSINESS_INCOME_REPORT'
+       OR NEW.transaction_direction<>'OUT' OR NEW.operation_type<>'BUSINESS_INCOME'
+       OR NEW.employee_id IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='신규 사업소득 Evidence Canonical 값이 올바르지 않습니다.';
+    END IF;
+END$$
+DELIMITER ;

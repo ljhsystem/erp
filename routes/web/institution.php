@@ -85,14 +85,14 @@ $institutionRoutes = [
         'web.institution.income_data.daily_employment',
         '일용근로소득',
         '대외기관업무 > 소득자료관리 > 일용근로소득',
-        'InstitutionController@webPlaceholder',
+        'DailyEmploymentIncomeController@webIndex',
     ],
     [
         '/institution/income-data/business-income',
         'web.institution.income_data.business_income',
         '사업소득',
         '대외기관업무 > 소득자료관리 > 사업소득',
-        'InstitutionController@webPlaceholder',
+        'BusinessIncomeController@webIndex',
     ],
     [
         '/institution/national-tax',
@@ -114,6 +114,7 @@ $institutionRoutes = [
         '4대보험업무',
         '대외기관업무 > 4대보험업무',
         'InstitutionController@webPlaceholder',
+        '메뉴 구조가 연결되었습니다. 4대보험 신고·납부·정산 업무 기능은 추후 단계에서 제공됩니다.',
     ],
     [
         '/institution/tax-agent',
@@ -131,7 +132,8 @@ $institutionRoutes = [
     ],
 ];
 
-foreach ($institutionRoutes as [$path, $key, $name, $description, $handler]) {
+foreach ($institutionRoutes as $route) {
+    [$path, $key, $name, $description, $handler, $pageNotice] = array_pad($route, 6, null);
     $router->get($path, $handler, [
         'key' => $key,
         'page' => $name,
@@ -144,5 +146,6 @@ foreach ($institutionRoutes as [$path, $key, $name, $description, $handler]) {
         'auth' => true,
         'permissions' => ['view'],
         'log' => false,
+        'page_notice' => $pageNotice,
     ]);
 }

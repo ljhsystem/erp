@@ -1,6 +1,6 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { checkBusinessStatus } from '/public/assets/js/common/biz_api.js';
-import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { openClientQuickCreate } from '/public/assets/js/pages/main/settings/base/client.js';
 import { resolveDisplayText } from '/public/assets/js/pages/ledger/shared/utils.js';
 import * as NumberFormat from '/public/assets/js/common/format.js';
 

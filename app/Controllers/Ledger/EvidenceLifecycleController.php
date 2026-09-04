@@ -119,6 +119,7 @@ class EvidenceLifecycleController
     public function apiSeedRowsDelete(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $result = $this->evidenceTrashService()->delete(
             $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
             ActorHelper::user(),
@@ -131,6 +132,7 @@ class EvidenceLifecycleController
     public function apiSeedRowsRestore(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $result = $this->evidenceTrashService()->restore(
             $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
             ActorHelper::user(),
@@ -143,6 +145,7 @@ class EvidenceLifecycleController
     public function apiSeedRowsRestoreAll(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $importType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $_GET['import_type'] ?? $_GET['data_type'] ?? ''));
         $result = $this->evidenceTrashService()->restoreAll($importType, ActorHelper::user());
 
@@ -152,6 +155,7 @@ class EvidenceLifecycleController
     public function apiSeedRowsPurge(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $result = $this->evidenceTrashService()->purge(
             $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
             $this->evidencePayloadHelperService()->evidenceTypeFromPayload($payload)
@@ -163,10 +167,20 @@ class EvidenceLifecycleController
     public function apiSeedRowsPurgeAll(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $importType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $_GET['import_type'] ?? $_GET['data_type'] ?? ''));
         $result = $this->evidenceTrashService()->purgeAll($importType);
 
         $this->json($result, (int) ($result['status'] ?? 200));
+    }
+
+    private function rejectReadOnlyEvidenceMutation(array $payload): bool
+    {
+        $type = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $_GET['import_type'] ?? $_GET['data_type'] ?? ''));
+        if (!$this->evidenceTypePolicyService()->isReadOnlyStatusViewType($type)) return false;
+
+        $this->json(['success' => false, 'message' => '최종 승인으로 생성된 증빙은 삭제·복구·영구삭제할 수 없습니다.'], 409);
+        return true;
     }
 
     private function evidenceTrashService(): EvidenceTrashService

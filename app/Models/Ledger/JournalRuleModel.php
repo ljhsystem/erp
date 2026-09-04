@@ -65,6 +65,18 @@ class JournalRuleModel
                     [$codeKey, $nameKey] = $this->addLikePair($params, $value);
                     $where[] = "(r.client_type LIKE {$codeKey} OR clt.code_name LIKE {$nameKey})";
                     break;
+                case 'item_code':
+                    [$codeKey, $nameKey] = $this->addLikePair($params, $value);
+                    $where[] = "(r.item_code LIKE {$codeKey} OR pec.code_name LIKE {$nameKey})";
+                    break;
+                case 'accounting_role_code':
+                    [$codeKey, $nameKey] = $this->addLikePair($params, $value);
+                    $where[] = "(r.accounting_role_code LIKE {$codeKey} OR role.code_name LIKE {$nameKey})";
+                    break;
+                case 'result_account_name':
+                    [$codeKey, $nameKey] = $this->addLikePair($params, $value);
+                    $where[] = "(ra.account_code LIKE {$codeKey} OR ra.account_name LIKE {$nameKey})";
+                    break;
                 case 'debit_account_name':
                     [$codeKey, $nameKey] = $this->addLikePair($params, $value);
                     $where[] = "(da.account_code LIKE {$codeKey} OR da.account_name LIKE {$nameKey})";
@@ -154,6 +166,60 @@ class JournalRuleModel
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM ledger_accounts WHERE id = :id AND deleted_at IS NULL AND is_active = 1 AND COALESCE(is_posting, 1) = 1");
         $stmt->execute([':id' => $id]);
         return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function resolveCompanyId(): string
+    {
+        $ids = $this->db->query('SELECT id FROM system_company ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        if (count($ids) !== 1) {
+            throw new \RuntimeException('분개규칙 회사 범위를 확정할 수 없습니다.');
+        }
+        return (string) $ids[0];
+    }
+
+    public function supportsRoleOnlyWrite(): bool
+    {
+        $stmt = $this->db->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ledger_journal_rules' AND COLUMN_NAME IN ('credit_account_id','debit_account_id','vat_account_id') AND IS_NULLABLE='NO'");
+        return (int) $stmt->fetchColumn() === 0;
+    }
+
+    public function roleConditionConflict(string $companyId, string $conditionHash, string $roleCode, string $side, ?string $excludeId = null): ?array
+    {
+        $sql = 'SELECT * FROM ledger_journal_rules WHERE company_id=:company_id AND condition_hash=:condition_hash AND accounting_role_code=:role_code AND debit_credit=:side AND deleted_at IS NULL';
+        $params = [':company_id' => $companyId, ':condition_hash' => $conditionHash, ':role_code' => $roleCode, ':side' => $side];
+        if ($excludeId !== null && $excludeId !== '') {
+            $sql .= ' AND id<>:exclude_id';
+            $params[':exclude_id'] = $excludeId;
+        }
+        $stmt = $this->db->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function createRoleRule(array $row): void
+    {
+        $columns = ['id','company_id','sort_no','rule_code','rule_name','business_unit','operation_type','transaction_direction','client_type','import_type','source_type','source_line_type','item_code','condition_hash','origin_code','rule_status','accounting_role_code','debit_credit','account_id','amount_policy_code','is_locked','auto_apply_enabled','effective_from','effective_to','priority_no','revision_no','debit_account_id','credit_account_id','vat_account_id','description','is_active','created_by','updated_by'];
+        $stmt = $this->db->prepare('INSERT INTO ledger_journal_rules (' . implode(',', $columns) . ') VALUES (' . implode(',', array_map(static fn (string $column): string => ':' . $column, $columns)) . ')');
+        $params = [];
+        foreach ($columns as $column) {
+            $params[':' . $column] = $row[$column] ?? null;
+        }
+        $stmt->execute($params);
+    }
+
+    public function updateRoleRule(string $id, string $companyId, array $row): void
+    {
+        $columns = ['rule_code','rule_name','business_unit','operation_type','transaction_direction','client_type','import_type','source_type','source_line_type','item_code','condition_hash','origin_code','rule_status','accounting_role_code','debit_credit','account_id','amount_policy_code','is_locked','auto_apply_enabled','effective_from','effective_to','priority_no','debit_account_id','credit_account_id','vat_account_id','description','is_active','updated_by'];
+        $sets = array_map(static fn (string $column): string => $column . '=:' . $column, $columns);
+        $stmt = $this->db->prepare('UPDATE ledger_journal_rules SET ' . implode(',', $sets) . ',updated_at=NOW() WHERE id=:id AND company_id=:company_id AND deleted_at IS NULL');
+        $params = [':id' => $id, ':company_id' => $companyId];
+        foreach ($columns as $column) {
+            $params[':' . $column] = $row[$column] ?? null;
+        }
+        $stmt->execute($params);
+        if ($stmt->rowCount() !== 1) {
+            throw new \RuntimeException('수정할 역할형 분개규칙을 찾을 수 없습니다.');
+        }
     }
 
     public function conditionConflict(array $data, ?string $excludeId = null): ?array
@@ -459,6 +525,14 @@ class JournalRuleModel
                 td.code_name AS transaction_direction_name,
                 clt.code_name AS client_type_name,
                 it.code_name AS import_type_name,
+                st.code_name AS source_type_name,
+                slt.code_name AS source_line_type_name,
+                pec.code_name AS item_code_name,
+                role.code_name AS accounting_role_name,
+                ra.account_code AS result_account_code,
+                ra.account_name AS result_account_name,
+                rv.id AS latest_revision_id,
+                rv.action_code AS latest_revision_action,
                 da.account_code AS debit_account_code,
                 da.account_name AS debit_account_name,
                 ca.account_code AS credit_account_code,
@@ -471,6 +545,12 @@ class JournalRuleModel
             LEFT JOIN system_codes td ON td.is_active = 1 AND td.code_group = 'TRANSACTION_DIRECTION' AND td.code = r.transaction_direction
             LEFT JOIN system_codes clt ON clt.is_active = 1 AND clt.code_group = 'CLIENT_TYPE' AND clt.code = r.client_type
             LEFT JOIN system_codes it ON it.is_active = 1 AND it.code_group = 'IMPORT_TYPE' AND it.code = r.import_type
+            LEFT JOIN system_codes st ON st.is_active = 1 AND st.code_group = 'SOURCE_TYPE' AND st.code = r.source_type
+            LEFT JOIN system_codes slt ON slt.is_active = 1 AND slt.code_group = 'SOURCE_LINE_TYPE' AND slt.code = r.source_line_type
+            LEFT JOIN system_codes pec ON pec.is_active = 1 AND pec.code_group = 'PERSONAL_EXPENSE_CATEGORY' AND pec.code = r.item_code
+            LEFT JOIN system_codes role ON role.is_active = 1 AND role.code_group = 'JOURNAL_ACCOUNTING_ROLE' AND role.code = r.accounting_role_code
+            LEFT JOIN ledger_accounts ra ON ra.id = r.account_id
+            LEFT JOIN ledger_journal_rule_revisions rv ON rv.rule_id = r.id AND rv.revision_no = r.revision_no
             LEFT JOIN ledger_accounts da ON da.id = r.debit_account_id
             LEFT JOIN ledger_accounts ca ON ca.id = r.credit_account_id
             LEFT JOIN ledger_accounts va ON va.id = r.vat_account_id

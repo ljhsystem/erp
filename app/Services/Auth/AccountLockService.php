@@ -21,10 +21,6 @@ class AccountLockService
 
     public function handleLoginFail(string $userId): void
     {
-        $this->logger->info('handleLoginFail 호출', [
-            'user_id' => $userId
-        ]);
-
         $policyEnabled = (int) ConfigHelper::system('security_login_fail_policy_enabled', 0);
         if ($policyEnabled !== 1) {
             return;
@@ -36,15 +32,12 @@ class AccountLockService
         $this->authUserModel->increaseFailCount($userId);
         $count = $this->authUserModel->getFailCount($userId);
 
-        $this->logger->info('로그인 실패 카운트 증가', [
-            'user_id'    => $userId,
-            'fail_count' => $count
-        ]);
-
         if ($count >= $maxFail) {
             $this->authUserModel->lockAccount($userId, $lockMin);
 
-            $this->logger->warning('계정 잠금 처리', [
+            $this->logger->warning('로그인 실패 누적으로 계정을 잠갔습니다.', [
+                'event_code' => 'ACCOUNT_LOCKED_AFTER_LOGIN_FAILURES',
+                'result' => 'SUCCESS',
                 'user_id' => $userId,
                 'minutes' => $lockMin
             ]);
@@ -63,19 +56,15 @@ class AccountLockService
 
     public function unlockAccount(string $userId): bool
     {
-        $this->logger->info('unlockAccount 호출', [
-            'user_id' => $userId
-        ]);
-
         $ok = $this->authUserModel->unlockAccount($userId);
 
-        $this->logger->info('unlockAccount 호출', [
+        $this->logger->{$ok ? 'info' : 'warning'}($ok ? '계정 잠금을 해제했습니다.' : '계정 잠금 해제가 차단되었습니다.', [
+            'event_code' => $ok ? 'ACCOUNT_UNLOCKED' : 'ACCOUNT_UNLOCK_BLOCKED',
+            'result' => $ok ? 'SUCCESS' : 'BLOCKED',
             'user_id' => $userId,
-            'success' => $ok
         ]);
 
         return $ok;
     }
 
 }
-

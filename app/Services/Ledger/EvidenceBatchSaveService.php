@@ -54,9 +54,7 @@ class EvidenceBatchSaveService
 
     public function buildUploadRowState(
         array $row,
-        string $dataType,
-        array $statusColumnDisplayName = [],
-        array $statusColumnRequirementPolicy = []
+        string $dataType
     ): array
     {
         $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
@@ -86,16 +84,10 @@ class EvidenceBatchSaveService
             $errorMessages[] = $voucherErrorMessage;
         }
 
-        $statusPayload = $parsedPayload;
-        $statusPayload['source_type'] = $statusPayload['source_type'] ?? $dataType;
-        $statusPayload['import_type'] = $statusPayload['import_type'] ?? $dataType;
-        foreach (['id', 'sort_no', 'external_key', 'source_key', 'created_at', 'created_by', 'updated_at', 'updated_by', 'evidence_status', 'transaction_status', 'voucher_status'] as $generatedKey) {
-            $statusPayload[$generatedKey] = $statusPayload[$generatedKey] ?? '__generated__';
-        }
-        $statusPayload['_column_display_name'] = $statusColumnDisplayName;
-        $statusPayload['_column_requirement_policy'] = $statusColumnRequirementPolicy;
-        $statusMissingMessages = $this->call('requiredFormatMissingMessages', $statusPayload, []);
-        $evidenceStatus = $this->call('evidenceStatusFromRequiredMissingMessages', $statusMissingMessages);
+        $requestedEvidenceStatus = strtoupper(trim((string) ($parsedPayload['evidence_status'] ?? '')));
+        $evidenceStatus = in_array($requestedEvidenceStatus, ['COMPLETED', 'CORRECTION_REQUIRED'], true)
+            ? $requestedEvidenceStatus
+            : 'CORRECTION_REQUIRED';
 
         return [
             'validation' => $validation,
@@ -190,7 +182,7 @@ class EvidenceBatchSaveService
             ':sort_no' => $sortNo > 0 ? $sortNo : null,
             ':evidence_status' => strtoupper(trim($evidenceStatus)) !== ''
                 ? strtoupper(trim($evidenceStatus))
-                : 'COMPLETED',
+                : 'CORRECTION_REQUIRED',
             ':transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
             ':voucher_status' => $voucherStatus,
             ':error_message' => $errorMessage,
@@ -259,7 +251,7 @@ class EvidenceBatchSaveService
             'mapped_payload_json' => $parsedJson,
             'evidence_status' => strtoupper(trim((string) $evidenceStatus)) !== ''
                 ? strtoupper(trim((string) $evidenceStatus))
-                : 'COMPLETED',
+                : 'CORRECTION_REQUIRED',
             'transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
             'voucher_status' => $voucherStatus,
         ];

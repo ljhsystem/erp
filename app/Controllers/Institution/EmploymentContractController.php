@@ -34,12 +34,19 @@ class EmploymentContractController
 
     public function apiList(): void { $this->respond(fn(): array => $this->service->list(\Core\Helpers\DataTableRequestHelper::input())); }
     public function apiDetail(): void { $this->respond(fn(): array => $this->service->detail($this->queryId())); }
-    public function apiOptions(): void { $this->respond(fn(): array => ['success'=>true,'data'=>$this->service->formOptions()]); }
+    public function apiOptions(): void
+    {
+        $minimumWageOnly = (string) ($_GET['minimum_wage_only'] ?? '') === '1';
+        $this->respond(fn(): array => ['success'=>true,'data'=>$minimumWageOnly
+            ? ['minimum_wage_guide' => $this->service->minimumWageGuide((string) ($_GET['contract_date'] ?? ''))]
+            : $this->service->formOptions()]);
+    }
+    public function apiStatutoryProjection(): void { $this->respond(fn(): array => $this->service->statutoryProjection($this->queryId())); }
     public function apiSave(): void { $this->respond(fn(): array => $this->service->save($this->input())); }
     public function apiReorder(): void { $input=$this->input();$this->respond(fn(): array => $this->service->reorder(is_array($input['changes']??null)?$input['changes']:[])); }
     public function apiSubmit(): void { $input=$this->input();$this->respond(fn(): array => $this->service->submit((string)($input['id']??''),(string)($input['request_key']??''))); }
     public function apiWithdraw(): void { $input=$this->input();$this->respond(fn(): array => $this->service->withdraw(trim((string) ($input['request_id'] ?? '')),(string)($input['request_key']??''))); }
-    public function apiRevise(): void { $input=$this->input();$this->respond(fn(): array => $this->service->revise((string)($input['id']??''), (string) ($input['reason'] ?? ''),(string)($input['request_key']??''))); }
+    public function apiRevise(): void { $input=$this->input();$this->respond(fn(): array => $this->service->revise((string)($input['id']??''), (string) ($input['reason'] ?? ''),(string)($input['request_key']??''),(string)($input['revision_kind']??'CHANGE'),isset($input['contract_date'])?(string)$input['contract_date']:null)); }
     public function apiTerminate(): void { $input=$this->input();$this->respond(fn(): array => $this->service->terminate((string)($input['id']??''), (string) ($input['reason'] ?? ''),(string)($input['request_key']??''))); }
     public function apiDelete(): void { $input=$this->input();$this->respond(fn(): array => $this->service->delete((string)($input['id']??''),(string)($input['request_key']??''))); }
     public function apiTrashList(): void { $this->respond(fn(): array => $this->service->trash($_GET)); }

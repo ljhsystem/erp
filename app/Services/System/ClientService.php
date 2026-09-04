@@ -4,6 +4,7 @@ namespace App\Services\System;
 use PDO;
 use App\Models\System\ClientModel;
 use App\Services\File\FileService;
+use App\Services\Concerns\LogsServiceOperations;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\DataHelper;
@@ -19,6 +20,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class ClientService
 {
+    use LogsServiceOperations;
     private readonly PDO $pdo;
     private ClientModel $model;
     private FileService $fileService;
@@ -36,22 +38,13 @@ class ClientService
         $this->excelService = new ClientExcelService($this->pdo, $this->model);
         $this->logger = LoggerFactory::getLogger('service-system.ClientService');
 
-        $this->logger->info('ClientService initialized');
     }
 
     public function getList(array $filters = []): array
     {
-        $this->logger->info('getList() called', [
-            'filters' => $filters
-        ]);
-
         try {
 
             $rows = $this->model->getList($filters);
-
-            $this->logger->info('getList() success', [
-                'count' => count($rows)
-            ]);
 
             $crypto = new Crypto();
 
@@ -70,10 +63,7 @@ class ClientService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getList() failed', [
-                'filters'   => $filters,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('거래처 목록 조회에 실패했습니다.', ['event_code' => 'CLIENT_LIST_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return [];
         }
@@ -81,21 +71,15 @@ class ClientService
 
     public function getById(string $id): ?array
     {
-        $this->logger->info('getById() called', ['id' => $id]);
-
         try {
 
             $row = $this->model->getById($id);
 
             if (!$row) {
-                $this->logger->warning('getById() not found', ['id' => $id]);
                 return null;
             }
 
             $crypto = new Crypto();
-            $this->logger->info('rrn raw', [
-                'db' => $row['rrn']
-            ]);
             if (!empty($row['rrn'])) {
                 $rrn = $crypto->decryptResidentNumber($row['rrn']);
                 $row['rrn'] = preg_replace('/\D+/', '', $rrn);
@@ -103,17 +87,11 @@ class ClientService
                 $row['rrn'] = '';
             }
 
-            $this->logger->info('rrn decrypted', [
-                'value' => $rrn ?? null
-            ]);
             $row['company_name_history'] = $this->model->getCompanyNameHistory($id);
             return $row;
         } catch (\Throwable $e) {
 
-            $this->logger->error('getById() exception', [
-                'id'        => $id,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('거래처 상세 조회에 실패했습니다.', ['event_code' => 'CLIENT_DETAIL_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return null;
         }
@@ -121,11 +99,6 @@ class ClientService
 
     public function searchPicker(string $keyword, array $options = []): array
     {
-        $this->logger->info('searchPicker() called', [
-            'keyword' => $keyword,
-            'options' => $options,
-        ]);
-
         try {
 
             $rows = $this->model->searchPicker($keyword, 20, $options);
@@ -159,6 +132,8 @@ class ClientService
                     'email'                => $row['email'] ?? '',
                     'address'              => $row['address'] ?? '',
                     'address_detail'       => $row['address_detail'] ?? '',
+                    'client_type'          => $row['client_type'] ?? '',
+                    'client_type_name'     => $row['client_type_name'] ?? ($row['client_type'] ?? ''),
                     'default_account_id'   => $row['default_account_id'] ?? '',
                     'default_account_code' => $row['default_account_code'] ?? '',
                     'default_account_name' => $row['default_account_name'] ?? '',
@@ -170,10 +145,7 @@ class ClientService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchPicker() failed', [
-                'keyword'   => $keyword,
-                'exception' => $e->getMessage()
-            ]);
+            $this->logger->error('거래처 선택목록 조회에 실패했습니다.', ['event_code' => 'CLIENT_PICKER_FAILED', 'result' => 'FAILED', 'error_code' => get_class($e), 'error' => $e]);
 
             return [];
         }
@@ -181,10 +153,11 @@ class ClientService
 
     public function deleteCompanyNameHistory(string $historyId): array
     {
-        $this->logger->info('deleteCompanyNameHistory() called', [
-            'history_id' => $historyId,
-        ]);
+        return $this->loggedClientMutation('거래처 상호변경 이력 삭제','CLIENT_NAME_HISTORY_DELETE','delete-name-history',fn():array=>$this->deleteCompanyNameHistoryInternal($historyId));
+    }
 
+    private function deleteCompanyNameHistoryInternal(string $historyId): array
+    {
         try {
             $deleted = $this->model->deleteCompanyNameHistory($historyId);
 
@@ -200,11 +173,6 @@ class ClientService
                 'message' => '상호 변경 이력을 삭제했습니다.',
             ];
         } catch (\Throwable $e) {
-            $this->logger->error('deleteCompanyNameHistory() failed', [
-                'history_id' => $historyId,
-                'exception' => $e->getMessage(),
-            ]);
-
             return [
                 'success' => false,
                 'message' => '삭제 중 오류가 발생했습니다.',
@@ -214,9 +182,14 @@ class ClientService
 
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
+        return $this->loggedClientMutation('거래처 저장','CLIENT_SAVE','save',fn():array=>$this->saveInternal($data,$actorType,$files));
+    }
+
+    private function saveInternal(array $data, string $actorType = 'USER', array $files = []): array
+    {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('save() called', [
+        $this->logger->info('거래처 저장을 시작합니다.', [
             'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
             'id'        => $data['id'] ?? null,
             'sort_no'      => $data['sort_no'] ?? null,
@@ -512,10 +485,11 @@ class ClientService
                 $this->fileService->delete($newBankPath);
             }
 
-            $this->logger->error('save() failed', [
-                'error' => $e->getMessage(),
-                'newBusinessPath' => $newBusinessPath,
-                'newBankPath' => $newBankPath
+            $this->logger->error('거래처 저장에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
+                'business_file_uploaded' => $newBusinessPath !== null,
+                'bank_file_uploaded' => $newBankPath !== null
             ]);
 
             return [
@@ -531,7 +505,7 @@ class ClientService
 
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('delete() called', [
+        $this->logger->info('거래처 삭제를 시작합니다.', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
@@ -542,7 +516,7 @@ class ClientService
             $item = $this->model->getById($id);
 
             if (!$item) {
-                $this->logger->warning('delete() not found', ['id' => $id]);
+                $this->logger->warning('삭제할 거래처를 찾을 수 없습니다.', ['id' => $id]);
                 return [
                     'success' => false,
                     'message' => '거래처 정보를 찾을 수 없습니다.'
@@ -551,7 +525,7 @@ class ClientService
 
             if (!$this->model->deleteById($id, $actor)) {
 
-                $this->logger->error('delete() DB failed', [
+                $this->logger->error('거래처 삭제 저장에 실패했습니다.', [
                     'id'   => $id,
                     'user' => $actor
                 ]);
@@ -562,14 +536,15 @@ class ClientService
                 ];
             }
 
-            $this->logger->info('delete() success', ['id' => $id]);
+            $this->logger->info('거래처를 삭제했습니다.', ['id' => $id]);
 
             return ['success' => true];
         } catch (\Throwable $e) {
 
-            $this->logger->error('delete() exception', [
+            $this->logger->error('거래처 삭제 중 예외가 발생했습니다.', [
                 'id'        => $id,
-                'exception' => $e->getMessage()
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -583,7 +558,7 @@ class ClientService
     {
         return $this->trashService->getTrashList();
 
-        $this->logger->info('getTrashList() called');
+        $this->logger->info('삭제된 거래처 목록을 조회합니다.');
 
         try {
 
@@ -591,8 +566,9 @@ class ClientService
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('getTrashList() exception', [
-                'exception' => $e->getMessage()
+            $this->logger->error('삭제된 거래처 목록 조회 중 예외가 발생했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [];
@@ -605,7 +581,7 @@ class ClientService
 
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restore() called', [
+        $this->logger->info('거래처 복구를 시작합니다.', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
@@ -633,7 +609,7 @@ class ClientService
 
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreBulk() called', [
+        $this->logger->info('거래처 일괄복구를 시작합니다.', [
             'ids' => $ids,
             'actor' => $actor
         ]);
@@ -666,8 +642,9 @@ class ClientService
 
             $this->pdo->rollBack();
 
-            $this->logger->error('restoreBulk() failed', [
-                'exception' => $e->getMessage()
+            $this->logger->error('거래처 일괄복구에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -683,7 +660,7 @@ class ClientService
 
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('restoreAll() called', [
+        $this->logger->info('거래처 전체복구를 시작합니다.', [
             'actor' => $actor
         ]);
 
@@ -726,7 +703,7 @@ class ClientService
 
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('purge() called', [
+        $this->logger->info('거래처 영구삭제를 시작합니다.', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
@@ -749,25 +726,16 @@ class ClientService
 
                 $this->fileService->delete($client['business_certificate']);
 
-                $this->logger->info('business_certificate deleted', [
-                    'path' => $client['business_certificate']
-                ]);
             }
             if (!empty($client['rrn_image'])) {
 
                 $this->fileService->delete($client['rrn_image']);
 
-                $this->logger->info('rrn_image deleted', [
-                    'path' => $client['rrn_image']
-                ]);
             }
             if (!empty($client['bank_file'])) {
 
                 $this->fileService->delete($client['bank_file']);
 
-                $this->logger->info('bank_file deleted', [
-                    'path' => $client['bank_file']
-                ]);
             }
 
             $ok = $this->model->hardDeleteById($id);
@@ -786,8 +754,9 @@ class ClientService
 
             $this->pdo->rollBack();
 
-            $this->logger->error('purge() failed', [
-                'error' => $e->getMessage()
+            $this->logger->error('거래처 영구삭제에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -825,30 +794,18 @@ class ClientService
 
                     $this->fileService->delete($client['business_certificate']);
 
-                    $this->logger->info('business_certificate deleted', [
-                        'id'   => $id,
-                        'path' => $client['business_certificate']
-                    ]);
                 }
 
                 if (!empty($client['rrn_image'])) {
 
                     $this->fileService->delete($client['rrn_image']);
 
-                    $this->logger->info('rrn_image deleted', [
-                        'id'   => $id,
-                        'path' => $client['rrn_image']
-                    ]);
                 }
 
                 if (!empty($client['bank_file'])) {
 
                     $this->fileService->delete($client['bank_file']);
 
-                    $this->logger->info('bank_file deleted', [
-                        'id'   => $id,
-                        'path' => $client['bank_file']
-                    ]);
                 }
 
                 $ok = $this->model->hardDeleteById($id);
@@ -867,8 +824,9 @@ class ClientService
 
             $this->pdo->rollBack();
 
-            $this->logger->error('purgeBulk() failed', [
-                'error' => $e->getMessage()
+            $this->logger->error('거래처 일괄 영구삭제에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -898,28 +856,16 @@ class ClientService
 
                     $this->fileService->delete($row['business_certificate']);
 
-                    $this->logger->info('business_certificate deleted', [
-                        'id'   => $row['id'],
-                        'path' => $row['business_certificate']
-                    ]);
                 }
                 if (!empty($row['rrn_image'])) {
 
                     $this->fileService->delete($row['rrn_image']);
 
-                    $this->logger->info('rrn_image deleted', [
-                        'id'   => $row['id'],
-                        'path' => $row['rrn_image']
-                    ]);
                 }
                 if (!empty($row['bank_file'])) {
 
                     $this->fileService->delete($row['bank_file']);
 
-                    $this->logger->info('bank_file deleted', [
-                        'id'   => $row['id'],
-                        'path' => $row['bank_file']
-                    ]);
                 }
 
                 $ok = $this->model->hardDeleteById($row['id']);
@@ -938,8 +884,9 @@ class ClientService
 
             $this->pdo->rollBack();
 
-            $this->logger->error('purgeAll() failed', [
-                'error' => $e->getMessage()
+            $this->logger->error('거래처 전체 영구삭제에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e
             ]);
 
             return [
@@ -953,8 +900,8 @@ class ClientService
     {
         return $this->trashService->reorder($changes);
 
-        $this->logger->info('reorder() called', [
-            'changes' => $changes
+        $this->logger->info('거래처 정렬 저장을 시작합니다.', [
+            'change_count' => count($changes)
         ]);
 
         if (empty($changes)) {
@@ -999,7 +946,7 @@ class ClientService
                 $this->pdo->commit();
             }
 
-            $this->logger->info('reorder() success');
+            $this->logger->info('거래처 정렬을 저장했습니다.');
 
             return true;
 
@@ -1009,9 +956,10 @@ class ClientService
                 $this->pdo->rollBack();
             }
 
-            $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage(),
-                'changes' => $changes
+            $this->logger->error('거래처 정렬 저장에 실패했습니다.', [
+                'error_code' => get_class($e),
+                'error' => $e,
+                'change_count' => count($changes)
             ]);
 
             throw $e;
@@ -1226,5 +1174,11 @@ class ClientService
             UPLOAD_ERR_EXTENSION => "{$label} 파일 업로드가 서버 확장 모듈에 의해 중단되었습니다.",
             default => "{$label} 업로드 중 오류가 발생했습니다.",
         };
+    }
+
+    private function loggedClientMutation(string $label,string $eventCode,string $action,callable $operation): array
+    {
+        return $this->runLoggedOperation($this->logger,$label,$eventCode,$action,[],$operation,'info',false,
+            static fn(array $result):string=>!empty($result['success'])?'SUCCESS':(str_contains((string)($result['message']??''),'오류')?'FAILED':'BLOCKED'));
     }
 }

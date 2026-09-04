@@ -3,7 +3,6 @@
 declare(strict_types=1);
 namespace App\Services\Mail;
 
-use Core\LoggerFactory;
 
 class ContactMail
 {
@@ -13,12 +12,9 @@ class ContactMail
     private string $subject = '';
     private string $message = '';
 
-    private $logger;
-
     public function __construct(Mailer $mailer)
     {
         $this->mailer = $mailer;
-        $this->logger = LoggerFactory::getLogger('service-mail.ContactMail');
     }
 
     public function send(array $data): array
@@ -28,26 +24,16 @@ class ContactMail
         $this->subject   = trim((string)($data['subject'] ?? ''));
         $this->message   = trim((string)($data['message'] ?? $data['messageBody'] ?? ''));
 
-        $this->logger->info('문의 메일 발송 시도', [
-            'from_name'  => $this->fromName,
-            'from_email' => $this->fromEmail,
-            'subject'    => $this->subject
-        ]);
-
         $built = $this->build();
 
         $result = $this->mailer->sendToAdmin(
             $built['subject'],
             $built['html'],
-            $built['text']
+            $built['text'],
+            Mailer::SENDER_SUKHYANG_APP_ADMIN,
+            $this->fromEmail,
+            $this->fromName
         );
-
-        $this->logger->info('문의 메일 발송 결과', [
-            'from_name'  => $this->fromName,
-            'from_email' => $this->fromEmail,
-            'sent'       => $result['sent'] ?? null,
-            'status'     => $result['status'] ?? null
-        ]);
 
         return $result;
     }
@@ -112,12 +98,9 @@ class ContactMail
         ]);
     }
 
-    private function log(string $msg): void
+    private function recipientDomain(string $recipient): string
     {
-        @file_put_contents(
-            PROJECT_ROOT . '/storage/logs/mail_debug.log',
-            date('c') . " | ContactMail | " . $msg . PHP_EOL,
-            FILE_APPEND
-        );
+        $position = strrpos($recipient, '@');
+        return $position === false ? '' : strtolower(substr($recipient, $position + 1));
     }
 }

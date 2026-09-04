@@ -133,6 +133,9 @@ export function SearchForm(config) {
         dateOptions,
         normalizeFilters,
         excludeFields = [],
+        searchFields = [],
+        configureCondition = null,
+        resetConditionsOnInit = false,
         initialCollapsed = true
     } = config;
 
@@ -153,7 +156,28 @@ export function SearchForm(config) {
     const periodTooltipLabel = document.getElementById(`${tableId}PeriodLabel`);
     const periodTooltipTrigger = document.getElementById(`${tableId}PeriodTooltipTrigger`);
     const periodTooltipBox = document.getElementById(`${tableId}PeriodTooltipContainer`);
+    if (resetConditionsOnInit) {
+        const rows = Array.from(document.querySelectorAll(`${conditionsId} .search-condition`));
+        rows.slice(1).forEach((row) => row.remove());
+        const input = rows[0]?.querySelector('input[name="searchValue[]"]');
+        if (input) input.value = '';
+    }
     const initialSearchFields = readInitialSearchFields();
+    const searchFormCapability = {
+        available: Boolean(containerEl && bodyEl && toggleBtnEl),
+        defaultExpanded: initialCollapsed !== true,
+        getExpanded: () => Boolean(bodyEl && !bodyEl.classList.contains('hidden')),
+        setExpanded(expanded, options = {}) {
+            if (!containerEl || !bodyEl || !toggleBtnEl || typeof expanded !== 'boolean') return false;
+            bodyEl.classList.toggle('hidden', !expanded);
+            containerEl.classList.toggle('collapsed', !expanded);
+            toggleBtnEl.textContent = expanded ? '펼침' : '닫힘';
+            if (options?.persist !== false) persistExpandedState(expanded);
+            requestAnimationFrame(() => requestAnimationFrame(() => refreshTableLayout({ draw: false })));
+            return true;
+        },
+    };
+    table?.__dtTableSettings?.registerSearchFormCapability?.(searchFormCapability);
 
     function refreshTableLayout(options = {}) {
         const draw = options?.draw === true;
@@ -176,6 +200,7 @@ export function SearchForm(config) {
     populateFirstSearchFields();
     populateDateOptions(dateOptions);
     applySavedSearchFormState();
+    configureConditionRows('initialize');
     bindPeriodButtons();
     bindDatePicker();
 
@@ -216,16 +241,7 @@ export function SearchForm(config) {
             ? initialCollapsed
             : !savedExpandedState;
 
-        bodyEl?.classList.toggle('hidden', collapsed);
-        containerEl?.classList.toggle('collapsed', collapsed);
-        const nextToggleText = collapsed ? '닫힘' : '펼침';
-        if (toggleBtnEl) {
-            toggleBtnEl.textContent = initialCollapsed ? '닫힘' : '펼침';
-        }
-        if (toggleBtnEl) {
-            toggleBtnEl.textContent = nextToggleText;
-        }
-
+        searchFormCapability.setExpanded(!collapsed, { persist: false });
     }
 
     function bindToggle() {
@@ -233,12 +249,7 @@ export function SearchForm(config) {
         toggleBtnEl.__searchToggleBound = true;
 
         toggleBtnEl.addEventListener('click', () => {
-            const hidden = !bodyEl.classList.contains('hidden');
-            bodyEl.classList.toggle('hidden', hidden);
-            containerEl.classList.toggle('collapsed', hidden);
-            toggleBtnEl.textContent = hidden ? '닫힘' : '펼침';
-            persistExpandedState(!hidden);
-            requestAnimationFrame(() => requestAnimationFrame(() => refreshTableLayout({ draw: false })));
+            searchFormCapability.setExpanded(bodyEl.classList.contains('hidden'));
         });
     }
 
@@ -344,12 +355,13 @@ export function SearchForm(config) {
             }
             $(this).closest('.search-condition').remove();
             updateRemoveButtons();
+            configureConditionRows('remove');
             refreshTableLayout({ draw: false });
         });
 
         $(resetBtnId).off('click.searchFormReset').on('click.searchFormReset', function (e) {
             e.preventDefault();
-            $(`${conditionsId} input[type=\"text\"]`).val('');
+            $(`${conditionsId} input[name=\"searchValue[]\"]`).val('');
             $(`${conditionsId}`).find('.search-condition:gt(0)').remove();
             $(formId).find('input[name=\"dateStart\"]').val('');
             $(formId).find('input[name=\"dateEnd\"]').val('');
@@ -360,6 +372,7 @@ export function SearchForm(config) {
             }
             populateFirstSearchFields();
             updateRemoveButtons();
+            configureConditionRows('reset');
             persistSearchFormState(null);
 
             table.ajax.url(currentApiList()).load(() => {
@@ -394,7 +407,12 @@ export function SearchForm(config) {
 
             $(`${conditionsId} .search-condition:last`).after(html);
             updateRemoveButtons();
+            configureConditionRows('add');
             refreshTableLayout({ draw: false });
+        });
+
+        $(document).off('change.searchFormField').on('change.searchFormField', `${conditionsId} select[name="searchField[]"]`, function () {
+            configureConditionRows('field-change', this.closest('.search-condition'));
         });
     }
 
@@ -473,7 +491,28 @@ export function SearchForm(config) {
     }
 
     function getSearchFields() {
+        const configuredFields = (Array.isArray(searchFields) ? searchFields : [])
+            .map((field) => ({
+                value: String(field?.value || '').trim(),
+                label: normalizeText(field?.label || '').trim(),
+            }))
+            .filter((field) => field.value && field.label)
+            .filter((field) => !excludeFields.includes(field.value));
+        if (configuredFields.length) return configuredFields;
         return initialSearchFields.length ? initialSearchFields : getTableColumns(table);
+    }
+
+    function configureConditionRows(reason = '', targetRow = null) {
+        if (typeof configureCondition !== 'function') return;
+        const rows = targetRow
+            ? [targetRow]
+            : Array.from(document.querySelectorAll(`${conditionsId} .search-condition`));
+        rows.forEach((row) => configureCondition({
+            row,
+            field: String(row.querySelector('select[name="searchField[]"]')?.value || '').trim(),
+            input: row.querySelector('input[name="searchValue[]"]'),
+            reason,
+        }));
     }
 
     function escapeOptionValue(value) {
@@ -623,6 +662,7 @@ export function SearchForm(config) {
         }
 
         updateRemoveButtons();
+        configureConditionRows('restore');
 
         const filters = collectFilters();
         if (filters === null || filters.length === 0) {
@@ -730,7 +770,16 @@ export function SearchForm(config) {
 
     function populateDateOptions(options) {
         const el = document.getElementById(`${tableId}DateType`);
-        if (!el || !options?.length) return;
+        if (!el) return;
+        const periodRow = el.closest('.period-row');
+        if (!options?.length) {
+            el.innerHTML = '';
+            periodRow?.classList.add('d-none');
+            return;
+        }
+        periodRow?.classList.remove('d-none');
         el.innerHTML = options.map((option) => `<option value=\"${option.value}\">${option.label}</option>`).join('');
     }
+
+    return searchFormCapability;
 }

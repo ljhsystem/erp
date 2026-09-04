@@ -40,6 +40,7 @@ class EvidenceStatusController
     public function apiUpdateStatus(): void
     {
         $payload = $this->requestPayload();
+        if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
         $ids = $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload);
         $status = strtoupper(trim((string) ($payload['process_status'] ?? $payload['status'] ?? '')));
         $result = $this->evidenceStatusService()->updateStatus($ids, $status);
@@ -54,6 +55,7 @@ class EvidenceStatusController
     {
         try {
             $payload = $this->requestPayload();
+            if ($this->rejectReadOnlyEvidenceMutation($payload)) return;
             $result = $this->evidenceStatusService()->reorder($payload, ActorHelper::user());
 
             $this->json(
@@ -66,6 +68,15 @@ class EvidenceStatusController
                 500
             );
         }
+    }
+
+    private function rejectReadOnlyEvidenceMutation(array $payload): bool
+    {
+        $type = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? ''));
+        if (!$this->evidenceTypePolicyService()->isReadOnlyStatusViewType($type)) return false;
+
+        $this->json(['success' => false, 'message' => '최종 승인으로 생성된 증빙의 상태와 순서는 변경할 수 없습니다.'], 409);
+        return true;
     }
 
     private function evidenceStatusService(): EvidenceStatusService

@@ -16,7 +16,7 @@ export function createEvidenceReorderModule({
         const fallbackType = defaultEvidenceTypeCode();
         const resolvedType = normalizeEvidenceType(type || fallbackType) || fallbackType;
         const typeKey = String(resolvedType).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-        return `ledger.data.status.${typeKey}.evidence-status.db-physical.v3`;
+        return `ledger.data.status.${typeKey}.evidence-status.db-physical.v4`;
     }
 
     function handleEvidenceStatusTableOrderChange() {

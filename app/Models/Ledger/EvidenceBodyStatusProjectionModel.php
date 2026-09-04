@@ -11,7 +11,7 @@ class EvidenceBodyStatusProjectionModel
         return "LEFT JOIN (SELECT NULL AS processing_status) pr ON 1 = 0";
     }
 
-    public function statusSelect(string $default = 'COMPLETED'): string { return 'body.evidence_status'; }
+    public function processingStatusSelect(): string { return "'WAITING'"; }
 
     public function reviewStatusSelect(string $default = ''): string { return 'NULL'; }
 

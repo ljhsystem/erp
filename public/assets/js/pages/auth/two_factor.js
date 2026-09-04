@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      window.location.href = result.redirect || '/dashboard';
+      window.location.href = result.redirect || '/main';
     } catch (error) {
       alert('서버 통신 오류가 발생했습니다.');
     }

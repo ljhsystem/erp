@@ -4,6 +4,7 @@ import { createDateTimePicker } from './picker.datetime.js';
 import { createTodayPicker } from './picker.today.js';
 import { createYearMonthPicker } from './picker.yearmonth.js';
 import { createTimeListPicker } from './picker.time.list.js';
+import { createDayOfMonthPicker } from './picker.dayofmonth.js';
 import { bindOutsideClick } from './ui.util.js';
 import { createAccountPicker } from './picker.account.js';
 import { PickerSelect2 } from './picker.select2.js';
@@ -24,6 +25,7 @@ function withPopup(picker, container) {
 
     container.classList.add('picker');
     container.classList.remove('is-hidden');
+    container.setAttribute('aria-hidden', 'false');
     container.style.position = 'fixed';
     container.style.zIndex = '10020';
     container.style.opacity = '0';
@@ -114,6 +116,7 @@ function withPopup(picker, container) {
 
   picker.close = () => {
     container.classList.add('is-hidden');
+    container.setAttribute('aria-hidden', 'true');
     container.style.opacity = '';
     container.style.pointerEvents = '';
     container.style.background = '';
@@ -181,6 +184,10 @@ function create({ type, container, options = {} }) {
 
     case 'time-list':
       picker = createTimeListPicker({ container, ...options });
+      break;
+
+    case 'day-of-month':
+      picker = createDayOfMonthPicker({ container, ...options });
       break;
 
     case 'account':

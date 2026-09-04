@@ -37,8 +37,8 @@ include(__DIR__ . '/../layout/sidebar.php');
             </div>
 
             <div class="d-flex justify-content-end mt-4">
-                <a href="/dashboard/sukhyang/edit.php" class="btn btn-warning btn-sm">✏️ 문서 수정</a>
-                <a href="/dashboard/sukhyang/index.php" class="btn btn-secondary btn-sm ms-2">↩️ 목록으로</a>
+                <a href="/main/sukhyang/edit.php" class="btn btn-warning btn-sm">✏️ 문서 수정</a>
+                <a href="/main/sukhyang/index.php" class="btn btn-secondary btn-sm ms-2">↩️ 목록으로</a>
             </div>
         </div>
     </div>

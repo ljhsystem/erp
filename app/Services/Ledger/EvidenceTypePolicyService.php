@@ -23,8 +23,8 @@ class EvidenceTypePolicyService
         'BUSINESS_DATA',
         'SHOPPING_ORDER',
         'PAYROLL',
-        'PAYROLL_WITHHOLDING',
-        'BUSINESS_INCOME',
+        'DAILY_EMPLOYMENT_INCOME',
+        'BUSINESS_INCOME_REPORT',
         'EMPLOYEE_EXPENSE',
         'IMPORT_INVOICE',
         'CONSTRUCTION',
@@ -53,10 +53,10 @@ class EvidenceTypePolicyService
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
         'IMPORT' => 'IMPORT_INVOICE',
-        'DAILY_WORKER' => 'PAYROLL_WITHHOLDING',
-        'DAILY_WORK_REPORT' => 'PAYROLL_WITHHOLDING',
+        'DAILY_WORK_REPORT' => 'DAILY_EMPLOYMENT_INCOME',
+        'PAYROLL_WITHHOLDING' => 'DAILY_EMPLOYMENT_INCOME',
         'PAYROLL_REPORT' => 'PAYROLL',
-        'BUSINESS_INCOME_REPORT' => 'BUSINESS_INCOME',
+        'BUSINESS_INCOME' => 'BUSINESS_INCOME_REPORT',
         'EMPLOYEE_EXPENSE_PERSONAL' => 'EMPLOYEE_EXPENSE_PERSONAL',
     ];
 
@@ -70,10 +70,10 @@ class EvidenceTypePolicyService
         'CASH_RECEIPT',
         'IMPORT_INVOICE',
         'SHOPPING_ORDER',
-        'PAYROLL_WITHHOLDING',
+        'DAILY_EMPLOYMENT_INCOME',
         'BUSINESS_DATA',
         'PAYROLL',
-        'BUSINESS_INCOME',
+        'BUSINESS_INCOME_REPORT',
         'EMPLOYEE_EXPENSE',
         'EMPLOYEE_EXPENSE_PERSONAL',
         'CONSTRUCTION',
@@ -116,7 +116,7 @@ class EvidenceTypePolicyService
             'excel_template' => 'shopping_order',
             'date_label' => '정산일자',
         ],
-        'PAYROLL_WITHHOLDING' => [
+        'DAILY_EMPLOYMENT_INCOME' => [
             'excel_template' => 'payroll_withholding',
             'date_label' => '귀속일자',
         ],
@@ -128,7 +128,7 @@ class EvidenceTypePolicyService
             'excel_template' => 'payroll',
             'date_label' => '귀속일자',
         ],
-        'BUSINESS_INCOME' => [
+        'BUSINESS_INCOME_REPORT' => [
             'excel_template' => 'business_income',
             'date_label' => '거래일자',
         ],
@@ -147,17 +147,46 @@ class EvidenceTypePolicyService
     ];
 
     private const STATUS_VIEW_POLICY_CONFIG = [
-        'PAYROLL' => [
-            'meta_domain' => 'evidence-payroll-report',
+        'BUSINESS_INCOME_REPORT' => [
+            'meta_domain' => 'evidence-business-income-report',
             'summary_bucket' => 'evidence',
-            'date_candidate_keys' => ['raw_payment_date', 'created_at', 'updated_at'],
-            'sort_target_keys' => ['raw_payment_date'],
+            'date_candidate_keys' => ['evidence_date', 'raw_withholding_date', 'approved_at', 'created_at'],
+            'sort_target_keys' => ['evidence_date'],
             'transaction_workflow_required' => false,
+            'read_only' => true,
             'excel_manager_mode' => 'none',
             'excel_manager_domain' => '',
             'source_key_aliases' => [],
-            'modal_preset' => 'default',
-            'deprecated_format_fields' => [],
+            'modal_preset' => 'business_income_report',
+            'deprecated_format_fields' => ['income_date', 'provider_name', 'provider_reg_no', 'supply_amount', 'vat_amount', 'service_amount', 'total_amount'],
+            'deprecated_format_titles' => ['소득발생일', '공급자명', '공급자 등록번호', '공급가액', '부가가치세액', '봉사료', '증빙 총금액'],
+        ],
+        'DAILY_EMPLOYMENT_INCOME' => [
+            'meta_domain' => 'evidence-daily-employment-income',
+            'summary_bucket' => 'evidence',
+            'date_candidate_keys' => ['transaction_date', 'evidence_date', 'raw_withholding_date', 'approved_at', 'created_at'],
+            'sort_target_keys' => ['transaction_date'],
+            'transaction_workflow_required' => false,
+            'read_only' => true,
+            'excel_manager_mode' => 'none',
+            'excel_manager_domain' => '',
+            'source_key_aliases' => [],
+            'modal_preset' => 'daily_income_report',
+            'deprecated_format_fields' => ['income_year_month', 'total_work_days', 'total_gross_amount', 'total_deduction_amount', 'total_net_payment_amount', 'total_employer_burden_amount', 'evidence_status_code'],
+            'deprecated_format_titles' => [],
+        ],
+        'PAYROLL' => [
+            'meta_domain' => 'evidence-payroll-report',
+            'summary_bucket' => 'evidence',
+            'date_candidate_keys' => ['evidence_date', 'transaction_date', 'raw_withholding_date', 'created_at'],
+            'sort_target_keys' => ['evidence_date'],
+            'transaction_workflow_required' => false,
+            'read_only' => true,
+            'excel_manager_mode' => 'none',
+            'excel_manager_domain' => '',
+            'source_key_aliases' => [],
+            'modal_preset' => 'salary_report',
+            'deprecated_format_fields' => ['raw_gross_amount', 'raw_deduction_amount'],
             'deprecated_format_titles' => [],
         ],
         'EMPLOYEE_EXPENSE_PERSONAL' => [
@@ -450,7 +479,7 @@ class EvidenceTypePolicyService
                     'date_candidate_keys' => array_values($config['date_candidate_keys'] ?? []),
                     'sort_target_keys' => array_values($config['sort_target_keys'] ?? []),
                     'transaction_workflow_required' => (bool) ($config['transaction_workflow_required'] ?? true),
-                    'read_only' => $type === 'EMPLOYEE_EXPENSE_PERSONAL',
+                    'read_only' => (bool) ($config['read_only'] ?? ($type === 'EMPLOYEE_EXPENSE_PERSONAL')),
                     'excel_manager_mode' => (string) ($config['excel_manager_mode'] ?? 'custom'),
                     'excel_manager_domain' => (string) ($config['excel_manager_domain'] ?? ''),
                     'source_key_aliases' => (array) ($config['source_key_aliases'] ?? []),
@@ -479,7 +508,7 @@ class EvidenceTypePolicyService
                 'date_candidate_keys' => array_values($config['date_candidate_keys'] ?? []),
                 'sort_target_keys' => array_values($config['sort_target_keys'] ?? []),
                 'transaction_workflow_required' => (bool) ($config['transaction_workflow_required'] ?? true),
-                'read_only' => $type === 'EMPLOYEE_EXPENSE_PERSONAL',
+                'read_only' => (bool) ($config['read_only'] ?? ($type === 'EMPLOYEE_EXPENSE_PERSONAL')),
                 'excel_manager_mode' => (string) ($config['excel_manager_mode'] ?? 'custom'),
                 'excel_manager_domain' => (string) ($config['excel_manager_domain'] ?? ''),
                 'source_key_aliases' => (array) ($config['source_key_aliases'] ?? []),
@@ -488,6 +517,13 @@ class EvidenceTypePolicyService
                 'deprecated_format_titles' => array_values($config['deprecated_format_titles'] ?? []),
             ];
         }, self::STATUS_VIEW_IMPORT_TYPES);
+    }
+
+    public function isReadOnlyStatusViewType(string $type): bool
+    {
+        $config = $this->statusViewPolicyConfig($type);
+
+        return (bool) ($config['read_only'] ?? false);
     }
 
     private function statusViewPolicyConfig(string $type): array
@@ -716,7 +752,7 @@ class EvidenceTypePolicyService
                 'objects' => ['BANK_FLOW', 'RECONCILIATION'],
                 'label' => 'Bank flow load and reconciliation',
             ],
-            'BUSINESS_DATA', 'SHOPPING_ORDER', 'PAYROLL', 'PAYROLL_WITHHOLDING', 'BUSINESS_INCOME', 'EMPLOYEE_EXPENSE', 'EMPLOYEE_EXPENSE_PERSONAL', 'IMPORT_INVOICE', 'CONSTRUCTION' => [
+            'BUSINESS_DATA', 'SHOPPING_ORDER', 'PAYROLL', 'DAILY_EMPLOYMENT_INCOME', 'BUSINESS_INCOME_REPORT', 'EMPLOYEE_EXPENSE', 'EMPLOYEE_EXPENSE_PERSONAL', 'IMPORT_INVOICE', 'CONSTRUCTION' => [
                 'type' => 'BUSINESS_DATA',
                 'target' => 'BUSINESS_DATA',
                 'objects' => ['BUSINESS_SYSTEM'],

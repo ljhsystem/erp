@@ -107,6 +107,15 @@ function textColumn(data, title, options = {}) {
     };
 }
 
+function calculatedColumn(data, title, options = {}) {
+    return {
+        ...textColumn(data, title, options),
+        settingsKey: data,
+        settingsVirtualType: 'calculated',
+        __dtColumnKind: 'virtual',
+    };
+}
+
 function referenceColumn(data, title, displayField, visible = true) {
     return textColumn(data, title, {
         visible,
@@ -256,12 +265,15 @@ export async function createFundsBankTransactionTable({ api, reorderApi, onSumma
                 className: 'text-nowrap',
                 render: (_value, _type, row) => voucherBadge(row),
             },
-            textColumn('payment_link_label', '지급배분상태'),
-            textColumn('internal_transfer_label', '내부이체상태'),
-            textColumn('internal_transfer_direction_label', '내부이체방향'),
-            textColumn('internal_transfer_counterpart_label', '상대 자사계좌'),
-            textColumn('internal_transfer_voucher_no', '내부이체 전표번호'),
-            { data: 'internal_transfer_amount', title: '내부이체금액', defaultContent: 0, className: 'text-end text-nowrap', render: money },
+            calculatedColumn('payment_link_label', '지급배분상태'),
+            calculatedColumn('internal_transfer_label', '내부이체상태'),
+            calculatedColumn('internal_transfer_direction_label', '내부이체방향'),
+            calculatedColumn('internal_transfer_counterpart_label', '상대 자사계좌'),
+            calculatedColumn('internal_transfer_voucher_no', '내부이체 전표번호'),
+            calculatedColumn('internal_transfer_amount', '내부이체금액', {
+                className: 'text-end text-nowrap',
+                render: money,
+            }),
             textColumn('external_key', '외부원본식별값', { visible: false }),
             textColumn('created_at', '생성일시', { visible: false }),
             actorColumn('created_by', '생성자', { visible: false }),

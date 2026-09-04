@@ -1,0 +1,6 @@
+.leave-request-page .leave-request-actions { display: flex; flex-wrap: wrap; gap: var(--space-1, .25rem); }
+.leave-request-page .leave-request-status { white-space: nowrap; }
+#leaveRequestItems th, #leaveRequestItems td { vertical-align: middle; }
+#leaveRequestItems .date-input { min-width: 9rem; }
+#leaveRequestHistory:empty { display: none; }
+@media (max-width: 768px) { .leave-request-page .dt-content-stack { min-width: 0; } }
