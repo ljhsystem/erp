@@ -62,8 +62,9 @@ class OpeningBalanceService
 
         $actor = ActorHelper::user();
         $now = date('Y-m-d H:i:s');
-        $this->pdo->beginTransaction();
+        $ownsTransaction = !$this->pdo->inTransaction();
         try {
+            if ($ownsTransaction) $this->pdo->beginTransaction();
             $current = $id !== '' ? $this->model->find($id, true) : null;
             if ($id !== '' && !$current) throw new \InvalidArgumentException('기초금액 문서를 찾을 수 없습니다.');
             $duplicate = $this->model->findByCompanyYear($companyId, $year);
@@ -102,11 +103,11 @@ class OpeningBalanceService
                     ':updated_by' => $actor,
                 ]);
             }
-            $this->pdo->commit();
+            if ($ownsTransaction) $this->pdo->commit();
             $this->logger->info('기초금액을 저장했습니다.', ['event_code'=>'OPENING_BALANCE_SAVED','result'=>'SUCCESS','service'=>self::class,'action'=>'save','target_id'=>$id,'actor'=>$actor]);
             return ['success'=>true,'message'=>'기초금액을 저장했습니다.','data'=>$this->getDetail($id)];
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
             $this->logger->error('기초금액 저장에 실패했습니다.', ['event_code'=>'OPENING_BALANCE_SAVE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'save','target_id'=>$id,'actor'=>$actor,'error_code'=>$e::class,'error'=>$e]);
             throw $e;
         }
@@ -130,17 +131,18 @@ class OpeningBalanceService
 
     public function delete(string $id): array
     {
-        $this->pdo->beginTransaction();
+        $ownsTransaction = !$this->pdo->inTransaction();
         try {
+            if ($ownsTransaction) $this->pdo->beginTransaction();
             $row = $this->model->find($id, true);
             if (!$row) throw new \InvalidArgumentException('기초금액 문서를 찾을 수 없습니다.');
             $this->model->delete($id);
             $this->vouchers->deleteVoucher((string) $row['voucher_id']);
-            $this->pdo->commit();
+            if ($ownsTransaction) $this->pdo->commit();
             $this->logger->info('기초금액을 삭제했습니다.', ['event_code'=>'OPENING_BALANCE_DELETED','result'=>'SUCCESS','service'=>self::class,'action'=>'delete','target_id'=>$id,'actor'=>ActorHelper::user()]);
             return ['success'=>true,'message'=>'기초금액을 삭제했습니다.'];
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
             throw $e;
         }
     }

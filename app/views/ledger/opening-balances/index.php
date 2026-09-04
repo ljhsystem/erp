@@ -55,9 +55,9 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/opening-balances/ind
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0 opening-lines">
-                            <thead><tr><th class="line-no">순번</th><th>계정과목 <span class="text-danger">*</span></th><th>적요</th><th class="amount">차변</th><th class="amount">대변</th><th class="manage">관리</th></tr></thead>
+                            <thead><tr><th class="line-no">순번</th><th>계정과목 <span class="text-danger">*</span></th><th>보조원장</th><th>적요</th><th class="amount">차변</th><th class="amount">대변</th><th class="manage">관리</th></tr></thead>
                             <tbody id="openingLines"></tbody>
-                            <tfoot><tr><th colspan="3" class="text-end">합계 / 차이</th><th id="openingDebitTotal" class="text-end">0원</th><th id="openingCreditTotal" class="text-end">0원</th><th id="openingDifference" class="text-end">0원</th></tr></tfoot>
+                            <tfoot><tr><th colspan="4" class="text-end">합계 / 차이</th><th id="openingDebitTotal" class="text-end">0원</th><th id="openingCreditTotal" class="text-end">0원</th><th id="openingDifference" class="text-end">0원</th></tr></tfoot>
                         </table>
                     </div>
                 </section>
@@ -66,6 +66,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/opening-balances/ind
             <div class="modal-footer justify-content-between">
                 <button type="button" id="btnDeleteOpening" class="btn btn-outline-danger">삭제</button>
                 <div class="d-flex gap-2">
+                    <button type="button" id="btnOpeningBackTransition" class="btn btn-outline-secondary d-none"></button>
                     <button type="button" id="btnOpeningTransition" class="btn btn-outline-primary d-none"></button>
                     <button type="button" id="btnSaveOpening" class="btn btn-success">저장</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
