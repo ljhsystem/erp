@@ -8,7 +8,9 @@ use App\Repositories\Auth\UserPermissionRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\PermissionSourceHelper;
+use Core\Helpers\PermissionPresentationHelper;
 use Core\LoggerFactory;
+use Core\PermissionRegistry;
 use PDO;
 use Psr\Log\LoggerInterface;
 
@@ -16,7 +18,7 @@ class RolePermissionService
 {
     private const PROTECTED_ROLE_KEY = 'super_admin';
     private const REQUIRED_MANAGEMENT_PERMISSION_KEYS = [
-        'web.settings.organization.role_permissions',
+        'web.settings.organization.permission-assignment',
         'api.settings.rolepermission.list',
         'api.settings.rolepermission.assign',
     ];
@@ -44,9 +46,12 @@ class RolePermissionService
 
     public function getPermissionTreeForRole(string $roleId = ''): array
     {
+        $registeredPermissions = PermissionRegistry::all();
+        $registeredKeys = $registeredPermissions !== [] ? array_fill_keys(array_keys($registeredPermissions), true) : [];
         $permissionRows = array_values(array_filter(
             $this->permissionModel->getAll(),
             static fn(array $row): bool => (int) ($row['is_active'] ?? 1) === 1
+                && ($registeredKeys === [] || isset($registeredKeys[(string) ($row['permission_key'] ?? '')]))
         ));
         $assignedRows = $roleId === '' ? [] : $this->model->getPermissionsForRole($roleId);
 
@@ -100,6 +105,7 @@ class RolePermissionService
             $permissionId = (string) ($row['id'] ?? '');
             $permissionKey = (string) ($row['permission_key'] ?? '');
             $assignedRow = $assignedMap[$permissionId] ?? null;
+            $presentation = PermissionPresentationHelper::decorate($row, $pageMeta['page']);
             $pageNodes[$pageKey]['children'][] = [
                 'type' => 'permission',
                 'id' => $permissionId,
@@ -113,8 +119,11 @@ class RolePermissionService
                 'page_key' => $pageKey,
                 'page' => $pageMeta['page'],
                 'category' => $pageMeta['category'],
-                'permission_name' => trim((string) ($row['permission_name'] ?? '')),
-                'description' => trim((string) ($row['description'] ?? '')),
+                'permission_name' => $presentation['permission_name'],
+                'description' => $presentation['description'],
+                'capability_group' => $presentation['capability_group'],
+                'risk_level' => $presentation['risk_level'],
+                'metadata_status' => $presentation['metadata_status'],
                 'is_active' => $row['is_active'] ?? '',
                 'created_at' => $row['created_at'] ?? '',
                 'created_by' => $row['created_by'] ?? '',
@@ -352,9 +361,8 @@ class RolePermissionService
         }
 
         if ($pageRow) {
-            $resolvedPageLabel = $pageLabel !== ''
-                ? $pageLabel
-                : (trim((string) ($pageRow['page_label'] ?? '')) ?: '미분류 페이지');
+            $resolvedPageLabel = trim((string) ($pageRow['page_label'] ?? ''))
+                ?: ($pageLabel !== '' ? $pageLabel : '미분류 페이지');
             $breadcrumb = trim((string) ($pageRow['breadcrumb'] ?? '')) ?: '기타';
 
             return [
@@ -363,6 +371,11 @@ class RolePermissionService
                 'category' => $breadcrumb,
                 'permission_name' => $resolvedPageLabel,
             ];
+        }
+
+        $inferredMeta = $this->inferPageMetaFromPermissionKey($permissionKey);
+        if ($inferredMeta !== null) {
+            return $inferredMeta;
         }
 
         $fallback = $this->buildFallbackPageMeta($row);
@@ -398,7 +411,10 @@ class RolePermissionService
 
         $pageKey = $this->inferPageKeyFromPermissionKey($permissionKey);
         if ($pageKey === '') {
-            $pageKey = 'unmapped.' . md5($permissionKey !== '' ? $permissionKey : ($page . '.' . $fallbackCategory));
+            // PageRegistry에 아직 등록되지 않은 기존 페이지도 같은 업무 페이지끼리
+            // 하나의 화면 그룹으로 유지한다. Permission Key별 MD5 그룹은 한 페이지를
+            // 수십 개의 가짜 페이지로 분리하므로 사용하지 않는다.
+            $pageKey = 'virtual.' . md5($fallbackCategory . '|' . $page);
         }
 
         return [
@@ -419,7 +435,7 @@ class RolePermissionService
             ],
             'settings.base_info.brand' => [
                 'api.settings.base-info.brand.',
-                'web.settings.base-info.brand_logo',
+                'web.settings.base-info.brand',
             ],
             'settings.base_info.cover' => [
                 'api.settings.base-info.cover.',
@@ -436,5 +452,71 @@ class RolePermissionService
         }
 
         return '';
+    }
+
+    private function inferPageMetaFromPermissionKey(string $permissionKey): ?array
+    {
+        $map = [
+            'api.approval.leave-request.' => ['approval.leave_request', '휴가신청', '전자결재 > 휴가신청'],
+            'api.approval.inbox.' => ['approval.inbox', '결재함', '전자결재 > 결재함'],
+            'api.approval.personal-expense.' => ['approval.personal_expense', '개인경비 신청', '전자결재 > 개인경비'],
+            'api.institution.human_resources.attendance.' => ['institution.human_resources.attendance', '근태관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.employment_contract.' => ['institution.human_resources.employment_contracts', '근로계약관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.employment_rules.' => ['web.institution.human_resources.employment_rules', '취업규칙·인사규정', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.job_assignment.' => ['institution.human_resources.job_assignments', '직무·배치관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.leave.' => ['web.institution.human_resources.leave', '휴가관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.pay_component.' => ['institution.human_resources.pay_components', '급여항목관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.personnel_action.' => ['institution.human_resources.personnel_actions', '인사발령관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.human_resources.qualification_education.' => ['institution.human_resources.qualification_education', '자격·교육관리', '대외기관업무 > 인사·노무관리'],
+            'api.institution.income_data.business_income.' => ['web.institution.income_data.business_income', '사업소득', '대외기관업무 > 소득자료관리'],
+            'api.institution.income_data.daily_employment.' => ['institution.income_data.daily_employment', '일용근로소득', '대외기관업무 > 소득자료관리'],
+            'api.institution.income_data.regular_employment.' => ['institution.income_data.regular_employment', '상용근로소득', '대외기관업무 > 소득자료관리'],
+            'api.institution.social_insurance_eligibility.' => ['institution.social_insurance_eligibility', '사회보험 자격관리', '대외기관업무 > 4대보험업무'],
+            'api.institution.social_insurance.' => ['web.institution.social_insurance', '사회보험 관리', '대외기관업무 > 4대보험업무'],
+            'api.import.format.' => ['ledger.data.formats', '양식관리', '회계관리 > 자료관리'],
+            'api.import.formats' => ['ledger.data.formats', '양식관리', '회계관리 > 자료관리'],
+            'api.import.data_types' => ['ledger.data.formats', '양식관리', '회계관리 > 자료관리'],
+            'api.import.' => ['ledger.data.upload', '자료업로드', '회계관리 > 자료관리'],
+            'api.user.external_accounts.' => ['profile.view', '내정보 관리', '내정보 > 프로필'],
+            'api.user.profile.' => ['profile.view', '내정보 관리', '내정보 > 프로필'],
+            'api.ledger.evidence_metadata.' => ['ledger.data.evidence_metadata', '증빙정책', '회계관리 > 자료관리'],
+            'api.settings.system.data_table_columns' => ['settings.system.table_settings', '테이블 설정 메타', '설정 > 시스템설정'],
+            'api.settings.system.user-settings.' => ['settings.system.user_settings', '사용자 화면설정', '설정 > 시스템설정'],
+            'web.user.profile.' => ['profile.view', '내정보 관리', '내정보 > 프로필'],
+            'web.ledger.evidence_metadata' => ['ledger.data.evidence_metadata', '증빙정책', '회계관리 > 자료관리'],
+            'web.ledger.data.bank-transactions' => ['ledger.data.list', '증빙원본', '회계관리 > 자료관리'],
+            'web.ledger.data.tax-invoices' => ['ledger.data.list', '증빙원본', '회계관리 > 자료관리'],
+            'web.ledger.funds.cash_ledger' => ['ledger.funds.cash_ledger', '현금출납장', '회계관리 > 자금관리'],
+            'web.ledger.funds.deposit_ledger' => ['ledger.funds.deposit_ledger', '예금출납장', '회계관리 > 자금관리'],
+            'web.ledger.funds.unlinked_transactions' => ['ledger.funds.unlinked_transactions', '미연결입출금', '회계관리 > 자금관리'],
+            'web.institution.human_resources.attendance' => ['institution.human_resources.attendance', '근태관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.compensation_incentives' => ['institution.human_resources.compensation_incentives', '보상·인센티브관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.employment_contracts' => ['institution.human_resources.employment_contracts', '근로계약관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.job_assignments' => ['institution.human_resources.job_assignments', '직무·배치관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.performance_evaluations' => ['institution.human_resources.performance_evaluations', '성과평가관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.personnel_actions' => ['institution.human_resources.personnel_actions', '인사발령관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.human_resources.qualification_education' => ['institution.human_resources.qualification_education', '자격·교육관리', '대외기관업무 > 인사·노무관리'],
+            'web.institution.income_data.business_income' => ['web.institution.income_data.business_income', '사업소득', '대외기관업무 > 소득자료관리'],
+            'web.institution.income_data.daily_employment' => ['institution.income_data.daily_employment', '일용근로소득', '대외기관업무 > 소득자료관리'],
+            'web.institution.income_data.regular_employment' => ['institution.income_data.regular_employment', '상용근로소득', '대외기관업무 > 소득자료관리'],
+            'web.institution.dashboard' => ['institution.dashboard', '대외기관업무', '대외기관업무'],
+            'web.institution.filing_history' => ['institution.filing_history', '신고이력', '대외기관업무'],
+            'web.institution.local_tax' => ['institution.local_tax', '지방세업무', '대외기관업무'],
+            'web.institution.national_tax' => ['institution.national_tax', '국세업무', '대외기관업무'],
+            'web.institution.tax_agent' => ['institution.tax_agent', '세무사업무', '대외기관업무'],
+        ];
+
+        foreach ($map as $prefix => [$pageKey, $page, $category]) {
+            if ($permissionKey === $prefix || str_starts_with($permissionKey, $prefix)) {
+                return [
+                    'page_key' => $pageKey,
+                    'page' => $page,
+                    'category' => $category,
+                    'permission_name' => $page,
+                ];
+            }
+        }
+
+        return null;
     }
 }

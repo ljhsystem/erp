@@ -164,7 +164,7 @@
   - Out of scope: direct view DB access, HTML rendering
 
 - `PermissionService`
-  - Responsibility: permission catalog query, approved/active user and active-role validation, `ROLE`/`EXTEND`/`REPLACE` final effective permission evaluation through `auth_user_permission_profiles`, `auth_user_permissions`, `auth_role_permissions`, request-scope decision caching, permission create/update/delete/reorder orchestration, route permission registry synchronization through `PermissionModel`, and temporary `Main` route-key compatibility with existing `Dashboard` permission keys during the approved domain transition
+  - Responsibility: permission catalog query, approved/active user and active-role validation, `ROLE`/`EXTEND`/`REPLACE` final effective permission evaluation through `auth_user_permission_profiles`, `auth_user_permissions`, `auth_role_permissions`, request-scope decision caching, permission create/update/delete/reorder orchestration, and current Route permission registry synchronization through `PermissionModel`
   - Controllers: `PermissionController`, `PasswordController`, `TwoFactorController`, route/middleware permission checks
   - Construction: existing explicit PDO injection remains supported; core middleware may use the optional default connection without acquiring PDO itself
   - Out of scope: direct HTML rendering, role-permission bulk assignment UI state
@@ -180,12 +180,34 @@
   - Controllers: `MainController`
   - Out of scope: HTML rendering, direct View DB access, calendar navigation
 
+- `SystemCodeOptionService`
+  - Responsibility: 허용 코드그룹의 활성 선택지 Projection과 단일 코드 유효성 확인
+  - Model: `CodeModel::getAllowedOptions()`, `CodeModel::isActiveCode()`
+  - Out of scope: direct SQL, 코드 CRUD, 화면 정렬 재구성
+
+- `StatutoryStandardResolver` / `StatutoryStandardTemplateService`
+  - Responsibility: 기준일에 유효한 법정기준 후보 Resolve와 법정기준 Type Template Projection
+  - Models: `StatutoryStandardModel::effectiveComponentCandidates()`, `StatutoryStandardModel::effectiveLegacyCandidates()`, `CodeModel::getStatutoryStandardTemplates()`
+  - Out of scope: direct SQL, 최신행 추정, 임의 숫자 fallback
+
+- `WorkTeamService`
+  - Responsibility: 작업팀 업무규칙과 저장 흐름, `BUSINESS_UNIT` 코드 유효성 검증
+  - Model: 업무 저장은 `WorkTeamModel`, 코드 판정은 `CodeModel::isActiveCode()`
+  - Out of scope: direct SQL, Controller 검증 중복
+
 - `PageRegistryQueryService`
   - Responsibility: page registry lookup for `PageKeyResolver` while preserving resolver cache and legacy key interpretation contracts
   - Callers: `PageKeyResolver`
   - Out of scope: page-key interpretation, legacy alias policy, DB schema change
+  - 활성 Permission은 반드시 활성 PageRegistry 원본에 연결되어야 하며 API Permission은 소유 WEB 화면 Page Key를 공유한다.
 
 - `RolePermissionService`
+  - 권한부여 트리는 `system_page_registry.page_label`과 `breadcrumb`를 페이지·카테고리 표시 SSOT로 사용한다.
+  - 개별 Permission은 `PermissionPresentationHelper`를 통해 사용자용 권한명·설명·기능그룹으로 정규화하며 Permission ID·Key와 기존 역할·개인 Mapping은 변경하지 않는다.
+  - PageRegistry 미연결 Permission은 운영 정규화 오류로 간주한다. `virtual.*` 그룹은 방어적 표시에만 사용하며 정상 완료 상태에서는 0개여야 한다.
+  - HTTP Runtime에서는 현재 `PermissionRegistry`에 등록된 Route Permission만 신규 부여 트리에 포함한다. Route가 사라진 과거 Permission과 역할·개인 Mapping은 물리삭제해 현재 Route Set과 일치시킨다.
+- `PermissionService`
+  - PermissionRegistry의 삭제 Route 정리는 Service 트랜잭션에서 수행한다. `auth_role_permissions`, `auth_user_permissions`, `auth_permissions` 순서로 물리삭제하고, 감사이력은 FK `SET NULL`과 Snapshot으로 보존한다.
   - Responsibility: reusable Permission Master tree and compact role-selection mapping reads, reorder orchestration, plus differential batch saving of a role's complete selected permission set in one transaction using `auth_role_permissions`, `auth_permissions`, and `system_page_registry`; protects the `super_admin` management permissions, preserves at least one active approved recovery administrator using effective ROLE/EXTEND/REPLACE results, and records before/after sets in the security log
 
 - `UserPermissionService`
@@ -195,7 +217,7 @@
   - Controllers: `RolePermissionController`
   - Batch policy: validates the active role and every active permission ID, computes add/remove differences against current mappings, then uses one bulk insert and one bulk delete at most; it never issues one HTTP request per checkbox.
   - Out of scope: DB schema change, direct HTML rendering
-  - Domain note: canonical organization domain is `permission-assignment`; runtime compatibility aliases remain `role_permissions`, `role-permission`, and `RolePermission*`
+  - Domain note: canonical organization Route domain and Permission key are `permission-assignment`; `RolePermission*` class names describe the persisted role-to-permission relation only and are not Route aliases.
 
 - `TemplateService`
   - Responsibility: approval-template list/save/delete/reorder orchestration for `user_approval_templates`; creates inactive drafts, validates the complete executable step flow and one-active-template-per-document-type policy before activation, guards request dependencies before hard delete, and reorders the locked complete template set with collision-safe sequences

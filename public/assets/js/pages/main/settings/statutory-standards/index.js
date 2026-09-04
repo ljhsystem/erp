@@ -24,7 +24,7 @@ import { createDataTableFormSettings } from '/public/assets/js/common/datatable/
         SOURCE_FILE: '/api/settings/statutory-standards/source-file',
         CORRECT_REVISION: '/api/settings/statutory-standards/correct-revision',
     };
-    const TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.statutory-standards.v2';
+    const TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.statutory-standards.v2';
     const root = document.querySelector('.statutory-standards-page');
     if (!root) return;
     const bootstrapData = JSON.parse(root.dataset.bootstrap || '{}');
@@ -65,7 +65,7 @@ import { createDataTableFormSettings } from '/public/assets/js/common/datatable/
         metaDomain: 'statutory-standard',
         storageKey: TABLE_SETTINGS_STORAGE_KEY,
         settingsOptions: {
-            pageKey: 'dashboard.settings.statutory-standards',
+            pageKey: 'main.settings.statutory-standards',
             settingType: 'TABLE',
         },
         stateProvider: () => table?.__dtTableSettings?.getTableState?.() || null,
@@ -447,7 +447,7 @@ import { createDataTableFormSettings } from '/public/assets/js/common/datatable/
             widthScopeSelector: '.settings-content-card',
             defaultOrder: [[3, 'desc']],
             tableSettings: {
-                pageKey: 'dashboard.settings.statutory-standards',
+                pageKey: 'main.settings.statutory-standards',
                 tableKey: 'statutory-standard-table',
                 storageKey: TABLE_SETTINGS_STORAGE_KEY,
                 metaDomain: 'statutory-standard',

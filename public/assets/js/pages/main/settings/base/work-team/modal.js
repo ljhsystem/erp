@@ -30,7 +30,7 @@ export function createWorkTeamModalModule({
     let workTeamModalInitialized = false;
     let openCreateContext = null;
 
-    const WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1';
+    const WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.base-info.work-team.work-team-table.v1';
     const WORK_TEAM_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#modal-work-team-team-name', key: 'team_name', fallback: '팀명' },
         { selector: '#modal-work-team-business-unit', key: 'business_unit', fallback: '사업구분' },

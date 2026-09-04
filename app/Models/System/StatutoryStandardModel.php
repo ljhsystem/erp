@@ -198,6 +198,32 @@ class StatutoryStandardModel
         return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function effectiveComponentCandidates(string $type, string $component, string $employmentType, string $workScope, string $dimensionKey, string $date): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT * FROM system_statutory_standards WHERE standard_type_code=:type'
+            . ' AND policy_component_code=:component AND employment_type_code=:employment_type AND work_scope_code=:work_scope'
+            . ' AND additional_dimension_key=:additional_dimension_key'
+            . ' AND effective_from<=:date_from AND (effective_to IS NULL OR effective_to>=:date_to)'
+        );
+        $statement->execute([
+            ':type' => $type, ':component' => $component, ':employment_type' => $employmentType,
+            ':work_scope' => $workScope, ':additional_dimension_key' => $dimensionKey,
+            ':date_from' => $date, ':date_to' => $date,
+        ]);
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function effectiveLegacyCandidates(string $type, string $date): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT * FROM system_statutory_standards WHERE standard_type_code=:type'
+            . ' AND effective_from<=:date_from AND (effective_to IS NULL OR effective_to>=:date_to)'
+        );
+        $statement->execute([':type' => $type, ':date_from' => $date, ':date_to' => $date]);
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function create(array $data): string
     {
         $id = UuidHelper::generate();

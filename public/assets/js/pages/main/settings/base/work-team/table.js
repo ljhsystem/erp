@@ -31,10 +31,10 @@ export function createWorkTeamTableModule({
                 widthResizable: true,
             },
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.work-team',
+                pageKey: 'main.settings.base-info.work-team',
                 userSettingPageKey: 'work-team',
                 tableKey: 'work-team-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.work-team.work-team-table.v1',
                 metaDomain: 'work-team',
                 tableLabel: '근무팀',
                 title: '근무팀 테이블 설정',

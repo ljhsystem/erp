@@ -194,10 +194,10 @@ export function createProjectTableModule({
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.project',
+                pageKey: 'main.settings.base-info.project',
                 userSettingPageKey: 'project',
                 tableKey: 'project-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.project.project-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.project.project-table.v1',
                 metaDomain: 'project',
                 tableLabel: '프로젝트',
                 title: '프로젝트 테이블 설정',

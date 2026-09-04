@@ -106,7 +106,7 @@ $router->get('/auth/logout', 'LoginController@apiLogout', [
 ]);
 
 $router->get('/main/settings/organization/role', 'MainController@settingsOrgRoles', [
-    'key' => 'web.settings.organization.roles',
+    'key' => 'web.settings.organization.role',
     'page' => '역할',
     'page_description' => '역할 설정 화면',
     'permission_name' => '역할 조회',

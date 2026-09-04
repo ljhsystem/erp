@@ -50,6 +50,36 @@ class PermissionService
     public function getRegistrySyncRows(bool $withPageKey): array { return $this->permModel->getRegistrySyncRows($withPageKey); }
     public function insertRegistryPermission(array $data, bool $withPageKey): bool { return $this->permModel->insertRegistryPermission($data, $withPageKey); }
     public function updateRegistryPermission(string $id, array $changes): bool { return $this->permModel->updateRegistryPermission($id, $changes); }
+    public function deleteRegistryPermissions(array $ids): array
+    {
+        if ($ids === []) {
+            return ['permissions' => 0, 'role_mappings' => 0, 'user_mappings' => 0];
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $roleMappings = $this->rolePermModel->clearPermissions($ids);
+            $userMappings = $this->userPermissionRepository->clearPermissions($ids);
+            $permissions = $this->permModel->deleteRegistryPermissions($ids);
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+            return [
+                'permissions' => $permissions,
+                'role_mappings' => $roleMappings,
+                'user_mappings' => $userMappings,
+            ];
+        } catch (\Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
     public function getRegistrySortRows(): array { return $this->permModel->getRegistrySortRows(); }
     public function offsetSortNumbers(array $ids, int $offset, string $actor): void { $this->permModel->offsetSortNumbers($ids, $offset, $actor); }
     public function applySortNumbers(array $changes, string $actor): void { $this->permModel->applySortNumbers($changes, $actor); }
@@ -257,14 +287,6 @@ class PermissionService
     private function permissionKeyCandidates(string $permissionKey): array
     {
         $candidates = [$permissionKey];
-
-        if ($permissionKey === 'web.main.dashboard') {
-            $candidates[] = 'web.dashboard.main';
-        } elseif (str_starts_with($permissionKey, 'web.main.')) {
-            $candidates[] = 'web.dashboard.' . substr($permissionKey, strlen('web.main.'));
-        } elseif (str_starts_with($permissionKey, 'api.main.')) {
-            $candidates[] = 'api.dashboard.' . substr($permissionKey, strlen('api.main.'));
-        }
 
         return array_values(array_unique($candidates));
     }

@@ -66,18 +66,18 @@ class Router
             if (
                 !$permission['skip_permission'] &&
                 !empty($permission['key']) &&
-                empty($permission['permission_key']) &&
                 $permission['permissions'] !== []
             ) {
                 PermissionRegistry::register(
-                    $permission['key'],
+                    ($permission['permission_key'] ?? null) ?: $permission['key'],
                     $permission['name'] ?? null,
                     $permission['description'] ?? null,
                     $permission['category'] ?? null,
                     $permission['page'] ?? null,
                     $permission['page_description'] ?? null,
                     $permission['permission_name'] ?? null,
-                    $permission['permission_description'] ?? null
+                    $permission['permission_description'] ?? null,
+                    $permission['page_key'] ?? null
                 );
             }
 

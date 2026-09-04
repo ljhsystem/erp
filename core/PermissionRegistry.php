@@ -8,12 +8,16 @@ use Core\LoggerFactory;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\PermissionPresentationHelper;
 use Core\PageKeyResolver;
 
 class PermissionRegistry
 {
     /** @var array<string,array> */
     private static array $permissions = [];
+
+    /** @var array<int,array<string,mixed>> */
+    private static array $conflicts = [];
 
     private static $logger = null;
     private static ?bool $authPermissionsHasPageKey = null;
@@ -39,7 +43,8 @@ class PermissionRegistry
         ?string $page = null,
         ?string $pageDescription = null,
         ?string $permissionName = null,
-        ?string $permissionDescription = null
+        ?string $permissionDescription = null,
+        ?string $pageKey = null
     ): void {
         self::init();
 
@@ -48,20 +53,20 @@ class PermissionRegistry
             return;
         }
 
-        if (isset(self::$permissions[$key])) {
-            self::$logger->info('이미 등록된 권한입니다. 건너뜁니다.', [
-                'key' => $key
-            ]);
-            return;
-        }
-
-        $normalizedCategory = self::normalizeMetaText($category);
+        $normalizedCategory = self::normalizeCategory($category);
         $normalizedPage = self::normalizeMetaText($page);
         $normalizedPermissionName = self::normalizeMetaText($permissionName)
             ?: self::normalizeMetaText($name)
             ?: $key;
         $normalizedPermissionDescription = self::normalizeMetaText($permissionDescription)
             ?: self::normalizeMetaText($description);
+        $presentation = PermissionPresentationHelper::decorate([
+            'permission_key' => $key,
+            'permission_name' => $normalizedPermissionName,
+            'description' => $normalizedPermissionDescription,
+        ], $normalizedPage ?: '미분류 페이지');
+        $normalizedPermissionName = $presentation['permission_name'];
+        $normalizedPermissionDescription = $presentation['description'];
         $normalizedRouteName = self::normalizeMetaText($name) ?: $normalizedPermissionName;
         $normalizedRouteDescription = self::buildLegacyDescription(
             $normalizedCategory,
@@ -70,6 +75,35 @@ class PermissionRegistry
             self::normalizeMetaText($description)
         );
 
+        if (isset(self::$permissions[$key])) {
+            $registered = self::$permissions[$key];
+            $incoming = [
+                'permission_name' => $normalizedPermissionName,
+                'permission_description' => $normalizedPermissionDescription,
+                'category' => $normalizedCategory,
+                'page' => $normalizedPage,
+                'page_key' => self::normalizeMetaText($pageKey),
+            ];
+            $conflicts = [];
+            foreach ($incoming as $field => $value) {
+                if ($key === 'api.ledger.voucher.list' && $field === 'page') {
+                    continue;
+                }
+                if ($value !== null && ($registered[$field] ?? null) !== $value) {
+                    $conflicts[$field] = ['registered' => $registered[$field] ?? null, 'incoming' => $value];
+                }
+            }
+            if ($conflicts !== []) {
+                self::$conflicts[] = ['permission_key' => $key, 'conflicts' => $conflicts];
+                self::$logger->warning('중복 권한키의 Route 메타데이터가 일치하지 않습니다.', [
+                    'event_code' => 'PERMISSION_ROUTE_META_CONFLICT',
+                    'permission_key' => $key,
+                    'conflicts' => $conflicts,
+                ]);
+            }
+            return;
+        }
+
         self::$permissions[$key] = [
             'key' => $key,
             'name' => $normalizedPermissionName,
@@ -77,19 +111,12 @@ class PermissionRegistry
             'category' => $normalizedCategory,
             'page' => $normalizedPage,
             'page_description' => self::normalizeMetaText($pageDescription),
+            'page_key' => self::normalizeMetaText($pageKey),
             'permission_name' => $normalizedPermissionName,
             'permission_description' => $normalizedPermissionDescription,
             'route_name' => $normalizedRouteName,
             'route_description' => $normalizedRouteDescription,
         ];
-
-        self::$logger->info('Permission registered', [
-            'key' => $key,
-            'name' => $normalizedPermissionName,
-            'desc' => $normalizedPermissionDescription,
-            'cat' => $normalizedCategory,
-            'page' => $normalizedPage,
-        ]);
 
         ksort(self::$permissions);
     }
@@ -102,6 +129,11 @@ class PermissionRegistry
         return self::$permissions;
     }
 
+    public static function conflicts(): array
+    {
+        return self::$conflicts;
+    }
+
     /**
      * 메모리에 등록된 라우터 권한을 DB와 동기화한다.
      */
@@ -112,6 +144,8 @@ class PermissionRegistry
         $syncStartedAt = hrtime(true);
         $insertCount = 0;
         $updateCount = 0;
+        $deleteSummary = ['permissions' => 0, 'role_mappings' => 0, 'user_mappings' => 0];
+        $syncFailed = false;
 
         self::$logger->info('PermissionRegistry::syncToDatabase() START', [
             'request_uri' => $requestUri,
@@ -131,8 +165,8 @@ class PermissionRegistry
 
         foreach (self::$permissions as $perm) {
             $key = $perm['key'];
-            $pageKey = $supportsPageKey && $pageKeyResolver
-                ? $pageKeyResolver->resolve($perm['key'], $perm['route_description'] ?? null, $perm['category'] ?? null)
+            $pageKey = $supportsPageKey
+                ? (($perm['page_key'] ?? null) ?: $pageKeyResolver?->resolve($perm['key'], $perm['route_description'] ?? null, $perm['category'] ?? null))
                 : null;
 
             if (isset($existingMap[$key])) {
@@ -166,6 +200,7 @@ class PermissionRegistry
                     'page_key' => $pageKey
                 ]);
             } catch (\Throwable $e) {
+                $syncFailed = true;
                 self::$logger->error('권한 DB INSERT 실패', [
                     'key' => $perm['key'],
                     'error' => $e->getMessage()
@@ -173,8 +208,26 @@ class PermissionRegistry
             }
         }
 
+        $hardDeleteEnabled = getenv('ERP_PERMISSION_ROUTE_HARD_DELETE_ENABLED') === '1';
+        if (!$syncFailed && self::$conflicts === [] && $hardDeleteEnabled) {
+            $staleIds = [];
+            foreach ($existingMap as $permissionKey => $row) {
+                if (!isset(self::$permissions[$permissionKey])) {
+                    $staleIds[] = (string) $row['id'];
+                }
+            }
+            $deleteSummary = $permissionService->deleteRegistryPermissions($staleIds);
+        } else {
+            self::$logger->warning('권한 등록 오류로 삭제 Route 권한의 물리삭제를 건너뜁니다.', [
+                'event_code' => 'PERMISSION_ROUTE_DELETION_SKIPPED',
+                'sync_failed' => $syncFailed,
+                'metadata_conflict_count' => count(self::$conflicts),
+                'hard_delete_enabled' => $hardDeleteEnabled,
+            ]);
+        }
+
         $normalizeSummary = ['duration_ms' => 0];
-        if ($insertCount > 0 || $updateCount > 0) {
+        if ($insertCount > 0 || $updateCount > 0 || $deleteSummary['permissions'] > 0) {
             $normalizeSummary = self::normalizeRegisteredSortNo($permissionService, $systemActor);
         }
         $syncDurationMs = self::elapsedMilliseconds($syncStartedAt);
@@ -184,17 +237,11 @@ class PermissionRegistry
             'sync_ms' => $syncDurationMs,
             'insert_count' => $insertCount,
             'update_count' => $updateCount,
+            'delete_count' => $deleteSummary['permissions'],
+            'deleted_role_mapping_count' => $deleteSummary['role_mappings'],
+            'deleted_user_mapping_count' => $deleteSummary['user_mappings'],
             'normalize_ms' => $normalizeSummary['duration_ms'],
         ]);
-
-        error_log(sprintf(
-            '%s sync=%dms insert=%d update=%d normalize=%dms',
-            $requestUri,
-            $syncDurationMs,
-            $insertCount,
-            $updateCount,
-            $normalizeSummary['duration_ms']
-        ));
 
         self::$logger->info('PermissionRegistry::syncToDatabase() END');
     }
@@ -217,6 +264,7 @@ class PermissionRegistry
             'permission_name' => $perm['permission_name'] ?? $perm['name'] ?? null,
             'description' => $perm['permission_description'] ?? $perm['description'] ?? null,
             'category' => $perm['category'],
+            'is_active' => 1,
         ];
 
         foreach ($syncMap as $column => $value) {
@@ -344,6 +392,16 @@ class PermissionRegistry
     {
         $text = trim((string) ($value ?? ''));
         return $text !== '' ? $text : null;
+    }
+
+    private static function normalizeCategory(?string $value): ?string
+    {
+        $category = self::normalizeMetaText($value);
+        if ($category === null) {
+            return null;
+        }
+
+        return str_replace('설정 > 기초정보관리', '설정 > 기준정보관리', $category);
     }
 
     private static function buildLegacyDescription(

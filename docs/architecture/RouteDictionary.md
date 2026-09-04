@@ -16,7 +16,7 @@
 
 `Dashboard`는 독립 Route 도메인이 아니라 각 업무 도메인의 기본 현황 화면 역할명이다. 따라서 `web.institution.dashboard`, `web.ledger.dashboard` 등은 해당 도메인 소유 key로 유지한다.
 
-기존 `/dashboard`, `/dashboard/report`, `/dashboard/calendar`, `/dashboard/activity`, `/dashboard/notifications`, `/dashboard/kpi`, `/dashboard/settings`는 운영 메뉴 Registry의 DB 전환이 끝날 때까지 인증된 사용자용 301 Redirect로만 유지한다. 신규 화면과 링크는 이 경로를 사용하지 않는다.
+기존 `/dashboard*` 호환 Route는 Main Registry 운영 이관 완료 후 제거했다. 최상위 Main 진입과 설정은 `/main*`만 사용한다.
 
 ## 2026-08-27 일용근로소득 엑셀관리
 
@@ -48,7 +48,7 @@
 | `code.save` | `/api/settings/system/code/save` | 코드 등록·수정·비활성화 및 그룹명 동기화 |
 | `code.delete` | `/api/settings/system/code/delete` | 참조검사 후 단건 Hard Delete |
 | `code.save` | `/api/settings/system/code/reorder` | 코드 전역 순번과 수정 Actor 저장 |
-| `web.settings.statutory_standards.manage` | `/main/settings/standard/statutory-standards` | 기준관리 > 법정기준관리 화면 |
+| `web.settings.standard.statutory-standard` | `/main/settings/standard/statutory-standards` | 기준관리 > 법정기준관리 canonical 화면 |
 | `api.settings.statutory_standards.*` | `/api/settings/statutory-standards/*` | 단일 기준행 CRUD·Resolver·근거파일 API |
 
 - 법정기준 API는 `list`, `detail`, `options`, `save`, `delete`, `resolve`, `source-file`만 제공한다. 관련근거 등록·수정·삭제는 기준 저장 요청에 통합하며 `source-file`은 물리경로를 노출하지 않고 source ID로 파일을 연다.
@@ -65,6 +65,13 @@
 | `api.institution.human_resources.employment_rules.*` | `/api/institution/human-resources/employment-rules/*` | 목록·상세·이력·옵션·저장·개정·삭제·결재·회수·시행·폐지. 직접 Excel Route는 제공하지 않는다. |
 
 ## Route Meta Normalization
+
+- 권한부여 사용자 화면에는 Route의 기술 action을 그대로 노출하지 않는다. `list`, `detail`, `save`, `restore-all`, `purge-bulk`, `excel-upload-preview` 등은 공용 Permission 표시 계약을 통해 각각 사용자용 한글 권한명·설명·기능그룹으로 제공한다.
+- WEB은 화면 접근, API는 조회·저장·삭제·승인 등 실제 기능 권한이다. 동일 페이지의 Route는 canonical `page_key`로 `system_page_registry`에 연결하고 페이지명과 카테고리 경로는 PageRegistry를 표시 SSOT로 사용한다.
+- 기존 Permission ID·Key 및 역할·개인 Mapping은 메타 정비 과정에서 변경하거나 초기화하지 않는다.
+- Route 자동동기화는 생성·메타수정·삭제를 모두 반영한다. 삭제된 Route Permission은 역할·개인 Mapping과 Permission 원본을 한 트랜잭션에서 물리삭제하며, 같은 Key가 복원되면 신규 Permission으로 생성한다.
+- `php tools/audit_permission_metadata.php`는 활성 Permission의 페이지 연결, WEB/API 판정, 기술 원문 권한명, 사용자 표시 보정 필요 여부를 읽기 전용으로 감사한다. 미분류 페이지 또는 사용자 표시 검토대상이 남아 있으면 실패한다.
+- `php tools/audit_route_permission_metadata.php`는 DB를 사용하지 않고 현재 WEB/API Route 전체를 로드하여 권한 표시 메타 누락과 동일 Permission Key의 상충 메타를 검사한다. 충돌이나 사용자 표시 필수 메타 누락이 있으면 실패한다.
 
 - Current compatible keys
   - `key`
@@ -95,7 +102,9 @@
 - `auth_permissions.category`
   - Stored from route `category` until the legacy column is retired
 - `auth_permissions.page_key`
-  - Resolved from route breadcrumb metadata and linked to `system_page_registry.page_key`
+  - Route의 명시적 `page_key`를 우선하고, 공용 `PageKeyResolver`로 보정하여 `system_page_registry.page_key`에 연결한다.
+  - API는 별도 페이지를 생성하지 않고 실제 사용자 WEB 화면의 canonical Page Key를 공유한다.
+  - 활성 Route Permission의 NULL·미등록 Page Key는 허용하지 않으며 `audit_permission_metadata.php`에서 0건이어야 한다.
 
 ## Representative Routes
 
@@ -172,22 +181,22 @@
 | `web.ledger.funds.account_balances` | `/ledger/funds` | 자금관리의 canonical 첫 화면. 기존 계좌잔액현황 권한·페이지 키를 재사용해 별도 권한 또는 DB 변경 없이 유형별 보유자금과 계좌 목록을 제공한다. |
 | `web.ledger.funds.account_balances_legacy` | `/ledger/funds/account-balances` | 기존 링크와 사용자 즐겨찾기 호환용 주소. 별도 권한을 만들지 않고 canonical `/ledger/funds`로 이동한다. |
 | `web.ledger.funds.bank_transactions` | `/ledger/funds/account-transactions` | 계좌별거래내역 canonical route. 계좌 미지정 시 전체 운영계좌의 증빙원본 입출금(은행)을 조회하고, `bank_account_id` 지정 시 해당 계좌로 범위를 좁힌다. Registry·권한·사용자 설정은 `ledger.funds.bank_transactions`를 사용한다. |
-| `web.settings.organization.role_permissions` | `/main/settings/organization/permission-assignment` | Canonical permission-assignment page route with legacy permission key compatibility |
-| `web.settings.organization.approval` | `/main/settings/organization/approval-template` | Canonical approval-template page route with legacy permission key compatibility |
-| `web.settings.organization.employees` | `/main/settings/organization/employee` | Canonical employee page route with legacy route compatibility |
-| `web.settings.organization.departments` | `/main/settings/organization/department` | Canonical department page route with legacy route compatibility |
+| `web.settings.organization.permission-assignment` | `/main/settings/organization/permission-assignment` | 권한부여 canonical 화면 |
+| `web.settings.organization.approval-template` | `/main/settings/organization/approval-template` | 결재양식 canonical 화면 |
+| `web.settings.organization.employee` | `/main/settings/organization/employee` | 직원관리 canonical 화면 |
+| `web.settings.organization.department` | `/main/settings/organization/department` | 부서관리 canonical 화면 |
 | `api.settings.organization.department.list` | `/api/settings/organization/department/list` | 부서 목록과 공용 Actor 표시 필드를 조회하며 응답 대기 중 세션 잠금을 유지하지 않는다. |
 | `api.settings.organization.department.detail` | `/api/settings/organization/department/detail` | 외부·호환 Consumer를 위해 유지하는 부서 상세 조회 API이며 응답 대기 중 세션 잠금을 유지하지 않는다. |
 | `api.settings.organization.department.save` | `/api/settings/organization/department/save` | 부서 생성·수정과 Service 저장 검증을 수행한다. |
 | `api.settings.organization.department.delete` | `/api/settings/organization/department/delete` | 알려진 모든 부서 참조가 0건인 오등록 부서만 Guarded Hard Delete한다. |
 | `api.settings.organization.department.reorder` | `/api/settings/organization/department/reorder` | 공용 순서변경 계약으로 `sort_no`를 저장한다. |
-| `web.settings.organization.positions` | `/main/settings/organization/position` | Canonical position page route with legacy route compatibility |
+| `web.settings.organization.position` | `/main/settings/organization/position` | 직위·직책 canonical 화면 |
 | `api.settings.position.list` | `/api/settings/organization/position/list` | 통합 직위·직책 목록과 공용 Actor 표시 필드를 조회하며 응답 대기 중 세션 잠금을 유지하지 않는다. |
 | `api.settings.position.detail` | `/api/settings/organization/position/detail` | 외부·호환 Consumer를 위해 유지하는 통합 직위·직책 상세 조회 API이며 응답 대기 중 세션 잠금을 유지하지 않는다. |
 | `api.settings.position.save` | `/api/settings/organization/position/save` | 통합 직위·직책 생성·수정과 Service 저장 검증을 수행한다. |
 | `api.settings.position.delete` | `/api/settings/organization/position/delete` | 알려진 모든 직위·직책 ID 참조가 0건인 오등록 행만 Guarded Hard Delete한다. |
 | `api.settings.position.reorder` | `/api/settings/organization/position/reorder` | 공용 순서변경 계약으로 `sort_no`를 저장한다. |
-| `web.settings.organization.roles` | `/main/settings/organization/role` | Canonical role page route with legacy route compatibility |
+| `web.settings.organization.role` | `/main/settings/organization/role` | 역할관리 canonical 화면 |
 | `api.settings.organization.role.list` | `/api/settings/organization/role/list` | Returns the role master list with standard Actor display fields |
 | `api.settings.organization.role.detail` | `/api/settings/organization/role/detail` | Returns one role master row by ID |
 | `api.settings.organization.role.save` | `/api/settings/organization/role/save` | Creates or updates a role through protected-role and required-field policies |
@@ -226,7 +235,7 @@
 | `api.ledger.account.list` | `/api/ledger/account/list` | Canonical ledger account list endpoint handled by `ChartAccountController@apiList` |
 | `web.ledger.journal_rules` | `/ledger/settings/journal-rules` | Canonical ledger journal-rule basic-info page route handled by `JournalRuleController@index` |
 | `api.ledger.journal_rules.list` | `/api/ledger/journal-rules/list` | Canonical ledger journal-rule list endpoint handled by `JournalRuleController@apiList` |
-| `web.settings.base-info.brand_logo` | `/main/settings/base-info/brand` | Canonical brand page route with legacy permission key compatibility |
+| `web.settings.base-info.brand` | `/main/settings/base-info/brand` | 브랜드관리 canonical 화면 |
 | `api.settings.base-info.brand.list` | `/api/settings/base-info/brand/list` | Initial rollout target for new permission metadata |
 | `api.settings.base-info.brand.detail` | `/api/settings/base-info/brand/detail` | Initial rollout target for new permission metadata |
 | `api.settings.base-info.brand.active-type` | `/api/settings/base-info/brand/active-type` | Initial rollout target for new permission metadata |
@@ -234,8 +243,8 @@
 | `api.settings.base-info.brand.delete` | `/api/settings/base-info/brand/purge` | Initial rollout target for new permission metadata |
 | `api.settings.base-info.brand.status` | `/api/settings/base-info/brand/updatestatus` | Initial rollout target for new permission metadata |
 | `web.settings.base-info.cover` | `/main/settings/base-info/cover` | Canonical cover page route |
-| `web.settings.base-info.clients` | `/main/settings/base-info/client` | Canonical client page route with legacy route key compatibility |
-| `web.settings.base-info.projects` | `/main/settings/base-info/project` | Canonical project page route with legacy route key compatibility |
+| `web.settings.base-info.client` | `/main/settings/base-info/client` | 거래처관리 canonical 화면 |
+| `web.settings.base-info.project` | `/main/settings/base-info/project` | 프로젝트관리 canonical 화면 |
 | `api.settings.base-info.project.list` | `/api/settings/base-info/project/list` | 프로젝트 목록 조회 |
 | `api.settings.base-info.project.detail` | `/api/settings/base-info/project/detail` | 프로젝트 상세 조회 |
 | `api.settings.base-info.project.search-picker` | `/api/settings/base-info/project/search-picker` | 프로젝트 Picker 조회 |
@@ -253,7 +262,7 @@
 | `api.settings.base-info.project.template` | `/api/settings/base-info/project/template` | 프로젝트 Excel 양식 다운로드 |
 | `api.settings.base-info.project.excel-upload` | `/api/settings/base-info/project/excel-upload` | 프로젝트 Excel 업로드 |
 | `api.settings.base-info.project.excel` | `/api/settings/base-info/project/download` | 프로젝트 목록 Excel 다운로드 |
-| `web.settings.base-info.accounts` | `/main/settings/base-info/bank-account` | Canonical bank-account page route with legacy route key compatibility |
+| `web.settings.base-info.bank-account` | `/main/settings/base-info/bank-account` | 계좌관리 canonical 화면 |
 | `api.settings.base-info.bank-account.list` | `/api/settings/base-info/bank-account/list` | 계좌 목록 조회 |
 | `api.settings.base-info.bank-account.detail` | `/api/settings/base-info/bank-account/detail` | 계좌 상세 조회 |
 | `api.settings.base-info.bank-account.search-picker` | `/api/settings/base-info/bank-account/search-picker` | 활성 계좌 검색 선택 |
@@ -270,7 +279,7 @@
 | `api.settings.base-info.bank-account.template` | `/api/settings/base-info/bank-account/template` | 계좌 Excel 양식 다운로드 |
 | `api.settings.base-info.bank-account.excel-upload` | `/api/settings/base-info/bank-account/excel-upload` | 계좌 Excel 업로드 |
 | `api.settings.base-info.bank-account.excel` | `/api/settings/base-info/bank-account/download` | 계좌 목록 Excel 다운로드 |
-| `web.settings.base-info.cards` | `/main/settings/base-info/card` | Canonical card page route with legacy route key compatibility |
+| `web.settings.base-info.card` | `/main/settings/base-info/card` | 카드관리 canonical 화면 |
 | `api.settings.base-info.card.list` | `/api/settings/base-info/card/list` | 카드 목록 조회 |
 | `api.settings.base-info.card.detail` | `/api/settings/base-info/card/detail` | 카드 상세 조회 |
 | `api.settings.base-info.card.search-picker` | `/api/settings/base-info/card/search-picker` | 공용 카드 Picker 검색 |
@@ -354,7 +363,7 @@
 
 - `brand`
   - standard domain: `brand`
-  - legacy aliases isolated: `brand_logo`, `brand-logo`
+  - removed WEB aliases: `brand_logo`, `brand-logo`
   - canonical page key: `settings.base_info.brand`
 - `cover`
   - standard domain: `cover`
@@ -362,51 +371,51 @@
   - canonical page key: `settings.base_info.cover`
 - `client`
   - standard domain: `client`
-  - legacy aliases isolated: `clients`
-  - canonical page key compatibility: `settings.base_info.clients`
+  - removed WEB alias: `clients`
+  - PageRegistry identity retained: `settings.base_info.clients`
 - `project`
   - standard domain: `project`
-  - legacy aliases isolated: `projects`
-  - canonical page key compatibility: `settings.base_info.projects`
+  - removed WEB alias: `projects`
+  - PageRegistry identity retained: `settings.base_info.projects`
 - `bank-account`
   - standard domain: `bank-account`
-  - legacy aliases isolated: `bank-accounts`, `bank.account`
-  - canonical page key compatibility: `settings.base_info.bank_accounts`
-  - canonical URL: `/main/settings/base-info/bank-account`; `/main/settings/base-info/bank-accounts` remains redirect-only compatibility
+  - removed WEB aliases: `bank-accounts`, `bank.account`
+  - PageRegistry identity retained: `settings.base_info.bank_accounts`
+  - canonical URL: `/main/settings/base-info/bank-account`
 - `card`
   - standard domain: `card`
-  - legacy aliases isolated: `cards`
-  - canonical page key compatibility: `settings.base_info.cards`
+  - removed WEB alias: `cards`
+  - PageRegistry identity retained: `settings.base_info.cards`
 - `work-team`
   - standard domain: `work-team`
-  - legacy aliases isolated: `work-teams`, `work_team`
+  - removed WEB alias: `work-teams`; `work_team` remains the shared WEB/API Permission key SSOT
   - canonical page key: `settings.base_info.work_teams`
   - display name: `팀`
   - API contract: list/detail/save/delete/trash/restore/purge/reorder/template/excel/excel-upload under `/api/settings/base-info/work-team/*`
 - `permission-assignment`
   - standard domain: `permission-assignment`
-  - legacy aliases isolated: `role_permissions`, `role-permission`, `rolepermission`
-  - canonical page key compatibility: `settings.organization.role_permissions`
+  - removed WEB aliases: `role_permissions`, `role-permission`, `rolepermission`
+  - PageRegistry identity retained: `settings.organization.role_permissions`
 - `approval-template`
   - standard domain: `approval-template`
-  - legacy aliases isolated: `approval`, `approval/template`, `approval/step`, `approval.templates`
-  - canonical page key compatibility: `settings.organization.approval`
+  - removed WEB aliases: `approval`, `approval/templates`; internal Model·Service relation names remain unchanged
+  - PageRegistry identity retained: `settings.organization.approval`
 - `employee`
   - standard domain: `employee`
-  - legacy aliases isolated: `employees`
-  - canonical page key compatibility: `settings.organization.employees`
+  - removed WEB alias: `employees`
+  - PageRegistry identity retained: `settings.organization.employees`
 - `department`
   - standard domain: `department`
-  - legacy aliases isolated: `departments`, `dept`
-  - canonical page key compatibility: `settings.organization.departments`
+  - removed WEB alias: `departments`
+  - PageRegistry identity retained: `settings.organization.departments`
 - `position`
   - standard domain: `position`
-  - legacy aliases isolated: `positions`, `positions_modal`
-  - canonical page key compatibility: `settings.organization.positions`
+  - removed WEB alias: `positions`; internal Modal symbol names are not Route aliases
+  - PageRegistry identity retained: `settings.organization.positions`
 - `role`
   - standard domain: `role`
-  - legacy aliases isolated: `roles`
-  - canonical page key compatibility: `settings.organization.roles`
+  - removed WEB alias: `roles`
+  - PageRegistry identity retained: `settings.organization.roles`
 
 ## Current Scope
 

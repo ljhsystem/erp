@@ -338,10 +338,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             tableSettings: {
-                pageKey: 'dashboard.settings.organization.employee',
+                pageKey: 'main.settings.organization.employee',
                 userSettingPageKey: 'employee',
                 tableKey: 'employee-table',
-                storageKey: 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1',
+                storageKey: 'datatable.settings.main.settings.organization.employee.employee-table.v1',
                 metaDomain: 'employee',
                 tableLabel: '\uC9C1\uC6D0',
                 title: '\uC9C1\uC6D0 \uD14C\uC774\uBE14 \uC124\uC815',

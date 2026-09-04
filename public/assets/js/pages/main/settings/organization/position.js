@@ -61,7 +61,7 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
     ];
 
-    const POSITION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.position.position-table.v1';
+    const POSITION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.position.position-table.v1';
     const POSITION_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#position_edit_name', key: 'position_name', fallback: '\uC9C1\uCC45\uBA85' },
         { selector: '#position_edit_rank', key: 'level_rank', fallback: '\uB808\uBCA8' },
@@ -353,10 +353,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             tableSettings: {
-                pageKey: 'dashboard.settings.organization.position',
+                pageKey: 'main.settings.organization.position',
                 userSettingPageKey: 'position',
                 tableKey: 'position-table',
-                storageKey: 'datatable.settings.dashboard.settings.organization.position.position-table.v1',
+                storageKey: 'datatable.settings.main.settings.organization.position.position-table.v1',
                 metaDomain: 'position',
                 tableLabel: '\uC9C1\uCC45',
                 title: '\uC9C1\uCC45 \uD14C\uC774\uBE14 \uC124\uC815',

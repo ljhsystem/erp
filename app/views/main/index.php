@@ -17,7 +17,7 @@ $pageScripts .= AssetHelper::js('/assets/js/pages/main/index.js');
 // 브레드크럼프 (레이아웃 내부에서 자동 포함되지 않으므로 본문에 포함)
 ?>
 <!-- ✅ 메인 콘텐츠 -->
-<main class="dashboard-main"> 
+<main class="main-home">
 
     <!-- 타이틀 -->
     <div>

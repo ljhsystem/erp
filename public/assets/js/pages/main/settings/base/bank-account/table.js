@@ -148,10 +148,10 @@ export function createBankAccountTableModule({
                 widthResizable: true,
             },
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.bank-account',
+                pageKey: 'main.settings.base-info.bank-account',
                 userSettingPageKey: 'bank-account',
                 tableKey: 'account-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.bank-account.account-table.v1',
                 metaDomain: 'bank-account',
                 tableLabel: '계좌',
                 title: '계좌 테이블 설정',

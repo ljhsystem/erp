@@ -60,6 +60,18 @@ class UserPermissionRepository
     public function userPermissionIds(string $userId, bool $lock=false): array
     { $s=$this->db->prepare('SELECT permission_id FROM auth_user_permissions WHERE user_id=?'.($lock?' FOR UPDATE':'')); $s->execute([$userId]); return array_map('strval',$s->fetchAll(PDO::FETCH_COLUMN) ?: []); }
 
+    public function clearPermissions(array $permissionIds): int
+    {
+        if ($permissionIds === []) return 0;
+        $affected = 0;
+        foreach (array_chunk(array_values(array_unique($permissionIds)), 200) as $chunk) {
+            $statement = $this->db->prepare('DELETE FROM auth_user_permissions WHERE permission_id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')');
+            $statement->execute($chunk);
+            $affected += $statement->rowCount();
+        }
+        return $affected;
+    }
+
     public function effectivePermissionSet(string $userId): array
     {
         $u=$this->userContext($userId); if(!$u || (int)$u['approved']!==1 || (int)$u['is_active']!==1 || !$u['role_id'] || (int)$u['role_active']!==1) return [];

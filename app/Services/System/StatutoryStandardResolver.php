@@ -71,24 +71,13 @@ class StatutoryStandardResolver
         }
 
         $additionalDimensionData = $this->canonicalDimensions($additionalDimensions);
-        $rows = $this->model->rows(
-            'SELECT * FROM system_statutory_standards WHERE standard_type_code=:type'
-            . ' AND policy_component_code=:component AND employment_type_code=:employment_type AND work_scope_code=:work_scope'
-            . ' AND additional_dimension_key=:additional_dimension_key'
-            . ' AND effective_from<=:date_from AND (effective_to IS NULL OR effective_to>=:date_to)',
-            [
-                ':type'=>$type,
-                ':component'=>$component,
-                ':employment_type'=>$employmentType,
-                ':work_scope'=>$workScope,
-                ':additional_dimension_key'=>hash('sha256', $additionalDimensionData),
-                ':date_from'=>$date,
-                ':date_to'=>$date,
-            ]
+        $dimensionKey = hash('sha256', $additionalDimensionData);
+        $rows = $this->model->effectiveComponentCandidates(
+            $type, $component, $employmentType, $workScope, $dimensionKey, $date
         );
         return $this->selectEffectiveLeaf(
             $rows,
-            $this->model->supersessionEdges($type, $component, $employmentType, $workScope, hash('sha256', $additionalDimensionData))
+            $this->model->supersessionEdges($type, $component, $employmentType, $workScope, $dimensionKey)
         );
     }
 
@@ -104,11 +93,7 @@ class StatutoryStandardResolver
     private function resolveOptionalLegacyType(string $type, string $date): ?array
     {
         if ($type === '' || !$this->isDate($date)) throw new \InvalidArgumentException('법정기준 종류와 기준일이 필요합니다.');
-        $rows = $this->model->rows(
-            'SELECT * FROM system_statutory_standards WHERE standard_type_code=:type'
-            . ' AND effective_from<=:date_from AND (effective_to IS NULL OR effective_to>=:date_to)',
-            [':type'=>$type, ':date_from'=>$date, ':date_to'=>$date]
-        );
+        $rows = $this->model->effectiveLegacyCandidates($type, $date);
         return $this->selectEffectiveLeaf($rows, $this->model->supersessionEdges($type, null, null, null, null));
     }
 

@@ -28,10 +28,10 @@ export function createCardTableModule({
                 widthResizable: true,
             },
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.card',
+                pageKey: 'main.settings.base-info.card',
                 userSettingPageKey: 'card',
                 tableKey: 'card-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.card.card-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.card.card-table.v1',
                 metaDomain: 'card',
                 tableLabel: '카드',
                 title: '카드 테이블 설정',

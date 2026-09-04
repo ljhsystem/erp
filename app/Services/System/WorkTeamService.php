@@ -4,6 +4,7 @@ namespace App\Services\System;
 use App\Services\Concerns\LogsServiceOperations;
 use App\Models\System\WorkTeamModel;
 use App\Models\System\ClientModel;
+use App\Models\System\CodeModel;
 use App\Repositories\System\WorkTeamDependencyRepository;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\ExcelTemplateFilenameHelper;
@@ -53,6 +54,7 @@ class WorkTeamService
     private readonly PDO $pdo;
     private WorkTeamModel $model;
     private ClientModel $clientModel;
+    private CodeModel $codeModel;
     private WorkTeamDependencyRepository $dependencyRepository;
     private $logger;
 
@@ -61,6 +63,7 @@ class WorkTeamService
         $this->pdo = $pdo;
         $this->model = new WorkTeamModel($pdo);
         $this->clientModel = new ClientModel($pdo);
+        $this->codeModel = new CodeModel($pdo);
         $this->dependencyRepository = new WorkTeamDependencyRepository($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.WorkTeamService');
     }
@@ -361,9 +364,7 @@ class WorkTeamService
         if ($teamName === '') return '팀명은 필수입니다.';
         $businessUnit = (string) ($data['business_unit'] ?? '');
         if ($businessUnit === '') return '사업구분은 필수입니다.';
-        $statement = $this->pdo->prepare("SELECT COUNT(*) FROM system_codes WHERE code_group='BUSINESS_UNIT' AND code=:code AND is_active=1");
-        $statement->execute([':code' => $businessUnit]);
-        if ((int) $statement->fetchColumn() !== 1) return '사업구분을 확인해 주세요.';
+        if (!$this->codeModel->isActiveCode('BUSINESS_UNIT', $businessUnit)) return '사업구분을 확인해 주세요.';
         if (mb_strlen($teamName, 'UTF-8') > 100) return '팀명은 100자 이내로 입력하세요.';
         if (mb_strlen((string) ($data['note'] ?? ''), 'UTF-8') > 255) return '비고는 255자 이내로 입력하세요.';
         if (mb_strlen((string) ($data['memo'] ?? ''), 'UTF-8') > 65535) return '메모가 허용 길이를 초과했습니다.';

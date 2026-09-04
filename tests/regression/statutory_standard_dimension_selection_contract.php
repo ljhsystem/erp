@@ -51,7 +51,7 @@ $checks = [
     'Select2 change 계약' => str_contains($javascript, 'window.jQuery(select).off(`change.${namespace}`).on(`change.${namespace}`, handler)')
         && str_contains($javascript, "bindDimensionChange(componentSelect, 'statutoryComponent'"),
     'Select2 disabled 동기화' => str_contains($javascript, ".prop('disabled', disabled)"),
-    '브라우저 캐시 갱신' => str_contains($settingsView, 'index.js?v=20260831-dimension-2'),
+    '브라우저 캐시 갱신' => preg_match("#/assets/js/pages/main/settings/statutory-standards/index\\.js\\?v=[a-zA-Z0-9._-]+#", $settingsView) === 1,
 ];
 foreach ($checks as $label => $passed) {
     if (!$passed) throw new RuntimeException($label . ' 계약이 누락됐습니다.');

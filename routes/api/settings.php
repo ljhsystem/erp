@@ -1508,14 +1508,14 @@ $router->get('/api/settings/organization/employee/search-picker', 'EmployeeContr
 
 $router->get('/api/settings/organization/employee/representative-qualifications', 'EmployeeController@apiRepresentativeQualifications', [
     'key' => 'api.settings.organization.employee.representative_qualifications',
-    'permission_key' => 'api.settings.organization.employee.detail',
+    'permission_key' => 'api.settings.employee.detail',
     'page' => '직원관리',
     'page_description' => '직원 대표자격 후보 조회',
     'permission_name' => '상세조회',
-    'permission_description' => '직원 상세조회',
+    'permission_description' => '직원 상세 조회',
     'name' => '대표자격 후보 조회',
     'description' => '직원의 검증 완료된 유효 대표자격 후보 조회',
-    'category' => '설정',
+    'category' => '설정 > 조직관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,

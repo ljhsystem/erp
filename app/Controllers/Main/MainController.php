@@ -2,10 +2,7 @@
 
 namespace App\Controllers\Main;
 
-use App\Services\System\SystemLogService;
-
 use App\Controllers\System\LayoutController;
-use App\Services\System\PageRegistryQueryService;
 use App\Services\System\SettingsNavigationService;
 use Core\DbPdo;
 
@@ -115,11 +112,6 @@ class MainController
         ]);
     }
 
-    public function redirectBaseInfoBrandLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/brand', 301);
-    }
-
     public function settingsBaseInfoCover(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -138,50 +130,6 @@ class MainController
         ]);
     }
 
-    private function redirect(string $url, int $status = 302): void
-    {
-        if (!headers_sent()) {
-            header('Location: ' . $url, true, $status);
-        }
-
-        exit;
-    }
-
-    public function redirectLegacyDashboard(): void
-    {
-        $this->redirect('/main', 301);
-    }
-
-    public function redirectLegacyReport(): void
-    {
-        $this->redirect('/main/report', 301);
-    }
-
-    public function redirectLegacyCalendar(): void
-    {
-        $this->redirect('/main/calendar', 301);
-    }
-
-    public function redirectLegacyActivity(): void
-    {
-        $this->redirect('/main/activity', 301);
-    }
-
-    public function redirectLegacyNotifications(): void
-    {
-        $this->redirect('/main/notifications', 301);
-    }
-
-    public function redirectLegacyKpi(): void
-    {
-        $this->redirect('/main/kpi', 301);
-    }
-
-    public function redirectLegacySettings(): void
-    {
-        $this->redirect('/main/settings', 301);
-    }
-
     public function settingsBaseInfoClient(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -189,11 +137,6 @@ class MainController
             'cat' => 'base-info',
             'sub' => 'client',
         ]);
-    }
-
-    public function redirectBaseInfoClientLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/client', 301);
     }
 
     public function settingsBaseInfoProject(): void
@@ -205,11 +148,6 @@ class MainController
         ]);
     }
 
-    public function redirectBaseInfoProjectLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/project', 301);
-    }
-
     public function settingsBaseInfoBankAccount(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -217,11 +155,6 @@ class MainController
             'cat' => 'base-info',
             'sub' => 'bank-account',
         ]);
-    }
-
-    public function redirectBaseInfoBankAccountLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/bank-account', 301);
     }
 
     public function settingsBaseInfoCard(): void
@@ -233,11 +166,6 @@ class MainController
         ]);
     }
 
-    public function redirectBaseInfoCardLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/card', 301);
-    }
-
     public function settingsBaseInfoWorkTeams(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -245,11 +173,6 @@ class MainController
             'cat' => 'base-info',
             'sub' => 'work-team',
         ]);
-    }
-
-    public function redirectBaseInfoWorkTeamLegacy(): void
-    {
-        $this->redirect('/main/settings/base-info/work-team', 301);
     }
 
     public function settingsOrgEmployees(): void
@@ -261,11 +184,6 @@ class MainController
         ]);
     }
 
-    public function redirectOrgEmployeeLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/employee', 301);
-    }
-
     public function settingsOrgDepartments(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -273,11 +191,6 @@ class MainController
             'cat' => 'organization',
             'sub' => 'department',
         ]);
-    }
-
-    public function redirectOrgDepartmentLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/department', 301);
     }
 
     public function settingsOrgPositions(): void
@@ -289,11 +202,6 @@ class MainController
         ]);
     }
 
-    public function redirectOrgPositionLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/position', 301);
-    }
-
     public function settingsOrgRoles(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -301,11 +209,6 @@ class MainController
             'cat' => 'organization',
             'sub' => 'role',
         ]);
-    }
-
-    public function redirectOrgRoleLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/role', 301);
     }
 
     public function settingsOrgPermissionAssignment(): void
@@ -325,11 +228,6 @@ class MainController
         ]);
     }
 
-    public function redirectOrgPermissionAssignmentLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/permission-assignment', 301);
-    }
-
     public function settingsOrgApprovalTemplate(): void
     {
         $this->renderPage('/app/views/main/settings.php', [
@@ -337,11 +235,6 @@ class MainController
             'cat' => 'organization',
             'sub' => 'approval-template',
         ]);
-    }
-
-    public function redirectOrgApprovalLegacy(): void
-    {
-        $this->redirect('/main/settings/organization/approval-template', 301);
     }
 
     public function settingsSystemSite(): void

@@ -68,12 +68,12 @@ $expect(!str_contains($page, "settingsKey:'handle'"), '개인별 권한목록에
 $expect(!str_contains($page, "settingsKey:'user_permission_id'"), '개인별 권한 관리 열이 별도 가상 key로 남아 있습니다.');
 $expect(str_contains($page, "settingsKey:'__reorder'"), '개인별 권한목록 드래그핸들이 공용 __reorder에 연결되지 않았습니다.');
 $expect(str_contains($page, "settingsKey:'__actions',settingsVirtualType:'system'"), '개인별 권한 관리 열이 공용 __actions에 연결되지 않았습니다.');
-$expect(str_contains($page, 'individual-permissions.v8'), '개인별 권한목록 설정 schema 버전이 갱신되지 않았습니다.');
+$expect(str_contains($page, 'individual-permissions.v9'), '개인별 권한목록 설정 schema 버전이 갱신되지 않았습니다.');
 $expect(!str_contains($rolePermissionPage, "settingsKey: 'handle'"), '역할별 권한목록에 페이지 전용 드래그핸들 key가 남아 있습니다.');
 $expect(!str_contains($rolePermissionPage, "settingsKey: 'role_permission_id'"), '역할별 권한 관리 열이 별도 가상 key로 남아 있습니다.');
 $expect(str_contains($rolePermissionPage, "settingsKey: '__reorder'"), '역할별 권한목록 드래그핸들이 공용 __reorder에 연결되지 않았습니다.');
 $expect(str_contains($rolePermissionPage, "settingsKey: '__actions'"), '역할별 권한 관리 열이 공용 __actions에 연결되지 않았습니다.');
-$expect(str_contains($rolePermissionPage, 'permission-matrix.flat.v5'), '역할별 권한목록 설정 schema 버전이 갱신되지 않았습니다.');
+$expect(str_contains($rolePermissionPage, 'permission-matrix.flat.v6'), '역할별 권한목록 설정 schema 버전이 갱신되지 않았습니다.');
 
 if ($failures !== []) {
     fwrite(STDERR, implode(PHP_EOL, $failures) . PHP_EOL);

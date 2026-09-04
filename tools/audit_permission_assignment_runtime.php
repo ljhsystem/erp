@@ -10,7 +10,7 @@ require_once PROJECT_ROOT . '/core/Storage.php';
 
 $pdo = DbPdo::conn();
 $keys = [
-    'web.settings.organization.role_permissions',
+    'web.settings.organization.permission-assignment',
     'api.settings.rolepermission.list',
     'api.settings.rolepermission.assign',
     'api.settings.user_permission_override.list',

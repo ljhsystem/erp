@@ -62,7 +62,7 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
     ];
 
-    const DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.department.department-table.v1';
+    const DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.department.department-table.v1';
     const DEPARTMENT_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#dept_edit_name', key: 'dept_name', fallback: '부서명' },
         { selector: '#dept_edit_manager_id', key: 'manager_id', fallback: '부서장' },
@@ -346,10 +346,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             tableSettings: {
-                pageKey: 'dashboard.settings.organization.department',
+                pageKey: 'main.settings.organization.department',
                 userSettingPageKey: 'department',
                 tableKey: 'department-table',
-                storageKey: 'datatable.settings.dashboard.settings.organization.department.department-table.v1',
+                storageKey: 'datatable.settings.main.settings.organization.department.department-table.v1',
                 metaDomain: 'department',
                 tableLabel: '\uBD80\uC11C',
                 title: '\uBD80\uC11C \uD14C\uC774\uBE14 \uC124\uC815',

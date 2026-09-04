@@ -62,7 +62,7 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
     ];
 
-    const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.role.role-table.v1';
+    const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.role.role-table.v1';
     const ROLE_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#role_edit_key', key: 'role_key', fallback: '\uC5ED\uD560 \uD0A4' },
         { selector: '#role_edit_name', key: 'role_name', fallback: '\uC5ED\uD560\uBA85' },
@@ -354,10 +354,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             tableSettings: {
-                pageKey: 'dashboard.settings.organization.role',
+                pageKey: 'main.settings.organization.role',
                 userSettingPageKey: 'role',
                 tableKey: 'role-table',
-                storageKey: 'datatable.settings.dashboard.settings.organization.role.role-table.v1',
+                storageKey: 'datatable.settings.main.settings.organization.role.role-table.v1',
                 metaDomain: 'role',
                 tableLabel: '\uC5ED\uD560',
                 title: '\uC5ED\uD560 \uD14C\uC774\uBE14 \uC124\uC815',

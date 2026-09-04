@@ -17,7 +17,7 @@ export function createCardModalModule({
 }) {
     let cardPolicyBound = false;
 
-    const CARD_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.card.card-table.v1';
+    const CARD_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.base-info.card.card-table.v1';
     const CARD_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#cardForm [name="card_name"]', key: 'card_name', fallback: '카드명' },
         { selector: '#cardForm [name="is_active"]', key: 'is_active', fallback: '상태' },

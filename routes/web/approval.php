@@ -48,6 +48,7 @@ $router->get('/approval', 'ApprovalController@webIndex', [
 
 $router->get('/approval/status', 'ApprovalInboxController@webIndex', [
     'key' => 'web.approval.inbox',
+    'page_key' => 'approval.inbox',
     'page' => '결재함',
     'page_description' => '통합 전자결재 문서함',
     'permission_name' => '화면조회',
@@ -61,13 +62,13 @@ $router->get('/approval/status', 'ApprovalInboxController@webIndex', [
 ]);
 
 $router->get('/approval/personal-expense', 'PersonalExpenseController@webIndex', [
-    'key' => 'web.approval.personal-expense', 'page' => '개인경비 신청', 'page_description' => '개인경비 신청 및 결재',
+    'key' => 'web.approval.personal-expense', 'page_key' => 'approval.personal_expense', 'page' => '개인경비 신청', 'page_description' => '개인경비 신청 및 결재',
     'permission_name' => '화면조회', 'permission_description' => '개인경비 신청 화면 조회', 'name' => '개인경비 신청',
     'description' => '전자결재 > 개인경비 신청', 'category' => '전자결재', 'auth' => true, 'permissions' => ['view'], 'log' => false,
 ]);
 
 $router->get('/approval/leave-request', 'LeaveRequestController@webIndex', [
-    'key' => 'web.approval.leave-request', 'page' => '휴가신청', 'page_description' => '직원 본인 휴가 신청 및 결재',
+    'key' => 'web.approval.leave-request', 'page_key' => 'approval.leave_request', 'page' => '휴가신청', 'page_description' => '직원 본인 휴가 신청 및 결재',
     'permission_name' => '화면조회', 'permission_description' => '휴가신청 화면 조회', 'name' => '휴가신청',
     'description' => '전자결재 > 휴가신청', 'category' => '전자결재', 'auth' => true, 'permissions' => ['view'], 'log' => false,
 ]);

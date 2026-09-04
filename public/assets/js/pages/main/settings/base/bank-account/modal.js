@@ -16,7 +16,7 @@ export function createBankAccountModalModule({
 }) {
     let accountPolicyBound = false;
 
-    const ACCOUNT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1';
+    const ACCOUNT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.base-info.bank-account.account-table.v1';
     const ACCOUNT_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#accountForm [name="account_name"]', key: 'account_name', fallback: '계좌명' },
         { selector: '#modal_bank_name', key: 'bank_name', fallback: '은행명' },

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\System;
 
+use App\Models\System\CodeModel;
 use PDO;
 
 class StatutoryStandardTemplateService
@@ -12,19 +13,17 @@ class StatutoryStandardTemplateService
     private const COLUMN_TYPES = ['text', 'amount', 'rate', 'number', 'select'];
 
     private SystemCodeOptionService $codeOptions;
+    private CodeModel $codeModel;
 
     public function __construct(private PDO $db)
     {
+        $this->codeModel = new CodeModel($db);
         $this->codeOptions = new SystemCodeOptionService($db);
     }
 
     public function all(): array
     {
-        $statement = $this->db->query(
-            "SELECT code,code_name,note,extra_data FROM system_codes"
-            . " WHERE code_group='STATUTORY_STANDARD_TYPE' AND is_active=1 ORDER BY sort_no"
-        );
-        return array_map(fn(array $row): array => $this->normalize($row), $statement->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        return array_map(fn(array $row): array => $this->normalize($row), $this->codeModel->getStatutoryStandardTemplates());
     }
 
     /**
@@ -35,12 +34,8 @@ class StatutoryStandardTemplateService
      */
     public function summaryFields(): array
     {
-        $statement = $this->db->query(
-            "SELECT code,extra_data FROM system_codes"
-            . " WHERE code_group='STATUTORY_STANDARD_TYPE' AND is_active=1 ORDER BY sort_no"
-        );
         $result = [];
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        foreach ($this->codeModel->getStatutoryStandardTemplates(false) as $row) {
             $code = (string)($row['code'] ?? '');
             $data = json_decode((string)($row['extra_data'] ?? ''), true);
             if ($code === '' || !is_array($data)) {

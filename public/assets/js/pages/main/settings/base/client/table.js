@@ -258,9 +258,9 @@ export function createClientTableModule({
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.client',
+                pageKey: 'main.settings.base-info.client',
                 tableKey: 'client-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.client.client-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.client.client-table.v1',
                 metaDomain: 'client',
                 tableLabel: '거래처',
                 title: '거래처 테이블 설정',

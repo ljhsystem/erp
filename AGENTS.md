@@ -1664,3 +1664,11 @@ php -l 확인
 - 추가 은행 증빙 또는 추가 자사계좌 참조 라인이 있거나 관계가 모호하면 내부이체로 판정하지 않는다.
 - 삭제·역분개 전표와 `draft`, `review_requested`, `deleted` 상태는 제외하고 `REVIEWED`, `POSTED`, `CLOSED`만 확정 내부이체로 인정한다.
 - 적요, 계정명, 거래명, 날짜 근접성, 금액 유사성만으로 내부이체를 추론하지 않는다.
+
+### 35. Main/Settings 구조 감사 규칙
+
+- `main/settings` 리팩토링과 신규 개발은 `php tools/audit_main_settings_architecture.php`를 완료 게이트로 사용한다.
+- Controller·View·JS의 직접 SQL, Service 외부의 업무 로그, 파일 크기 상한 초과, 공용 DataTable 우회, 브라우저 저장소 기반 업무상태, `eval`·`Function()`·`String.raw` 기반 코드 실행이 1건이라도 있으면 완료 처리하지 않는다.
+- 설정 WEB Route의 도메인 segment와 Permission key는 canonical 단수명으로 일치시킨다. 삭제된 복수형·underscore·별칭 Route를 호환 Redirect로 재도입하지 않는다.
+- Route 변경 후 `php tools/sync_route_permissions.php --apply`와 `php tools/audit_permission_metadata.php --full`을 수행하여 Route/DB 권한 수, 고아 권한, PageRegistry 연결, 사용자 표시 메타가 모두 일치하는지 검증한다.
+- 권한 키 정규화는 기존 `auth_permissions.id`, 역할 매핑, 개인 매핑을 보존하는 Migration으로 수행하며 삭제 후 재생성하지 않는다.

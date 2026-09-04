@@ -47,7 +47,7 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '수정일시' }
     ];
     const NEW_CODE_GROUP_VALUE = '__new_code_group__';
-    const CODE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.system.code.code-table.v1';
+    const CODE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.system.code.code-table.v1';
     const CODE_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#modal_code_group', key: 'code_group' },
         { selector: '#modal_code_group_name', key: 'group_name' },
@@ -385,10 +385,10 @@ window.AdminPicker = AdminPicker;
                 widthResizable: true,
             },
             tableSettings: {
-                pageKey: 'dashboard.settings.system.code',
+                pageKey: 'main.settings.system.code',
                 userSettingPageKey: 'code',
                 tableKey: 'code-table',
-                storageKey: 'datatable.settings.dashboard.settings.system.code.code-table.v1',
+                storageKey: 'datatable.settings.main.settings.system.code.code-table.v1',
                 metaDomain: 'code',
                 tableLabel: '코드관리',
                 title: '코드관리 테이블 설정',

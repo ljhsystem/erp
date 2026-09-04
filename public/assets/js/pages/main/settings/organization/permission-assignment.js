@@ -7,22 +7,30 @@ import { bindTableSettingsPolicy } from './permission-assignment/table-settings-
 import { mergePermissionSelection, revealDataTable } from './permission-assignment/permission-cache.js';
 import { loadPermissionMaster, loadPermissionSelection, postPermissionJson } from './permission-assignment/api.js';
 import { bindPermissionAssignmentStickyLayout } from './permission-assignment/sticky-layout.js?v=20260814-1';
-import { buildStatusBadge, escapeHtml, notify, responseRows } from './permission-assignment/ui-helpers.js';
+import {
+    buildPermissionSearchText as buildSearchText,
+    buildStatusBadge,
+    escapeHtml,
+    getPermissionSourcePriority,
+    notify,
+    responseRows,
+    sortPermissionChildrenForDisplay,
+} from './permission-assignment/ui-helpers.js';
 
 const API_ROLE_LIST = '/api/settings/organization/role/list';
 const API_ROLE_PERMISSIONS = '/api/settings/organization/role-permission/list';
 const API_SAVE = '/api/settings/organization/role-permission/save';
 const API_REORDER = '/api/settings/organization/role-permission/reorder';
 const CORE_MANAGEMENT_PERMISSION_KEYS = new Set([
-    'web.settings.organization.role_permissions',
+    'web.settings.organization.permission-assignment',
     'api.settings.rolepermission.list',
     'api.settings.rolepermission.assign',
 ]);
 
 const PAGE_TABLE_SELECTOR = '#permission-assignment-table';
 const ROLE_TABLE_SELECTOR = '#role-list-table';
-const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.permission-assignment.role-list-table.v2';
-const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v5';
+const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.permission-assignment.role-list-table.v2';
+const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v6';
 const ROLE_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-role';
 const PERMISSION_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-permission';
 
@@ -114,7 +122,7 @@ async function initRoleTable() {
         tableSelector: ROLE_TABLE_SELECTOR,
         api: API_ROLE_LIST,
         tableSettings: {
-            pageKey: 'dashboard.settings.organization.permission-assignment.role-list',
+            pageKey: 'main.settings.organization.permission-assignment.role-list',
             userSettingPageKey: ROLE_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'role-list-table',
             storageKey: ROLE_TABLE_SETTINGS_STORAGE_KEY,
@@ -254,6 +262,7 @@ async function initPermissionTable() {
                 'page',
                 'permission_source',
                 'category',
+                'capability_group',
                 'permission_name',
                 'description',
                 '__actions',
@@ -370,10 +379,10 @@ function buildPermissionColumns() {
                 }
 
                 if (row.row_type === 'page') {
-                    return 'PAGE';
+                    return '\uD398\uC774\uC9C0';
                 }
 
-                return escapeHtml(String(value || '').toUpperCase());
+                return String(value || '').toLowerCase() === 'web' ? 'WEB \uD654\uBA74' : 'API \uAE30\uB2A5';
             },
         },
         {
@@ -401,6 +410,15 @@ function buildPermissionColumns() {
             defaultContent: '',
             widthResizable: true,
             render: (value) => escapeHtml(value || ''),
+        },
+        {
+            title: '\uAE30\uB2A5',
+            data: 'capability_group',
+            settingsKey: 'capability_group',
+            settingsVirtualType: 'calculated',
+            defaultContent: '',
+            widthResizable: true,
+            render: (value, type, row) => type === 'display' ? renderCapabilityBadge(row, value) : String(value || ''),
         },
         {
             title: '\uAD8C\uD55C\uBA85',
@@ -552,6 +570,16 @@ function renderPermissionHierarchyCell(row = {}, value = '') {
     `;
 }
 
+function renderCapabilityBadge(row = {}, value = '') {
+    if (row.row_type === 'page') {
+        return '';
+    }
+    const badgeClass = row.risk_level === 'danger'
+        ? 'text-bg-danger'
+        : (row.risk_level === 'important' ? 'text-bg-warning' : 'text-bg-light border');
+    return `<span class="badge ${badgeClass}">${escapeHtml(value || '\uAE30\uD0C0')}</span>`;
+}
+
 function rebuildOriginalPermissionStates(tree) {
     originalPermissionStates = new Map();
 
@@ -644,65 +672,6 @@ async function reloadPermissions() {
             notify('error', error?.message || '역할 권한 조회에 실패했습니다.');
         }
     }
-}
-
-function buildSearchText(pageNode, childNode = null) {
-    const values = childNode
-        ? [
-            pageNode.page,
-            pageNode.category,
-            pageNode.permission_name,
-            pageNode.description,
-            String(childNode.permission_source || '').toUpperCase(),
-            childNode.permission_name,
-            childNode.description,
-            childNode.permission_source,
-        ]
-        : [
-            pageNode.page,
-            pageNode.category,
-            pageNode.permission_name,
-            pageNode.description,
-            ...(pageNode.children || []).flatMap((node) => [
-                node.permission_name,
-                node.description,
-                node.permission_source,
-            ]),
-        ];
-
-    return values
-        .map((value) => String(value || '').trim())
-        .filter(Boolean)
-        .join(' ');
-}
-
-function getPermissionSourcePriority(source = '') {
-    const normalized = String(source || '').trim().toLowerCase();
-    if (normalized === 'web') {
-        return 0;
-    }
-
-    if (normalized === 'api') {
-        return 1;
-    }
-
-    return 9;
-}
-
-function sortPermissionChildrenForDisplay(children = []) {
-    return [...children].sort((left, right) => {
-        const sourceCompare = getPermissionSourcePriority(left?.permission_source) - getPermissionSourcePriority(right?.permission_source);
-        if (sourceCompare !== 0) {
-            return sourceCompare;
-        }
-
-        const sortCompare = Number(left?.sort_no || 0) - Number(right?.sort_no || 0);
-        if (sortCompare !== 0) {
-            return sortCompare;
-        }
-
-        return String(left?.permission_name || '').localeCompare(String(right?.permission_name || ''), 'ko');
-    });
 }
 
 function buildPermissionColumnSortValue(row = {}, value = '', columnKey = '') {

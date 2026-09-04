@@ -134,7 +134,7 @@ foreach ($settingsMenuRows as $row) {
         ?? (string) ($row['page_label'] ?? $row['menu_label'] ?? $subKey);
     $specialPermissionKeys = [
         'settings.system.codes' => 'code.view',
-        'settings.statutory_standards.manage' => 'web.settings.statutory_standards.manage',
+        'settings.statutory_standards.manage' => 'web.settings.standard.statutory-standard',
     ];
     $settingsPermissionMap[$categoryKey][$subKey] = $specialPermissionKeys[$pageKey]
         ?? trim((string) ($row['default_route_key'] ?? ''));
@@ -149,7 +149,7 @@ if (empty($labels)) {
         'organization' => [],
         'standard' => [
             'code' => 'code.view',
-            'statutory-standards' => 'web.settings.statutory_standards.manage',
+            'statutory-standards' => 'web.settings.standard.statutory-standard',
         ],
     ];
 }

@@ -235,6 +235,23 @@ class RolePermissionModel
         }
     }
 
+    public function clearPermissions(array $permissionIds): int
+    {
+        if ($permissionIds === []) {
+            return 0;
+        }
+
+        $affected = 0;
+        foreach (array_chunk(array_values(array_unique($permissionIds)), 200) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $this->db->prepare("DELETE FROM auth_role_permissions WHERE permission_id IN ({$placeholders})");
+            $stmt->execute($chunk);
+            $affected += $stmt->rowCount();
+        }
+
+        return $affected;
+    }
+
     public function countByPermission(string $permissionId): int
     {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM auth_role_permissions WHERE permission_id = ?");

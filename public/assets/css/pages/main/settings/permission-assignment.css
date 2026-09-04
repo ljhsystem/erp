@@ -153,6 +153,11 @@
     white-space: nowrap;
 }
 
+.role-permission-page #individualPermissionMode {
+    width: 116px;
+    min-width: 116px;
+}
+
 .role-permission-page .rp-action-head {
     display: inline-flex;
     align-items: center;

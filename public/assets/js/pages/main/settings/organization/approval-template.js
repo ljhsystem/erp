@@ -34,8 +34,8 @@ let userList = [];
 let lastStepReorderGuardAt = 0;
 const ROLE_NONE_VALUE = '';
 const APPROVER_NONE_VALUE = '';
-const TEMPLATE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.template-list.v2';
-const STEP_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.step-list.v2';
+const TEMPLATE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.approval-template.template-list.v2';
+const STEP_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.approval-template.step-list.v2';
 const TEMPLATE_TABLE_USER_SETTING_PAGE_KEY = 'approval-template-list';
 const STEP_TABLE_USER_SETTING_PAGE_KEY = 'approval-template-step';
 let approvalPolicyBound = false;
@@ -483,7 +483,7 @@ async function initTemplateTable() {
         tableSelector: '#template-list-table',
         api: API.TEMPLATE_LIST,
         tableSettings: {
-            pageKey: 'dashboard.settings.organization.approval-template.template-list',
+            pageKey: 'main.settings.organization.approval-template.template-list',
             userSettingPageKey: TEMPLATE_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'approval-template-list-table',
             storageKey: TEMPLATE_TABLE_SETTINGS_STORAGE_KEY,
@@ -607,7 +607,7 @@ async function initStepTable() {
         tableSelector: '#template-steps-table',
         api: API.STEP_LIST,
         tableSettings: {
-            pageKey: 'dashboard.settings.organization.approval-template.step-list',
+            pageKey: 'main.settings.organization.approval-template.step-list',
             userSettingPageKey: STEP_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'approval-template-step-table',
             storageKey: STEP_TABLE_SETTINGS_STORAGE_KEY,

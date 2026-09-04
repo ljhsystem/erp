@@ -46,6 +46,7 @@ $router->get('/ledger/settings/opening-balances', 'LedgerController@webPlacehold
 
 $router->get('/ledger/data/evidence-metadata', 'EvidenceMetadataController@index', [
     'key' => 'web.ledger.evidence_metadata',
+    'page_key' => 'ledger.evidence_metadata',
     'page' => '증빙정책',
     'page_description' => '증빙 자료유형별 정책 관리',
     'permission_name' => '화면조회',

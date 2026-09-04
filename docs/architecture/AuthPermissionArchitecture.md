@@ -24,6 +24,12 @@
 
 개별과 역할별 권한목록은 `RolePermissionService::getPermissionTreeForRole()`의 동일 Permission Master Tree를 사용한다. 페이지 계층, WEB/API 보정, Page Registry 메타, 정렬과 자동 갱신은 역할별 목록을 기준으로 하며 저장되는 선택 Set만 역할별 `auth_role_permissions`, 개인별 `auth_user_permissions`로 분리한다.
 
+일반 HTTP 요청에서는 현재 WEB/API Route가 `PermissionRegistry`에 등록한 Permission Key만 신규 부여 목록에 노출한다. DB에 남은 과거 Permission과 기존 역할·개인 Mapping은 현재 Route가 없으면 자동동기화에서 물리삭제한다. 권한변경 영구 감사이력은 Permission ID 대신 Key·Name Snapshot으로 보존한다. Route를 로드하지 않는 독립 CLI 검사에서는 기존 전체 Master 조회 호환성을 유지한다.
+
+Permission 자동동기화는 현재 Route Set 전체를 SSOT로 사용한다. 신규 Route는 같은 Permission Key를 생성하고, 메타 변경은 기존 ID를 유지한 채 갱신하며, 삭제된 Route의 Permission은 역할·개인 Mapping과 Permission 원본을 한 트랜잭션에서 물리삭제한다. 영구 감사이력의 Permission FK는 DB `ON DELETE SET NULL`을 따르고 Key·Name Snapshot을 유지한다. 같은 Key가 다시 등록되면 신규 Permission으로 생성되며 과거 Mapping은 복원하지 않는다. 등록 오류 또는 중복 Key 메타 충돌이 하나라도 발생하면 잘못된 대량 삭제를 막기 위해 해당 실행의 stale 삭제 단계를 건너뛴다.
+
+운영 Permission 물리삭제는 별도 승인 전에 실행되지 않도록 `ERP_PERMISSION_ROUTE_HARD_DELETE_ENABLED=1` 환경 플래그로 잠긴다. 플래그가 없으면 생성·메타 갱신만 수행하고 stale 물리삭제는 로그와 함께 건너뛴다.
+
 두 권한목록의 공용 테이블 설정 물리 메타는 Permission Master인 `auth_permissions` 14개 컬럼으로 동일하다. 역할·개인 매핑 테이블은 체크 상태의 저장 SSOT이므로 보기 컬럼 메타에 합치지 않는다. 개별과 역할별은 서로 다른 사용자 설정 키를 사용하므로 표시·순서·사용컬럼명·필수구분·열너비는 화면별로 독립 저장한다.
 
 기존 역할별 권한부여 화면·조회·저장 권한을 모두 가진 `admin`은 개별권한 list/detail/save API도 사용할 수 있다. 단, `admin` 사용자의 개인권한 변경은 대상 보호 정책에 따라 `super_admin`만 가능하다.

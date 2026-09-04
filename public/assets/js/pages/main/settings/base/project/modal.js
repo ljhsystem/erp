@@ -21,7 +21,7 @@ export function createProjectModalModule({
     let clientSelect2Inited = false;
     let projectPolicyBound = false;
 
-    const PROJECT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.project.project-table.v1';
+    const PROJECT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.base-info.project.project-table.v1';
     const PROJECT_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#modal_project_name', key: 'project_name', fallback: '프로젝트명' },
         { selector: '#modal_construction_name', key: 'construction_name', fallback: '공사명/계약명' },

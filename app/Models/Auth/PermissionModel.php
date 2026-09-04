@@ -376,7 +376,7 @@ class PermissionModel
 
     public function getRegistrySyncRows(bool $withPageKey): array
     {
-        $columns = 'id, permission_key, permission_name, description, category, created_by, updated_by';
+        $columns = 'id, permission_key, permission_name, description, category, is_active, created_by, updated_by';
         if ($withPageKey) {
             $columns .= ', page_key';
         }
@@ -414,6 +414,23 @@ class PermissionModel
         $params[] = $id;
         $stmt = $this->db->prepare('UPDATE auth_permissions SET ' . implode(', ', $fields) . ' WHERE id = ?');
         return $stmt->execute($params);
+    }
+
+    public function deleteRegistryPermissions(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        $affected = 0;
+        foreach (array_chunk(array_values(array_unique($ids)), 200) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $this->db->prepare("DELETE FROM auth_permissions WHERE id IN ({$placeholders})");
+            $stmt->execute($chunk);
+            $affected += $stmt->rowCount();
+        }
+
+        return $affected;
     }
 
     public function getRegistrySortRows(): array

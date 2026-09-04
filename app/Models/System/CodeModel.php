@@ -252,6 +252,38 @@ class CodeModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getAllowedOptions(string $codeGroup, array $allowedCodes, bool $includeInactive = false): array
+    {
+        if ($allowedCodes === []) return [];
+        $placeholders = implode(',', array_fill(0, count($allowedCodes), '?'));
+        $statement = $this->db->prepare(
+            "SELECT code value,code_name label,is_active FROM system_codes WHERE code_group=?"
+            . " AND code IN ({$placeholders})" . ($includeInactive ? '' : ' AND is_active=1')
+            . ' ORDER BY sort_no,code_name,id'
+        );
+        $statement->execute([$codeGroup, ...$allowedCodes]);
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function isActiveCode(string $codeGroup, string $code): bool
+    {
+        $statement = $this->db->prepare(
+            'SELECT COUNT(*) FROM system_codes WHERE code_group=:code_group AND code=:code AND is_active=1'
+        );
+        $statement->execute([':code_group' => $codeGroup, ':code' => $code]);
+        return (int) $statement->fetchColumn() === 1;
+    }
+
+    public function getStatutoryStandardTemplates(bool $includeNameAndNote = true): array
+    {
+        $columns = $includeNameAndNote ? 'code,code_name,note,extra_data' : 'code,extra_data';
+        $statement = $this->db->query(
+            "SELECT {$columns} FROM system_codes"
+            . " WHERE code_group='STATUTORY_STANDARD_TYPE' AND is_active=1 ORDER BY sort_no"
+        );
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function existsByGroupAndCode(string $codeGroup, string $code, ?string $excludeId = null): bool
     {
         $sql = "

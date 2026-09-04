@@ -136,6 +136,7 @@ foreach ($institutionRoutes as $route) {
     [$path, $key, $name, $description, $handler, $pageNotice] = array_pad($route, 6, null);
     $router->get($path, $handler, [
         'key' => $key,
+        'page_key' => $key === 'web.institution.dashboard' ? 'institution.dashboard' : $key,
         'page' => $name,
         'page_description' => "{$name} 화면",
         'permission_name' => '화면조회',

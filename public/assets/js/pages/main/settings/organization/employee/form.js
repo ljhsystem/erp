@@ -1,6 +1,6 @@
 import { readDataTableSettingsState, resolveDataTableColumnDisplayName, resolveDataTableColumnRequirementPolicy } from '/public/assets/js/common/datatable/dataTableSettings.js';
 
-const EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1';
+const EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.main.settings.organization.employee.employee-table.v1';
 const EMPLOYEE_MODAL_FIELD_POLICIES = Object.freeze([
     { selector: '#edit_employee_username', key: 'username', fallback: '아이디' },
     { selector: '#edit_employee_name', key: 'employee_name', fallback: '직원명' },

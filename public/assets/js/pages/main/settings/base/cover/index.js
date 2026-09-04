@@ -423,9 +423,9 @@ window.AdminPicker = AdminPicker;
             deleteApi: API.DELETE,
             columns,
             tableSettings: {
-                pageKey: 'dashboard.settings.base-info.cover',
+                pageKey: 'main.settings.base-info.cover',
                 tableKey: 'cover-table',
-                storageKey: 'datatable.settings.dashboard.settings.base-info.cover.cover-table.v1',
+                storageKey: 'datatable.settings.main.settings.base-info.cover.cover-table.v1',
                 metaDomain: 'cover',
                 tableLabel: 'cover',
                 title: 'Cover Table Settings',
