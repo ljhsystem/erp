@@ -59,8 +59,11 @@ foreach ($serviceFiles as $path) {
         if (!preg_match('/->(?:(?:debug|info|notice|warning|error|critical|alert|emergency|log)|\{\$[A-Za-z_][A-Za-z0-9_]*\})\s*\(/', $line)) continue;
         $blockLines = [];
         foreach (array_slice($lines, $index, 20) as $candidateLine) {
-            $blockLines[] = $candidateLine;
-            if (str_contains($candidateLine, ']);') || str_contains($candidateLine, ');')) break;
+            $endArray = strpos($candidateLine, ']);');
+            $endCall = strpos($candidateLine, ');');
+            $end = $endArray !== false ? $endArray + 3 : ($endCall !== false ? $endCall + 2 : false);
+            $blockLines[] = $end === false ? $candidateLine : substr($candidateLine, 0, $end);
+            if ($end !== false) break;
         }
         $block = implode("\n", $blockLines);
         if (preg_match('/->(?:debug|info|notice|warning|error|critical|alert|emergency|log)\s*\(\s*[\'\"]\s*[A-Za-z]/', $line)) {

@@ -1,0 +1,10 @@
+<?php
+namespace App\Controllers\Site;
+use App\Controllers\System\LayoutController;use App\Services\Site\EstimateService;use Core\DbPdo;use Throwable;use InvalidArgumentException;
+final class EstimateController
+{
+ private EstimateService$s;private LayoutController$l;public function __construct(){$db=DbPdo::conn();$this->s=new EstimateService($db);$this->l=new LayoutController($db);}
+ public function index():void{ob_start();require PROJECT_ROOT.'/app/views/site/estimate/index.php';$content=ob_get_clean();$this->l->render(['pageTitle'=>'견적관리','content'=>$content,'pageStyles'=>$pageStyles??'','pageScripts'=>$pageScripts??'','layoutOptions'=>$layoutOptions??[]]);}
+ public function apiList():void{$this->respond(fn()=>$this->s->list($_GET));}public function apiOptions():void{$this->respond(fn()=>$this->s->options());}public function apiDetail():void{$this->respond(fn()=>$this->s->detail((string)($_GET['id']??'')));}public function apiSave():void{$this->respond(fn()=>$this->s->saveEstimate($this->body()));}public function apiAddPackage():void{$this->respond(fn()=>$this->s->addPackage($this->body()));}public function apiSaveVersion():void{$this->respond(fn()=>$this->s->saveVersion($this->body()));}public function apiCopyVersion():void{$this->respond(fn()=>$this->s->copyVersion($this->body()));}public function apiFinalize():void{$this->respond(fn()=>$this->s->finalize($this->body()));}public function apiDelete():void{$this->respond(fn()=>$this->s->delete($this->body()));}
+ private function body():array{$r=json_decode((string)file_get_contents('php://input'),true);return is_array($r)?$r:$_POST;}private function respond(callable$f):void{try{$this->json($f());}catch(InvalidArgumentException$e){$this->json(['success'=>false,'message'=>$e->getMessage()],422);}catch(Throwable){$this->json(['success'=>false,'message'=>'견적관리 처리 중 오류가 발생했습니다.'],500);}}private function json(array$d,int$s=200):void{http_response_code($s);header('Content-Type: application/json; charset=utf-8');echo json_encode($d,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);}
+}

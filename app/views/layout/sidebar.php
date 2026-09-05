@@ -29,6 +29,10 @@ $menuRoutes = [
     'menu-ledger-tax' => ['/ledger/tax'],
     'menu-institution-human-resources' => ['/institution/human-resources'],
     'menu-institution-income-data' => ['/institution/income-data'],
+    'menu-site-project' => ['/site/projects'],
+    'menu-site-construction' => ['/site/projects/construction', '/site/transactions'],
+    'menu-site-safety-quality' => ['/site/projects/safety', '/site/projects/quality'],
+    'menu-site-institution' => ['/site/institution'],
 ];
 $activeMenuId = null;
 $activeMenuPrefixLength = -1;
@@ -74,6 +78,14 @@ $link = static function (string $href, string $label, string $iconClass, string 
     $current = $isActiveLink($href) ? ' aria-current="page"' : '';
     return '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '"' . $current . '>' . $icon($iconClass) . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span></a>';
 };
+
+$plannedLink = static function (string $label, string $iconClass) use ($icon): string {
+    return '<span class="nav-link site-menu-planned" aria-disabled="true">'
+        . $icon($iconClass)
+        . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>'
+        . '<small>준비 중</small>'
+        . '</span>';
+};
 ?>
 
 <div class="sidebar sidebar-initializing <?= (($ui['sidebar_default'] ?? '') === 'collapsed') ? 'collapsed' : '' ?>"
@@ -111,6 +123,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
                     <li><?= $link('/ledger/settings/accounts', '계정과목', 'bi-list-ul') ?></li>
                     <li><?= $link('/ledger/settings/journal-rules', '분개규칙', 'bi-diagram-3') ?></li>
                     <li><?= $link('/ledger/settings/opening-balances', '기초금액', 'bi-cash-stack') ?></li>
+                    <li><?= $link('/ledger/settings/inventory-balances', '재고관리', 'bi-box-seam') ?></li>
                 </ul>
             </li>
             <li class="<?= $menuItemClass('menu-ledger-data') ?>">
@@ -141,8 +154,8 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-book" class="<?= $menuToggleClass('menu-ledger-book') ?>" aria-expanded="<?= $menuAriaExpanded('menu-ledger-book') ?>"><?= $icon('bi-book') ?><span>장부관리</span></a>
                 <ul id="menu-ledger-book" class="<?= $menuCollapseClass('menu-ledger-book') ?>">
                     <li><?= $link('/ledger/book/journal', '분개장', 'bi-journal') ?></li>
-                    <li><?= $link('/ledger/book/account', '계정별원장', 'bi-collection') ?></li>
                     <li><?= $link('/ledger/book/general', '총계정원장', 'bi-bookmarks') ?></li>
+                    <li><?= $link('/ledger/book/account', '계정별원장', 'bi-collection') ?></li>
                     <li><?= $link('/ledger/book/partner', '거래처원장', 'bi-people') ?></li>
                     <li><?= $link('/ledger/book/project', '프로젝트원장', 'bi-building') ?></li>
                     <li><?= $link('/ledger/book/daily', '일계표', 'bi-calendar-week') ?></li>
@@ -153,7 +166,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li class="<?= $menuItemClass('menu-ledger-financial') ?>">
                 <a href="#menu-ledger-financial" class="<?= $menuToggleClass('menu-ledger-financial') ?>" aria-expanded="<?= $menuAriaExpanded('menu-ledger-financial') ?>"><?= $icon('bi-file-earmark-bar-graph') ?><span>재무제표</span></a>
                 <ul id="menu-ledger-financial" class="<?= $menuCollapseClass('menu-ledger-financial') ?>">
-                    <li><?= $link('/ledger/financial/trial-balance', '시산표', 'bi-calculator') ?></li>
+                    <li><?= $link('/ledger/financial/trial-balance', '합계잔액시산표', 'bi-calculator') ?></li>
                     <li><?= $link('/ledger/financial/income-statement', '손익계산서', 'bi-graph-up') ?></li>
                     <li><?= $link('/ledger/financial/statement-position', '재무상태표', 'bi-file-spreadsheet') ?></li>
                     <li><?= $link('/ledger/financial/product-cost', '상품원가명세서', 'bi-box-seam') ?></li>
@@ -169,6 +182,14 @@ $link = static function (string $href, string $label, string $iconClass, string 
                     <li><?= $link('/ledger/assets/depreciation', '감가상각', 'bi-graph-down') ?></li>
                     <li><?= $link('/ledger/assets/transfer', '자산이동', 'bi-arrow-left-right') ?></li>
                     <li><?= $link('/ledger/assets/disposal', '자산폐기', 'bi-trash3') ?></li>
+                </ul>
+            </li>
+            <li class="<?= $menuItemClass('menu-ledger-closing') ?>">
+                <a href="#menu-ledger-closing" class="<?= $menuToggleClass('menu-ledger-closing') ?>" aria-expanded="<?= $menuAriaExpanded('menu-ledger-closing') ?>"><?= $icon('bi-lock') ?><span>결산관리</span></a>
+                <ul id="menu-ledger-closing" class="<?= $menuCollapseClass('menu-ledger-closing') ?>">
+                    <li><?= $link('/ledger/closing/check', '결산점검', 'bi-clipboard-check') ?></li>
+                    <li><?= $link('/ledger/closing/periods', '회계기간 마감', 'bi-lock-fill') ?></li>
+                    <li><?= $link('/ledger/closing/carry-forward', '기초금액 이월', 'bi-arrow-right-circle') ?></li>
                 </ul>
             </li>
             <li class="<?= $menuItemClass('menu-ledger-tax') ?>">
@@ -213,12 +234,49 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/institution/filing-history', '신고이력', 'bi-clock-history') ?></li>
         <?php elseif ($section === 'site'): ?>
             <li><?= $link('/site', '대시보드', 'bi-speedometer2') ?></li>
-            <li><?= $link('/site/estimate', '견적관리', 'bi-file-earmark-spreadsheet') ?></li>
-            <li><?= $link('/site/contract', '계약관리', 'bi-file-earmark-text') ?></li>
-            <li><?= $link('/site/execution', '실행관리', 'bi-play-circle') ?></li>
-            <li><?= $link('/site/guarantee', '보증/보험관리', 'bi-shield-lock') ?></li>
-            <li><?= $link('/site/progress', '기성예정내역', 'bi-list-task') ?></li>
-            <li><?= $link('/site/entry/create', '거래입력', 'bi-pencil-square') ?></li>
+            <li><?= $link('/site/sales', '영업관리', 'bi-bullseye') ?></li>
+            <li><?= $link('/site/estimate', '견적관리', 'bi-calculator') ?></li>
+            <li><?= $plannedLink('전자입찰', 'bi-broadcast-pin') ?></li>
+            <li class="<?= $menuItemClass('menu-site-project') ?>">
+                <a href="#menu-site-project" class="<?= $menuToggleClass('menu-site-project') ?>" aria-expanded="<?= $menuAriaExpanded('menu-site-project') ?>"><?= $icon('bi-building-gear') ?><span>프로젝트관리</span></a>
+                <ul id="menu-site-project" class="<?= $menuCollapseClass('menu-site-project') ?>">
+                    <li><?= $plannedLink('프로젝트 현황', 'bi-kanban') ?></li>
+                    <li><?= $plannedLink('계약·변경관리', 'bi-file-earmark-text') ?></li>
+                    <li><?= $plannedLink('담당자배치', 'bi-person-check') ?></li>
+                    <li><?= $plannedLink('기성관리', 'bi-cash-coin') ?></li>
+                    <li><?= $plannedLink('준공·정산관리', 'bi-flag-fill') ?></li>
+                </ul>
+            </li>
+            <li class="<?= $menuItemClass('menu-site-institution') ?>">
+                <a href="#menu-site-institution" class="<?= $menuToggleClass('menu-site-institution') ?>" aria-expanded="<?= $menuAriaExpanded('menu-site-institution') ?>"><?= $icon('bi-bank') ?><span>현장 기관업무</span></a>
+                <ul id="menu-site-institution" class="<?= $menuCollapseClass('menu-site-institution') ?>">
+                    <li><?= $plannedLink('보증·보험관리', 'bi-shield-check') ?></li>
+                    <li><?= $plannedLink('기관업무 현황', 'bi-building') ?></li>
+                    <li><?= $plannedLink('공사실적관리', 'bi-award') ?></li>
+                </ul>
+            </li>
+            <li class="<?= $menuItemClass('menu-site-construction') ?>">
+                <a href="#menu-site-construction" class="<?= $menuToggleClass('menu-site-construction') ?>" aria-expanded="<?= $menuAriaExpanded('menu-site-construction') ?>"><?= $icon('bi-hammer') ?><span>실행·공사관리</span></a>
+                <ul id="menu-site-construction" class="<?= $menuCollapseClass('menu-site-construction') ?>">
+                    <li><?= $plannedLink('실행계획·예산', 'bi-cash-stack') ?></li>
+                    <li><?= $plannedLink('공종·공정관리', 'bi-list-check') ?></li>
+                    <li><?= $plannedLink('작업지시·일보', 'bi-clipboard-data') ?></li>
+                    <li><?= $plannedLink('자재·외주·장비', 'bi-tools') ?></li>
+                    <li><?= $plannedLink('실측·도면·현장사진', 'bi-camera') ?></li>
+                    <li><?= $plannedLink('현장 거래입력', 'bi-pencil-square') ?></li>
+                    <li><?= $plannedLink('거래·증빙 연결현황', 'bi-link-45deg') ?></li>
+                </ul>
+            </li>
+            <li class="<?= $menuItemClass('menu-site-safety-quality') ?>">
+                <a href="#menu-site-safety-quality" class="<?= $menuToggleClass('menu-site-safety-quality') ?>" aria-expanded="<?= $menuAriaExpanded('menu-site-safety-quality') ?>"><?= $icon('bi-shield-exclamation') ?><span>안전·품질관리</span></a>
+                <ul id="menu-site-safety-quality" class="<?= $menuCollapseClass('menu-site-safety-quality') ?>">
+                    <li><?= $plannedLink('안전점검·위험성평가', 'bi-exclamation-triangle') ?></li>
+                    <li><?= $plannedLink('안전교육', 'bi-person-video3') ?></li>
+                    <li><?= $plannedLink('사고·조치내역', 'bi-bandaid') ?></li>
+                    <li><?= $plannedLink('품질점검', 'bi-patch-check') ?></li>
+                    <li><?= $plannedLink('펀치리스트·하자대응', 'bi-list-check') ?></li>
+                </ul>
+            </li>
         <?php elseif ($section === 'shop'): ?>
             <li><?= $link('/shop', '대시보드', 'bi-bag') ?></li>
             <li><?= $link('/shop/products', '상품관리', 'bi-box-seam') ?></li>

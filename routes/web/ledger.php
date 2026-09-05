@@ -2,7 +2,7 @@
 
 global $router;
 
-$router->get('/ledger', 'LedgerController@webIndex', [
+$router->get('/ledger', 'LedgerDashboardController@index', [
     'key' => 'web.ledger.dashboard',
     'page' => '회계대시보드',
     'page_description' => '회계 대시보드',
@@ -43,6 +43,26 @@ $router->get('/ledger/settings/opening-balances', 'OpeningBalanceController@inde
     'permissions' => ['view'],
     'log' => false,
 ]);
+
+$router->get('/ledger/settings/inventory-balances', 'InventoryBalanceController@index', [
+    'key' => 'web.ledger.settings.inventory_balances',
+    'page_key' => 'ledger.settings.inventory_balances',
+    'page' => '재고관리',
+    'page_description' => '기초재고와 당기 재고가액 증감 근거 및 기말재고 관리',
+    'permission_name' => '화면조회',
+    'permission_description' => '재고관리 화면 조회',
+    'name' => '재고관리',
+    'description' => '회계관리 > 기초정보관리 > 재고관리',
+    'category' => '회계관리 > 기초정보관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$closingWebMeta=['page_description'=>'결산점검·회계기간 마감·기초금액 이월','category'=>'회계관리 > 결산관리','auth'=>true,'permissions'=>['view'],'log'=>false];
+$router->get('/ledger/closing/check','PeriodClosureController@check',$closingWebMeta+['key'=>'web.ledger.closing.check','page'=>'결산점검','permission_name'=>'화면조회','permission_description'=>'결산점검 화면 조회','name'=>'결산점검','description'=>'회계관리 > 결산관리 > 결산점검']);
+$router->get('/ledger/closing/periods','PeriodClosureController@periods',$closingWebMeta+['key'=>'web.ledger.closing.periods','page'=>'회계기간 마감','permission_name'=>'화면조회','permission_description'=>'회계기간 마감 화면 조회','name'=>'회계기간 마감','description'=>'회계관리 > 결산관리 > 회계기간 마감']);
+$router->get('/ledger/closing/carry-forward','PeriodClosureController@carryForward',$closingWebMeta+['key'=>'web.ledger.closing.carry_forward','page'=>'기초금액 이월','permission_name'=>'화면조회','permission_description'=>'기초금액 이월 화면 조회','name'=>'기초금액 이월','description'=>'회계관리 > 결산관리 > 기초금액 이월']);
 
 $router->get('/ledger/data/evidence-metadata', 'EvidenceMetadataController@index', [
     'key' => 'web.ledger.evidence_metadata',
@@ -242,10 +262,10 @@ $router->get('/ledger/funds/account-transactions', 'BankTransactionReportControl
 ]);
 
 
-$router->get('/ledger/book/journal', 'PlaceholderController@index', [
+$router->get('/ledger/book/journal', 'BookController@journal', [
     'key' => 'web.ledger.book.journal',
     'page' => '분개장',
-    'page_description' => '분개장 관리',
+    'page_description' => '전기된 전표 분개라인 조회',
     'permission_name' => '화면조회',
     'permission_description' => '분개장 화면 조회',
     'name' => '분개장',
@@ -256,10 +276,24 @@ $router->get('/ledger/book/journal', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/book/account', 'PlaceholderController@index', [
+$router->get('/ledger/book/account', 'BookController@account', [
     'key' => 'web.ledger.book.account',
+    'page' => '계정별원장',
+    'page_description' => '선택 계정의 기초·증감·누적·기말잔액 조회',
+    'permission_name' => '화면조회',
+    'permission_description' => '계정별원장 화면 조회',
+    'name' => '계정별원장',
+    'description' => '회계관리 > 장부관리 > 계정별원장',
+    'category' => '회계관리 > 장부관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/ledger/book/general', 'BookController@general', [
+    'key' => 'web.ledger.book.general',
     'page' => '총계정원장',
-    'page_description' => '총계정원장 관리',
+    'page_description' => '계정별 기초잔액·당기증감·기말잔액 조회',
     'permission_name' => '화면조회',
     'permission_description' => '총계정원장 화면 조회',
     'name' => '총계정원장',
@@ -270,24 +304,10 @@ $router->get('/ledger/book/account', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/book/general', 'PlaceholderController@index', [
-    'key' => 'web.ledger.book.general',
-    'page' => '합계잔액시산표',
-    'page_description' => '합계잔액시산표 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '합계잔액시산표 화면 조회',
-    'name' => '합계잔액시산표',
-    'description' => '회계관리 > 장부관리 > 합계잔액시산표',
-    'category' => '회계관리 > 장부관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
-$router->get('/ledger/book/partner', 'PlaceholderController@index', [
+$router->get('/ledger/book/partner', 'BookController@partner', [
     'key' => 'web.ledger.book.partner',
     'page' => '거래처원장',
-    'page_description' => '거래처원장 관리',
+    'page_description' => '선택 거래처의 계정별 기초·증감·잔액 조회',
     'permission_name' => '화면조회',
     'permission_description' => '거래처원장 화면 조회',
     'name' => '거래처원장',
@@ -298,24 +318,24 @@ $router->get('/ledger/book/partner', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/book/project', 'PlaceholderController@index', [
+$router->get('/ledger/book/project', 'BookController@project', [
     'key' => 'web.ledger.book.project',
-    'page' => '현장원장',
-    'page_description' => '현장원장 관리',
+    'page' => '프로젝트원장',
+    'page_description' => '선택 프로젝트의 계정별 기초·증감·잔액 조회',
     'permission_name' => '화면조회',
-    'permission_description' => '현장원장 화면 조회',
-    'name' => '현장원장',
-    'description' => '회계관리 > 장부관리 > 현장원장',
+    'permission_description' => '프로젝트원장 화면 조회',
+    'name' => '프로젝트원장',
+    'description' => '회계관리 > 장부관리 > 프로젝트원장',
     'category' => '회계관리 > 장부관리',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
 ]);
 
-$router->get('/ledger/book/daily', 'PlaceholderController@index', [
+$router->get('/ledger/book/daily', 'BookController@daily', [
     'key' => 'web.ledger.book.daily',
     'page' => '일계표',
-    'page_description' => '일계표 관리',
+    'page_description' => '날짜별 차대변 균형과 계정별 증감 조회',
     'permission_name' => '화면조회',
     'permission_description' => '일계표 화면 조회',
     'name' => '일계표',
@@ -326,10 +346,10 @@ $router->get('/ledger/book/daily', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/book/purchase-sales', 'PlaceholderController@index', [
+$router->get('/ledger/book/purchase-sales', 'BookController@purchaseSales', [
     'key' => 'web.ledger.book.purchase_sales',
     'page' => '매입매출장',
-    'page_description' => '매입매출장 관리',
+    'page_description' => '전기된 부가세 증빙의 매출·매입 공급가액과 세액 조회',
     'permission_name' => '화면조회',
     'permission_description' => '매입매출장 화면 조회',
     'name' => '매입매출장',
@@ -340,14 +360,14 @@ $router->get('/ledger/book/purchase-sales', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/book/vehicle-log', 'PlaceholderController@index', [
+$router->get('/ledger/book/vehicle-log', 'VehicleLogController@index', [
     'key' => 'web.ledger.book.vehicle_log',
-    'page' => '차량운행일지',
-    'page_description' => '차량운행일지 관리',
+    'page' => '차량운행기록부',
+    'page_description' => '법인차량과 회사 비용 개인차량의 운행기록 관리',
     'permission_name' => '화면조회',
-    'permission_description' => '차량운행일지 화면 조회',
-    'name' => '차량운행일지',
-    'description' => '회계관리 > 장부관리 > 차량운행일지',
+    'permission_description' => '차량운행기록부 화면 조회',
+    'name' => '차량운행기록부',
+    'description' => '회계관리 > 장부관리 > 차량운행기록부',
     'category' => '회계관리 > 장부관리',
     'auth' => true,
     'permissions' => ['view'],
@@ -397,10 +417,10 @@ $router->get('/ledger/funds/payment-schedule', 'PaymentScheduleController@index'
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/trial-balance', 'PlaceholderController@index', [
+$router->get('/ledger/financial/trial-balance', 'FinancialStatementController@trialBalance', [
     'key' => 'web.ledger.financial.trial_balance',
     'page' => '합계잔액시산표',
-    'page_description' => '합계잔액시산표 관리',
+    'page_description' => '계정별 당기 차대변과 기말잔액 대조',
     'permission_name' => '화면조회',
     'permission_description' => '합계잔액시산표 화면 조회',
     'name' => '합계잔액시산표',
@@ -411,10 +431,10 @@ $router->get('/ledger/financial/trial-balance', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/income-statement', 'PlaceholderController@index', [
+$router->get('/ledger/financial/income-statement', 'FinancialStatementController@incomeStatement', [
     'key' => 'web.ledger.financial.income_statement',
     'page' => '손익계산서',
-    'page_description' => '손익계산서 관리',
+    'page_description' => '수익·비용 계층과 당기순이익 조회',
     'permission_name' => '화면조회',
     'permission_description' => '손익계산서 화면 조회',
     'name' => '손익계산서',
@@ -425,10 +445,10 @@ $router->get('/ledger/financial/income-statement', 'PlaceholderController@index'
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/statement-position', 'PlaceholderController@index', [
+$router->get('/ledger/financial/statement-position', 'FinancialStatementController@statementPosition', [
     'key' => 'web.ledger.financial.statement_position',
     'page' => '재무상태표',
-    'page_description' => '재무상태표 관리',
+    'page_description' => '기준일 자산·부채·자본과 회계등식 조회',
     'permission_name' => '화면조회',
     'permission_description' => '재무상태표 화면 조회',
     'name' => '재무상태표',
@@ -439,24 +459,24 @@ $router->get('/ledger/financial/statement-position', 'PlaceholderController@inde
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/product-cost', 'PlaceholderController@index', [
+$router->get('/ledger/financial/product-cost', 'FinancialStatementController@productCost', [
     'key' => 'web.ledger.financial.product_cost',
-    'page' => '공사원가명세서',
-    'page_description' => '공사원가명세서 관리',
+    'page' => '상품원가명세서',
+    'page_description' => '상품원가 계정의 당기·전기 비교 조회',
     'permission_name' => '화면조회',
-    'permission_description' => '공사원가명세서 화면 조회',
-    'name' => '공사원가명세서',
-    'description' => '회계관리 > 재무제표 > 공사원가명세서',
+    'permission_description' => '상품원가명세서 화면 조회',
+    'name' => '상품원가명세서',
+    'description' => '회계관리 > 재무제표 > 상품원가명세서',
     'category' => '회계관리 > 재무제표',
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/construction-cost', 'PlaceholderController@index', [
+$router->get('/ledger/financial/construction-cost', 'FinancialStatementController@constructionCost', [
     'key' => 'web.ledger.financial.construction_cost',
     'page' => '공사원가명세서',
-    'page_description' => '공사원가명세서 관리',
+    'page_description' => '공사원가 계정의 재료비·노무비·경비 조회',
     'permission_name' => '화면조회',
     'permission_description' => '공사원가명세서 화면 조회',
     'name' => '공사원가명세서',
@@ -467,10 +487,10 @@ $router->get('/ledger/financial/construction-cost', 'PlaceholderController@index
     'log' => false,
 ]);
 
-$router->get('/ledger/financial/retained-earnings', 'PlaceholderController@index', [
+$router->get('/ledger/financial/retained-earnings', 'FinancialStatementController@retainedEarnings', [
     'key' => 'web.ledger.financial.retained_earnings',
     'page' => '이익잉여금처분계산서',
-    'page_description' => '이익잉여금처분계산서 관리',
+    'page_description' => '이익잉여금·당기순이익·차기이월액 조회',
     'permission_name' => '화면조회',
     'permission_description' => '이익잉여금처분계산서 화면 조회',
     'name' => '이익잉여금처분계산서',
@@ -481,7 +501,7 @@ $router->get('/ledger/financial/retained-earnings', 'PlaceholderController@index
     'log' => false,
 ]);
 
-$router->get('/ledger/assets/create', 'PlaceholderController@index', [
+$router->get('/ledger/assets/create', 'AssetController@create', [
     'key' => 'web.ledger.assets.create',
     'page' => '고정자산등록',
     'page_description' => '고정자산등록 관리',
@@ -495,7 +515,7 @@ $router->get('/ledger/assets/create', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/assets', 'PlaceholderController@index', [
+$router->get('/ledger/assets', 'AssetController@index', [
     'key' => 'web.ledger.assets.index',
     'page' => '고정자산목록',
     'page_description' => '고정자산목록 관리',
@@ -509,7 +529,7 @@ $router->get('/ledger/assets', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/assets/depreciation', 'PlaceholderController@index', [
+$router->get('/ledger/assets/depreciation', 'AssetController@depreciation', [
     'key' => 'web.ledger.assets.depreciation',
     'page' => '감가상각',
     'page_description' => '감가상각 관리',
@@ -523,7 +543,7 @@ $router->get('/ledger/assets/depreciation', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/assets/transfer', 'PlaceholderController@index', [
+$router->get('/ledger/assets/transfer', 'AssetController@transfer', [
     'key' => 'web.ledger.assets.transfer',
     'page' => '자산이동',
     'page_description' => '자산이동 관리',
@@ -537,7 +557,7 @@ $router->get('/ledger/assets/transfer', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/assets/disposal', 'PlaceholderController@index', [
+$router->get('/ledger/assets/disposal', 'AssetController@disposal', [
     'key' => 'web.ledger.assets.disposal',
     'page' => '자산처분',
     'page_description' => '자산처분 관리',
@@ -551,7 +571,7 @@ $router->get('/ledger/assets/disposal', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/trial-balance', 'PlaceholderController@index', [
+$router->get('/ledger/tax/trial-balance', 'TaxFinancialStatementController@trialBalance', [
     'key' => 'web.ledger.tax.trial_balance',
     'page' => '세무시산표',
     'page_description' => '세무시산표 관리',
@@ -565,7 +585,7 @@ $router->get('/ledger/tax/trial-balance', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/income-statement', 'PlaceholderController@index', [
+$router->get('/ledger/tax/income-statement', 'TaxFinancialStatementController@incomeStatement', [
     'key' => 'web.ledger.tax.income_statement',
     'page' => '세무손익계산서',
     'page_description' => '세무손익계산서 관리',
@@ -579,7 +599,7 @@ $router->get('/ledger/tax/income-statement', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/statement-position', 'PlaceholderController@index', [
+$router->get('/ledger/tax/statement-position', 'TaxFinancialStatementController@statementPosition', [
     'key' => 'web.ledger.tax.statement_position',
     'page' => '세무재무상태표',
     'page_description' => '세무재무상태표 관리',
@@ -593,7 +613,7 @@ $router->get('/ledger/tax/statement-position', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/cost-statement', 'PlaceholderController@index', [
+$router->get('/ledger/tax/cost-statement', 'TaxFinancialStatementController@costStatement', [
     'key' => 'web.ledger.tax.cost_statement',
     'page' => '세무원가명세서',
     'page_description' => '세무원가명세서 관리',
@@ -607,7 +627,7 @@ $router->get('/ledger/tax/cost-statement', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/retained-earnings', 'PlaceholderController@index', [
+$router->get('/ledger/tax/retained-earnings', 'TaxFinancialStatementController@retainedEarnings', [
     'key' => 'web.ledger.tax.retained_earnings',
     'page' => '세무이익잉여금처분계산서',
     'page_description' => '세무이익잉여금처분계산서 관리',
@@ -621,7 +641,7 @@ $router->get('/ledger/tax/retained-earnings', 'PlaceholderController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/tax/comparison', 'PlaceholderController@index', [
+$router->get('/ledger/tax/comparison', 'TaxFinancialStatementController@comparison', [
     'key' => 'web.ledger.tax.comparison',
     'page' => '세무비교분석',
     'page_description' => '세무비교분석 관리',

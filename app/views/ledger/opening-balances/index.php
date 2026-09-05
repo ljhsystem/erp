@@ -45,7 +45,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/opening-balances/ind
                     <div class="card-body row g-3">
                         <div class="col-md-4"><label class="form-label">회사 <span class="text-danger">*</span></label><select id="openingCompany" class="form-select"></select></div>
                         <div class="col-md-3"><label class="form-label">회계연도 <span class="text-danger">*</span></label><input id="openingYear" type="number" min="1900" max="9999" class="form-control"></div>
-                        <div class="col-md-3"><label class="form-label">기초잔액 기준일</label><input id="openingDate" class="form-control" readonly></div>
+                        <div class="col-md-2"><label class="form-label">회계기간 시작일 <span class="text-danger">*</span></label><input id="openingDate" type="date" class="form-control" required></div>
+                        <div class="col-md-2"><label class="form-label">회계기간 종료일 <span class="text-danger">*</span></label><input id="openingPeriodEndDate" type="date" class="form-control" required></div>
                         <div class="col-12"><label class="form-label">비고</label><input id="openingNote" maxlength="500" class="form-control"></div>
                     </div>
                 </section>
@@ -61,7 +62,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/opening-balances/ind
                         </table>
                     </div>
                 </section>
-                <div class="alert alert-warning mt-3 mb-0 small">차변과 대변 합계가 같아야 저장할 수 있습니다. 전기된 기초금액은 장부에 반영됩니다.</div>
+                <div class="alert alert-warning mt-3 mb-0 small">최초 사업개시처럼 승계잔액이 없으면 분개행 없이 0원 개시로 확정합니다. 금액이 있는 경우 차변과 대변 합계가 같아야 하며, 전기된 기초금액만 장부에 반영됩니다.</div>
             </div>
             <div class="modal-footer justify-content-between">
                 <button type="button" id="btnDeleteOpening" class="btn btn-outline-danger">삭제</button>

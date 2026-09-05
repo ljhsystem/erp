@@ -484,5 +484,53 @@
 - 계정 선택지는 기존 `GET /api/ledger/account/posting`을 재사용하며 별도 계정 API를 만들지 않는다.
 - 신규 공용 함수·공용 UI 컴포넌트는 추가하지 않았다.
 
+## 2026-09-05 분개장 공용자산 재사용
+
+- 분개장 목록은 공용 `createDataTable`, 검색은 공용 `SearchForm`, 사용자별 컬럼 표시·순서·너비는 유일한 공용 TableSettings Modal을 사용한다.
+- 장부는 조회·출력 Projection이므로 체크박스·드래그핸들·저장·삭제·휴지통을 제공하지 않는다.
+- 전기 예정 미리보기 토글은 검색조건과 별도로 장부 포함 상태만 변경하며, 공식 장부와 예상 결과를 색상과 문구로 구분한다.
+
+## 2026-09-05 총계정원장 공용자산 재사용
+
+- 총계정원장은 공용 `SearchForm` 1개와 공용 `createDataTable` 2개를 사용한다. 첫 테이블은 계정별 집계, 둘째 테이블은 선택 계정의 전표별 상세원장이다.
+- 집계·상세 테이블은 각각 고유 `tableKey`를 가지되 동일한 공용 TableSettings Modal을 호출한다. 화면 전용 설정 모달을 생성하지 않는다.
+- 두 테이블 모두 조회·출력 전용으로 체크박스·드래그핸들·저장·삭제·휴지통을 제공하지 않는다.
+
+## 2026-09-05 계정별원장 공용자산 재사용
+
+- 계정 선택은 전표입력과 동일한 `GET /api/ledger/account/posting` 선택지를 재사용하고 Select2로 표시한다.
+- 기간·전표번호·적요·상대계정 조건은 공용 `SearchForm`, 목록은 공용 `createDataTable`, 컬럼 설정은 유일한 공용 TableSettings Modal을 사용한다.
+- 계정별원장은 조회·출력 전용이며 별도 저장·삭제·휴지통 UI를 생성하지 않는다.
+
+## 2026-09-05 거래처원장 공용자산 재사용
+
+- 거래처 선택은 공용 `AdminPicker.select2Ajax`와 기존 거래처 `search-picker` API를 사용한다.
+- 기간·전표번호·계정·적요 검색은 공용 `SearchForm`, 원장 목록은 공용 `createDataTable`, 컬럼 설정은 유일한 공용 TableSettings Modal을 사용한다.
+- 여러 계정의 잔액은 하나의 임의 순액으로 합치지 않고 계정별 정상잔액 방향을 유지하며, 화면 합계는 기초·당기·기말 차변과 대변을 분리한다.
+
+## 2026-09-05 프로젝트원장 공용자산 재사용
+
+- 프로젝트 선택은 공용 `AdminPicker.select2Ajax`와 기존 프로젝트 `search-picker` API를 사용한다.
+- 기간·전표번호·계정·적요 검색은 공용 `SearchForm`, 목록은 공용 `createDataTable`, 컬럼 설정은 유일한 공용 TableSettings Modal을 사용한다.
+- 프로젝트원장도 계정별 정상잔액 방향을 유지하며 조회·출력 전용으로 제공한다. 별도 저장·삭제·휴지통 UI를 생성하지 않는다.
+
+## 2026-09-05 일계표 공용자산 재사용
+
+- 일계표는 공용 `SearchForm` 1개와 공용 `createDataTable` 2개를 사용한다. 첫 테이블은 날짜별 차대변 집계, 둘째 테이블은 선택일의 계정과목별 증감이다.
+- 집계와 상세는 동일한 검색조건·공식 장부/미리보기 범위를 사용하며 각각 고유 `tableKey`로 유일한 공용 TableSettings Modal을 호출한다.
+- 일계표는 조회·출력 전용이며 날짜별 차대변 차이를 오류 점검 신호로 표시한다.
+
+## 2026-09-05 매입매출장 공용자산 재사용
+
+- 기간·매출매입·증빙유형·거래처·사업자번호·전표번호·프로젝트 조건은 공용 `SearchForm`, 목록은 공용 `createDataTable`, 컬럼 설정은 유일한 공용 TableSettings Modal을 사용한다.
+- 증빙 원본의 공급가액·부가세·합계금액을 표시하고 전표 상태에 따라 공식 장부와 전기 예정 미리보기를 분리한다.
+- 조회·출력 전용이므로 저장·삭제·휴지통 기능을 제공하지 않으며, 행을 두 번 누르면 연결 전표로 이동한다.
+
+## 2026-09-05 재무제표 공용 보고서
+
+- 재무제표 6종은 목록 정렬용 DataTable과 TableSettings를 사용하지 않고 고정 회계 순서의 공용 계층형 HTML 보고서 View·JS·CSS를 공유한다.
+- 회사·회계연도·기간·공식/전기 예정·표시단위 조회조건, 당기·전기 비교, 인쇄·PDF 인쇄·엑셀 CSV, 계정별원장 드릴다운을 동일 계약으로 제공한다.
+- 공식 재무제표는 `POSTED`, `CLOSED`만 포함하고 전기 예정 미리보기는 `REVIEW_REQUESTED`, `REVIEWED`를 명확한 안내와 함께 추가한다.
+
 - `tools/audit_main_settings_architecture.php`: Main 설정 영역의 Controller·Service·Model·View·JS를 일괄 검사하는 구조 완료 게이트다. 계층 외 SQL, Service 외 로그, 파일 크기 상한, 공용 DataTable 우회, 브라우저 저장소 업무상태, 문자열 코드 실행, 제거된 alias 파일·Route 재도입을 실패로 판정한다.
 - `public/assets/js/pages/main/settings/organization/permission-assignment/ui-helpers.js`: 권한 검색 문자열 생성, Permission source 우선순위, 트리 하위 항목 표시 정렬을 담당하는 실제 ES module이다. 권한부여 entry JS가 동일 순수 함수를 중복 소유하지 않는다.

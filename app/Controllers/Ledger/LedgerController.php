@@ -4,7 +4,6 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use Core\DbPdo;
-use Core\Router;
 
 class LedgerController
 {
@@ -13,13 +12,6 @@ class LedgerController
     public function __construct(?\PDO $pdo = null)
     {
         $this->layout = new LayoutController($pdo ?? DbPdo::conn());
-    }
-
-    public function webIndex(): void
-    {
-        $this->renderPage('/app/views/ledger/index.php', [
-            'pageTitle' => '회계관리',
-        ]);
     }
 
     public function webJournal(): void
@@ -61,16 +53,6 @@ class LedgerController
     {
         $this->renderPage('/app/views/ledger/data/raw.php', [
             'pageTitle' => '원본자료',
-        ]);
-    }
-
-    public function webPlaceholder(): void
-    {
-        $meta = Router::currentRouteMeta();
-        $title = $meta['page_title'] ?? $meta['menu_label'] ?? $meta['name'] ?? '회계관리';
-
-        $this->renderPage('/app/views/ledger/placeholder.php', [
-            'pageTitle' => $title,
         ]);
     }
 

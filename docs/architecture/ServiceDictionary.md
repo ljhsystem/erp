@@ -811,9 +811,25 @@ This section preserves the older evidence-service split reference in readable fo
 
 ## 2026-09-04 기초금액 Service
 
-- `OpeningBalanceService`: 회사·회계연도별 기초금액 문서의 저장, 검토요청, 검토완료, 전기, 삭제 및 취소전표 생성을 조정한다. 금액 원본과 상태전이는 `VoucherService`를 재사용하며 관계행과 전표 저장을 하나의 DB Transaction으로 묶는다.
+- `OpeningBalanceService`: 회사·회계연도별 회계기간과 기초금액 문서의 저장, 검토요청, 검토완료, 전기, 삭제 및 취소전표 생성을 조정한다. 최초 0원 개시는 전표 없이 보존하고, 금액이 있는 기초잔액의 상태전이는 `VoucherService`를 재사용하며 관계행과 전표 저장을 하나의 DB Transaction으로 묶는다.
 - `OpeningBalanceModel`: `ledger_opening_balances` 단일 저장소 CRUD와 기초전표 Header·Line 조회를 담당한다. 업무검증과 로그는 수행하지 않는다.
 - `VoucherService`: 호출자가 시작한 DB Transaction이 있으면 소유권을 침범하지 않고 참여한다. 독립 호출일 때만 직접 Begin·Commit·Rollback하여 기초금액 관계행과 전표의 원자성을 보장한다.
+- `BookService`: 분개장의 공식 장부 범위(`POSTED`, `CLOSED`)와 전기 예정 미리보기 범위(`REVIEW_REQUESTED`, `REVIEWED` 포함)를 분리하고, 분개라인 보조원장 표시·차대변 합계 Projection을 조립한다. 읽기 전용 조회 Service이므로 단순 조회 로그를 생성하지 않는다.
+- `BookRepository`: 전표 Header·분개 Line·계정과목·증빙 연결을 조회하는 서버사이드 페이징·검색·정렬·합계 SQL을 담당한다. 장부 원본을 저장·수정·삭제하지 않는다.
+- `BookService` 총계정원장 Projection: 조회 시작일에 적용되는 기초전표를 기초잔액으로 분리하고 기간 내 전기 분개를 당기 차변·대변으로 집계한다. 계정의 정상잔액 방향에 따라 기말잔액을 계산하며, 선택 계정 상세는 동일 분개 원천과 보조원장 표시를 재사용한다.
+- `BookRepository` 총계정원장 Query: 기초금액 관계행, 전표 Header, 분개 Line, 계정과목을 결합해 계정별 기초·당기·기말 집계와 서버사이드 검색·정렬·페이징을 제공한다. 기초전표는 당기 증감에 중복 포함하지 않는다.
+- `BookService` 계정별원장 Projection: 선택 계정의 기초잔액, 기간 차변·대변, 시간순 누적잔액과 기말잔액을 조립하고 분개라인 보조원장 표시를 결합한다.
+- `BookRepository` 계정별원장 Query: 선택 계정의 분개라인과 동일 전표의 반대편 계정과목을 조회해 상대계정을 제공한다. 조회기간에 적용되는 기초전표는 기초잔액으로 분리해 당기 증감에서 제외한다.
+- `BookService` 거래처원장 Projection: 거래처가 보조원장으로 연결된 분개를 계정별 정상잔액 방향으로 누적하고, 전체 기초·당기·기말 차대변 합계를 제공한다.
+- `BookRepository` 거래처원장 Query: `CLIENT`와 기존 호환 참조 `CUSTOMER`, `VENDOR`, `COUNTERPARTY`를 동일 거래처 참조로 조회한다. 거래처별 기초전표는 기초잔액으로 분리하고 기간 내 전기 분개와 중복 집계하지 않는다.
+- `BookService` 프로젝트원장 Projection: `PROJECT` 보조원장 참조가 연결된 분개를 계정별 정상잔액 방향으로 누적하고 프로젝트 전체의 기초·당기·기말 차대변 합계를 제공한다.
+- `BookRepository` 프로젝트원장 Query: 선택 프로젝트의 분개와 상대계정·증빙 연결을 조회하며, 프로젝트별 기초전표를 기초잔액으로 분리해 당기 증감과 중복 집계하지 않는다.
+- `BookService` 일계표 Projection: 날짜별 전표·분개 수와 차변·대변·누계를 제공하고 선택일의 계정별 정상잔액 방향 순증감을 조회한다.
+- `BookRepository` 일계표 Query: 공식 장부 또는 전기 예정 범위의 분개를 전표일자별로 집계하고, 선택일에는 계정과목별 차대변을 다시 집계해 일계 차대변 균형을 검증한다.
+- `BookService` 매입매출장 Projection: 전표와 연결된 부가세 증빙의 거래방향을 매출·매입으로 표시하고 공식 장부와 전기 예정 범위를 분리한다. 단순 조회 Service이므로 일상 조회 로그를 생성하지 않는다.
+- `BookRepository` 매입매출장 Query: 세금계산서·현금영수증·카드 국세청·카드명세 원본을 증빙 Grain으로 통합하고 `Evidence↔Voucher` 연결과 전표 상태를 기준으로 공급가액·부가세·합계금액을 조회한다. 거래 연결은 거래처·프로젝트·방향 보조 Projection에만 사용하며 거래와 전표의 직접 연결을 만들지 않는다.
+- `FinancialStatementService`: 계정과목 계층과 기간별 잔액을 합계잔액시산표·손익계산서·재무상태표·상품원가명세서·공사원가명세서·이익잉여금처분계산서 Projection으로 조립한다. 매출총이익·영업이익·법인세차감전순이익·당기순이익·당기순손익·원가합계·차기이월액은 조회 시 계산하며 결과 금액을 별도 저장하지 않는다.
+- `FinancialStatementRepository`: 기초전표를 포함한 공식 전기 전표 또는 전기 예정 범위의 분개를 계정별 기초·당기·기말과 전기 비교기간으로 집계한다. 계정과목의 기존 `parent_id`, `account_group`, `normal_balance`, `sort_no`를 재무제표 표시 SSOT로 사용한다.
 
 - `StatutoryStandardService`: 확정 Revision 직접 수정을 금지하고 `createRevisionCorrection()`에서 신규 Revision·Source·Supersession 관계를 하나의 DB Transaction으로 생성한다. `revisionChain()`은 관리화면 감사 Projection을 제공한다.
 - `StatutoryStandardResolver`: 기준일과 동일 Scope의 기간 후보 중 유효한 descendant가 존재하는 ancestor를 제외하고 최종 leaf 1건만 반환한다. 0건은 `POLICY_NOT_FOUND`, 복수 독립 leaf는 `AMBIGUOUS_POLICY`이며 생성시각·ID·수정시각 fallback은 사용하지 않는다.
@@ -827,3 +843,22 @@ This section preserves the older evidence-service split reference in readable fo
 
 - `BusinessIncomeTransactionGenerationService`: 최종승인 Item별 Evidence·Transaction·Settlement·Link·Closure를 원자적으로 생성하며 Evidence/Transaction 공급금액은 총지급액, Transaction Final은 최종지급액으로 대사한다.
 - `BusinessIncomeEvidenceCanonicalPolicy`: Canonical 코드값과 Evidence 총액·원본 총액·공제·최종지급액 불변식을 저장 전에 검증한다.
+# 재고가액 관리
+
+- `InventoryBalanceService`: 회계연도별 기초재고·당기 증가·당기 감소의 근거 저장, 기말재고 계산과 확정·확정취소
+- 로그 채널: `service-ledger-inventory-balance`
+## 차량운행기록부
+
+- `VehicleLogService`: 법인·개인 차량 마스터 검증, 법인차량의 차량운반구 자산 연결 강제, 운행거리 계산·검증, 운행기록 저장·삭제·복구, 공용 엑셀 입출력과 업무 로그를 담당한다.
+- SQL 실행은 `VehicleLogModel`이 담당하며 전표·증빙 생성과 GPS 위치점 저장은 현재 범위에 포함하지 않는다.
+
+## 현장 영업관리
+
+- `SalesService`: 거래처와 독립된 영업업체·인물·소속·활동·후속조치·영업기회의 검증과 저장 흐름을 담당한다.
+- `SalesService`는 담당자 가능률, 최근 접촉일, 미처리 후속활동, 예상금액과 연결 인물을 근거로 분석점수와 한글 설명을 조회 시 계산한다.
+- 상태변경 로그 채널은 `service-site-sales`이며 정상 단순조회는 기록하지 않는다.
+- `SalesModel`: `site_sales_*` SQL 실행과 원본·집계 Projection 반환만 담당한다.
+# 현장 견적관리
+
+- `App\Services\Site\EstimateService`: 견적번호 기준 현장 견적, 복수 견적 묶음, 차수 복사, 실행·제출 아이템 저장 및 최종견적 확정을 담당한다.
+- 로그 채널은 `service-site-estimate`이며 상태변경 성공·차단·실패를 업무 경계에서 기록한다.

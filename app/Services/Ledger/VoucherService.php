@@ -12,6 +12,7 @@ use App\Models\Ledger\ChartAccountModel;
 use App\Models\Ledger\JournalRuleModel;
 use App\Models\Ledger\SubAccountPolicyModel;
 use App\Models\Ledger\VoucherModel;
+use App\Models\Ledger\PeriodClosureModel;
 use App\Repositories\Ledger\EvidenceSourceRepository;
 use App\Services\Funds\PaymentObligationService;
 use App\Services\Auth\AuthSessionService;
@@ -44,6 +45,7 @@ class VoucherService
     private JournalRuleModel $journalRuleModel;
     private JournalLearningFeedbackService $learningFeedbackService;
     private VoucherPostingValidationService $postingValidationService;
+    private PeriodClosureModel $periodClosures;
     private $logger;
 
     public function __construct(private readonly PDO $pdo)
@@ -64,17 +66,18 @@ class VoucherService
         $this->journalRuleModel = new JournalRuleModel($pdo);
         $this->learningFeedbackService = new JournalLearningFeedbackService($pdo);
         $this->postingValidationService = new VoucherPostingValidationService($pdo);
+        $this->periodClosures = new PeriodClosureModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.VoucherService');
     }
 
-    public function save(array $data): array
+    public function save(array $data, ?string $actorOverride = null): array
     {
-        return $this->loggedVoucherOperation('전표 저장', 'VOUCHER_SAVE', 'save', fn(): array => $this->saveInternal($data));
+        return $this->loggedVoucherOperation('전표 저장', 'VOUCHER_SAVE', 'save', fn(): array => $this->saveInternal($data, $actorOverride));
     }
 
-    private function saveInternal(array $data): array
+    private function saveInternal(array $data, ?string $actorOverride = null): array
     {
-        $actor = ActorHelper::user();
+        $actor = $actorOverride ?: ActorHelper::user();
         $voucherId = trim((string) ($data['id'] ?? ''));
         $voucherDate = trim((string) ($data['voucher_date'] ?? ''));
         $status = VoucherStatus::DRAFT;
@@ -99,6 +102,7 @@ class VoucherService
         $normalizedLines = $validation['lines'];
         $timestamp = date('Y-m-d H:i:s');
         $companyId = $this->resolveSingleCompanyId();
+        $this->assertAccountingPeriodOpen($companyId, $voucherDate);
 
         $ownsTransaction = !$this->pdo->inTransaction();
         try {
@@ -334,6 +338,11 @@ class VoucherService
             throw new \RuntimeException('삭제할 전표를 찾을 수 없습니다.');
         }
 
+        $this->assertAccountingPeriodOpen(
+            (string) ($voucher['company_id'] ?? $this->resolveSingleCompanyId()),
+            (string) ($voucher['voucher_date'] ?? '')
+        );
+
         if (!VoucherStatus::isDraft($voucher['status'] ?? null)) {
             throw new \RuntimeException('임시저장(draft) 상태의 전표만 삭제할 수 있습니다.');
         }
@@ -423,12 +432,12 @@ class VoucherService
             ];
         }, $this->voucherLineModel->searchLineSummaryTexts($keyword, $limit));
     }
-    public function updateStatus(string $voucherId, string $nextStatus): array
+    public function updateStatus(string $voucherId, string $nextStatus, ?string $actorOverride = null): array
     {
-        return $this->loggedVoucherOperation('전표 상태 변경', 'VOUCHER_STATUS_UPDATE', 'update-status', fn(): array => $this->updateStatusInternal($voucherId, $nextStatus));
+        return $this->loggedVoucherOperation('전표 상태 변경', 'VOUCHER_STATUS_UPDATE', 'update-status', fn(): array => $this->updateStatusInternal($voucherId, $nextStatus, $actorOverride));
     }
 
-    private function updateStatusInternal(string $voucherId, string $nextStatus): array
+    private function updateStatusInternal(string $voucherId, string $nextStatus, ?string $actorOverride = null): array
     {
         $voucherId = trim($voucherId);
         $nextStatus = VoucherStatus::normalize($nextStatus, '');
@@ -450,6 +459,11 @@ class VoucherService
         if (!$voucher || !empty($voucher['deleted_at'])) {
             throw new \RuntimeException('전표를 찾을 수 없습니다.');
         }
+
+        $this->assertAccountingPeriodOpen(
+            (string) ($voucher['company_id'] ?? $this->resolveSingleCompanyId()),
+            (string) ($voucher['voucher_date'] ?? '')
+        );
 
         $currentStatus = VoucherStatus::normalize($voucher['status'] ?? null, '');
 
@@ -495,7 +509,7 @@ class VoucherService
         $payload = [
             'status'     => $nextStatus,
             'updated_at' => date('Y-m-d H:i:s'),
-            'updated_by' => ActorHelper::user(),
+            'updated_by' => $actorOverride ?: ActorHelper::user(),
         ];
 
             $updated = $this->voucherModel->update($voucherId, $payload);
@@ -583,7 +597,7 @@ class VoucherService
             throw $e;
         }
     }
-    public function confirm(string $voucherId): array
+    public function confirm(string $voucherId, ?string $actorOverride = null): array
     {
         $voucherId = trim($voucherId);
 
@@ -591,12 +605,12 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        return $this->updateStatus($voucherId, VoucherStatus::REVIEW_REQUESTED);
+        return $this->updateStatus($voucherId, VoucherStatus::REVIEW_REQUESTED, $actorOverride);
     }
 
-    public function requestReview(string $voucherId): array
+    public function requestReview(string $voucherId, ?string $actorOverride = null): array
     {
-        return $this->confirm($voucherId);
+        return $this->confirm($voucherId, $actorOverride);
     }
 
     public function cancelReview(string $voucherId): array
@@ -614,7 +628,7 @@ class VoucherService
     {
         return $this->cancelReview($voucherId);
     }
-    public function completeReview(string $voucherId): array
+    public function completeReview(string $voucherId, ?string $actorOverride = null): array
     {
         $voucherId = trim($voucherId);
 
@@ -622,7 +636,7 @@ class VoucherService
             throw new \RuntimeException('전표 ID가 입력되지 않았습니다.');
         }
 
-        return $this->updateStatus($voucherId, VoucherStatus::REVIEWED);
+        return $this->updateStatus($voucherId, VoucherStatus::REVIEWED, $actorOverride);
     }
 
     public function cancelCompleteReview(string $voucherId): array
@@ -636,9 +650,9 @@ class VoucherService
         return $this->updateStatus($voucherId, VoucherStatus::REVIEW_REQUESTED);
     }
 
-    public function post(string $voucherId): array
+    public function post(string $voucherId, ?string $actorOverride = null): array
     {
-        $result = $this->updateStatus($voucherId, VoucherStatus::POSTED);
+        $result = $this->updateStatus($voucherId, VoucherStatus::POSTED, $actorOverride);
         $this->createVoucherNotification($voucherId, 'post', '전표 전기완료', '전표가 전기완료되었습니다.');
 
         return $result;
@@ -662,6 +676,11 @@ class VoucherService
         if (!$original || !empty($original['deleted_at'])) {
             throw new \RuntimeException('원본 전표를 찾을 수 없습니다.');
         }
+
+        $this->assertAccountingPeriodOpen(
+            (string) ($original['company_id'] ?? $this->resolveSingleCompanyId()),
+            (string) ($original['voucher_date'] ?? '')
+        );
 
         if (!VoucherStatus::isPosted($original['status'] ?? null)) {
             throw new \RuntimeException('전표승인 상태의 전표만 취소전표를 생성할 수 있습니다.');
@@ -1606,5 +1625,13 @@ class VoucherService
         $string = preg_replace('/\s+/u', ' ', trim((string) ($value ?? '')));
 
         return $string === '' ? null : $string;
+    }
+
+    private function assertAccountingPeriodOpen(string $companyId, string $voucherDate): void
+    {
+        if ($companyId === '' || $voucherDate === '') return;
+        if ($this->periodClosures->findClosedByDate($companyId, $voucherDate)) {
+            throw new \RuntimeException('결산 마감된 회계기간의 전표는 변경할 수 없습니다. 회계기간을 재개방한 뒤 처리해 주세요.');
+        }
     }
 }

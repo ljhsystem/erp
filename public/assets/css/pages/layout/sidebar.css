@@ -148,6 +148,11 @@ body.is-sidebar-collapsed .main-content {
 .sidebar ul.collapse .nav-link:hover i { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 76%, white), color-mix(in srgb, var(--color-primary) 96%, black 8%)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 58%, white 42%), 0 7px 15px color-mix(in srgb, var(--color-primary) 28%, transparent); }
 .sidebar ul.collapse .nav-link.active {	background: var(--color-primary);	color: #fff !important;	font-weight: 600; border-radius: 8px;}
 .sidebar ul.collapse .nav-link.active i { color: var(--color-primary); background: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 5px 12px rgba(0, 0, 0, 0.14); }
+.sidebar .site-menu-planned { cursor: default; color: var(--color-text-muted); opacity: .72; }
+.sidebar .site-menu-planned:hover { background: transparent; color: var(--color-text-muted); box-shadow: none; transform: none; }
+.sidebar .site-menu-planned i,
+.sidebar .site-menu-planned:hover i { color: var(--color-text-muted); background: color-mix(in srgb, var(--color-sidebar-border) 55%, var(--color-sidebar-bg)); box-shadow: none; }
+.sidebar .site-menu-planned small { margin-left: auto; padding-right: 3px; color: var(--color-text-muted); font-size: calc(var(--sidebar-font-size, var(--font-size)) - 3px); font-weight: 500; }
 .sidebar ul.collapse li::before {content: none !important;}
 .sidebar::-webkit-scrollbar {width: 8px;background: var(--color-sidebar-bg);}
 .sidebar::-webkit-scrollbar-thumb {	background: var(--color-sidebar-border);border-radius: 4px;}

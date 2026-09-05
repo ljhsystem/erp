@@ -12,7 +12,7 @@ const REF_API = {
     ACCOUNT: '/api/settings/base-info/bank-account/list', BANK_ACCOUNT: '/api/settings/base-info/bank-account/list', CARD: '/api/settings/base-info/card/list'
 };
 const REF_LABEL = { CLIENT:'거래처',PROJECT:'프로젝트',EMPLOYEE:'직원',ACCOUNT:'계좌',BANK_ACCOUNT:'계좌',CARD:'카드' };
-const STATUS = { DRAFT: '작성', REVIEW_REQUESTED: '검토요청', REVIEWED: '검토완료', POSTED: '전기완료', CLOSED: '마감' };
+const STATUS = { DRAFT: '작성', REVIEW_REQUESTED: '검토요청', REVIEWED: '검토완료', POSTED: '전기완료', CLOSED: '마감', ZERO_CONFIRMED: '0원 개시 확정' };
 let table, modal, accounts = [], companies = [], currentStatus = 'DRAFT';
 const refOptions = {};
 const $ = (selector) => document.querySelector(selector);
@@ -28,7 +28,7 @@ async function request(url, options = {}) {
 function notify(type, message) {
     if (window.showToast) window.showToast(type, message); else alert(message);
 }
-function statusBadge(value) { return `<span class="badge text-bg-${value === 'POSTED' ? 'success' : value === 'DRAFT' ? 'secondary' : 'primary'}">${STATUS[value] || value}</span>`; }
+function statusBadge(value) { return `<span class="badge text-bg-${value === 'POSTED' || value === 'ZERO_CONFIRMED' ? 'success' : value === 'DRAFT' ? 'secondary' : 'primary'}">${STATUS[value] || value}</span>`; }
 
 async function loadOptions() {
     const [optionJson, accountJson] = await Promise.all([request(API.OPTIONS), request(API.ACCOUNTS)]);
@@ -81,17 +81,21 @@ function calculate() {
     $('#openingDebitTotal').textContent = money(debit); $('#openingCreditTotal').textContent = money(credit); $('#openingDifference').textContent = money(debit - credit);
     $('#openingDifference').classList.toggle('text-danger', debit !== credit);
 }
-function syncDate() { const year = Number($('#openingYear').value); $('#openingDate').value = year >= 1900 ? `${year - 1}-12-31` : ''; }
+function syncPeriod() {
+    const year = Number($('#openingYear').value);
+    $('#openingDate').value = year >= 1900 ? `${year}-01-01` : '';
+    $('#openingPeriodEndDate').value = year >= 1900 ? `${year}-12-31` : '';
+}
 function resetForm() {
     $('#openingBalanceId').value = ''; $('#openingCompany').value = companies[0]?.id || ''; $('#openingYear').value = new Date().getFullYear(); $('#openingNote').value = '';
-    $('#openingLines').innerHTML = ''; currentStatus = 'DRAFT'; syncDate(); addLine(); addLine(); syncActions();
+    $('#openingLines').innerHTML = ''; currentStatus = 'DRAFT'; syncPeriod(); addLine(); addLine(); syncActions();
 }
 function syncActions() {
     const editable = currentStatus === 'DRAFT';
     $('#openingBalanceStatus').innerHTML = `상태: ${statusBadge(currentStatus)}`;
-    ['#openingCompany','#openingYear','#openingNote','#btnAddOpeningLine','#btnSaveOpening'].forEach((selector) => { $(selector).disabled = !editable; });
+    ['#openingCompany','#openingYear','#openingDate','#openingPeriodEndDate','#openingNote','#btnAddOpeningLine','#btnSaveOpening'].forEach((selector) => { $(selector).disabled = !editable; });
     $('#openingLines').querySelectorAll('input,select,button').forEach((element) => { element.disabled = !editable; });
-    $('#btnDeleteOpening').disabled = !$('#openingBalanceId').value || !editable;
+    $('#btnDeleteOpening').disabled = !$('#openingBalanceId').value || !['DRAFT', 'ZERO_CONFIRMED'].includes(currentStatus);
     const transitions = { DRAFT: ['검토요청', API.REQUEST], REVIEW_REQUESTED: ['검토완료', API.REVIEW], REVIEWED: ['전기', API.POST] };
     const config = transitions[currentStatus]; const button = $('#btnOpeningTransition');
     button.classList.toggle('d-none', !config); if (config) { button.textContent = config[0]; button.dataset.api = config[1]; }
@@ -101,11 +105,11 @@ function syncActions() {
 }
 async function openDetail(id) {
     const json = await request(`${API.DETAIL}?id=${encodeURIComponent(id)}`), row = json.data;
-    $('#openingBalanceId').value = row.id; $('#openingCompany').value = row.company_id; $('#openingYear').value = row.fiscal_year; $('#openingDate').value = row.opening_date; $('#openingNote').value = row.note || '';
+    $('#openingBalanceId').value = row.id; $('#openingCompany').value = row.company_id; $('#openingYear').value = row.fiscal_year; $('#openingDate').value = row.opening_date; $('#openingPeriodEndDate').value = row.period_end_date; $('#openingNote').value = row.note || '';
     $('#openingLines').innerHTML = ''; (row.lines || []).forEach(addLine); currentStatus = row.status || 'DRAFT'; syncActions(); modal.show();
 }
 function payload() {
-    return { id: $('#openingBalanceId').value, company_id: $('#openingCompany').value, fiscal_year: Number($('#openingYear').value), note: $('#openingNote').value,
+    return { id: $('#openingBalanceId').value, company_id: $('#openingCompany').value, fiscal_year: Number($('#openingYear').value), opening_date: $('#openingDate').value, period_end_date: $('#openingPeriodEndDate').value, note: $('#openingNote').value,
         lines: [...$('#openingLines').rows].map((row, index) => ({ line_no: index + 1, account_id: row.querySelector('.line-account').value, line_summary: row.querySelector('.line-summary').value, debit: numberValue(row.querySelector('.line-debit')), credit: numberValue(row.querySelector('.line-credit')), refs: [...row.querySelectorAll('.line-ref')].filter((select) => select.value).map((select) => ({ref_target: select.dataset.refTarget, ref_id: select.value})) })) };
 }
 async function post(url, body) { return request(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); }
@@ -114,12 +118,13 @@ async function reload() { table?.ajax.reload(null, false); }
 document.addEventListener('DOMContentLoaded', async () => {
     modal = bootstrap.Modal.getOrCreateInstance($('#openingBalanceModal'));
     table = await createDataTable({ tableSelector: '#opening-balance-table', api: API.LIST, columns: [
-        { data: 'fiscal_year', title: '회계연도' }, { data: 'company_name', title: '회사' }, { data: 'opening_date', title: '기준일' },
+        { data: 'fiscal_year', title: '회계연도' }, { data: 'company_name', title: '회사' }, { data: 'opening_date', title: '시작일' },
+        { data: 'period_end_date', title: '종료일' },
         { data: 'voucher_no', title: '기초전표' }, { data: 'debit_total', title: '차변합계', className: 'text-end', render: money },
         { data: 'credit_total', title: '대변합계', className: 'text-end', render: money }, { data: 'status', title: '상태', render: statusBadge },
         actorColumn('updated_by', '수정자')
     ], defaultOrder: [[0, 'desc']], pageLength: 50, autoWidth: false, searchTableId: 'ledgerOpeningBalance',
-        tableSettings: { pageKey: 'ledger.settings.opening_balances', tableKey: 'opening-balance-table', metaDomain: 'opening-balance', tableLabel: '기초금액', title: '기초금액 테이블 설정', defaultVisibleColumns: ['fiscal_year','company_name','opening_date','voucher_no','debit_total','credit_total','status','updated_by_name'] },
+        tableSettings: { pageKey: 'ledger.settings.opening_balances', tableKey: 'opening-balance-table', metaDomain: 'opening-balance', tableLabel: '기초금액', title: '기초금액 테이블 설정', defaultVisibleColumns: ['fiscal_year','company_name','opening_date','period_end_date','voucher_no','debit_total','credit_total','status','updated_by_name'] },
         buttons: [{ text: '신규등록', className: 'btn btn-warning btn-sm', action: () => { resetForm(); modal.show(); } }]
     });
     try {
@@ -128,7 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         notify('error', `기초금액 선택자료를 불러오지 못했습니다. ${error.message}`);
     }
     $('#opening-balance-table tbody').addEventListener('dblclick', (event) => { const row = event.target.closest('tr'); const data = table.row(row).data(); if (data?.id) openDetail(data.id).catch((error) => notify('error', error.message)); });
-    $('#btnAddOpeningLine').addEventListener('click', () => addLine()); $('#openingYear').addEventListener('input', syncDate);
+    $('#btnAddOpeningLine').addEventListener('click', () => addLine()); $('#openingYear').addEventListener('input', syncPeriod);
     $('#btnSaveOpening').addEventListener('click', async () => { try { const json = await post(API.SAVE, payload()); notify('success', json.message); await reload(); await openDetail(json.data.id); } catch (error) { notify('error', error.message); } });
     $('#btnDeleteOpening').addEventListener('click', async () => { if (!confirm('기초금액을 삭제하시겠습니까?')) return; try { const json = await post(API.DELETE, {id: $('#openingBalanceId').value}); notify('success', json.message); modal.hide(); reload(); } catch (error) { notify('error', error.message); } });
     $('#btnOpeningTransition').addEventListener('click', async (event) => { const actionApi = event.currentTarget.dataset.api; try { const json = await post(actionApi, {id: $('#openingBalanceId').value}); notify('success', json.message); await reload(); await openDetail($('#openingBalanceId').value); } catch (error) { notify('error', error.message); } });

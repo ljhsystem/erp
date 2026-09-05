@@ -14,4 +14,5 @@ require __DIR__ . '/api/business-income.php';
 require __DIR__ . '/api/system.php';
 require __DIR__ . '/api/user-settings.php';
 require __DIR__ . '/api/shop.php';
+require __DIR__ . '/api/site.php';
 require __DIR__ . '/api/public.php';

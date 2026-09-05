@@ -45,6 +45,9 @@ class JournalLearningFeedbackService
             $recommendedAccount = trim((string) ($line['recommended_account_id'] ?? '')) ?: null;
             $recommendedLineType = trim((string) ($line['recommended_line_type'] ?? '')) ?: null;
             $recommendedAmount = $line['recommended_amount'] !== null ? (float) $line['recommended_amount'] : null;
+            if ($recommendedAccount === null) {
+                continue;
+            }
             $result = $this->repository->insertEvent([
                 'event_type' => JournalLearningFeedbackRepository::EVENT_TYPE,
                 'transaction_id' => null,

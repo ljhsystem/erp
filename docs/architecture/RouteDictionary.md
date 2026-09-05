@@ -618,5 +618,55 @@
 
 - 제거된 중복 경로 `/ledger/opening-balances`와 권한 `web.ledger.opening_balances`는 재도입하지 않는다.
 
+## 2026-09-05 분개장 Route
+
+| Key | URL | 책임 |
+|---|---|---|
+| `web.ledger.book.journal` | `GET /ledger/book/journal` | 공용 검색폼·DataTable·TableSettings 기반 분개장 화면 |
+| `api.ledger.book.journal.list` | `POST /api/ledger/book/journal/list` | 공식 장부 또는 전기 예정 분개라인의 서버사이드 목록·합계 조회 |
+| `web.ledger.book.general` | `GET /ledger/book/general` | 공용 검색폼과 계정 집계·상세 DataTable 기반 총계정원장 화면 |
+| `api.ledger.book.general.list` | `POST /api/ledger/book/general/list` | 계정별 기초잔액·당기증감·기말잔액 목록과 합계 조회 |
+| `api.ledger.book.general.detail` | `POST /api/ledger/book/general/detail` | 선택 계정의 분개·보조원장·누적잔액 상세조회 |
+| `web.ledger.book.account` | `GET /ledger/book/account` | 선택 계정의 기초·증감·상대계정·누적·기말잔액 화면 |
+| `api.ledger.book.account.list` | `POST /api/ledger/book/account/list` | 계정별원장의 서버사이드 목록·합계 조회 |
+| `web.ledger.book.partner` | `GET /ledger/book/partner` | 선택 거래처의 계정별 기초·증감·잔액 조회 화면 |
+| `api.ledger.book.partner.list` | `POST /api/ledger/book/partner/list` | 거래처원장의 서버사이드 분개 목록·합계 조회 |
+| `web.ledger.book.project` | `GET /ledger/book/project` | 선택 프로젝트의 계정별 기초·증감·잔액 조회 화면 |
+| `api.ledger.book.project.list` | `POST /api/ledger/book/project/list` | 프로젝트원장의 서버사이드 분개 목록·합계 조회 |
+| `web.ledger.book.daily` | `GET /ledger/book/daily` | 날짜별 차대변 집계와 선택일 계정 상세 일계표 화면 |
+| `api.ledger.book.daily.list` | `POST /api/ledger/book/daily/list` | 일계표 날짜별 전표·분개·차대변·누계 조회 |
+| `api.ledger.book.daily.detail` | `POST /api/ledger/book/daily/detail` | 선택일의 계정별 차대변·순증감 조회 |
+| `web.ledger.book.purchase_sales` | `GET /ledger/book/purchase-sales` | 부가세 증빙의 매출·매입과 전표 연결을 조회하는 매입매출장 화면 |
+| `api.ledger.book.purchase_sales.list` | `POST /api/ledger/book/purchase-sales/list` | 공식 장부 또는 전기 예정 매입매출 증빙 목록·합계 조회 |
+| `web.ledger.financial.trial_balance` | `GET /ledger/financial/trial-balance` | 합계잔액시산표 화면 |
+| `web.ledger.financial.income_statement` | `GET /ledger/financial/income-statement` | 손익계산서 화면 |
+| `web.ledger.financial.statement_position` | `GET /ledger/financial/statement-position` | 재무상태표 화면 |
+| `web.ledger.financial.product_cost` | `GET /ledger/financial/product-cost` | 상품원가명세서 화면 |
+| `web.ledger.financial.construction_cost` | `GET /ledger/financial/construction-cost` | 공사원가명세서 화면 |
+| `web.ledger.financial.retained_earnings` | `GET /ledger/financial/retained-earnings` | 이익잉여금처분계산서 화면 |
+| `api.ledger.financial.report` | `GET /api/ledger/financial/report` | 재무제표 6종 계층·합계·전기 비교 공통 조회 |
+
 - `POST /api/settings/statutory-standards/correct-revision` (`api.settings.statutory_standards.correct_revision`): 기존 Revision을 변경하지 않고 신규 정정 Revision과 Supersession 관계를 원자적으로 생성한다. 법정기준 저장 권한을 재사용한다.
 - `GET /api/settings/statutory-standards/revision-chain` (`api.settings.statutory_standards.revision_chain`): 지정 Revision의 원본·후속 정정 chain을 조회한다. 법정기준 상세 권한을 재사용한다.
+# 재고관리
+
+- WEB: `GET /ledger/settings/inventory-balances`
+- API: `/api/ledger/inventory-balance/{list|detail|options|save|delete|confirm|cancel-confirm}`
+- Page key: `ledger.settings.inventory_balances`
+## 차량운행기록부
+
+- WEB: `web.ledger.book.vehicle_log` (`/ledger/book/vehicle-log`)
+- API: `api.ledger.vehicle_log.*` (`/api/ledger/vehicle-log/{action}`)
+- 차량운행기록부는 법인차량과 회사 비용 개인차량의 공용 운행 원장이며 법인차량만 세무사 제출대상으로 Projection한다.
+
+## 현장 영업관리
+
+- WEB: `web.site.sales.index` (`GET /site/sales`)
+- 조회 API: `GET /api/site/sales/{list|dashboard|options|detail}`
+- 저장 API: `POST /api/site/sales/organization/save`, `/person/add`, `/activity/add`, `/opportunity/add`, `/followup/{add|complete}`
+- Page key: `site.sales`
+# 현장 견적관리
+
+- WEB: `/site/estimate` (`web.site.estimate.index`)
+- API: `/api/site/estimate/*` (`api.site.estimate.*`)
+- 견적번호는 업무 식별 기준이고 견적일자는 조회·정렬 시점 기준이다.

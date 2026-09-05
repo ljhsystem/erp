@@ -8,6 +8,7 @@ require_once PROJECT_ROOT . '/core/Storage.php';
 
 use App\Services\Ledger\OpeningBalanceService;
 use Core\DbPdo;
+use Core\Helpers\ActorHelper;
 
 $db = DbPdo::conn();
 $companyIds = $db->query('SELECT id FROM system_company ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) ?: [];
@@ -34,11 +35,11 @@ try {
             ['account_id'=>(string)$accounts[0],'debit'=>12345,'credit'=>0,'line_summary'=>'기초 차변','refs'=>[]],
             ['account_id'=>(string)$accounts[1],'debit'=>0,'credit'=>12345,'line_summary'=>'기초 대변','refs'=>[]],
         ],
-    ]);
+    ], ActorHelper::system('OPENING_BALANCE_REGRESSION'));
     $detail = $saved['data'] ?? [];
     $checks = [
         'relation_created' => (int) $db->query("SELECT COUNT(*) FROM ledger_opening_balances WHERE fiscal_year={$year}")->fetchColumn() === 1,
-        'opening_date' => ($detail['opening_date'] ?? '') === '2998-12-31',
+        'opening_date' => ($detail['opening_date'] ?? '') === '2999-01-01',
         'line_count' => count($detail['lines'] ?? []) === 2,
         'balanced' => (float)($detail['debit_total'] ?? 0) === 12345.0 && (float)($detail['credit_total'] ?? 0) === 12345.0,
         'draft_status' => ($detail['status'] ?? '') === 'DRAFT',

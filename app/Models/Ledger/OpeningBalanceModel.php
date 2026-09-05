@@ -17,7 +17,7 @@ class OpeningBalanceModel
                        v.updated_by AS voucher_updated_by
                   FROM ledger_opening_balances ob
                   JOIN system_company c ON c.id=ob.company_id
-                  JOIN ledger_vouchers v ON v.id=ob.voucher_id AND v.deleted_at IS NULL
+             LEFT JOIN ledger_vouchers v ON v.id=ob.voucher_id AND v.deleted_at IS NULL
                  WHERE 1=1";
         $params = [];
         if (!empty($filters['company_id'])) {
@@ -40,7 +40,7 @@ class OpeningBalanceModel
                     v.debit_total,v.credit_total,v.line_count,v.created_by AS voucher_created_by,v.updated_by AS voucher_updated_by
                FROM ledger_opening_balances ob
                JOIN system_company c ON c.id=ob.company_id
-               JOIN ledger_vouchers v ON v.id=ob.voucher_id
+          LEFT JOIN ledger_vouchers v ON v.id=ob.voucher_id
               WHERE ob.id=:id" . ($forUpdate ? ' FOR UPDATE' : ''));
         $stmt->execute([':id' => $id]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -56,8 +56,8 @@ class OpeningBalanceModel
     public function insert(array $row): bool
     {
         $stmt = $this->db->prepare('INSERT INTO ledger_opening_balances
-            (id,company_id,fiscal_year,opening_date,voucher_id,note,created_at,created_by,updated_at,updated_by)
-            VALUES (:id,:company_id,:fiscal_year,:opening_date,:voucher_id,:note,:created_at,:created_by,:updated_at,:updated_by)');
+            (id,company_id,fiscal_year,opening_date,period_end_date,voucher_id,note,created_at,created_by,updated_at,updated_by)
+            VALUES (:id,:company_id,:fiscal_year,:opening_date,:period_end_date,:voucher_id,:note,:created_at,:created_by,:updated_at,:updated_by)');
         return $stmt->execute($row);
     }
 
@@ -65,7 +65,7 @@ class OpeningBalanceModel
     {
         $row[':id'] = $id;
         $stmt = $this->db->prepare('UPDATE ledger_opening_balances SET company_id=:company_id,fiscal_year=:fiscal_year,
-            opening_date=:opening_date,note=:note,updated_at=:updated_at,updated_by=:updated_by WHERE id=:id');
+            opening_date=:opening_date,period_end_date=:period_end_date,voucher_id=:voucher_id,note=:note,updated_at=:updated_at,updated_by=:updated_by WHERE id=:id');
         return $stmt->execute($row);
     }
 
@@ -82,6 +82,9 @@ class OpeningBalanceModel
 
     public function lines(string $voucherId): array
     {
+        if ($voucherId === '') {
+            return [];
+        }
         $stmt = $this->db->prepare("SELECT l.*,a.account_code,a.account_name,a.normal_balance,
                     (SELECT GROUP_CONCAT(CONCAT(r.ref_target,':',r.ref_id) ORDER BY r.ref_target SEPARATOR '|')
                        FROM ledger_voucher_line_refs r WHERE r.voucher_line_id=l.id) AS ref_tokens

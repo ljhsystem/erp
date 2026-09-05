@@ -1,6 +1,87 @@
 <?php
+$taxMeta=['page'=>'세무회계(참고)','page_description'=>'외부 확정 세무 재무제표 입력과 기업회계 비교','category'=>'회계관리 > 세무회계(참고)','auth'=>true];
+$router->get('/api/ledger/tax-financial/list','TaxFinancialStatementController@apiList',$taxMeta+['key'=>'api.ledger.tax_financial.list','permission_name'=>'조회','permission_description'=>'세무 재무제표 목록 조회','name'=>'세무 재무제표 목록','description'=>'회계관리 > 세무회계(참고) > 목록','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/tax-financial/detail','TaxFinancialStatementController@apiDetail',$taxMeta+['key'=>'api.ledger.tax_financial.detail','permission_name'=>'상세조회','permission_description'=>'세무 재무제표 상세 조회','name'=>'세무 재무제표 상세','description'=>'회계관리 > 세무회계(참고) > 상세','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/tax-financial/options','TaxFinancialStatementController@apiOptions',$taxMeta+['key'=>'api.ledger.tax_financial.options','permission_name'=>'선택항목조회','permission_description'=>'세무 재무제표 선택항목 조회','name'=>'세무 재무제표 선택항목','description'=>'회계관리 > 세무회계(참고) > 선택항목','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/tax-financial/comparison','TaxFinancialStatementController@apiComparison',$taxMeta+['key'=>'api.ledger.tax_financial.comparison','permission_name'=>'비교조회','permission_description'=>'기업회계와 세무회계 차이 조회','name'=>'기업·세무 비교','description'=>'회계관리 > 세무회계(참고) > 비교','permissions'=>['view'],'log'=>false]);
+$router->post('/api/ledger/tax-financial/save','TaxFinancialStatementController@apiSave',$taxMeta+['key'=>'api.ledger.tax_financial.save','permission_name'=>'저장','permission_description'=>'세무 재무제표 등록 및 수정','name'=>'세무 재무제표 저장','description'=>'회계관리 > 세무회계(참고) > 저장','permissions'=>['save'],'log'=>true]);
+$router->post('/api/ledger/tax-financial/delete','TaxFinancialStatementController@apiDelete',$taxMeta+['key'=>'api.ledger.tax_financial.delete','permission_name'=>'삭제','permission_description'=>'작성중 세무 재무제표 삭제','name'=>'세무 재무제표 삭제','description'=>'회계관리 > 세무회계(참고) > 삭제','permissions'=>['delete'],'log'=>true]);
+$router->post('/api/ledger/tax-financial/confirm','TaxFinancialStatementController@apiConfirm',$taxMeta+['key'=>'api.ledger.tax_financial.confirm','permission_name'=>'확정','permission_description'=>'세무 재무제표 확정','name'=>'세무 재무제표 확정','description'=>'회계관리 > 세무회계(참고) > 확정','permissions'=>['approve'],'log'=>true]);
+$router->post('/api/ledger/tax-financial/cancel-confirm','TaxFinancialStatementController@apiCancelConfirm',$taxMeta+['key'=>'api.ledger.tax_financial.cancel_confirm','permission_name'=>'확정취소','permission_description'=>'세무 재무제표 확정 취소','name'=>'세무 재무제표 확정취소','description'=>'회계관리 > 세무회계(참고) > 확정취소','permissions'=>['approve'],'log'=>true]);
+$closingMeta=['page'=>'결산관리','page_description'=>'결산점검·회계기간 마감·기초금액 이월','category'=>'회계관리 > 결산관리','auth'=>true];
+$router->get('/api/ledger/period-closure/list','PeriodClosureController@apiList',$closingMeta+['key'=>'api.ledger.period_closure.list','permission_name'=>'조회','permission_description'=>'결산 마감 목록 조회','name'=>'결산 마감 목록','description'=>'회계관리 > 결산관리 > 목록','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/period-closure/options','PeriodClosureController@apiOptions',$closingMeta+['key'=>'api.ledger.period_closure.options','permission_name'=>'선택항목조회','permission_description'=>'결산관리 선택항목 조회','name'=>'결산 선택항목','description'=>'회계관리 > 결산관리 > 선택항목','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/period-closure/check','PeriodClosureController@apiCheck',$closingMeta+['key'=>'api.ledger.period_closure.check','permission_name'=>'결산점검','permission_description'=>'회계기간 마감 가능 여부 점검','name'=>'결산점검','description'=>'회계관리 > 결산관리 > 점검','permissions'=>['view'],'log'=>false]);
+$router->post('/api/ledger/period-closure/close','PeriodClosureController@apiClose',$closingMeta+['key'=>'api.ledger.period_closure.close','permission_name'=>'마감','permission_description'=>'회계기간 결산 마감','name'=>'회계기간 마감','description'=>'회계관리 > 결산관리 > 마감','permissions'=>['approve'],'log'=>true]);
+$router->post('/api/ledger/period-closure/reopen','PeriodClosureController@apiReopen',$closingMeta+['key'=>'api.ledger.period_closure.reopen','permission_name'=>'재개방','permission_description'=>'마감 회계기간 재개방','name'=>'회계기간 재개방','description'=>'회계관리 > 결산관리 > 재개방','permissions'=>['approve'],'log'=>true]);
+$router->post('/api/ledger/period-closure/carry-forward','PeriodClosureController@apiCarryForward',$closingMeta+['key'=>'api.ledger.period_closure.carry_forward','permission_name'=>'기초이월','permission_description'=>'결산잔액 차기 기초금액 이월','name'=>'기초금액 이월','description'=>'회계관리 > 결산관리 > 기초금액 이월','permissions'=>['save'],'log'=>true]);
+$assetMeta=['page'=>'자산관리','page_description'=>'고정자산 취득·이동·상각·처분 관리','category'=>'회계관리 > 자산관리','auth'=>true];
+$router->get('/api/ledger/asset/list','AssetController@apiList',$assetMeta+['key'=>'api.ledger.asset.list','permission_name'=>'조회','permission_description'=>'자산대장 조회','name'=>'자산대장 조회','description'=>'회계관리 > 자산관리 > 조회','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/asset/detail','AssetController@apiDetail',$assetMeta+['key'=>'api.ledger.asset.detail','permission_name'=>'상세조회','permission_description'=>'자산 상세 및 이력 조회','name'=>'자산 상세조회','description'=>'회계관리 > 자산관리 > 상세조회','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/asset/options','AssetController@apiOptions',$assetMeta+['key'=>'api.ledger.asset.options','permission_name'=>'선택항목조회','permission_description'=>'자산관리 선택항목 조회','name'=>'자산 선택항목 조회','description'=>'회계관리 > 자산관리 > 선택항목','permissions'=>['view'],'log'=>false]);
+$router->post('/api/ledger/asset/create','AssetController@apiCreate',$assetMeta+['key'=>'api.ledger.asset.create','permission_name'=>'등록','permission_description'=>'자산 등록과 취득 전기','name'=>'자산 등록','description'=>'회계관리 > 자산관리 > 등록','permissions'=>['save'],'log'=>true]);
+$router->post('/api/ledger/asset/transfer','AssetController@apiTransfer',$assetMeta+['key'=>'api.ledger.asset.transfer','permission_name'=>'이동','permission_description'=>'자산 배치이동 기록','name'=>'자산이동','description'=>'회계관리 > 자산관리 > 이동','permissions'=>['save'],'log'=>true]);
+$router->post('/api/ledger/asset/depreciate','AssetController@apiDepreciate',$assetMeta+['key'=>'api.ledger.asset.depreciate','permission_name'=>'감가상각','permission_description'=>'감가상각 계산과 전기','name'=>'감가상각','description'=>'회계관리 > 자산관리 > 감가상각','permissions'=>['approve'],'log'=>true]);
+$router->post('/api/ledger/asset/dispose','AssetController@apiDispose',$assetMeta+['key'=>'api.ledger.asset.dispose','permission_name'=>'처분','permission_description'=>'자산처분과 전기','name'=>'자산처분','description'=>'회계관리 > 자산관리 > 처분','permissions'=>['approve'],'log'=>true]);
 
 global $router;
+
+$router->get('/api/ledger/dashboard/summary', 'LedgerDashboardController@apiSummary', [
+    'key'=>'api.ledger.dashboard.summary',
+    'page'=>'회계대시보드','page_description'=>'전표·장부·자산·결산 현황 요약',
+    'permission_name'=>'조회','permission_description'=>'회계대시보드 현황 조회',
+    'name'=>'회계대시보드 조회','description'=>'회계관리 > 회계대시보드 > 현황 조회',
+    'category'=>'회계관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$inventoryMeta=['page_key'=>'ledger.settings.inventory_balances','page'=>'재고관리','page_description'=>'기초재고와 당기 재고가액 증감 근거 및 기말재고 관리','category'=>'회계관리 > 기초정보관리','auth'=>true];
+$router->get('/api/ledger/inventory-balance/list','InventoryBalanceController@apiList',$inventoryMeta+['key'=>'api.ledger.inventory_balance.list','permission_name'=>'조회','permission_description'=>'재고관리 목록 조회','name'=>'재고관리 조회','description'=>'회계관리 > 기초정보관리 > 재고관리 > 조회','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/inventory-balance/detail','InventoryBalanceController@apiDetail',$inventoryMeta+['key'=>'api.ledger.inventory_balance.detail','permission_name'=>'상세조회','permission_description'=>'재고관리 상세 조회','name'=>'재고관리 상세조회','description'=>'회계관리 > 기초정보관리 > 재고관리 > 상세조회','permissions'=>['view'],'log'=>false]);
+$router->get('/api/ledger/inventory-balance/options','InventoryBalanceController@apiOptions',$inventoryMeta+['key'=>'api.ledger.inventory_balance.options','permission_name'=>'선택목록조회','permission_description'=>'재고관리 선택목록 조회','name'=>'재고관리 선택목록조회','description'=>'회계관리 > 기초정보관리 > 재고관리 > 선택목록조회','permissions'=>['view'],'log'=>false]);
+$router->post('/api/ledger/inventory-balance/save','InventoryBalanceController@apiSave',$inventoryMeta+['key'=>'api.ledger.inventory_balance.save','permission_name'=>'저장','permission_description'=>'재고관리 문서 저장','name'=>'재고관리 저장','description'=>'회계관리 > 기초정보관리 > 재고관리 > 저장','permissions'=>['save'],'log'=>true]);
+$router->post('/api/ledger/inventory-balance/delete','InventoryBalanceController@apiDelete',$inventoryMeta+['key'=>'api.ledger.inventory_balance.delete','permission_name'=>'삭제','permission_description'=>'작성 중 재고관리 문서 삭제','name'=>'재고관리 삭제','description'=>'회계관리 > 기초정보관리 > 재고관리 > 삭제','permissions'=>['delete'],'log'=>true]);
+$router->post('/api/ledger/inventory-balance/confirm','InventoryBalanceController@apiConfirm',$inventoryMeta+['key'=>'api.ledger.inventory_balance.confirm','permission_name'=>'확정','permission_description'=>'기말재고 확정','name'=>'기말재고 확정','description'=>'회계관리 > 기초정보관리 > 재고관리 > 기말재고 확정','permissions'=>['approve'],'log'=>true]);
+$router->post('/api/ledger/inventory-balance/cancel-confirm','InventoryBalanceController@apiCancelConfirm',$inventoryMeta+['key'=>'api.ledger.inventory_balance.cancel_confirm','permission_name'=>'확정취소','permission_description'=>'기말재고 확정 취소','name'=>'기말재고 확정취소','description'=>'회계관리 > 기초정보관리 > 재고관리 > 기말재고 확정취소','permissions'=>['approve'],'log'=>true]);
+
+$router->get('/api/ledger/financial/report', 'FinancialStatementController@apiReport', [
+    'key'=>'api.ledger.financial.report','page_key'=>'ledger.financial.report','page'=>'재무제표','page_description'=>'합계잔액시산표부터 이익잉여금처분계산서까지 공통 조회','permission_name'=>'조회','permission_description'=>'재무제표 계층·합계·전기 비교 조회','name'=>'재무제표 조회','description'=>'회계관리 > 재무제표 > 조회','category'=>'회계관리 > 재무제표','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/journal/list', 'BookController@apiJournalList', [
+    'key'=>'api.ledger.book.journal.list','page_key'=>'ledger.book.journal','page'=>'분개장','page_description'=>'전기된 전표 분개라인 조회','permission_name'=>'조회','permission_description'=>'분개장 목록 및 합계 조회','name'=>'분개장 조회','description'=>'회계관리 > 장부관리 > 분개장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/general/list', 'BookController@apiGeneralList', [
+    'key'=>'api.ledger.book.general.list','page_key'=>'ledger.book.general','page'=>'총계정원장','page_description'=>'계정별 기초잔액·당기증감·기말잔액 조회','permission_name'=>'조회','permission_description'=>'총계정원장 계정별 집계 조회','name'=>'총계정원장 조회','description'=>'회계관리 > 장부관리 > 총계정원장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/general/detail', 'BookController@apiGeneralDetail', [
+    'key'=>'api.ledger.book.general.detail','page_key'=>'ledger.book.general','page'=>'총계정원장','page_description'=>'계정별 기초잔액·당기증감·기말잔액 조회','permission_name'=>'상세조회','permission_description'=>'선택 계정의 분개 및 누적잔액 조회','name'=>'총계정원장 상세조회','description'=>'회계관리 > 장부관리 > 총계정원장 > 계정 상세조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/account/list', 'BookController@apiAccountList', [
+    'key'=>'api.ledger.book.account.list','page_key'=>'ledger.book.account','page'=>'계정별원장','page_description'=>'선택 계정의 기초·증감·누적·기말잔액 조회','permission_name'=>'조회','permission_description'=>'계정별원장 목록과 합계 조회','name'=>'계정별원장 조회','description'=>'회계관리 > 장부관리 > 계정별원장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/partner/list', 'BookController@apiPartnerList', [
+    'key'=>'api.ledger.book.partner.list','page_key'=>'ledger.book.partner','page'=>'거래처원장','page_description'=>'선택 거래처의 계정별 기초·증감·잔액 조회','permission_name'=>'조회','permission_description'=>'거래처원장 목록과 합계 조회','name'=>'거래처원장 조회','description'=>'회계관리 > 장부관리 > 거래처원장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/project/list', 'BookController@apiProjectList', [
+    'key'=>'api.ledger.book.project.list','page_key'=>'ledger.book.project','page'=>'프로젝트원장','page_description'=>'선택 프로젝트의 계정별 기초·증감·잔액 조회','permission_name'=>'조회','permission_description'=>'프로젝트원장 목록과 합계 조회','name'=>'프로젝트원장 조회','description'=>'회계관리 > 장부관리 > 프로젝트원장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/daily/list', 'BookController@apiDailyList', [
+    'key'=>'api.ledger.book.daily.list','page_key'=>'ledger.book.daily','page'=>'일계표','page_description'=>'날짜별 차대변 균형과 계정별 증감 조회','permission_name'=>'조회','permission_description'=>'일계표 날짜별 집계 조회','name'=>'일계표 조회','description'=>'회계관리 > 장부관리 > 일계표 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/daily/detail', 'BookController@apiDailyDetail', [
+    'key'=>'api.ledger.book.daily.detail','page_key'=>'ledger.book.daily','page'=>'일계표','page_description'=>'날짜별 차대변 균형과 계정별 증감 조회','permission_name'=>'상세조회','permission_description'=>'선택일 계정별 증감 조회','name'=>'일계표 상세조회','description'=>'회계관리 > 장부관리 > 일계표 > 계정별 상세조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
+
+$router->post('/api/ledger/book/purchase-sales/list', 'BookController@apiPurchaseSalesList', [
+    'key'=>'api.ledger.book.purchase_sales.list','page_key'=>'ledger.book.purchase_sales','page'=>'매입매출장','page_description'=>'전기된 부가세 증빙의 매출·매입 공급가액과 세액 조회','permission_name'=>'조회','permission_description'=>'매입매출장 목록과 합계 조회','name'=>'매입매출장 조회','description'=>'회계관리 > 장부관리 > 매입매출장 > 조회','category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>['view'],'log'=>false,
+]);
 
 $router->get('/api/ledger/opening-balance/list', 'OpeningBalanceController@apiList', [
     'key'=>'api.ledger.opening_balance.list','page_key'=>'ledger.settings.opening_balances','page'=>'기초금액','page_description'=>'회사·회계연도별 기초금액 관리','permission_name'=>'조회','permission_description'=>'기초금액 조회','name'=>'기초금액 조회','description'=>'회계관리 > 기초정보관리 > 기초금액 > 조회','category'=>'회계관리 > 기초정보관리','auth'=>true,'permissions'=>['view'],'log'=>false,
@@ -1408,3 +1489,25 @@ $router->post('/api/funds/payment-schedule/release-allocation', 'PaymentSchedule
     'name' => '지급예정 실제지급 연결 해제', 'description' => '회계관리 > 자금관리 > 지급예정현황 > 실제지급 연결 해제',
     'category' => '회계관리 > 자금관리', 'auth' => true, 'permissions' => ['save'], 'log' => true,
 ]);
+$vehicleLogRoutes = [
+    ['GET','list','apiList','조회','차량 운행기록과 집계 조회','view',false],
+    ['GET','detail','apiDetail','상세조회','차량 운행기록 상세 조회','view',false],
+    ['GET','options','apiOptions','선택목록','차량·사용자·작업팀 선택목록 조회','view',false],
+    ['POST','save','apiSave','저장','차량 운행기록 등록 및 수정','save',true],
+    ['POST','vehicle-save','apiSaveVehicle','차량저장','법인·개인 차량 기본정보 등록 및 수정','save',true],
+    ['POST','delete','apiDelete','삭제','차량 운행기록 휴지통 이동','delete',true],
+    ['GET','trash','apiTrashList','휴지통','삭제된 차량 운행기록 조회','view',false],
+    ['POST','restore','apiRestore','복구','삭제된 차량 운행기록 복구','save',true],
+    ['GET','template','apiTemplate','엑셀양식','차량 운행기록 업로드 양식 다운로드','view',false],
+    ['GET','excel','apiExcel','엑셀다운로드','차량 운행기록 다운로드','view',false],
+    ['POST','excel-upload','apiExcelUpload','엑셀업로드','차량 운행기록 엑셀 업로드','save',true],
+];
+foreach ($vehicleLogRoutes as [$method,$action,$handler,$permissionName,$permissionDescription,$permission,$log]) {
+    $router->{strtolower($method)}('/api/ledger/vehicle-log/'.$action, 'VehicleLogController@'.$handler, [
+        'key'=>'api.ledger.vehicle_log.'.str_replace('-','_',$action),
+        'page'=>'차량운행기록부','page_description'=>'법인차량과 회사 비용 개인차량의 운행기록 관리',
+        'permission_name'=>$permissionName,'permission_description'=>$permissionDescription,
+        'name'=>'차량운행기록부 '.$permissionName,'description'=>'회계관리 > 장부관리 > 차량운행기록부 > '.$permissionName,
+        'category'=>'회계관리 > 장부관리','auth'=>true,'permissions'=>[$permission],'log'=>$log,
+    ]);
+}

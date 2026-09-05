@@ -18,7 +18,7 @@ class OpeningBalanceService
     {
         $this->model = new OpeningBalanceModel($pdo);
         $this->vouchers = new VoucherService($pdo);
-        $this->logger = LoggerFactory::getLogger('service-ledger.OpeningBalanceService');
+        $this->logger = LoggerFactory::getLogger('service-ledger-opening-balance');
     }
 
     public function getList(array $filters = []): array
@@ -49,18 +49,26 @@ class OpeningBalanceService
         return ['companies' => $this->model->companies()];
     }
 
-    public function save(array $input): array
+    public function save(array $input, ?string $actorOverride = null): array
     {
         $id = trim((string) ($input['id'] ?? ''));
         $companyId = trim((string) ($input['company_id'] ?? ''));
         $year = (int) ($input['fiscal_year'] ?? 0);
-        $openingDate = sprintf('%04d-12-31', $year - 1);
+        $openingDate = trim((string) ($input['opening_date'] ?? ''));
+        if ($openingDate === '') $openingDate = sprintf('%04d-01-01', $year);
+        $periodEndDate = trim((string) ($input['period_end_date'] ?? ''));
+        if ($periodEndDate === '') $periodEndDate = sprintf('%04d-12-31', $year);
         $lines = $input['lines'] ?? [];
         if (is_string($lines)) $lines = json_decode($lines, true);
         if ($companyId === '' || $year < 1900 || $year > 9999) throw new \InvalidArgumentException('회사와 회계연도를 입력해 주세요.');
-        if (!is_array($lines) || $lines === []) throw new \InvalidArgumentException('기초금액 분개를 한 건 이상 입력해 주세요.');
+        if (!$this->isValidPeriod($openingDate, $periodEndDate, $year)) throw new \InvalidArgumentException('회계기간 시작일과 종료일을 확인해 주세요.');
+        if (!is_array($lines)) throw new \InvalidArgumentException('기초금액 분개 형식이 올바르지 않습니다.');
+        $lines = array_values(array_filter($lines, static fn(array $line): bool =>
+            trim((string) ($line['account_id'] ?? '')) !== ''
+            && ((float) ($line['debit'] ?? 0) !== 0.0 || (float) ($line['credit'] ?? 0) !== 0.0)
+        ));
 
-        $actor = ActorHelper::user();
+        $actor = $actorOverride ?: ActorHelper::user();
         $now = date('Y-m-d H:i:s');
         $ownsTransaction = !$this->pdo->inTransaction();
         try {
@@ -70,20 +78,27 @@ class OpeningBalanceService
             $duplicate = $this->model->findByCompanyYear($companyId, $year);
             if ($duplicate && (string) $duplicate['id'] !== $id) throw new \InvalidArgumentException('해당 회사와 회계연도의 기초금액이 이미 있습니다.');
 
-            $voucher = $this->vouchers->save([
-                'id' => $current['voucher_id'] ?? '',
-                'voucher_no' => $current['voucher_no'] ?? $this->voucherNo($year, $companyId),
-                'voucher_date' => $openingDate,
-                'source_type' => 'SYSTEM',
-                'lines' => $lines,
-                'linked_evidences' => [],
-            ]);
-            $voucherId = (string) $voucher['voucher_id'];
+            $voucherId = trim((string) ($current['voucher_id'] ?? ''));
+            if ($lines !== []) {
+                $voucher = $this->vouchers->save([
+                    'id' => $voucherId,
+                    'voucher_no' => $current['voucher_no'] ?? $this->voucherNo($year, $companyId),
+                    'voucher_date' => $openingDate,
+                    'source_type' => 'SYSTEM',
+                    'lines' => $lines,
+                    'linked_evidences' => [],
+                ], $actor);
+                $voucherId = (string) $voucher['voucher_id'];
+            } elseif ($voucherId !== '') {
+                throw new \InvalidArgumentException('분개가 있는 기초금액을 0원 개시로 변경할 수 없습니다. 기존 문서를 취소한 뒤 다시 작성해 주세요.');
+            }
             if ($current) {
                 $this->model->update($id, [
                     ':company_id' => $companyId,
                     ':fiscal_year' => $year,
                     ':opening_date' => $openingDate,
+                    ':period_end_date' => $periodEndDate,
+                    ':voucher_id' => $voucherId !== '' ? $voucherId : null,
                     ':note' => $this->nullable($input['note'] ?? null),
                     ':updated_at' => $now,
                     ':updated_by' => $actor,
@@ -95,7 +110,8 @@ class OpeningBalanceService
                     ':company_id' => $companyId,
                     ':fiscal_year' => $year,
                     ':opening_date' => $openingDate,
-                    ':voucher_id' => $voucherId,
+                    ':period_end_date' => $periodEndDate,
+                    ':voucher_id' => $voucherId !== '' ? $voucherId : null,
                     ':note' => $this->nullable($input['note'] ?? null),
                     ':created_at' => $now,
                     ':created_by' => $actor,
@@ -106,6 +122,10 @@ class OpeningBalanceService
             if ($ownsTransaction) $this->pdo->commit();
             $this->logger->info('기초금액을 저장했습니다.', ['event_code'=>'OPENING_BALANCE_SAVED','result'=>'SUCCESS','service'=>self::class,'action'=>'save','target_id'=>$id,'actor'=>$actor]);
             return ['success'=>true,'message'=>'기초금액을 저장했습니다.','data'=>$this->getDetail($id)];
+        } catch (\InvalidArgumentException $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->logger->warning('기초금액을 저장할 수 없습니다.', ['event_code'=>'OPENING_BALANCE_SAVE_BLOCKED','result'=>'BLOCKED','service'=>self::class,'action'=>'save','target_id'=>$id,'actor'=>$actor,'error_code'=>$e::class]);
+            throw $e;
         } catch (\Throwable $e) {
             if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
             $this->logger->error('기초금액 저장에 실패했습니다.', ['event_code'=>'OPENING_BALANCE_SAVE_FAILED','result'=>'FAILED','service'=>self::class,'action'=>'save','target_id'=>$id,'actor'=>$actor,'error_code'=>$e::class,'error'=>$e]);
@@ -117,6 +137,7 @@ class OpeningBalanceService
     {
         $row = $this->model->find($id);
         if (!$row) throw new \InvalidArgumentException('기초금액 문서를 찾을 수 없습니다.');
+        if (trim((string) ($row['voucher_id'] ?? '')) === '') throw new \InvalidArgumentException('0원 개시 기초잔액은 전기할 분개가 없습니다.');
         $result = match ($action) {
             'request-review' => $this->vouchers->requestReview((string) $row['voucher_id']),
             'cancel-review' => $this->vouchers->cancelReviewRequest((string) $row['voucher_id']),
@@ -137,7 +158,7 @@ class OpeningBalanceService
             $row = $this->model->find($id, true);
             if (!$row) throw new \InvalidArgumentException('기초금액 문서를 찾을 수 없습니다.');
             $this->model->delete($id);
-            $this->vouchers->deleteVoucher((string) $row['voucher_id']);
+            if (trim((string) ($row['voucher_id'] ?? '')) !== '') $this->vouchers->deleteVoucher((string) $row['voucher_id']);
             if ($ownsTransaction) $this->pdo->commit();
             $this->logger->info('기초금액을 삭제했습니다.', ['event_code'=>'OPENING_BALANCE_DELETED','result'=>'SUCCESS','service'=>self::class,'action'=>'delete','target_id'=>$id,'actor'=>ActorHelper::user()]);
             return ['success'=>true,'message'=>'기초금액을 삭제했습니다.'];
@@ -151,13 +172,19 @@ class OpeningBalanceService
     {
         $row = $this->model->find($id);
         if (!$row) throw new \InvalidArgumentException('기초금액 문서를 찾을 수 없습니다.');
+        if (trim((string) ($row['voucher_id'] ?? '')) === '') throw new \InvalidArgumentException('0원 개시 기초잔액에는 취소할 전표가 없습니다.');
         $result = $this->vouchers->createReversalVoucher((string) $row['voucher_id'], ActorHelper::user());
         return ['success'=>true,'message'=>'기초금액 취소전표를 생성했습니다.','data'=>$result];
     }
 
     private function project(array $row): array
     {
-        $row['status'] = VoucherStatus::normalize($row['status'] ?? null, '');
+        $row['status'] = trim((string) ($row['voucher_id'] ?? '')) === ''
+            ? 'ZERO_CONFIRMED'
+            : VoucherStatus::normalize($row['status'] ?? null, '');
+        $row['voucher_no'] = trim((string) ($row['voucher_no'] ?? '')) ?: '전표 없음(0원 개시)';
+        $row['debit_total'] = (float) ($row['debit_total'] ?? 0);
+        $row['credit_total'] = (float) ($row['credit_total'] ?? 0);
         $row['balance_difference'] = (float) ($row['debit_total'] ?? 0) - (float) ($row['credit_total'] ?? 0);
         return $row;
     }
@@ -183,5 +210,16 @@ class OpeningBalanceService
     {
         $value = trim((string) $value);
         return $value === '' ? null : $value;
+    }
+
+    private function isValidPeriod(string $startDate, string $endDate, int $year): bool
+    {
+        $start = \DateTimeImmutable::createFromFormat('!Y-m-d', $startDate);
+        $end = \DateTimeImmutable::createFromFormat('!Y-m-d', $endDate);
+        if (!$start || $start->format('Y-m-d') !== $startDate) return false;
+        if (!$end || $end->format('Y-m-d') !== $endDate) return false;
+        return (int) $start->format('Y') === $year
+            && (int) $end->format('Y') === $year
+            && $startDate <= $endDate;
     }
 }

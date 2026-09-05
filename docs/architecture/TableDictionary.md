@@ -433,9 +433,16 @@
 |---|---|---|
 | `ledger_opening_balances` | 회사 × 회계연도 1건 | 회계연도 시작 직전 기준일과 기초전표의 일대일 연결을 보존한다. 계정별 차변·대변 금액은 별도 중복 테이블을 만들지 않고 `ledger_vouchers`·`ledger_voucher_lines`를 원본으로 사용한다. |
 
-- `opening_date`는 선택 회계연도의 전년도 12월 31일로 서버가 확정한다.
+- `opening_date`는 기초잔액 적용일이자 회계기간 시작일이다. 최초 사업연도는 실제 사업개시일을 사용할 수 있고 이후 연도는 1월 1일을 기본으로 한다.
+- `period_end_date`는 해당 회계연도의 종료일이며 석향의 12월 결산 계약에서는 12월 31일을 사용한다.
+- 최초 사업개시 시 승계잔액이 없으면 `voucher_id` 없이 0원 개시 문서를 확정하고, 금액이 있는 연도만 기초전표를 생성한다.
 - 동일 회사·회계연도 및 동일 전표의 중복 연결은 UNIQUE로 차단한다.
 - 기초금액 전표의 계정별 보조원장은 `ledger_voucher_line_refs`를 재사용한다.
+- `ledger_assets`: 회사별 고정자산의 취득가액, 상각정책, 현재 배치, 회계계정과 취득 전표를 보유하는 자산대장 SSOT다.
+- `ledger_asset_assignments`: 프로젝트·팀·책임직원·장소의 적용일별 자산이동 이력이다.
+- `ledger_asset_depreciations`: 자산·귀속연월별 감가상각액, 누계액, 장부가액과 전기 완료 전표를 보유한다.
+- `ledger_asset_disposals`: 자산별 단일 처분 결과, 처분손익 및 전기 완료 전표를 보유한다.
+- 자산 취득·감가상각·처분은 기존 전표 테이블을 재사용하며 `POSTED/CLOSED` 전표만 장부와 재무제표에 반영한다. 별도 장부·재무제표 집계 테이블을 생성하지 않는다.
 - `20260904_06`은 `개인(REPLACE)` 권한 사용자가 기존 기초금액 WEB 권한을 가진 경우 신규 API 11개의 `auth_user_permissions` 연결을 보존한다. 신규 테이블은 만들지 않는다.
 
 - `system_statutory_standard_supersessions`: `system_statutory_standards` Revision 사이의 불변 선형 정정·대체 관계를 보존한다. `predecessor_revision_id`와 `successor_revision_id`는 각각 UNIQUE이며 원 Revision FK를 변경하지 않는다. 동일 Type·정책 구성요소·고용형태·업무 Scope·추가 Dimension만 연결할 수 있다.
@@ -450,3 +457,47 @@
 - `20260903_14_complete_database_korean_comments`: 캘린더 보호영역을 제외한 Application BASE TABLE 163개 중 문제 Table Comment 3건과 문제 Column Comment 476건을 한글 SSOT로 보완한다. 컬럼 추가·삭제·타입 변경과 DML은 없다.
 - 전체 변경 Manifest: `docs/projects/DatabaseCommentSsotManifest20260903.json`
 - 사업소득 Evidence 금액은 `raw_gross_payment_amount`, `raw_total_deduction_amount`, `raw_net_payment_amount`가 SSOT이며 세금계산서형 합계 컬럼은 사용하지 않는다.
+# 재고가액 관리
+
+- `ledger_inventory_balances`: 회사·회계연도별 재고관리 문서와 기말재고 확정 상태
+- `ledger_inventory_balance_items`: 사업구분·프로젝트·재고구분별 기초재고, 당기 증가·감소, 산출근거와 증거자료 참조
+### ledger_period_closures
+
+- 회사·회계연도별 현재 결산 마감상태를 보관하는 SSOT다.
+- 마감된 기간의 전표 생성·수정·삭제·상태변경·역분개는 Service에서 차단한다.
+
+### ledger_period_closure_histories
+
+- 결산 마감과 재개방의 Revision, 사유, 처리 당시 결산점검 Snapshot을 불변 이력으로 보관한다.
+- DB Trigger 없이 `PeriodClosureService`가 동일 트랜잭션에서 기록한다.
+### ledger_tax_financial_statements / ledger_tax_financial_statement_lines
+
+- 세무사·세무서에서 확정한 연간 재무제표의 Header와 외부 서식 행을 원본으로 저장한다.
+- 기업회계 전표·장부·재무제표를 수정하지 않으며, 선택적 `account_id` 대응으로 차이분석 Projection만 제공한다.
+### ledger_vehicles / ledger_vehicle_trip_logs
+
+- `ledger_vehicles`: 회사 비용으로 운행하는 법인차량과 개인차량의 차량 마스터다. 법인차량은 `ledger_assets`의 사용 중인 `VEHICLE` 자산과 연결하고 개인차량은 자산 연결을 갖지 않는다.
+- `ledger_vehicle_trip_logs`: 직접입력·엑셀·업무도메인·카택스·GPS·모바일 자료가 함께 누적되는 차량 운행기록 원장이다. 모든 회사 비용 운행을 보존하며 사용자·부서·직책은 운행 당시 Snapshot을 함께 저장한다.
+- 차량 소유구분이 세무사 제출대상 여부의 SSOT이며 법인차량만 제출대상이다.
+
+## 현장관리 영업관계 SSOT (2026-09-05)
+
+| Table | Grain | 책임 |
+|---|---|---|
+| `site_sales_organizations` | 독립 영업대상 업체 1건 | 거래처와 무관한 업체 기본정보·담당자·관계수준·다음 행동을 보존한다. |
+| `site_sales_people` | 독립 영업대상 인물 1명 | 소속 변경과 관계없이 유지되는 연락처·선호·주의사항과 담당자를 보존한다. |
+| `site_sales_affiliations` | 인물 × 업체 × 소속기간 | 부서·직책·의사결정 영향역할의 변경이력을 보존한다. |
+| `site_sales_business_cards` | 인물 × 명함 원본 | 명함 이미지·OCR 원문·수령일과 현재 명함 여부를 보존한다. |
+| `site_sales_opportunities` | 예상 공사 또는 수주 가능 건 1건 | 예상금액·영업단계·담당자 가능률·판단근거와 견적·프로젝트 연결을 보존한다. |
+| `site_sales_activities` | 전화·방문·미팅 등 접촉 1건 | 활동일시·장소·요청·약속·상대방 반응을 변경 없이 누적한다. |
+| `site_sales_followups` | 약속 또는 다음 행동 1건 | 담당 직원·처리기한·완료상태를 보존해 알림과 미처리 업무의 근거로 사용한다. |
+| `site_estimates` | 현장별 견적案件 1건 | 견적번호를 업무 기준으로, 견적일자를 시점 기준으로 공사 공통정보를 보존한다. |
+| `site_estimate_packages` | 한 현장 안의 개별 견적 1건 | 동일 현장의 공종·범위별 복수 견적을 구분한다. |
+| `site_estimate_versions` | 견적 차수 Snapshot 1건 | 최초·변경·제출·네고·최종 차수와 확정 잠금을 보존한다. |
+| `site_estimate_items` | 차수별 견적 아이템 1건 | 수량과 실행·제출 단가 및 산출근거를 보존한다. |
+| `site_estimate_item_costs` | 아이템 실행원가 구성 1건 | 자재·노무·외주·장비 등 실행단가 산출근거를 보존한다. |
+
+- 현장관리 소유 업무 테이블은 `site_*` 접두사를 사용한다.
+- 영업업체와 인물은 `system_clients`에 종속하지 않으며 수주 전후에도 독립 이력을 유지한다.
+- 견적과 프로젝트는 선택적 연결대상일 뿐 영업관계 원본을 대체하지 않는다.
+- 시스템 분석점수는 저장 원본이 아니라 담당자 가능률·최근 활동·후속조치·예상금액을 Service에서 설명 가능한 Projection으로 계산한다.
